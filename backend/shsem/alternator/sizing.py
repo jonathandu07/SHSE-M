@@ -1,1 +1,2 @@
-﻿"# dimensionnement alternateur"
+﻿'''Dimensionnement alternateur'''
+

@@ -1,0 +1,2 @@
+﻿'''Modèle de régénérateur'''
+

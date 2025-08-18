@@ -1,1 +1,0 @@
-﻿"# piston, déplaceur, bielle, vilebrequin"

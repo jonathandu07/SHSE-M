@@ -1,1 +1,0 @@
-﻿"# paramètres système & presets"
