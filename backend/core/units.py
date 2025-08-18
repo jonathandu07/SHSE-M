@@ -1,2 +1,1 @@
-# backend\core\units.py
-# Gestion stricte des unités (SI)
+﻿"# gestion des unités SI"

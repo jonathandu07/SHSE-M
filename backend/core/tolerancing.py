@@ -1,2 +1,1 @@
-# backend\core\tolerancing.py
-# Ajustements ISO, jeux, rugosités
+﻿"# ajustements ISO, rugosités"

@@ -1,2 +1,1 @@
-# backend\core\geometry.py
-# Paramétrisation/primitives géométriques
+﻿"# primitives géométriques"
