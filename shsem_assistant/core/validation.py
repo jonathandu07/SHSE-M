@@ -1,0 +1,1 @@
+﻿"# vérifs cohérence dimensionnelle"
