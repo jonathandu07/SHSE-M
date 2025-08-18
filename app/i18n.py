@@ -1,1 +1,0 @@
-﻿"# libellés FR/EN"

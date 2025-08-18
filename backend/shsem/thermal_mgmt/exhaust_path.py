@@ -1,2 +1,0 @@
-﻿'''Chemin d'échappement'''
-

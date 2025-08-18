@@ -1,1 +1,0 @@
-﻿"# schémas Pydantic"

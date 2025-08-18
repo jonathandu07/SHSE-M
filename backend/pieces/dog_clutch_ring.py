@@ -1,2 +1,0 @@
-﻿'''Couronne crabot'''
-

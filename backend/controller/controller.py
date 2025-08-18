@@ -1,2 +1,0 @@
-﻿'''Contrôleur temps réel'''
-

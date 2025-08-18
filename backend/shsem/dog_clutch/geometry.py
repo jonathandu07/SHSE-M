@@ -1,2 +1,0 @@
-﻿'''Géométrie crabots'''
-

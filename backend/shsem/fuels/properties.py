@@ -1,2 +1,0 @@
-﻿'''Propriétés carburants'''
-

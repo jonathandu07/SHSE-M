@@ -1,2 +1,0 @@
-﻿'''Cartes de performance'''
-

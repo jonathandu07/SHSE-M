@@ -1,2 +1,0 @@
-﻿'''Modèle multi-zones'''
-

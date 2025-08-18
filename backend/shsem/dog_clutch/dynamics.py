@@ -1,2 +1,0 @@
-﻿'''Dynamique d'engagement'''
-

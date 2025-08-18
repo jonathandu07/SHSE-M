@@ -1,2 +1,0 @@
-﻿'''Générateur PDF'''
-

@@ -1,2 +1,0 @@
-﻿'''Boucles de refroidissement'''
-

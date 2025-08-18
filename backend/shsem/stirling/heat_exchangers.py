@@ -1,2 +1,0 @@
-﻿'''Échangeurs de chaleur'''
-

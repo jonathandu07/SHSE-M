@@ -1,2 +1,0 @@
-﻿'''Volant d'inertie'''
-

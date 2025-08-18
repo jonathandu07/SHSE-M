@@ -1,2 +1,0 @@
-﻿'''Config système & presets'''
-

@@ -1,2 +1,0 @@
-﻿'''Pressurisation Stirling'''
-
