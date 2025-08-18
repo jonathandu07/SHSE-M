@@ -2,10 +2,13 @@
 # main.py
 """
 CLI unifiée pour le projet moteur Stirling.
-Sous-commandes disponibles :
-  - optimise        : optimisation globale (backend/modules/optimisation.py)
-  - cylindre        : dimensionnement B, S via BMEP (backend/pieces/cylindre.py ou modules)
-  - deplaceur       : pré-dimensionnement déplaceur
+
+Sous-commandes principales :
+  - optimise        : optimisation globale
+  - cylindre        : dimensionnement B, S via BMEP (scalaire)
+  - batch-cylindre  : vectorisation CSV pour cylindres
+  - deplaceur       : pré-dimensionnement déplaceur (scalaire)
+  - batch-deplaceur : vectorisation CSV pour déplaceurs
   - piston          : pré-dimensionnement piston
   - paliers         : pré-dimensionnement paliers
   - vilebrequin     : pré-dimensionnement vilebrequin
@@ -14,11 +17,6 @@ Sous-commandes disponibles :
   - visserie        : choix visserie
   - materiaux       : sélection/fiche matériau
   - gaz             : fiche gaz
-
-Exemples :
-  python main.py optimise --power 3000 --rpm-min 500 --rpm-max 1200
-  python main.py cylindre --power 3000 --rpm 1500 --pme 200000
-  python main.py deplaceur --B 0.08 --S 0.08 --rpm 600
 """
 
 from __future__ import annotations
@@ -28,42 +26,59 @@ import json
 from dataclasses import asdict, is_dataclass
 
 # ========= Imports projet =========
-# (si un module manque, un message clair sera affiché)
 def _safe_import():
     try:
+        # Optimisation & catalogues
         from backend.modules.optimisation import OptiInputs, optimise
-        from backend.pieces.cylindre_core import SizingInputs as CylIn, size_stirling_cylinders as size_cyl
-        from backend.pieces.deplaceur import DeplaceurInputs, size_deplaceur
+        from backend.modules.meteriaux import MATERIALS, choose_material_for_part, describe_material, yield_at_T
+        from backend.modules.gaz import get_gaz
+
+        # Cylindre (modules)
+        from backend.modules.cylindre_core import SizingInputs as CylIn, size_stirling_cylinders as size_cyl
+        from backend.modules.cylindre_batch_io import from_csv as cyl_from_csv, run_batch as cyl_run_batch, to_csv as cyl_to_csv
+
+        # Déplaceur (modules)
+        from backend.modules.deplaceur_core import DeplaceurInputs as DepIn, size_deplaceur as size_dep
+        from backend.modules.deplaceur_batch_io import from_csv as dep_from_csv, run_batch as dep_run_batch, to_csv as dep_to_csv
+
+        # Pièces
         from backend.pieces.piston import PistonInputs, size_piston
         from backend.pieces.paliers import BearingInputs, size_bearings
         from backend.pieces.vilebrequin import CrankInputs, size_crankshaft
         from backend.pieces.volant_inertie import FlywheelInputs, size_flywheel
         from backend.pieces.chemise_de_cylindre import ChemiseInputs, size_chemise
         from backend.pieces.visserie import ScrewSelectionInputs, select_screws
-        from backend.modules.meteriaux import MATERIALS, choose_material_for_part, describe_material, yield_at_T
-        from backend.modules.gaz import get_gaz
+
         return {
+            # Optimisation & catalogues
             "OptiInputs": OptiInputs, "optimise": optimise,
+            "MATERIALS": MATERIALS, "choose_material_for_part": choose_material_for_part,
+            "describe_material": describe_material, "yield_at_T": yield_at_T,
+            "get_gaz": get_gaz,
+
+            # Cylindre
             "CylIn": CylIn, "size_cyl": size_cyl,
-            "DeplaceurInputs": DeplaceurInputs, "size_deplaceur": size_deplaceur,
+            "cyl_from_csv": cyl_from_csv, "cyl_run_batch": cyl_run_batch, "cyl_to_csv": cyl_to_csv,
+
+            # Déplaceur
+            "DepIn": DepIn, "size_dep": size_dep,
+            "dep_from_csv": dep_from_csv, "dep_run_batch": dep_run_batch, "dep_to_csv": dep_to_csv,
+
+            # Pièces
             "PistonInputs": PistonInputs, "size_piston": size_piston,
             "BearingInputs": BearingInputs, "size_bearings": size_bearings,
             "CrankInputs": CrankInputs, "size_crankshaft": size_crankshaft,
             "FlywheelInputs": FlywheelInputs, "size_flywheel": size_flywheel,
             "ChemiseInputs": ChemiseInputs, "size_chemise": size_chemise,
             "ScrewSelectionInputs": ScrewSelectionInputs, "select_screws": select_screws,
-            "MATERIALS": MATERIALS, "choose_material_for_part": choose_material_for_part,
-            "describe_material": describe_material, "yield_at_T": yield_at_T,
-            "get_gaz": get_gaz,
         }
     except Exception as e:
-        print("[ERREUR IMPORT] Assure-toi que l’arborescence et les modules existent.\n", file=sys.stderr)
+        print("[ERREUR IMPORT] Vérifie l’arborescence et les modules listés dans ton dépôt.", file=sys.stderr)
         raise
 
 M = _safe_import()
 
 # ========= Helpers d’affichage =========
-
 def _to_dict(obj):
     if is_dataclass(obj):
         return asdict(obj)
@@ -83,8 +98,7 @@ def _maybe_print_json(flag_json: bool, dataclass_obj):
         return True
     return False
 
-# ========= Sous-commandes =========
-
+# ========= Commandes =========
 def cmd_optimise(args):
     cfg = M["OptiInputs"](
         power_W=args.power,
@@ -114,8 +128,8 @@ def cmd_optimise(args):
             for k in ("score","rpm","p_me_Pa","S_over_B","n_cyl","B_m","S_m","Up_m_s","p_peak_Pa"):
                 if k in b:
                     print(f"{k:>14} : {b[k]}")
-            print("volant_J (kg·m²)   :", b["volant"]["J"])
-            print("visserie           :", b["visserie"]["choice"])
+            print("Volant J (kg·m²) :", b["volant"]["J"])
+            print("Visserie         :", b["visserie"]["choice"])
             print("\n-- TOP5 --")
             for i, s in enumerate(res.top5, 1):
                 print(f"{i:02d}. score={s['score']:.3f} | n_cyl={s['n_cyl']} | rpm={s['rpm']:.0f} | B={s['B_m']*1000:.1f} mm")
@@ -141,8 +155,17 @@ def cmd_cylindre(args):
     else:
         print("ÉCHEC :", res.message)
 
+def cmd_batch_cylindre(args):
+    df = M["cyl_from_csv"](args.input)
+    out = M["cyl_run_batch"](df)
+    if args.output:
+        M["cyl_to_csv"](out, args.output)
+        print(f"[OK] Résultats écrits : {args.output}")
+    else:
+        print(out.head(20).to_string(index=False))
+
 def cmd_deplaceur(args):
-    inp = M["DeplaceurInputs"](
+    inp = M["DepIn"](
         bore_m=args.B, stroke_m=args.S, rpm=args.rpm,
         k_phase=args.k_phase, dome_extra_clearance_m=args.marge,
         radial_clearance_cold_m=None if args.cr_cold_auto else args.cr_cold,
@@ -156,18 +179,27 @@ def cmd_deplaceur(args):
         rod_diameter_m=args.rod_d, young_modulus_Pa=args.E,
         gas_dynamic_dp_Pa=args.dp_dyn
     )
-    res = M["size_deplaceur"](inp)
+    res = M["size_dep"](inp)
     if _maybe_print_json(args.json, res): return
     print("=== DÉPLACEUR ===")
     if res.ok:
-        print(f"Ø froid (mm)  : {res.disp_outer_diameter_cold_m*1000:.2f}")
-        print(f"Ø chaud (mm)  : {res.disp_outer_diameter_hot_m*1000:.2f}")
-        print(f"L utile (mm)  : {res.disp_length_m*1000:.1f}")
-        print(f"Jeu à chaud (µm): {res.radial_clearance_hot_m*1e6:.2f}")
-        print(f"Masse (g)     : {res.mass_total_kg*1e3:.1f}")
+        print(f"Ø froid (mm)      : {res.disp_outer_diameter_cold_m*1000:.2f}")
+        print(f"Ø chaud (mm)      : {res.disp_outer_diameter_hot_m*1000:.2f}")
+        print(f"L utile (mm)      : {res.disp_length_m*1000:.1f}")
+        print(f"Jeu à chaud (µm)  : {res.radial_clearance_hot_m*1e6:.2f}")
+        print(f"Masse (g)         : {res.mass_total_kg*1e3:.1f}")
         print(res.message)
     else:
         print("ÉCHEC :", res.message)
+
+def cmd_batch_deplaceur(args):
+    df = M["dep_from_csv"](args.input)
+    out = M["dep_run_batch"](df)
+    if args.output:
+        M["dep_to_csv"](out, args.output)
+        print(f"[OK] Résultats écrits : {args.output}")
+    else:
+        print(out.head(20).to_string(index=False))
 
 def cmd_piston(args):
     inp = M["PistonInputs"](
@@ -283,7 +315,6 @@ def cmd_materiaux(args):
     if args.key:
         print(M["describe_material"](args.key))
         return
-    # sélection par pièce
     mat = M["choose_material_for_part"](args.part, args.Tmax, prefer_light=args.light, require_bearing=args.bearing)
     print(M["describe_material"](mat.key))
 
@@ -295,15 +326,14 @@ def cmd_gaz(args):
         print(f"{g.nom} ({g.symbole}) — M={g.M} g/mol, γ={g.gamma}, Cp={g.Cp} J/kg/K, k={g.k} W/m/K")
 
 # ========= Parser =========
-
 def build_parser():
-    p = argparse.ArgumentParser(description="CLI Stirling — dimensionnements & optimisation")
+    p = argparse.ArgumentParser(description="CLI Stirling — dimensionnements, batch & optimisation")
     sp = p.add_subparsers(dest="cmd", required=True)
 
     # optimise
     po = sp.add_parser("optimise", help="Optimisation globale")
     po.add_argument("--power", type=float, required=True, help="Puissance cible (W)")
-    po.add_argument("--eta", type=float, default=0.85, help="Rendement méca")
+    po.add_argument("--eta", type=float, default=0.85)
     po.add_argument("--rpm-min", type=float, default=400)
     po.add_argument("--rpm-max", type=float, default=1500)
     po.add_argument("--pme-min", type=float, default=120e3)
@@ -313,8 +343,8 @@ def build_parser():
     po.add_argument("--ncyl-min", type=int, default=1)
     po.add_argument("--ncyl-max", type=int, default=8)
     po.add_argument("--gaz", nargs="+", default=["air","helium","hydrogene","azote"])
-    po.add_argument("--bmax", type=float, default=0.10, help="Alésage max (m)")
-    po.add_argument("--Up-max", type=float, default=2.2, help="Vitesse piston max (m/s)")
+    po.add_argument("--bmax", type=float, default=0.10)
+    po.add_argument("--Up-max", type=float, default=2.2)
     po.add_argument("--alpha-ripple", type=float, default=0.25)
     po.add_argument("--flywheel-r", type=float, default=0.18)
     po.add_argument("--rim-vmax", type=float, default=80.0)
@@ -323,7 +353,7 @@ def build_parser():
     po.add_argument("--seed", type=int, default=123)
     _add_common_bool(po)
 
-    # cylindre
+    # cylindre scalaire
     pcyl = sp.add_parser("cylindre", help="Dimensionnement cylindre (B,S)")
     pcyl.add_argument("--power", type=float, required=True)
     pcyl.add_argument("--rpm", type=float, required=True)
@@ -340,7 +370,12 @@ def build_parser():
     pcyl.add_argument("--min-rpm", type=float, default=300.0)
     _add_common_bool(pcyl)
 
-    # deplaceur
+    # cylindre batch
+    pbc = sp.add_parser("batch-cylindre", help="Vectorisation CSV pour cylindres")
+    pbc.add_argument("--input", "-i", required=True, help="CSV d’entrée")
+    pbc.add_argument("--output", "-o", required=False, help="CSV de sortie")
+
+    # déplaceur scalaire
     pd = sp.add_parser("deplaceur", help="Pré-dimensionnement déplaceur")
     pd.add_argument("--B", type=float, required=True)
     pd.add_argument("--S", type=float, required=True)
@@ -364,6 +399,11 @@ def build_parser():
     pd.add_argument("--E", type=float, default=190e9)
     pd.add_argument("--dp-dyn", type=float, default=2000.0)
     _add_common_bool(pd)
+
+    # déplaceur batch
+    pbd = sp.add_parser("batch-deplaceur", help="Vectorisation CSV pour déplaceurs")
+    pbd.add_argument("--input", "-i", required=True, help="CSV d’entrée")
+    pbd.add_argument("--output", "-o", required=False, help="CSV de sortie")
 
     # piston
     pp = sp.add_parser("piston", help="Pré-dimensionnement piston")
@@ -461,11 +501,10 @@ def build_parser():
     mt = sp.add_parser("materiaux", help="Matériaux (liste, fiche, ou sélection par pièce)")
     mt.add_argument("--list", action="store_true", help="Lister tous les matériaux")
     mt.add_argument("--key", type=str, help="Afficher la fiche d’un matériau par clé")
-    mt.add_argument("--part", type=str, default="piston", help="Profil de pièce (ex: piston, heater_head, bearing_journal...)")
+    mt.add_argument("--part", type=str, default="piston", help="Profil (piston, heater_head, bearing_journal...)")
     mt.add_argument("--Tmax", type=float, default=180.0)
     mt.add_argument("--light", action="store_true", help="Préférer léger")
     mt.add_argument("--bearing", action="store_true", help="Exiger p/PV (paliers)")
-    # pas de --json ici ; output simple
 
     # gaz
     gz = sp.add_parser("gaz", help="Gaz (fiche)")
@@ -475,26 +514,26 @@ def build_parser():
     return p
 
 # ========= Entrée =========
-
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    cmd = args.cmd
-    if cmd == "optimise":    cmd_optimise(args)
-    elif cmd == "cylindre":  cmd_cylindre(args)
-    elif cmd == "deplaceur": cmd_deplaceur(args)
-    elif cmd == "piston":    cmd_piston(args)
-    elif cmd == "paliers":   cmd_paliers(args)
-    elif cmd == "vilebrequin": cmd_vilebrequin(args)
-    elif cmd == "volant":    cmd_volant(args)
-    elif cmd == "chemise":   cmd_chemise(args)
-    elif cmd == "visserie":  cmd_visserie(args)
-    elif cmd == "materiaux": cmd_materiaux(args)
-    elif cmd == "gaz":       cmd_gaz(args)
-    else:
-        parser.print_help()
-        return 2
+    dispatch = {
+        "optimise": cmd_optimise,
+        "cylindre": cmd_cylindre,
+        "batch-cylindre": cmd_batch_cylindre,
+        "deplaceur": cmd_deplaceur,
+        "batch-deplaceur": cmd_batch_deplaceur,
+        "piston": cmd_piston,
+        "paliers": cmd_paliers,
+        "vilebrequin": cmd_vilebrequin,
+        "volant": cmd_volant,
+        "chemise": cmd_chemise,
+        "visserie": cmd_visserie,
+        "materiaux": cmd_materiaux,
+        "gaz": cmd_gaz,
+    }
+    dispatch[args.cmd](args)
     return 0
 
 if __name__ == "__main__":
