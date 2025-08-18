@@ -1,3 +1,70 @@
 ﻿
-shsem_assistant
+SHSE-M
 
+ app
+ __init__.py  [0.02 KB]
+ i18n.py  [0.02 KB]
+ main.py  [0.13 KB]
+ routing.py  [0.03 KB]
+ theme.py  [0.03 KB]
+ backend
+ core
+ __init__.py  [0.02 KB]
+ data_models.py  [0.03 KB]
+ fatigue_strength.py  [0.02 KB]
+ fluids.py  [0.03 KB]
+ geometry.py  [0.03 KB]
+ io.py  [0.04 KB]
+ logging_cfg.py  [0.02 KB]
+ materials.py  [0.02 KB]
+ numerics.py  [0.03 KB]
+ thermal_network.py  [0.03 KB]
+ tolerancing.py  [0.04 KB]
+ units.py  [0.03 KB]
+ validation.py  [0.04 KB]
+ modules
+ pieces
+ shsem
+ alternator
+ __init__.py  [0.02 KB]
+ electromagnetic_models.py  [0.04 KB]
+ rectifier_inverter.py  [0.03 KB]
+ sizing.py  [0.04 KB]
+ compressed_air
+ __init__.py  [0.02 KB]
+ dog_clutch
+ __init__.py  [0.02 KB]
+ fuels
+ __init__.py  [0.02 KB]
+ mission
+ __init__.py  [0.02 KB]
+ stirling
+ __init__.py  [0.02 KB]
+ chambers.py  [0.03 KB]
+ kinematics.py  [0.05 KB]
+ losses.py  [0.02 KB]
+ sizing.py  [0.03 KB]
+ thermal_mgmt
+ __init__.py  [0.02 KB]
+ __init__.py  [0.02 KB]
+ config.py  [0.04 KB]
+ energy_flow.py  [0.02 KB]
+ state_machine.py  [0.03 KB]
+ frontend
+ gui_pages
+ widgets
+ __init__.py  [0.03 KB]
+ __init__.py  [0.02 KB]
+ page_alternator.py  [0.02 KB]
+ page_compressed_air.py  [0.03 KB]
+ page_controller.py  [0.02 KB]
+ page_dog_clutch.py  [0.03 KB]
+ page_materials_db.py  [0.02 KB]
+ page_mission_sim.py  [0.03 KB]
+ page_stirling.py  [0.03 KB]
+ page_thermal.py  [0.02 KB]
+ page_validation.py  [0.03 KB]
+ integration
+ __init__.py  [0.02 KB]
+ .gitattributes  [0.06 KB]
+ README.md  [0.15 KB]
