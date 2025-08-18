@@ -1,141 +1,163 @@
 # -*- coding: utf-8 -*-
-# backend/modules/deplaceur_vector.py
+# backend/modules/cylindre_vector.py
 """
-Couche NumPy vectorisée — Déplaceur Stirling
-
-message_id:
-  0 = OK
-  1 = Jeu à chaud insuffisant
-  2 = Flambage tige (Euler)
-  3 = Fuite annulaire (indice > seuil)
+Couche vectorisée NumPy pour dimensionner des lots de cylindres Stirling.
+- Entrées: scalaires ou arrays broadcastables (power_W, rpm, etc.)
+- Sorties: dictionnaire de ndarrays alignés.
 """
 
 from __future__ import annotations
 import numpy as np
+from typing import Dict
 
 def _ensure_array(x):
-    if isinstance(x, np.ndarray):
-        return x
-    return np.asarray(x)
+    return np.asarray(x) if np.ndim(x) else np.asarray([x]) if np.isscalar(x) else np.asarray(x)
 
-def _broadcast(*arrs):
-    return np.broadcast_arrays(*[ _ensure_array(a) for a in arrs ])
+def solve_bore_stroke_from_Vs_array(Vs, S_over_B):
+    # B = [4*Vs / (pi * S_over_B)]^(1/3), S = S_over_B * B
+    B = np.power(4.0 * Vs / (np.pi * S_over_B), 1.0/3.0)
+    S = S_over_B * B
+    return B, S
 
-def _recommend_cold_clearance(bore_m, alpha, dT_hot, min_hot_clearance_m, manuf_tol_m):
-    # Δrayon_chaud = 0.5 * α * D * ΔT
-    delta_radius_hot = 0.5 * alpha * bore_m * dT_hot
-    clearance_cold = min_hot_clearance_m + delta_radius_hot + manuf_tol_m
-    clearance_cold = np.maximum(clearance_cold, 0.08e-3)
-    clearance_cold = np.minimum(clearance_cold, 0.25e-3)
-    return clearance_cold
+def mean_piston_speed_array(S, rpm):
+    return 2.0 * S * rpm / 60.0
 
-def size_deplaceur_vector(
-    bore_m, stroke_m,
-    k_phase=1.0, dome_extra_clearance_m=0.02,
-    radial_clearance_cold_m=None,
-    min_hot_clearance_m=0.08e-3,
-    alpha_material_1K=12e-6, deltaT_hotK=500.0, manuf_tol_radial_m=0.03e-3,
-    shell_thickness_m=0.5e-3, cap_thickness_m=0.6e-3, material_density=8000.0,
-    use_hollow_core=True, core_density=50.0,
-    rod_length_m=None, rod_diameter_m=4e-3, young_modulus_Pa=200e9,
-    rpm=600.0, gas_dynamic_dp_Pa=2000.0,
-    acceptable_leak_index=1.5e-4
-) -> dict[str, np.ndarray]:
+def size_stirling_cylinders_vector(
+    power_W, rpm, eta_mech,
+    p_me=200e3, use_pmean_model=False, p_mean=1.0e6, k_me=0.20,
+    upiston_max=2.0, bore_max=0.10, stroke_to_bore=1.0,
+    n_cyl_max=12, allow_rpm_reduce=True, min_rpm=300.0
+) -> Dict[str, np.ndarray]:
+    """
+    Retourne un dict d'arrays: ok, message_id, n_cyl, rpm, bore_m, stroke_m, Vs_cyl_m3, Vs_total_m3, p_me_used_Pa.
+    message_id: 0=OK, 1=Param invalides, 2=Vs<=0, 3=aucune solution
+    """
 
-    # ---- Broadcast de toutes les entrées utiles ----
-    (bore_m, stroke_m, k_phase, dome_extra_clearance_m,
-     min_hot_clearance_m, alpha_material_1K, deltaT_hotK, manuf_tol_radial_m,
-     shell_thickness_m, cap_thickness_m, material_density, core_density,
-     use_hollow_core, rod_diameter_m, young_modulus_Pa, rpm,
-     gas_dynamic_dp_Pa, acceptable_leak_index) = _broadcast(
-        bore_m, stroke_m, k_phase, dome_extra_clearance_m,
-        min_hot_clearance_m, alpha_material_1K, deltaT_hotK, manuf_tol_radial_m,
-        shell_thickness_m, cap_thickness_m, material_density, core_density,
-        use_hollow_core, rod_diameter_m, young_modulus_Pa, rpm,
-        gas_dynamic_dp_Pa, acceptable_leak_index
-    )
+    # ----- Broadcast des entrées -----
+    power_W  = _ensure_array(power_W)
+    rpm      = _ensure_array(rpm)
+    eta_mech = _ensure_array(eta_mech)
 
-    # radial_clearance_cold_m et rod_length_m peuvent être None -> auto
-    if radial_clearance_cold_m is None:
-        cr_cold = _recommend_cold_clearance(bore_m, alpha_material_1K, deltaT_hotK,
-                                            min_hot_clearance_m, manuf_tol_radial_m)
-    else:
-        cr_cold, = _broadcast(radial_clearance_cold_m)
+    # Les autres peuvent être scalaires (broadcast implicite)
+    p_me_used = (k_me * p_mean) if use_pmean_model else p_me
 
-    # ---- Géométrie principale ----
-    disp_stroke = k_phase * stroke_m
-    L = disp_stroke + 2.0 * dome_extra_clearance_m
+    # Alignement des shapes par broadcasting
+    power_W, rpm, eta_mech, p_me_used = np.broadcast_arrays(power_W, rpm, eta_mech, p_me_used)
 
-    D_cold = np.maximum(bore_m - 2.0 * cr_cold, 1e-9)
-    deltaD_hot = alpha_material_1K * D_cold * deltaT_hotK
-    D_hot = D_cold + deltaD_hot
-    cr_hot = np.maximum(0.5 * (bore_m - D_hot), 0.0)
+    # ----- Calcul de base -----
+    rps = rpm / 60.0
+    denom = p_me_used * rps * eta_mech
 
-    # ---- Vérif jeu à chaud ----
-    ok_hot = cr_hot >= min_hot_clearance_m
+    # Messages & sorties init
+    shape = power_W.shape
+    msg = np.zeros(shape, dtype=np.int8)  # 0 ok, 1 invalid, 2 Vs<=0, 3 no-solution
+    ok = np.zeros(shape, dtype=bool)
+    out_n_cyl = np.full(shape, fill_value=-1, dtype=np.int16)
+    out_rpm = np.full(shape, fill_value=np.nan, dtype=float)
+    out_B = np.full(shape, fill_value=np.nan, dtype=float)
+    out_S = np.full(shape, fill_value=np.nan, dtype=float)
+    out_Vs_cyl = np.full(shape, fill_value=np.nan, dtype=float)
+    out_Vs_tot = np.full(shape, fill_value=np.nan, dtype=float)
+    out_pme = p_me_used.copy()
 
-    # ---- Masses (coque + 2 fonds + cœur optionnel) ----
-    # Coque: V = π * D_o * t * L
-    V_shell = np.pi * D_cold * shell_thickness_m * L
-    m_shell = V_shell * material_density
-    # Fonds: 2 * (π (D/2)^2 t)
-    A_disc = np.pi * (0.5 * D_cold) ** 2
-    V_caps = 2.0 * A_disc * cap_thickness_m
-    m_caps = V_caps * material_density
-    # Cœur
-    D_i = np.maximum(D_cold - 2.0 * shell_thickness_m, 0.0)
-    V_core = np.pi * (0.5 * D_i) ** 2 * L
-    use_core_mask = (use_hollow_core.astype(bool)) & (D_i > 0)
-    m_core = np.where(use_core_mask, V_core * core_density, 0.0)
-    m_total = m_shell + m_caps + m_core
+    invalid = denom <= 0
+    msg[invalid] = 1
+    valid_mask = ~invalid
 
-    # ---- Vitesse max (sinus) ----
-    omega = 2.0 * np.pi * (rpm / 60.0)
-    vmax = omega * (disp_stroke / 2.0)
+    Vs_total = np.empty(shape, dtype=float)
+    Vs_total[valid_mask] = power_W[valid_mask] / denom[valid_mask]
+    nonpos = valid_mask & (Vs_total <= 0)
+    msg[nonpos] = 2
+    valid_mask &= ~nonpos
 
-    # ---- Effort axial ΔP ----
-    area = np.pi * (0.5 * D_cold) ** 2
-    axial_force = area * gas_dynamic_dp_Pa
+    # Rien de valide ?
+    if not np.any(valid_mask):
+        return {
+            "ok": ok, "message_id": msg, "n_cyl": out_n_cyl, "rpm": out_rpm,
+            "bore_m": out_B, "stroke_m": out_S, "Vs_cyl_m3": out_Vs_cyl,
+            "Vs_total_m3": out_Vs_tot, "p_me_used_Pa": out_pme
+        }
 
-    # ---- Longueur de tige ----
-    if rod_length_m is None:
-        rod_L = disp_stroke + 2.0 * dome_extra_clearance_m + 0.03
-    else:
-        rod_L, = _broadcast(rod_length_m)
+    # ----- Essai au régime nominal -----
+    n_range = np.arange(1, n_cyl_max + 1, dtype=np.int16)  # (Nn,)
+    Vs_tot_stack = np.expand_dims(Vs_total, axis=-1)  # (...,1)
+    Vs_cyl = Vs_tot_stack / n_range  # (..., Nn)
 
-    # ---- Flambage Euler (encastrement-libre ~ π²/4) ----
-    I = np.pi * (rod_diameter_m ** 4) / 64.0
-    Pcr = (np.pi ** 2) * young_modulus_Pa * I / (4.0 * (rod_L ** 2))
-    rod_ok = axial_force < 0.3 * Pcr  # marge
+    B, S = solve_bore_stroke_from_Vs_array(Vs_cyl, stroke_to_bore)
+    Up = mean_piston_speed_array(S, np.expand_dims(rpm, -1))
 
-    # ---- Fuite annulaire (indice heuristique) ----
-    perimeter = np.pi * bore_m
-    leak_index = (perimeter * (cr_hot ** 3)) / np.maximum(L, 1e-9)
-    leak_ok = leak_index <= acceptable_leak_index
+    ok_B  = (B <= bore_max)
+    ok_Up = (Up <= upiston_max)
+    feasible = ok_B & ok_Up & np.isfinite(B) & np.isfinite(S)
 
-    # ---- Agrégation des verdicts ----
-    ok = ok_hot & rod_ok & leak_ok
-    msg = np.full(ok.shape, 0, dtype=np.int8)
-    msg[~ok_hot] = 1
-    msg[ ok_hot & (~rod_ok)] = 2
-    msg[ ok_hot & rod_ok & (~leak_ok)] = 3
+    any_feasible = feasible.any(axis=-1)  # (...)
+    idx_min = np.where(any_feasible, feasible.argmax(axis=-1), -1)  # first True -> argmax trick
+    nominal_pass = valid_mask & any_feasible
+
+    sel = nominal_pass
+    out_n_cyl[sel] = n_range[idx_min[sel]]
+    out_B[sel] = B[sel, idx_min[sel]]
+    out_S[sel] = S[sel, idx_min[sel]]
+    out_Vs_cyl[sel] = Vs_cyl[sel, idx_min[sel]]
+    out_Vs_tot[sel] = Vs_total[sel]
+    out_rpm[sel] = rpm[sel]
+    ok[sel] = True
+    msg[sel] = 0
+
+    # ----- Option : réduction de régime -----
+    reduce_needed = valid_mask & (~nominal_pass) & allow_rpm_reduce
+    if np.any(reduce_needed):
+        rpm_cand = np.stack([
+            np.maximum(min_rpm, (rpm * f).astype(int))
+            for f in (0.8, 0.6, 0.5, 0.4, 0.33, 0.25)
+        ], axis=-1)  # (..., Nr)
+
+        Up_red = mean_piston_speed_array(
+            np.expand_dims(S, -1),   # (..., Nn, 1)
+            np.expand_dims(rpm_cand, -2)  # (..., 1, Nr)
+        )
+        ok_Up_red = (Up_red <= upiston_max)
+        feasible_red = np.expand_dims(ok_B, -1) & ok_Up_red & np.isfinite(Up_red)
+
+        any_feasible_red = feasible_red.any(axis=(-2, -1))
+        red_pass = reduce_needed & any_feasible_red
+        if np.any(red_pass):
+            Nn = n_range.size
+            Nr = rpm_cand.shape[-1]
+            scores = np.broadcast_to(
+                np.arange(Nn)[:, None] * (Nr + 1) + np.arange(Nr)[None, :],
+                feasible_red.shape
+            ).astype(float)
+            scores[~feasible_red] = np.inf
+
+            scores_2d = scores.reshape(scores.shape[:-2] + (Nn * Nr,))
+            best_flat = np.nanargmin(scores_2d, axis=-1)
+            best_n = (best_flat // Nr).astype(int)
+            best_r = (best_flat % Nr).astype(int)
+
+            sel2 = red_pass
+            out_n_cyl[sel2] = n_range[best_n[sel2]]
+            out_B[sel2] = B[sel2, best_n[sel2]]
+            out_S[sel2] = S[sel2, best_n[sel2]]
+            out_Vs_cyl[sel2] = Vs_cyl[sel2, best_n[sel2]]
+            out_Vs_tot[sel2] = Vs_total[sel2]
+            out_rpm[sel2] = rpm_cand[sel2, best_r[sel2]]
+            ok[sel2] = True
+            msg[sel2] = 0
+
+    remaining = valid_mask & (~ok)
+    msg[remaining] = 3
 
     return {
         "ok": ok,
         "message_id": msg,
-        "disp_outer_diameter_cold_m": D_cold,
-        "disp_outer_diameter_hot_m": D_hot,
-        "disp_length_m": L,
-        "disp_stroke_m": disp_stroke,
-        "radial_clearance_cold_m": cr_cold,
-        "radial_clearance_hot_m": cr_hot,
-        "mass_shell_kg": m_shell,
-        "mass_caps_kg": m_caps,
-        "mass_core_kg": m_core,
-        "mass_total_kg": m_total,
-        "vmax_m_s": vmax,
-        "axial_force_PaN": axial_force,
-        "rod_euler_ok": rod_ok,
-        "leak_index": leak_index,
-        "leak_ok": leak_ok,
+        "n_cyl": out_n_cyl,
+        "rpm": out_rpm,
+        "bore_m": out_B,
+        "stroke_m": out_S,
+        "Vs_cyl_m3": out_Vs_cyl,
+        "Vs_total_m3": out_Vs_tot,
+        "p_me_used_Pa": out_pme
     }
+
+__all__ = ["size_stirling_cylinders_vector", "solve_bore_stroke_from_Vs_array", "mean_piston_speed_array"]

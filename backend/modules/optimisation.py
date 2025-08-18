@@ -18,7 +18,7 @@ import random, math
 
 # ==== Imports des sous-modules (assumés présents dans ton repo) ====
 # En cas d'absence, une ImportError te dira quoi ajouter.
-from backend.pieces.deplaceur import DeplaceurInputs, size_deplaceur
+from backend.modules.deplaceur_core import DeplaceurInputs, size_deplaceur
 from backend.pieces.piston import PistonInputs, size_piston
 from backend.pieces.paliers import BearingInputs, size_bearings
 from backend.pieces.vilebrequin import CrankInputs, size_crankshaft
