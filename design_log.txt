@@ -111,3 +111,60 @@
 2026-01-01 22:18:36,815 - [INFO] - FreePistonAgent - Est. Thermal Leak (Conduction): 440.8 W
 2026-01-01 22:18:36,817 - [INFO] - BOMAgent - Generating Exhaustive BOM for 3 Cylinders...
 2026-01-01 22:18:36,817 - [INFO] - GraphiqueAgent - Generating technical graphs...
+2026-01-01 22:18:41,329 - [INFO] - BOMAgent - Generating Exhaustive BOM for 3 Cylinders...
+2026-01-01 22:18:41,330 - [INFO] - ReportAgent - Generating SHSE-M Technical Manual...
+2026-01-01 22:18:41,335 - [INFO] - ReportAgent - Report generated: output_shse_m\SHSE_M_Manuel_Technique.md
+2026-01-01 22:18:59,184 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
+2026-01-01 22:18:59,184 - [INFO] - EfficiencyAgent - Target Battery Power: 200.0 kW
+2026-01-01 22:18:59,185 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
+2026-01-01 22:18:59,185 - [INFO] - EfficiencyAgent - Required Shaft Power: 238.368 kW
+2026-01-01 22:18:59,185 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
+2026-01-01 22:18:59,185 - [INFO] - EfficiencyAgent - Required Indicated Power: 280.433 kW
+2026-01-01 22:18:59,187 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
+2026-01-01 22:18:59,187 - [INFO] - ThermodynamicAgent - Total Displacement Required: 8973.8 cc
+2026-01-01 22:18:59,187 - [INFO] - ThermodynamicAgent -    N=2: Mass=236.1, Score=-1000.0
+2026-01-01 22:18:59,188 - [INFO] - ThermodynamicAgent -    N=3: Mass=236.1, Score=-1000.0
+2026-01-01 22:18:59,188 - [INFO] - ThermodynamicAgent -    N=4: Mass=236.1, Score=-1000.0
+2026-01-01 22:18:59,188 - [INFO] - ThermodynamicAgent -    N=5: Mass=236.1, Score=-1000.0
+2026-01-01 22:18:59,188 - [INFO] - ThermodynamicAgent -    N=6: Mass=236.1, Score=-1000.0
+2026-01-01 22:18:59,189 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 1 Cylinders
+2026-01-01 22:18:59,189 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 225.2 mm
+2026-01-01 22:18:59,189 - [INFO] - ThermodynamicAgent -    > Est. Mass: 236.1 kg (Limit: 50.0)
+2026-01-01 22:18:59,189 - [INFO] - ThermodynamicAgent -    > Unit Force: 85377 N
+2026-01-01 22:18:59,190 - [ERROR] - ThermodynamicAgent - CRITICAL CHECK FAILED: Mean Piston Speed 18.77 m/s exceeds limit 12.0 m/s
+2026-01-01 22:19:12,641 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
+2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Target Battery Power: 200.0 kW
+2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
+2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Required Shaft Power: 238.368 kW
+2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
+2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Required Indicated Power: 280.433 kW
+2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
+2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent - Total Displacement Required: 8973.8 cc
+2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent -    N=2: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent -    N=3: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent -    N=4: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:12,644 - [INFO] - ThermodynamicAgent -    N=5: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:12,644 - [INFO] - ThermodynamicAgent -    N=6: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:12,644 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 1 Cylinders
+2026-01-01 22:19:12,644 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 225.2 mm
+2026-01-01 22:19:12,645 - [INFO] - ThermodynamicAgent -    > Est. Mass: 236.1 kg (Limit: 50.0)
+2026-01-01 22:19:12,645 - [INFO] - ThermodynamicAgent -    > Unit Force: 85377 N
+2026-01-01 22:19:12,645 - [ERROR] - ThermodynamicAgent - CRITICAL CHECK FAILED: Mean Piston Speed 18.77 m/s exceeds limit 12.0 m/s
+2026-01-01 22:19:22,350 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
+2026-01-01 22:19:22,350 - [INFO] - EfficiencyAgent - Target Battery Power: 200.0 kW
+2026-01-01 22:19:22,351 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
+2026-01-01 22:19:22,352 - [INFO] - EfficiencyAgent - Required Shaft Power: 238.368 kW
+2026-01-01 22:19:22,352 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
+2026-01-01 22:19:22,353 - [INFO] - EfficiencyAgent - Required Indicated Power: 280.433 kW
+2026-01-01 22:19:22,353 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
+2026-01-01 22:19:22,353 - [INFO] - ThermodynamicAgent - Total Displacement Required: 8973.8 cc
+2026-01-01 22:19:22,354 - [INFO] - ThermodynamicAgent -    N=2: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:22,354 - [INFO] - ThermodynamicAgent -    N=3: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:22,354 - [INFO] - ThermodynamicAgent -    N=4: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:22,354 - [INFO] - ThermodynamicAgent -    N=5: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:22,355 - [INFO] - ThermodynamicAgent -    N=6: Mass=236.1, Score=-1000.0
+2026-01-01 22:19:22,355 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 1 Cylinders
+2026-01-01 22:19:22,355 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 225.2 mm
+2026-01-01 22:19:22,355 - [INFO] - ThermodynamicAgent -    > Est. Mass: 236.1 kg (Limit: 50.0)
+2026-01-01 22:19:22,357 - [INFO] - ThermodynamicAgent -    > Unit Force: 85377 N
+2026-01-01 22:19:22,358 - [ERROR] - ThermodynamicAgent - CRITICAL CHECK FAILED: Mean Piston Speed 18.77 m/s exceeds limit 12.0 m/s
