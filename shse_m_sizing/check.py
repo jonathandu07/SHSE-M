@@ -16,7 +16,9 @@ def verify_constraints(inputs: InputParameters, res: DimensionResults) -> Dimens
         
     # Check Rod Slenderness (Buckling risk indication)
     # Slenderness = L_eff / r_gyration. r = d/4 for circle.
-    r_gyration = res.rod_diameter / 4.0
+    # Slenderness = L_eff / r_gyration.
+    # For I-beam, approx r_gyration ~ 0.25 * width (weak axis)
+    r_gyration = res.rod_column_section_width * 0.25
     slenderness = res.rod_length / r_gyration
     if slenderness > 120:
         res.warnings.append(f"ATTENTION: Bielle très élancée (Lambda={slenderness:.1f}). Risque de flambage accru.")

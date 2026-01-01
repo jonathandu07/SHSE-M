@@ -1,8 +1,11 @@
 import unittest
+import os
 from shse_m_sizing.config import InputParameters, DimensionResults
 from shse_m_sizing.thermodynamics import calculate_thermodynamics
 from shse_m_sizing.mechanical import dimension_components
 from shse_m_sizing.materials import get_material
+from shse_m_sizing.check import verify_constraints
+from shse_m_sizing.report import generate_markdown_report, generate_bom_csv, generate_json_export
 
 class TestSHSE(unittest.TestCase):
     def setUp(self):
@@ -11,6 +14,7 @@ class TestSHSE(unittest.TestCase):
             N_rpm=3000.0,
             p_me_target_bar=6.0
         )
+        # Ensure 'limits' with materials is set (uses defaults)
         
     def test_materials(self):
         m = get_material("S235JR")
@@ -43,9 +47,23 @@ class TestSHSE(unittest.TestCase):
     def test_integration(self):
         res = calculate_thermodynamics(self.inputs)
         res = dimension_components(self.inputs, res)
-        # Ensure no crash on report generation logic (simulated)
-        # Check warnings
+        
+        # Verify check.py (This triggered the AttributeError before fix)
+        res = verify_constraints(self.inputs, res)
         self.assertIsInstance(res.warnings, list)
+        
+        # Verify report.py (dry run)
+        try:
+            generate_markdown_report(self.inputs, res, "test_report.md")
+            generate_bom_csv(res, "test_bom.csv")
+            generate_json_export(self.inputs, res, "test_params.json")
+        except AttributeError as e:
+            self.fail(f"Report generation raised AttributeError: {e}")
+        finally:
+            # Cleanup
+            if os.path.exists("test_report.md"): os.remove("test_report.md")
+            if os.path.exists("test_bom.csv"): os.remove("test_bom.csv")
+            if os.path.exists("test_params.json"): os.remove("test_params.json")
 
 if __name__ == '__main__':
     unittest.main()
