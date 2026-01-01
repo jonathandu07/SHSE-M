@@ -1,0 +1,56 @@
+{
+    "inputs": {
+        "P_batt_target": 10.0,
+        "N_rpm": 3000.0,
+        "p_me_target_bar": 6.0,
+        "eta": {
+            "eta_th": 0.22,
+            "eta_m": 0.85,
+            "eta_gen": 0.9,
+            "eta_elec": 0.95,
+            "eta_charge": 0.95
+        },
+        "limits": {
+            "U_p_max": 6.0,
+            "S_over_B": 1.0,
+            "phi": 0.35,
+            "sigma_adm_steel": 400000000.0,
+            "sigma_adm_alum": 150000000.0,
+            "safety_factor": 2.0,
+            "rod_lambda": 3.5,
+            "flywheel_Cf": 0.05,
+            "bearing_L10h": 5000,
+            "max_diameter_limit": null
+        },
+        "N_cyl": 1,
+        "fluid": "AIR",
+        "T_cold": 330.0,
+        "p_me_target_pa": 600000.0
+    },
+    "results": {
+        "P_shaft_req": 12311.480455524777,
+        "P_indicated_req": 14484.094653558563,
+        "Vd_total": 0.00048280315511861876,
+        "Vd_cyl": 0.00048280315511861876,
+        "Bore": 0.08502762974538022,
+        "Stroke": 0.08502762974538022,
+        "U_mean": 8.502762974538022,
+        "p_max": 1714285.7142857143,
+        "F_max": 9734.042382580792,
+        "Torque_mean": 39.188659425520555,
+        "wall_thickness": 0.003,
+        "cyl_outer_diameter": 0.09102762974538023,
+        "rod_length": 0.14879835205441538,
+        "rod_diameter": 0.008067846619970672,
+        "crank_radius": 0.04251381487269011,
+        "pin_diameter": 0.021924068049938645,
+        "web_width": 0.0,
+        "flywheel_inertia": 0.005870182457144839,
+        "flywheel_mass": 0.7217369372461191,
+        "flywheel_diameter": 0.25508288923614064,
+        "water_jacket_area": 0.025651109505917813,
+        "warnings": [
+            "ALERTE: Vitesse piston (8.50 m/s) d\u00e9passe la limite (6.0 m/s)."
+        ]
+    }
+}
