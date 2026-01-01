@@ -101,6 +101,58 @@ def generate_sketches(inputs: InputParameters, res: DimensionResults, output_dir
     fig.savefig(fname)
     plt.close(fig)
     generated_files.append(fname)
+
+    # 3. Connecting Rod Detail
+    fig, ax = plt.subplots(figsize=(4, 8))
+    
+    # Dimensions
+    l_rod = res.rod_length
+    d_small = res.rod_small_end_diameter
+    d_big = res.rod_big_end_diameter
+    w_beam = res.rod_column_section_width
+    
+    # Small End
+    c_small = patches.Circle((0, l_rod), d_small/2, edgecolor='black', facecolor='lightblue')
+    # Hole Small End
+    c_pin = patches.Circle((0, l_rod), res.pin_diameter/2, edgecolor='black', facecolor='white')
+    
+    # Big End
+    c_big = patches.Circle((0, 0), d_big/2, edgecolor='black', facecolor='lightblue')
+    # Hole Big End
+    c_crankpin = patches.Circle((0, 0), res.crank_pin_diameter/2, edgecolor='black', facecolor='white')
+    
+    # Beam (tapered)
+    # Polygon points
+    beam_pts = [
+        (-w_beam/2, l_rod - d_small/2),
+        (w_beam/2, l_rod - d_small/2),
+        (w_beam*0.8, d_big/2),
+        (-w_beam*0.8, d_big/2)
+    ]
+    beam = patches.Polygon(beam_pts, closed=True, edgecolor='black', facecolor='lightblue')
+    
+    ax.add_patch(beam)
+    ax.add_patch(c_small)
+    ax.add_patch(c_pin)
+    ax.add_patch(c_big)
+    ax.add_patch(c_crankpin)
+    
+    # Bolts lines
+    ax.plot([-d_big*0.6, -d_big*0.6], [-d_big/2, d_big/2], 'k--', linewidth=1)
+    ax.plot([d_big*0.6, d_big*0.6], [-d_big/2, d_big/2], 'k--', linewidth=1)
+    
+    ax.annotate(f"Entraxe {l_rod*1000:.1f}", xy=(0, 0), xytext=(d_big, l_rod/2), arrowprops=dict(arrowstyle='<->'))
+    
+    ax.set_xlim(-d_big, d_big)
+    ax.set_ylim(-d_big, l_rod + d_small)
+    ax.set_aspect('equal')
+    ax.set_title("Bielle Détail")
+    ax.axis('off')
+    
+    fname = os.path.join(output_dir, "sketch_rod.png")
+    fig.savefig(fname)
+    plt.close(fig)
+    generated_files.append(fname)
     
     res.sketch_paths = generated_files
     return generated_files

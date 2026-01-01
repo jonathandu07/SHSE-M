@@ -1,35 +1,29 @@
 ﻿# Outil de Dimensionnement SHSE-M
 
-Programme de dimensionnement pour générateur thermo-pneumatique hybride SHSE-M.
-Version Complète : Calcul détaillé des pièces + Génération de croquis.
+Programme de dimensionnement complet pour générateur thermo-pneumatique.
 
-## Fonctionnalités
-- **Calculs thermodynamiques** : Puissance, Cylindrée.
-- **Mécanique Détaillée** : 
-  - Piston (Jupe, Segments, Axe).
-  - Bielle (Corps en I, Tête, Pied, Boulons).
-  - Vilebrequin (Manetons, Tourillons, Bras).
-  - Volant, Parois, Culasse.
-- **Croquis Automatiques** : Génération de schémas techniques (SVG/PNG) inclus dans le rapport.
-- **Rapports** : Markdown (avec images), CSV (Nomenclature complète), JSON.
+## Interface Moderne (V4)
+L'outil dispose d'une interface graphique ergonomique (`shse_m_sizing.gui`) :
+- **Onglet Config** : Paramétrage complet.
+- **Onglet Données** : Tableau dynamique listant toutes les cotes de toutes les pièces.
+- **Onglet Croquis** : Visualisation directe des coupes (Piston, Bielle, Vilebrequin).
+- **Onglet Rapport** : Synthèse.
 
-## Installation & Utilisation
+## Fonctionnalités Métier
+- Calcul détaillé de la chaîne de cotes moteur (Piston, Bielle, Vilebrequin, Visserie, Parois).
+- Vérification automatique des contraintes (Vitesse piston, Pression, Flambage).
+- Exports Automatiques : CSV, JSON, Markdown, PNG.
 
-### Via Exécutable (Windows)
-1. Double-cliquez sur `SHSE_Dimensionnement.exe` (généré via `build_exe.bat`).
-2. Remplissez les paramètres.
-3. Lancez le calcul.
-4. Consultez le rapport et les images dans le dossier `output_shse_m`.
-
-### Via Python
-1. Installez les dépendances :
+## Installation
+1. Python 3.12+ requis.
+2. Dépendances :
    ```bash
    pip install matplotlib
    ```
-2. Lancez l'interface :
+3. Lancer :
    ```bash
    python -m shse_m_sizing.gui
    ```
 
-## Auteurs
-Projet SHSE-M.
+## Exécutable
+Double-cliquez sur `build_exe.bat` pour générer un `.exe` portable (Windows).
