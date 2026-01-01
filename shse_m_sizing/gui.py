@@ -8,6 +8,7 @@ from .mechanical import dimension_components
 from .check import verify_constraints
 from .report import generate_markdown_report, generate_bom_csv, generate_json_export
 from .sketches import generate_sketches
+from .materials import list_materials_by_category
 
 class ModernSHSEApp:
     def __init__(self, root):
@@ -43,8 +44,6 @@ class ModernSHSEApp:
         self._build_results_tab()
         self._build_sketches_tab()
         self._build_report_tab()
-
-from .materials import list_materials_by_category
 
     # --- TAB 1: CONFIG ---
     def _build_config_tab(self):
