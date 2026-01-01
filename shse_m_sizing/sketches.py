@@ -32,10 +32,8 @@ def generate_sketches(inputs: InputParameters, res: DimensionResults, output_dir
     ax.add_patch(rect_right)
     
     # Piston at TDC (approx pos)
-    # TDC pos of pin center = Stroke/2 + RodLength
-    # Here we simplify view: Piston inside cylinder
     piston_h = res.piston_height
-    p_y = stroke + piston_h # Position arbitrary for viewing
+    p_y = stroke + piston_h 
     
     piston = patches.Rectangle((-bore/2 + 0.001, p_y), bore - 0.002, piston_h, linewidth=1, edgecolor='blue', facecolor='none', label='Piston')
     ax.add_patch(piston)
@@ -47,21 +45,17 @@ def generate_sketches(inputs: InputParameters, res: DimensionResults, output_dir
         ax.add_patch(ring)
     
     # Connecting Rod Line
-    # Pin center
     pin_y = p_y + piston_h - res.piston_compression_height
-    # Crank pin center (at 0 angle for drawing) -> (0, stroke/2)
-    # Rod connects (0, stroke/2) to (0, pin_y)
     ax.plot([0, 0], [res.Stroke/2, pin_y], 'k-', linewidth=5, alpha=0.5, label='Bielle')
     
-    # Dimensions Annotation
-    ax.annotate(f"Alésage {res.Bore*1000:.1f}", xy=(-bore/2, stroke), xytext=(-bore, stroke), arrowprops=dict(arrowstyle='->'))
-    ax.annotate(f"Course {res.Stroke*1000:.1f}", xy=(0, stroke/2), xytext=(bore/1.5, stroke/2), arrowprops=dict(arrowstyle='<->'))
+    # Annotations - Tolerances & Finish
+    ax.annotate(f"Ø {bore*1000:.2f} H7\nRa 0.4", xy=(-bore/2, cyl_height/2 + stroke), xytext=(-bore*1.2, cyl_height/2 + stroke), arrowprops=dict(arrowstyle='->'))
+    ax.annotate(f"Jeu Piston/Cyl ~0.04 mm", xy=(bore/2, p_y + piston_h/2), xytext=(bore*0.8, p_y + piston_h/2), arrowprops=dict(arrowstyle='->'))
 
     ax.set_xlim(-bore*2, bore*2)
     ax.set_ylim(0, cyl_height + stroke)
     ax.set_aspect('equal')
-    ax.set_title(f"Coupe Schématique Cylindre/Piston (N={inputs.N_rpm} rpm)")
-    ax.legend()
+    ax.set_title(f"Cylindre & Piston (H7/g6, N={inputs.N_rpm} rpm)")
     
     fname = os.path.join(output_dir, "sketch_cylinder.png")
     fig.savefig(fname)
@@ -69,7 +63,7 @@ def generate_sketches(inputs: InputParameters, res: DimensionResults, output_dir
     generated_files.append(fname)
     
     # 2. Crankshaft Simplified View
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(8, 5))
     
     # Draw Main Journal
     l_main = res.main_journal_length
@@ -87,15 +81,15 @@ def generate_sketches(inputs: InputParameters, res: DimensionResults, output_dir
     r_crank = res.crank_radius
     ax.add_patch(patches.Rectangle((w_web, r_crank - d_pin/2), l_pin, d_pin, color='blue', alpha=0.5))
     
-    # Annotations
-    ax.text(w_web + l_pin/2, r_crank, f"Maneton\nØ{d_pin*1000:.1f}", ha='center', va='center')
-    ax.text(-l_main/2, 0, f"Tourillon\nØ{d_main*1000:.1f}", ha='center', va='center')
-    ax.annotate(f"Rayon {r_crank*1000:.1f}", xy=(w_web, 0), xytext=(w_web, r_crank), arrowprops=dict(arrowstyle='->'))
+    # Annotations - Finishes
+    ax.annotate(f"Tourillon Ø{d_main*1000:.1f} g6\nRa 0.4 (Rectifié)", xy=(-l_main/2, d_main/2), xytext=(-l_main/2, d_main*2), arrowprops=dict(arrowstyle='->'))
+    ax.annotate(f"Maneton Ø{d_pin*1000:.1f} g6\nRa 0.4 (Rectifié)", xy=(w_web + l_pin/2, r_crank + d_pin/2), xytext=(w_web + l_pin/2, r_crank + d_pin*1.5), arrowprops=dict(arrowstyle='->'))
     
     ax.set_xlim(-l_main, 2*l_main + l_pin)
-    ax.set_ylim(-h_web, h_web)
+    ax.set_ylim(-h_web*1.5, h_web*2.5)
     ax.set_aspect('equal')
-    ax.set_title("Schéma Vilebrequin (Moitié)")
+    ax.set_title("Vilebrequin (Tolérances & État de Surface)")
+    ax.axis('off')
     
     fname = os.path.join(output_dir, "sketch_crank.png")
     fig.savefig(fname)
@@ -122,7 +116,6 @@ def generate_sketches(inputs: InputParameters, res: DimensionResults, output_dir
     c_crankpin = patches.Circle((0, 0), res.crank_pin_diameter/2, edgecolor='black', facecolor='white')
     
     # Beam (tapered)
-    # Polygon points
     beam_pts = [
         (-w_beam/2, l_rod - d_small/2),
         (w_beam/2, l_rod - d_small/2),
@@ -141,12 +134,21 @@ def generate_sketches(inputs: InputParameters, res: DimensionResults, output_dir
     ax.plot([-d_big*0.6, -d_big*0.6], [-d_big/2, d_big/2], 'k--', linewidth=1)
     ax.plot([d_big*0.6, d_big*0.6], [-d_big/2, d_big/2], 'k--', linewidth=1)
     
-    ax.annotate(f"Entraxe {l_rod*1000:.1f}", xy=(0, 0), xytext=(d_big, l_rod/2), arrowprops=dict(arrowstyle='<->'))
+    # Annotations - Hardware
+    # Bolt M-size approx
+    m_size_raw = res.rod_bolt_diameter * 1000
+    # Snap to standard M6, M8, M10, etc? Simple Rounding for sketch
+    m_size = round(m_size_raw)
+    if m_size < 4: m_size = 4
     
-    ax.set_xlim(-d_big, d_big)
-    ax.set_ylim(-d_big, l_rod + d_small)
+    ax.annotate(f"2x Vis M{m_size}\n(Std 8.8 ou 12.9)", xy=(d_big*0.6, 0), xytext=(d_big*1.2, 0), arrowprops=dict(arrowstyle='->'))
+    ax.annotate(f"Pied: Bague Bronze\nRa 0.8 / H7", xy=(0, l_rod + d_small/2), xytext=(0, l_rod + d_small), arrowprops=dict(arrowstyle='->'))
+    ax.annotate(f"Tête: Coussinets\nRa 0.8 / H7", xy=(0, -d_big/2), xytext=(0, -d_big), arrowprops=dict(arrowstyle='->'))
+
+    ax.set_xlim(-d_big*1.5, d_big*1.5)
+    ax.set_ylim(-d_big*1.5, l_rod + d_small*1.5)
     ax.set_aspect('equal')
-    ax.set_title("Bielle Détail")
+    ax.set_title("Bielle (Visserie & Ajustements)")
     ax.axis('off')
     
     fname = os.path.join(output_dir, "sketch_rod.png")

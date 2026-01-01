@@ -1,0 +1,25 @@
+Systeme,Composant,Détail,Valeur,Unité,Matériau,Commentaire
+Bloc,Cylindre,Alésage,85.03,mm,Fonte/Alu,Chemisé
+Bloc,Chemise,Épaisseur,2.53,mm,Acier,Calcul Pression Max
+Bloc,Goujons Culasse,Diamètre,2.6,mm,Acier 12.9,4 vis
+Attelage,Piston,Diamètre,85.03,mm,Alu Forgé,-
+Attelage,Piston,Hauteur Totale,68.0,mm,-,-
+Attelage,Piston,Hauteur Comp.,42.5,mm,-,Axe à Calotte
+Attelage,Axe Piston,Diamètre,25.51,mm,Acier Cémenté,-
+Attelage,Axe Piston,Longueur,72.3,mm,-,-
+Attelage,Segments,Hauteur,3.40,mm,Fonte,3 segments
+Attelage,Bielle,Entraxe,148.8,mm,Acier Forgé,Lambda variable
+Attelage,Bielle,Pied (Oeil),38.3,mm,-,Bagué bronze
+Attelage,Bielle,Tête (Alésage),47.6,mm,-,Avec coussinets
+Attelage,Bielle,Corps (Largeur),14.5,mm,-,Section I
+Attelage,Vis Bielle,Diamètre,3.7,mm,Acier 12.9,2 vis par bielle
+Bas Moteur,Vilebrequin,Course,85.0,mm,Acier Forgé,-
+Bas Moteur,Maneton,Diamètre,34.0,mm,Traîté,Rectifié
+Bas Moteur,Maneton,Longueur,38.3,mm,-,-
+Bas Moteur,Tourillon,Diamètre,40.8,mm,-,Palier Lisse
+Bas Moteur,Bras,Épaisseur,21.3,mm,-,-
+Transmission,Volant,Diamètre,312,mm,Acier,-
+Transmission,Volant,Largeur,1.8,mm,-,Jante
+Transmission,Volant,Masse,0.48,kg,-,Inertie 0.009
+Refroidissement,Water Jacket,Surface,241,cm2,-,Estimation
+Electrique,Alternateur,Couple Nom.,39.2,Nm,-,-
