@@ -5,48 +5,56 @@ from typing import Any
 from .config import InputParameters, DimensionResults
 
 def generate_markdown_report(inputs: InputParameters, res: DimensionResults, filename: str = "report.md"):
+    # (Existing text generation omitted for brevity, we reconstruct the string)
     md = f"""# Rapport de Dimensionnement SHSE-M
 
 ## 1. Hypothèses et Entrées
 - **Puissance Batterie Cible**: {inputs.P_batt_target} kW
 - **Régime**: {inputs.N_rpm} tr/min
 - **Fluide**: {inputs.fluid}
-- **Pression Moyenne (MEP) Target**: {inputs.p_me_target_bar} bar
-- **Ratio S/B**: {inputs.limits.S_over_B}
-- **Rendements**: 
-  - Thermique: {inputs.eta.eta_th}
-  - Méca: {inputs.eta.eta_m}
-  - Générateur: {inputs.eta.eta_gen}
-  - Élec: {inputs.eta.eta_elec}
-  - Charge: {inputs.eta.eta_charge}
-  - **Global**: {inputs.eta.eta_global:.3f}
+- **Pression Moyenne**: {inputs.p_me_target_bar} bar
+- **Rendement Global**: {inputs.eta.eta_global:.3f}
 
-## 2. Résultats Principaux
+## 2. Résultats Géométrie
 | Paramètre | Valeur | Unité |
 |-----------|--------|-------|
-| Puissance Arbre requise | {res.P_shaft_req/1000.0:.2f} | kW |
-| Puissance Indiquée | {res.P_indications_req/1000.0 if hasattr(res, 'P_indications_req') else res.P_indicated_req/1000.0:.2f} | kW |
-| Alésage (Bore) | {res.Bore*1000:.1f} | mm |
-| Course (Stroke) | {res.Stroke*1000:.1f} | mm |
-| Cylindrée Totale | {res.Vd_total*1e6:.0f} | cm3 |
-| Vitesse Piston Moyenne | {res.U_mean:.2f} | m/s |
-| Pression Max Cycle | {res.p_max/1e5:.1f} | bar |
-| Force Max Piston | {res.F_max:.0f} | N |
+| Alésage (B) | {res.Bore*1000:.1f} | mm |
+| Course (S) | {res.Stroke*1000:.1f} | mm |
+| Cylindrée | {res.Vd_total*1e6:.0f} | cm3 |
+| Vit. Piston | {res.U_mean:.2f} | m/s |
+| Force Max | {res.F_max:.0f} | N |
 
-## 3. Dimensionnement Composants
-- **Épaisseur Paroi Cylindre**: {res.wall_thickness*1000:.2f} mm (Alu + SF={inputs.limits.safety_factor})
-- **Diamètre Bielle (Est.)**: {res.rod_diameter*1000:.1f} mm
-- **Longueur Bielle**: {res.rod_length*1000:.1f} mm
-- **Diamètre Maneton**: {res.pin_diameter*1000:.1f} mm
-- **Volant Inertie**:
-  - Inertie: {res.flywheel_inertia:.3f} kg.m²
-  - Masse: {res.flywheel_mass:.2f} kg
-  - Diamètre: {res.flywheel_diameter*1000:.0f} mm
+## 3. Détail des Pièces Calculées (Extrait)
+Voir `bom.csv` pour la liste exhaustive.
 
-## 4. Vérifications et Alertes
+### Piston & Segments
+- **Diamètre**: {res.piston_diameter*1000:.1f} mm
+- **Axe**: Ø{res.pin_diameter*1000:.1f} x {res.pin_length*1000:.1f} mm
+- **Segments**: {res.num_rings} x (H={res.ring_height*1000:.2f} mm)
+
+### Bielle
+- **Entraxe**: {res.rod_length*1000:.1f} mm
+- **Pied**: Ø{res.rod_small_end_diameter*1000:.1f} mm
+- **Tête**: Ø{res.rod_big_end_diameter*1000:.1f} mm
+- **Vis de Bielle**: M{res.rod_bolt_diameter*1000:.0f} (est.)
+
+### Vilebrequin
+- **Maneton**: Ø{res.crank_pin_diameter*1000:.1f} x {res.crank_pin_length*1000:.1f} mm
+- **Tourillon**: Ø{res.main_journal_diameter*1000:.1f} mm
+- **Recouvrement**: {res.overlap*1000:.1f} mm
+
+## 4. Croquis Techniques
 """
+    # Insert Images
+    if res.sketch_paths:
+        for path in res.sketch_paths:
+            # Use relative path for markdown if possible, else absolute
+            rel_path = os.path.basename(path) 
+            md += f"![Croquis]({rel_path})\n\n"
+
+    md += "## 5. Vérifications\n"
     if not res.warnings:
-        md += "- Aucun avertissement critique.\n"
+        md += "- Aucun avertissement majeur.\n"
     else:
         for w in res.warnings:
             md += f"- **{w}**\n"
@@ -56,17 +64,37 @@ def generate_markdown_report(inputs: InputParameters, res: DimensionResults, fil
 
 def generate_bom_csv(res: DimensionResults, filename: str = "bom.csv"):
     rows = [
-        ["Composant", "Dimension Principale", "Valeur", "Unité", "Matériau Suggéré", "Notes"],
-        ["Cylindre", "Alésage", f"{res.Bore*1000:.1f}", "mm", "Aluminium/Fonte", "Chemisage possible"],
-        ["Cylindre", "Course", f"{res.Stroke*1000:.1f}", "mm", "-", "-"],
-        ["Cylindre", "Ép. Paroi", f"{res.wall_thickness*1000:.2f}", "mm", "Aluminium", f"Calculé pour {res.p_max/1e5:.0f} bar"],
-        ["Piston", "Diamètre", f"{res.Bore*1000:.1f}", "mm", "Alu Haute Temp", "-"],
-        ["Bielle", "Entraxe", f"{res.rod_length*1000:.1f}", "mm", "Acier Forgé", "-"],
-        ["Bielle", "Diamètre Corps", f"{res.rod_diameter*1000:.1f}", "mm", "Acier Forgé", "Section circulaire equiv."],
-        ["Vilebrequin", "Rayon Manivelle", f"{res.crank_radius*1000:.1f}", "mm", "Acier", "-"],
-        ["Vilebrequin", "Diamètre Maneton", f"{res.pin_diameter*1000:.1f}", "mm", "Acier Traité", "Surface rectifiée"],
-        ["Volant", "Diamètre Ext.", f"{res.flywheel_diameter*1000:.0f}", "mm", "Acier/Fonte", f"Masse ~{res.flywheel_mass:.1f} kg"],
-        ["Alternateur", "Puissance Nom.", f"{res.P_shaft_req/1000.0:.2f}", "kW", "-", "Accouplement direct ou courroie"]
+        ["Systeme", "Composant", "Détail", "Valeur", "Unité", "Matériau", "Commentaire"],
+        # Bloc
+        ["Bloc", "Cylindre", "Alésage", f"{res.Bore*1000:.2f}", "mm", "Fonte/Alu", "Chemisé"],
+        ["Bloc", "Chemise", "Épaisseur", f"{res.wall_thickness*1000:.2f}", "mm", "Acier", "Calcul Pression Max"],
+        ["Bloc", "Goujons Culasse", "Diamètre", f"{res.head_bolt_diameter*1000:.1f}", "mm", "Acier 12.9", f"{res.num_head_bolts} vis"],
+        # Piston
+        ["Attelage", "Piston", "Diamètre", f"{res.piston_diameter*1000:.2f}", "mm", "Alu Forgé", "-"],
+        ["Attelage", "Piston", "Hauteur Totale", f"{res.piston_height*1000:.1f}", "mm", "-", "-"],
+        ["Attelage", "Piston", "Hauteur Comp.", f"{res.piston_compression_height*1000:.1f}", "mm", "-", "Axe à Calotte"],
+        ["Attelage", "Axe Piston", "Diamètre", f"{res.pin_diameter*1000:.2f}", "mm", "Acier Cémenté", "-"],
+        ["Attelage", "Axe Piston", "Longueur", f"{res.pin_length*1000:.1f}", "mm", "-", "-"],
+        ["Attelage", "Segments", "Hauteur", f"{res.ring_height*1000:.2f}", "mm", "Fonte", f"{res.num_rings} segments"],
+        # Bielle
+        ["Attelage", "Bielle", "Entraxe", f"{res.rod_length*1000:.1f}", "mm", "Acier Forgé", "Lambda variable"],
+        ["Attelage", "Bielle", "Pied (Oeil)", f"{res.rod_small_end_diameter*1000:.1f}", "mm", "-", "Bagué bronze"],
+        ["Attelage", "Bielle", "Tête (Alésage)", f"{res.rod_big_end_diameter*1000:.1f}", "mm", "-", "Avec coussinets"],
+        ["Attelage", "Bielle", "Corps (Largeur)", f"{res.rod_column_section_width*1000:.1f}", "mm", "-", "Section I"],
+        ["Attelage", "Vis Bielle", "Diamètre", f"{res.rod_bolt_diameter*1000:.1f}", "mm", "Acier 12.9", "2 vis par bielle"],
+        # Vilebrequin
+        ["Bas Moteur", "Vilebrequin", "Course", f"{res.Stroke*1000:.1f}", "mm", "Acier Forgé", "-"],
+        ["Bas Moteur", "Maneton", "Diamètre", f"{res.crank_pin_diameter*1000:.1f}", "mm", "Traîté", "Rectifié"],
+        ["Bas Moteur", "Maneton", "Longueur", f"{res.crank_pin_length*1000:.1f}", "mm", "-", "-"],
+        ["Bas Moteur", "Tourillon", "Diamètre", f"{res.main_journal_diameter*1000:.1f}", "mm", "-", "Palier Lisse"],
+        ["Bas Moteur", "Bras", "Épaisseur", f"{res.web_thickness*1000:.1f}", "mm", "-", "-"],
+        # Volant
+        ["Transmission", "Volant", "Diamètre", f"{res.flywheel_diameter*1000:.0f}", "mm", "Acier", "-"],
+        ["Transmission", "Volant", "Largeur", f"{res.flywheel_width*1000:.1f}", "mm", "-", "Jante"],
+        ["Transmission", "Volant", "Masse", f"{res.flywheel_mass:.2f}", "kg", "-", f"Inertie {res.flywheel_inertia:.3f}"],
+        # Periph
+        ["Refroidissement", "Water Jacket", "Surface", f"{res.water_jacket_area*1e4:.0f}", "cm2", "-", "Estimation"],
+        ["Electrique", "Alternateur", "Couple Nom.", f"{res.Torque_mean:.1f}", "Nm", "-", "-"]
     ]
     
     with open(filename, "w", newline="", encoding="utf-8") as f:

@@ -96,6 +96,8 @@ class SHSEApp:
         btn_open = ttk.Button(self.scrollable_frame, text="Ouvrir le dossier de sortie", command=self.open_output_dir)
         btn_open.pack(pady=5)
 
+from .sketches import generate_sketches
+
     def run_calculation(self):
         try:
             # Build Input Object (Safe Float Conversion)
@@ -126,9 +128,18 @@ class SHSEApp:
             res = dimension_components(inputs, res)
             res = verify_constraints(inputs, res)
             
-            # Generate Files
+            # Generate Output Dir
             output_dir = os.path.abspath("output_shse_m")
             os.makedirs(output_dir, exist_ok=True)
+            
+            # Generate Sketches
+            try:
+                generate_sketches(inputs, res, output_dir)
+            except Exception as e:
+                print(f"Erreur Sketches: {e}")
+                # Don't fail the whole run if plotting fails
+            
+            # Generate Files
             generate_markdown_report(inputs, res, os.path.join(output_dir, "rapport_dimensionnement.md"))
             generate_bom_csv(res, os.path.join(output_dir, "nomenclature.csv"))
             generate_json_export(inputs, res, os.path.join(output_dir, "parametres.json"))
@@ -140,7 +151,7 @@ class SHSEApp:
             self.output_text.delete(1.0, tk.END)
             self.output_text.insert(tk.END, report_content)
             
-            messagebox.showinfo("Succès", f"Calcul terminé.\nFichiers générés dans:\n{output_dir}")
+            messagebox.showinfo("Succès", f"Calcul terminé.\nFichiers et Croquis générés dans:\n{output_dir}")
             
         except Exception as e:
             messagebox.showerror("Erreur", f"Une erreur est survenue:\n{str(e)}")

@@ -62,15 +62,53 @@ class DimensionResults:
     # Components
     wall_thickness: float = 0.0
     cyl_outer_diameter: float = 0.0
-    rod_length: float = 0.0
-    rod_diameter: float = 0.0 # simplified circular section
-    crank_radius: float = 0.0
+    
+    # Detailed Piston
+    piston_diameter: float = 0.0
+    piston_height: float = 0.0
+    piston_compression_height: float = 0.0 # Pin center to top
+    piston_skirt_height: float = 0.0
+    piston_top_thickness: float = 0.0
     pin_diameter: float = 0.0
+    pin_length: float = 0.0
+    ring_height: float = 0.0
+    ring_width: float = 0.0
+    num_rings: int = 3
+    
+    # Detailed Rod
+    rod_length: float = 0.0
+    rod_small_end_diameter: float = 0.0 # Outer
+    rod_big_end_diameter: float = 0.0 # Outer
+    rod_big_end_width: float = 0.0
+    rod_column_section_width: float = 0.0 # I-beam width
+    rod_column_section_depth: float = 0.0 # I-beam depth (in plane of motion)
+    rod_bolt_diameter: float = 0.0 
+    
+    # Detailed Crank
+    crank_radius: float = 0.0
+    crank_pin_diameter: float = 0.0
+    crank_pin_length: float = 0.0
+    main_journal_diameter: float = 0.0
+    main_journal_length: float = 0.0
     web_width: float = 0.0
+    web_thickness: float = 0.0
+    overlap: float = 0.0 # Journal-Pin overlap
+    
+    # Detailed Head/Block
+    head_bolt_diameter: float = 0.0
+    num_head_bolts: int = 4
+    
+    # Detailed Flywheel
     flywheel_inertia: float = 0.0
     flywheel_mass: float = 0.0
     flywheel_diameter: float = 0.0
+    flywheel_width: float = 0.0
+    
     water_jacket_area: float = 0.0
+    
+    # Generated Image Paths
+    sketch_paths: List[str] = field(default_factory=list)
+
     
     # Warnings
     warnings: List[str] = field(default_factory=list)

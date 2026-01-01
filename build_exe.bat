@@ -11,6 +11,7 @@ echo COMPILATION...
 pyinstaller --noconfirm --onefile --windowed ^
     --name "SHSE_Dimensionnement" ^
     --hidden-import=tkinter ^
+    --hidden-import=matplotlib ^
     shse_m_sizing/gui.py
 
 echo TERMINE!

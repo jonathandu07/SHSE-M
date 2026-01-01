@@ -1,45 +1,35 @@
 ﻿# Outil de Dimensionnement SHSE-M
 
 Programme de dimensionnement pour générateur thermo-pneumatique hybride SHSE-M.
-Développé en Python, avec une interface graphique simple et des exports complets.
+Version Complète : Calcul détaillé des pièces + Génération de croquis.
 
 ## Fonctionnalités
-- **Calculs thermodynamiques** : Puissance nécessaire, cylindrée.
-- **Dimensionnement mécanique** : Alésage, course, bielle, vilebrequin, piston, volant d'inertie.
-- **Vérifications de sécurité** : Vitesse piston, flambage, contraintes matériaux.
-- **Rapports** : Génération de fichiers Markdown, CSV (Nomenclature) et JSON.
+- **Calculs thermodynamiques** : Puissance, Cylindrée.
+- **Mécanique Détaillée** : 
+  - Piston (Jupe, Segments, Axe).
+  - Bielle (Corps en I, Tête, Pied, Boulons).
+  - Vilebrequin (Manetons, Tourillons, Bras).
+  - Volant, Parois, Culasse.
+- **Croquis Automatiques** : Génération de schémas techniques (SVG/PNG) inclus dans le rapport.
+- **Rapports** : Markdown (avec images), CSV (Nomenclature complète), JSON.
 
-## Installation
+## Installation & Utilisation
 
-### Option 1 : Utiliser l'exécutable (Windows)
-1. Allez dans le dossier `dist/` (s'il est fourni) ou téléchargez la dernière release.
-2. Lancez `SHSE_Dimensionnement.exe`.
-3. Pas besoin de Python installé.
+### Via Exécutable (Windows)
+1. Double-cliquez sur `SHSE_Dimensionnement.exe` (généré via `build_exe.bat`).
+2. Remplissez les paramètres.
+3. Lancez le calcul.
+4. Consultez le rapport et les images dans le dossier `output_shse_m`.
 
-### Option 2 : Depuis les sources (Développeurs)
-1. Installez Python 3.12+.
-2. Clonez ce dépôt.
-3. (Optionnel) Créez un environnement virtuel.
-4. Lancez l'interface graphique :
+### Via Python
+1. Installez les dépendances :
+   ```bash
+   pip install matplotlib
+   ```
+2. Lancez l'interface :
    ```bash
    python -m shse_m_sizing.gui
    ```
 
-## Utilisation
-
-1. **Remplir les champs** dans l'interface :
-   - Cibles : Puissance Batterie, Régime, Pression.
-   - Rendements : Chaîne complète du thermique à la batterie.
-   - Contraintes : Limites matériaux et sécurité.
-2. Cliquez sur **LANCER LE CALCUL**.
-3. Le rapport s'affiche à droite.
-4. Cliquez sur **Ouvrir le dossier de sortie** pour voir les fichiers Excel (CSV) et PDF (Markdown converti).
-
-## Compilation (Créer l'.exe)
-Pour créer votre propre exécutable à un seul fichier :
-1. Double-cliquez sur `build_exe.bat`.
-2. Attendez la fin de la compilation.
-3. L'application sera dans le dossier `dist/`.
-
 ## Auteurs
-Conçu pour le projet SHSE-M.
+Projet SHSE-M.

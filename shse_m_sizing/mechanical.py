@@ -3,13 +3,10 @@ from .config import InputParameters, DimensionResults
 
 def dimension_components(inputs: InputParameters, res: DimensionResults) -> DimensionResults:
     """
-    Calculates dimensions S, B, and component sizes based on Vd and power.
+    Calculates detailed dimensions for all sub-components.
     """
     
     # 1. Bore & Stroke
-    # Vd = (pi/4) * B^2 * S
-    # S = R_sb * B
-    # Vd = (pi/4) * B^3 * R_sb => B = (4 * Vd / (pi * R_sb))^(1/3)
     R_sb = inputs.limits.S_over_B
     res.Bore = (4.0 * res.Vd_cyl / (math.pi * R_sb))**(1.0/3.0)
     res.Stroke = res.Bore * R_sb
@@ -20,78 +17,121 @@ def dimension_components(inputs: InputParameters, res: DimensionResults) -> Dime
     res.rod_length = res.crank_radius * inputs.limits.rod_lambda
     omega = 2 * math.pi * inputs.N_rpm / 60.0
     
-    # 3. Forces & Pressures
-    # p_me = phi * p_max => p_max = p_me / phi
+    # 3. Forces
     res.p_max = inputs.p_me_target_pa / inputs.limits.phi
     res.F_max = res.p_max * (math.pi * res.Bore**2 / 4.0)
     res.Torque_mean = res.P_shaft_req / omega
     
-    # 4. Component Sizing
-    
-    # Cylinder Wall (Thin-walled assumption + Safety Factor)
-    # t = P * D / (2 * sigma)
-    # We use Bore as D approximately, strictly D_internal
-    allowable_stress_alum = inputs.limits.sigma_adm_alum / inputs.limits.safety_factor
-    res.wall_thickness = (res.p_max * res.Bore) / (2.0 * allowable_stress_alum)
-    # Min thickness constraint (manufacturing)
-    res.wall_thickness = max(res.wall_thickness, 0.003) 
-    res.cyl_outer_diameter = res.Bore + 2.0 * res.wall_thickness
-    
-    # Water Jacket (Rough estimation based on power to reject)
-    # Q_reject ~ P_fuel * (1-eta_th) * fraction_to_coolant (~0.3 of reject)
-    # This is a dimensional placeholder for the Area
-    # Surface area of cylinder ~ pi * B * S
-    res.water_jacket_area = math.pi * (res.cyl_outer_diameter + 0.005) * res.Stroke
-    
-    # Connecting Rod (Simplified Column Buckling - Euler)
-    # F_crit = pi^2 * E * I / L^2. We need F_crit > F_max * SF
-    # Steel E ~ 210 GPa. 
-    # Assume Circular section diameter d_rod. I = pi * d^4 / 64
-    # F_max * SF = pi^2 * E * (pi * d^4 / 64) / L^2
-    # d^4 = (F_max * SF * L^2 * 64) / (pi^3 * E)
-    E_steel = 210e9
-    d4 = (res.F_max * inputs.limits.safety_factor * res.rod_length**2 * 64.0) / (math.pi**3 * E_steel)
-    res.rod_diameter = d4**0.25
-    
-    # Crankpin (Shear/Bending simplified)
-    # Double shear or bending is dominant. Approximated by bearing pressure limit or bending stress.
-    # Let's use bending stress on the pin as a cantilever (conservative) or simple beam.
-    # sigma = M * y / I. M ~ F_max * L_pin/2. Let L_pin ~ 0.5 * B.
-    # This is complex without detailed design. We will scale based on shaft torque and F_max.
-    # Simplified: d_pin ~ 0.4 * B is a common starting point in engines, checked vs stress.
-    # Let's calculate d_pin based on bending stress limit.
-    # M = F_max * (res.Bore * 0.2) # assumption arm
-    # sigma_adm = 400MPa/SF
-    # S_modulus = pi * d^3 / 32
-    # M / S_modulus <= sigma_adm
+    # Material Allowables
     sigma_adm_steel = inputs.limits.sigma_adm_steel / inputs.limits.safety_factor
-    moment_arm = res.Bore * 0.25 # Assumption for pin width contrib
-    bending_moment = res.F_max * moment_arm
-    # d^3 = 32 * M / (pi * sigma_adm)
-    res.pin_diameter = ((32.0 * bending_moment) / (math.pi * sigma_adm_steel))**(1.0/3.0)
+    sigma_adm_alum = inputs.limits.sigma_adm_alum / inputs.limits.safety_factor
+    tau_adm_steel = sigma_adm_steel * 0.58 # Shear assumption
+
+    ## --- DETAILED COMPONENTS ---
+
+    # A. PISTON GROUP
+    res.piston_diameter = res.Bore
+    # Pin Diameter (Empirical: ~0.25-0.35 * B) based on bending/shear
+    # d_pin calculated from bending moment M = F_max * L/4 ? No, usually F_max * D/8 roughly.
+    # Let's use empirical check: d_pin ~ 0.3 * Bore
+    res.pin_diameter = 0.3 * res.Bore
+    res.pin_length = 0.85 * res.Bore # Somewhat shorter than bore
     
-    # Flywheel
-    # E_kinetic = 0.5 * J * omega^2
-    # Delta_E = P_shaft * 60/N (Energy per rev) * Cf (simplified)
-    # Actually Delta_E = Work_per_cycle * Cf. 
-    # J = Delta_E / (omega^2 * Cf_speed) -> Using slightly different formulation
-    # J * omega * delta_omega = Delta_E => J = Delta_E / (omega^2 * coeff_fluctuation_speed)
-    # Let's use Work per cycle = P_indicated * 2 / (N/60) (since 1 power stroke per rev? Prompt says "2 chambres... piston moteur... fourni travail", implies 2-stroke like or double acting?)
-    # Prompt: "Chambre chaude... Piston séparateur... Chambre froide... Piston moteur". 
-    # Valid assumption for sizing: 1 active expansion stroke per revolution per cylinder or similar.
-    # Work_cycle = P_i / (N/60).
+    # Piston Heights (Empirical)
+    res.piston_compression_height = 0.5 * res.Bore # Pin center to top
+    res.piston_skirt_height = 0.6 * res.Bore
+    res.piston_height = res.piston_compression_height + res.piston_skirt_height * 0.5 # Total height approx
+    
+    # Rings (SAE Standard approx)
+    # Compression rings: b = B / 25 approx
+    res.ring_height = res.Bore / 25.0
+    res.ring_width = res.Bore / 22.0
+    res.num_rings = 3
+    
+    # Piston Crown Thickness (Plate bending)
+    # t = D * sqrt(3 * p_max / (16 * sigma))
+    res.piston_top_thickness = res.Bore * math.sqrt(3.0 * res.p_max / (16.0 * sigma_adm_alum))
+
+    # B. CONNECTING ROD
+    # Small end (Pied): OD ~ Pin + 2*wall. Wall ~ 0.2*Pin
+    res.rod_small_end_diameter = res.pin_diameter * 1.5 
+    
+    # Big end (Tête): Pin diameter (Crankpin)
+    # Crankpin Diameter check vs Bearing Pressure & Bending
+    # P_bearing_max ~ 10-15 MPa for industrial engines.
+    # F_max = P_bearing * d_pin * L_pin
+    # Assume L_pin ~ 0.5 * Bore
+    res.crank_pin_length = 0.45 * res.Bore
+    res.crank_pin_diameter = res.F_max / (15e6 * res.crank_pin_length) # Limit bearing pressure 15 MPa
+    res.crank_pin_diameter = max(res.crank_pin_diameter, 0.4 * res.Bore) # Min geometry constraint
+    
+    res.rod_big_end_diameter = res.crank_pin_diameter * 1.4 # Rough estimate housing
+    res.rod_big_end_width = res.crank_pin_length * 0.95
+    
+    # Rod Beam Section (I-beam)
+    # Area ~ F_max / sigma_comp
+    # For buckling, verify Ixx.
+    # Simplified: Width ~ 0.6 * BigEndWidth, Depth ~ 1.5 * Width
+    # We set dimensions, Check.py will verify buckling.
+    res.rod_column_section_width = res.rod_big_end_width * 0.4
+    res.rod_column_section_depth = res.rod_column_section_width * 1.8
+    
+    # Rod Bolts (2 bolts)
+    # F_inertia_tensile ~ m_piston * omega^2 * r * (1 + 1/lambda) at TDC exhaust
+    # Conservative F_bolt_load ~ F_max (tensile is usually less than compression, but verify)
+    # Let's size for F_max/2 per bolt to be safe (simplified)
+    # A_bolt * sigma = F_max / 2
+    a_bolt = (res.F_max / 2.0) / sigma_adm_steel
+    res.rod_bolt_diameter = math.sqrt(4.0 * a_bolt / math.pi)
+
+    # C. CRANKSHAFT
+    # Main Journals (Tourillons)
+    # Usually larger than pins.
+    res.main_journal_diameter = res.crank_pin_diameter * 1.2
+    res.main_journal_length = res.crank_pin_length * 0.8
+    
+    # Webs (Bras)
+    # t * w * sigma ~ bending.
+    res.web_thickness = 0.25 * res.Bore
+    res.web_width = 1.3 * res.main_journal_diameter
+    
+    # Overlap
+    # (Main_D + Pin_D)/2 - Stroke/2
+    res.overlap = (res.main_journal_diameter + res.crank_pin_diameter)/2.0 - res.crank_radius
+    
+    # D. CYLINDER / BLOCK
+    # Wall thickness (Lamé / Thin Cylinder)
+    res.wall_thickness = (res.p_max * res.Bore) / (2.0 * sigma_adm_alum) + 0.002 # +2mm casting margin
+    res.cyl_outer_diameter = res.Bore + 2.0 * res.wall_thickness + 0.015 # +Water jacket space
+    
+    # Head Bolts (Goujons)
+    # F_gas = p_max * Area. 4 bolts.
+    # F_bolt = F_gas / 4.
+    f_bolt = res.F_max / 4.0
+    a_head_bolt = f_bolt / sigma_adm_steel
+    res.head_bolt_diameter = math.sqrt(4.0 * a_head_bolt / math.pi)
+    res.num_head_bolts = 4
+
+    # E. FLYWHEEL (Detailed)
     work_cycle = res.P_indicated_req / (inputs.N_rpm / 60.0)
-    delta_E = work_cycle * 0.1 # Assumption: Energy fluctuation ~ 10-20% of work cycle if single cyl
+    delta_E = work_cycle * 0.15 # 15% fluct
     if inputs.N_cyl > 1:
-        delta_E /= inputs.N_cyl # Smoother with more cyl
+        delta_E /= inputs.N_cyl
         
-    # J = Delta_E / (omega^2 * Cf)
     res.flywheel_inertia = delta_E / (omega**2 * inputs.limits.flywheel_Cf)
+    # Rim Type Flywheel: I = m * r^2.
+    # Let r_mean = 1.6 * Stroke
+    r_fly_mean = 1.6 * res.Stroke
+    res.flywheel_diameter = 2.0 * (r_fly_mean + 0.02) # Outer
+    res.flywheel_mass = res.flywheel_inertia / (r_fly_mean**2)
+    # Width estimate (Steel density 7800)
+    # Volume = Mass / 7800
+    # Volume ~ 2*pi*r_mean * h * t. Assume t (rim thickness) = 4cm
+    t_rim = 0.04
+    vol_fly = res.flywheel_mass / 7800.0
+    res.flywheel_width = vol_fly / (2.0 * math.pi * r_fly_mean * t_rim) 
     
-    # Solid disk assumption for Mass: J = 1/2 * m * r^2
-    # Assume r = 1.5 * Stroke (reasonable size)
-    r_fly = 1.5 * res.Stroke
-    res.flywheel_diameter = 2.0 * r_fly
-    res.flywheel_mass = 2.0 * res.flywheel_inertia / (r_fly**2)
-    
+    # Water Jacket
+    res.water_jacket_area = math.pi * (res.Bore + 2*res.wall_thickness) * res.Stroke
+
     return res
