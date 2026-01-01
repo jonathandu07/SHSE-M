@@ -1,43 +1,44 @@
-2026-01-01 18:29:15,192 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
-2026-01-01 18:29:15,193 - [INFO] - EfficiencyAgent - Target Battery Power: 15.0 kW
-2026-01-01 18:29:15,193 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
-2026-01-01 18:29:15,193 - [INFO] - EfficiencyAgent - Required Shaft Power: 17.878 kW
-2026-01-01 18:29:15,193 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
-2026-01-01 18:29:15,193 - [INFO] - EfficiencyAgent - Required Indicated Power: 21.032 kW
-2026-01-01 18:29:15,193 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
-2026-01-01 18:29:15,193 - [INFO] - ThermodynamicAgent - Total Displacement Required: 673.0 cc
-2026-01-01 18:29:15,193 - [INFO] - ThermodynamicAgent - Calculated Bore: 94.98 mm
-2026-01-01 18:29:15,193 - [INFO] - ThermodynamicAgent - Calculated Stroke: 94.98 mm
-2026-01-01 18:29:15,194 - [INFO] - ThermodynamicAgent - Mean Piston Speed: 7.92 m/s (Limit: 12.0)
-2026-01-01 18:29:15,194 - [INFO] - ThermodynamicAgent - Estimated Max Pressure: 21.4 bar
-2026-01-01 18:29:15,194 - [INFO] - ThermodynamicAgent - Carnot Efficiency: 0.653 (Th=950.0K, Tc=330.0K)
-2026-01-01 18:29:15,194 - [INFO] - ThermodynamicAgent - Estimated Thermal Efficiency: 0.359 (Factor=0.55)
-2026-01-01 18:29:15,194 - [INFO] - CombustionAgent - Starting combustion analysis...
-2026-01-01 18:29:15,194 - [INFO] - CombustionAgent - Required Thermal Input: 58.59 kW
-2026-01-01 18:29:15,194 - [INFO] - CombustionAgent - Fuel Consumption: 4.892 kg/h
-2026-01-01 18:29:15,194 - [INFO] - CombustionAgent - Air Flow: 71.91 kg/h
-2026-01-01 18:29:15,194 - [INFO] - CaptiveGasAgent - Starting captive gas sizing...
-2026-01-01 18:29:15,194 - [INFO] - CaptiveGasAgent - Cold Buffer Volume: 1.35 L
-2026-01-01 18:29:15,194 - [INFO] - CaptiveGasAgent - Gas Mass (N2): 6.87 g
-2026-01-01 18:29:15,194 - [INFO] - CaptiveGasAgent - Est. Max Buffer Pressure: 7.48 bar
-2026-01-01 18:29:15,194 - [INFO] - MechanicalAgent - Starting mechanical component sizing...
-2026-01-01 18:29:15,194 - [INFO] - MechanicalAgent - Inputs: B=94.98388337266033mm, S=94.98388337266033mm, P_max=21.42857142857143bar
-2026-01-01 18:29:15,194 - [INFO] - MechanicalAgent - Max Gas Force: 15183.9 N
-2026-01-01 18:29:15,194 - [INFO] - MechanicalAgent - Rod Sized for Buckling: 6.5x9.8mm
-2026-01-01 18:29:15,195 - [INFO] - DogClutchAgent - Starting dog clutch sizing...
-2026-01-01 18:29:15,195 - [INFO] - DogClutchAgent - Tangential Force: 3414.4 N
-2026-01-01 18:29:15,195 - [INFO] - DogClutchAgent - Contact Pressure: 4.7 MPa
-2026-01-01 18:29:15,195 - [INFO] - CoolingAgent - Starting cooling system sizing...
-2026-01-01 18:29:15,195 - [INFO] - CoolingAgent - Heat Rejection Target: 17.6 kW
-2026-01-01 18:29:15,195 - [INFO] - CoolingAgent - Coolant Flow: 30.1 L/min
-2026-01-01 18:29:15,195 - [INFO] - ElectricalAgent - Starting electrical sizing...
-2026-01-01 18:29:15,195 - [INFO] - ElectricalAgent - Alternator Power: 16.4 kW
-2026-01-01 18:29:15,195 - [INFO] - ElectricalAgent - Bus Current: 41.1 A (@400.0V)
-2026-01-01 18:29:15,195 - [INFO] - ElectricalAgent - Recommended Cable Section: 10.3 mm2
-2026-01-01 18:29:15,196 - [INFO] - BatteryAgent - Starting battery sizing...
-2026-01-01 18:29:15,196 - [INFO] - BatteryAgent - Battery Capacity: 30.0 Ah
-2026-01-01 18:29:15,196 - [INFO] - BatteryAgent - Charging C-Rate: 1.37 C
-2026-01-01 18:29:15,196 - [INFO] - SecurityAgent - Running security checks...
-2026-01-01 18:29:15,196 - [INFO] - SecurityAgent - Security checks completed.
-2026-01-01 18:29:15,196 - [INFO] - ControlAgent - Defining control strategy...
-2026-01-01 18:29:15,196 - [INFO] - BOMAgent - Generating BOM...
+2026-01-01 18:30:48,598 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
+2026-01-01 18:30:48,598 - [INFO] - EfficiencyAgent - Target Battery Power: 15.0 kW
+2026-01-01 18:30:48,598 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
+2026-01-01 18:30:48,598 - [INFO] - EfficiencyAgent - Required Shaft Power: 17.878 kW
+2026-01-01 18:30:48,598 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
+2026-01-01 18:30:48,598 - [INFO] - EfficiencyAgent - Required Indicated Power: 21.032 kW
+2026-01-01 18:30:48,598 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
+2026-01-01 18:30:48,599 - [INFO] - ThermodynamicAgent - Total Displacement Required: 673.0 cc
+2026-01-01 18:30:48,599 - [INFO] - ThermodynamicAgent - Calculated Bore: 94.98 mm
+2026-01-01 18:30:48,599 - [INFO] - ThermodynamicAgent - Calculated Stroke: 94.98 mm
+2026-01-01 18:30:48,599 - [INFO] - ThermodynamicAgent - Mean Piston Speed: 7.92 m/s (Limit: 12.0)
+2026-01-01 18:30:48,599 - [INFO] - ThermodynamicAgent - Estimated Max Pressure: 21.4 bar
+2026-01-01 18:30:48,599 - [INFO] - ThermodynamicAgent - Carnot Efficiency: 0.653 (Th=950.0K, Tc=330.0K)
+2026-01-01 18:30:48,599 - [INFO] - ThermodynamicAgent - Estimated Thermal Efficiency: 0.359 (Factor=0.55)
+2026-01-01 18:30:48,599 - [INFO] - CombustionAgent - Starting combustion analysis...
+2026-01-01 18:30:48,600 - [INFO] - CombustionAgent - Required Thermal Input: 58.59 kW
+2026-01-01 18:30:48,600 - [INFO] - CombustionAgent - Fuel Consumption: 4.892 kg/h
+2026-01-01 18:30:48,600 - [INFO] - CombustionAgent - Air Flow: 71.91 kg/h
+2026-01-01 18:30:48,600 - [INFO] - CaptiveGasAgent - Starting captive gas sizing...
+2026-01-01 18:30:48,600 - [INFO] - CaptiveGasAgent - Cold Buffer Volume: 1.35 L
+2026-01-01 18:30:48,600 - [INFO] - CaptiveGasAgent - Gas Mass (N2): 6.87 g
+2026-01-01 18:30:48,600 - [INFO] - CaptiveGasAgent - Est. Max Buffer Pressure: 7.48 bar
+2026-01-01 18:30:48,600 - [INFO] - MechanicalAgent - Starting mechanical component sizing...
+2026-01-01 18:30:48,600 - [INFO] - MechanicalAgent - Inputs: B=94.98388337266033mm, S=94.98388337266033mm, P_max=21.42857142857143bar
+2026-01-01 18:30:48,600 - [INFO] - MechanicalAgent - Max Gas Force: 15183.9 N
+2026-01-01 18:30:48,600 - [INFO] - MechanicalAgent - Rod Sized for Buckling: 6.5x9.8mm
+2026-01-01 18:30:48,600 - [INFO] - DogClutchAgent - Starting dog clutch sizing...
+2026-01-01 18:30:48,600 - [INFO] - DogClutchAgent - Tangential Force: 3414.4 N
+2026-01-01 18:30:48,600 - [INFO] - DogClutchAgent - Contact Pressure: 4.7 MPa
+2026-01-01 18:30:48,601 - [INFO] - CoolingAgent - Starting cooling system sizing...
+2026-01-01 18:30:48,601 - [INFO] - CoolingAgent - Heat Rejection Target: 17.6 kW
+2026-01-01 18:30:48,601 - [INFO] - CoolingAgent - Coolant Flow: 30.1 L/min
+2026-01-01 18:30:48,601 - [INFO] - ElectricalAgent - Starting electrical sizing...
+2026-01-01 18:30:48,601 - [INFO] - ElectricalAgent - Alternator Power: 16.4 kW
+2026-01-01 18:30:48,601 - [INFO] - ElectricalAgent - Bus Current: 41.1 A (@400.0V)
+2026-01-01 18:30:48,601 - [INFO] - ElectricalAgent - Recommended Cable Section: 10.3 mm2
+2026-01-01 18:30:48,601 - [INFO] - BatteryAgent - Starting battery sizing...
+2026-01-01 18:30:48,601 - [INFO] - BatteryAgent - Battery Capacity: 30.0 Ah
+2026-01-01 18:30:48,601 - [INFO] - BatteryAgent - Charging C-Rate: 1.37 C
+2026-01-01 18:30:48,601 - [INFO] - SecurityAgent - Running security checks...
+2026-01-01 18:30:48,601 - [INFO] - SecurityAgent - Security checks completed.
+2026-01-01 18:30:48,601 - [INFO] - ControlAgent - Defining control strategy...
+2026-01-01 18:30:48,601 - [INFO] - BOMAgent - Generating BOM...
+2026-01-01 18:30:48,602 - [INFO] - BOMAgent - BOM exported to output_shse_m\BOM.csv

@@ -1,0 +1,56 @@
+{
+    "EfficiencyAgent": {
+        "eta_elec_chain": 0.8390399999999999,
+        "P_shaft_kW": 17.877574370709386,
+        "P_indicated_kW": 21.03244043612869
+    },
+    "ThermodynamicAgent": {
+        "Vd_total_cc": 673.0380939561181,
+        "Bore_mm": 94.98388337266033,
+        "Stroke_mm": 94.98388337266033,
+        "U_mean_m_s": 7.9153236143883605,
+        "p_max_bar": 21.42857142857143,
+        "p_max_Pa": 2142857.142857143,
+        "eta_carnot": 0.6526315789473685,
+        "eta_th": 0.3589473684210527
+    },
+    "CombustionAgent": {
+        "P_thermal_input_kW": 58.59477540856966,
+        "fuel_consumption_kg_h": 4.891957130585594,
+        "fuel_consumption_g_s": 1.3588769807182204,
+        "air_flow_kg_s": 0.019975491616557838
+    },
+    "CaptiveGasAgent": {
+        "V_cold_mean_liter": 1.3460761879122363,
+        "mass_gas_g": 6.867034934762964,
+        "P_max_buffer_bar": 7.47970096964133
+    },
+    "MechanicalAgent": {
+        "piston_height_mm": 80.73630086676128,
+        "pin_diameter_mm": 28.495165011798097,
+        "sf_pin_shear": 43.647680350735705,
+        "rod_length_mm": 166.22179590215558,
+        "rod_section_width_mm": 6.512861314189271,
+        "rod_section_depth_mm": 9.769291971283907,
+        "crank_pin_diameter_mm": 47.491941686330165,
+        "crank_pin_length_mm": 47.491941686330165,
+        "bearing_pressure_MPa": 6.731984257692416
+    },
+    "DogClutchAgent": {
+        "contact_pressure_MPa": 4.74217789153194,
+        "shear_stress_MPa": 1.8113785259001838
+    },
+    "CoolingAgent": {
+        "heat_rejection_kW": 17.578432622570897,
+        "coolant_flow_L_min": 30.134455924407252
+    },
+    "ElectricalAgent": {
+        "alternator_power_kW": 16.447368421052637,
+        "current_max_A": 41.11842105263159,
+        "cable_section_mm2": 10.279605263157897
+    },
+    "BatteryAgent": {
+        "capacity_Ah": 30.0,
+        "charging_C_rate": 1.3706140350877196
+    }
+}
