@@ -9,14 +9,14 @@
 
 ## 1. Résumé Exécutif
 
-Le système SHSE-M est dimensionné pour fournir une puissance arbre de **22.0 kW** afin de recharger le parc batterie en fonctionnement intermittent.
+Le système SHSE-M est dimensionné pour fournir une puissance arbre de **200.0 kW** afin de recharger le parc batterie en fonctionnement intermittent.
 
 ### Spécifications Clés
 - **Architecture**: 3 Cylindres en Ligne (Optimisé)
-- **Cylindrée Totale**: 987.1 cc
-- **Alésage x Course**: 74.8 x 74.8 mm
+- **Cylindrée Totale**: 8973.8 cc
+- **Alésage x Course**: 156.2 x 156.2 mm
 - **Régime Stationnaire**: 2500 tr/min
-- **Masse Système Estimée**: 34.9 kg (Limite: 50.0 kg)
+- **Masse Système Estimée**: 236.1 kg (Limite: 500.0 kg)
 - **Statut Sécurité**: **SAFE**
 
 ## 2. Justification du Nombre de Cylindres
@@ -26,12 +26,12 @@ Critère : Maximiser N pour réduire la contrainte unitaire, tant que Masse < Li
 
 | N Cyl | Masse Est. (kg) | Force/Piston (N) | Statut |
 |-------|-----------------|------------------|--------|
-| 1 | 34.9 | 19601 | Validé |
-| 2 | 34.9 | 12348 | Validé |
-| 3 | 34.9 | 9423 | **RETENU** |
-| 4 | 34.9 | 7779 | Validé |
-| 5 | 34.9 | 6703 | Validé |
-| 6 | 34.9 | 5936 | Validé |
+| 1 | 236.1 | 85377 | Validé |
+| 2 | 236.1 | 53784 | Validé |
+| 3 | 236.1 | 41045 | **RETENU** |
+| 4 | 236.1 | 33882 | Validé |
+| 5 | 236.1 | 29199 | Validé |
+| 6 | 236.1 | 25857 | Validé |
 
 ## 3. Analyse Détaillée des Sous-Ensembles (A-G)
 
@@ -44,20 +44,20 @@ Critère : Maximiser N pour réduire la contrainte unitaire, tant que Masse < Li
 ### D. Piston Libre (Séparateur)
 - **Fonction**: Séparation physique absolue entre gaz captif (froid) et gaz échappement (chaud).
 - **Matériau**: Céramique Si3N4 (Nitrure de Silicium) pour isolation thermique.
-- **Masse**: 137 g
-- **Fuite Thermique**: 440.8 W (Est.)
+- **Masse**: 1244 g
+- **Fuite Thermique**: 919.9 W (Est.)
 
 ### G. Transmission (Boîte à Crabots)
 - **Type**: Accouplement intermittent sans friction progressive.
 - **Synchronisation**: Obligatoire ($E_{sync} \approx 0$).
-- **Pression Contact**: 7.0 MPa
+- **Pression Contact**: 63.2 MPa
 
 ## 4. Nomenclature Exhaustive (BOM)
 
 | Groupe | Pièce | Spécification | Qty | Matériau |
 |--------|-------|---------------|-----|----------|
 | A. Bloc Thermo-Pneumatique | Carter Monobloc | Usiné CNC / Moulé | 1 | Alu 6061-T6 |
-| A. Bloc Thermo-Pneumatique | Chemise Cylindre | Ø74.8 H7 (Traîtée) | 3 | Fonte GS 600-3 |
+| A. Bloc Thermo-Pneumatique | Chemise Cylindre | Ø156.2 H7 (Traîtée) | 3 | Fonte GS 600-3 |
 | A. Bloc Thermo-Pneumatique | Culasse (Chambre Chaude) | Design Hémisphérique | 3 | Inconel 718 |
 | A. Bloc Thermo-Pneumatique | Couvre-Culasse | Étanchéité | 1 | Alu / Composite |
 | A. Bloc Thermo-Pneumatique | Joint de Culasse | Multi-feuilles MLS | 3 | Inox/Viton |
@@ -70,15 +70,15 @@ Critère : Maximiser N pour réduire la contrainte unitaire, tant que Masse < Li
 | A. Bloc Thermo-Pneumatique | Bouchon Vidange/Purge | M14 x 1.25 + Joint Cuivre | 2 | Acier/Cuivre |
 | A. Bloc Thermo-Pneumatique | Pions de Centrage | Ø8 x 16 | 4 | Acier Rectifié |
 | C. Attelage Mobile (Piston) | Piston Moteur | Ø0.0 f7 (Forgé) | 3 | Alu 2618A |
-| C. Attelage Mobile (Piston) | Axe de Piston | Ø22.4 g6 (DLC) | 3 | Acier 16MnCr5 |
+| C. Attelage Mobile (Piston) | Axe de Piston | Ø46.9 g6 (DLC) | 3 | Acier 16MnCr5 |
 | C. Attelage Mobile (Piston) | Clips Axe Piston | Circlips Intérieur Ø30 | 6 | Acier Ressort |
 | C. Attelage Mobile (Piston) | Segment Feu | Cromé / Barrel | 3 | Acier Inox |
 | C. Attelage Mobile (Piston) | Segment Étanchéité | Bec d'aigle | 3 | Fonte Nodulaire |
 | C. Attelage Mobile (Piston) | Segment Racleur | 3 pièces (Ressort) | 3 | Acier/Expander Inox |
-| D. Piston Libre / Séparateur | Piston Libre | Si3N4 Ø74.8 (Masse 137g) | 3 | Céramique Si3N4 |
+| D. Piston Libre / Séparateur | Piston Libre | Si3N4 Ø156.2 (Masse 1244g) | 3 | Céramique Si3N4 |
 | D. Piston Libre / Séparateur | Segments Piston Libre | Polymère Haute Temp (PEEK) | 6 | PEEK / Bronze |
 | D. Piston Libre / Séparateur | Ressort de Rappel (Opt) | Pneumatique ou Méca | 3 | Acier Ressort |
-| F. Conversion Mécanique (Bas Moteur) | Bielle | Entraxe 130.9 (I-Beam) | 3 | Acier Forgé 42CrMo4 |
+| F. Conversion Mécanique (Bas Moteur) | Bielle | Entraxe 273.3 (I-Beam) | 3 | Acier Forgé 42CrMo4 |
 | F. Conversion Mécanique (Bas Moteur) | Vis de Bielle | ARP 2000 M9x1.0 | 6 | Acier Haute Résistance |
 | F. Conversion Mécanique (Bas Moteur) | Coussinets Bielle (Paire) | Trimétal (Al-Sn-Cu) | 3 | Standard SAE |
 | F. Conversion Mécanique (Bas Moteur) | Vilebrequin | 3 Cylindres / Course 95mm | 1 | Acier 42CrMo4 Nitruré |
@@ -109,14 +109,14 @@ Critère : Maximiser N pour réduire la contrainte unitaire, tant que Masse < Li
 | G. Transmission / Accouplement | Solénoïde d'Engagement | Push/Pull 12V | 1 | Cuivre/Fer |
 | G. Transmission / Accouplement | Ressort de Rappel Crabot | Compression | 1 | Acier Ressort |
 | G. Transmission / Accouplement | Circlips Axe | Exterieur Ø12 | 2 | Acier |
-| H. Génératrice & Puissance | Stator Bobiné | 24.1 kW / Refroidi Eau | 1 | Cuivre Class H / FerSi |
+| H. Génératrice & Puissance | Stator Bobiné | 219.3 kW / Refroidi Eau | 1 | Cuivre Class H / FerSi |
 | H. Génératrice & Puissance | Rotor à Aimants | IPM (Interior PM) | 1 | NdFeB N42UH |
 | H. Génératrice & Puissance | Roulements Génératrice | Ceramic Hybrid (Haut RPM) | 2 | Si3N4 / Acier |
 | H. Génératrice & Puissance | Boîtier Génératrice | Alu Extrudé Aileté | 1 | Alu 6063 |
 | H. Génératrice & Puissance | Presse-étoupe Câbles | IP68 M25 | 3 | Polyamide |
-| H. Génératrice & Puissance | Câble Phase (Orange) | Blindé 15mm² | 3 | Cuivre/Silicone |
+| H. Génératrice & Puissance | Câble Phase (Orange) | Blindé 137mm² | 3 | Cuivre/Silicone |
 | H. Génératrice & Puissance | Connecteur Puissance | 3 Pôles HV | 1 | Plastique UL94 |
-| E. Circuit Refroidissement | Pompe à Eau Électrique | PWM 44 L/min | 1 | PPS / Brushless |
+| E. Circuit Refroidissement | Pompe à Eau Électrique | PWM 402 L/min | 1 | PPS / Brushless |
 | E. Circuit Refroidissement | Radiateur Échangeur | Alu Brazé 300x300 | 1 | Alu 3003 |
 | E. Circuit Refroidissement | Ventilateur | Axial 12V | 1 | PA6-GF30 |
 | E. Circuit Refroidissement | Thermostat | Ouverture 85°C | 1 | Laiton/Cire |

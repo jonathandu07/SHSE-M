@@ -1,95 +1,95 @@
 {
     "EfficiencyAgent": {
         "eta_elec_chain": 0.8390399999999999,
-        "P_shaft_kW": 17.877574370709386,
-        "P_indicated_kW": 21.03244043612869
+        "P_shaft_kW": 238.36765827612513,
+        "P_indicated_kW": 280.4325391483825
     },
     "ThermodynamicAgent": {
-        "Vd_total_cc": 673.0380939561181,
+        "Vd_total_cc": 8973.84125274824,
         "N_cylinders": 3,
-        "Bore_mm": 65.85814641803982,
-        "Stroke_mm": 65.85814641803982,
-        "Est_System_Mass_kg": 26.96055996769418,
-        "Max_Force_Per_Piston_N": 7299.651171950647,
+        "Bore_mm": 156.16693336030136,
+        "Stroke_mm": 156.16693336030136,
+        "Est_System_Mass_kg": 236.1407995692556,
+        "Max_Force_Per_Piston_N": 41045.094958209134,
         "optimization_candidates": [
             [
                 1,
-                26.960559967694174,
-                15183.886316696418,
+                236.1407995692556,
+                85377.2380382001,
                 8.5,
-                0.09498388337266032,
-                0.09498388337266032
+                0.2252316925351203,
+                0.2252316925351203
             ],
             [
                 2,
-                26.960559967694174,
-                9565.248994808275,
+                236.1407995692556,
+                53784.28969310679,
                 14.0,
-                0.07538875819289288,
-                0.07538875819289288
+                0.17876651283341402,
+                0.17876651283341402
             ],
             [
                 3,
-                26.96055996769418,
-                7299.651171950647,
+                236.1407995692556,
+                41045.094958209134,
                 16.5,
-                0.06585814641803982,
-                0.06585814641803982
+                0.15616693336030135,
+                0.15616693336030135
             ],
             [
                 4,
-                26.960559967694174,
-                6025.729278022361,
+                236.1407995692556,
+                33881.979368994565,
                 16.0,
-                0.05983609703098719,
-                0.05983609703098719
+                0.14188707526422403,
+                0.14188707526422403
             ],
             [
                 5,
-                26.96055996769418,
-                5192.816075724861,
+                236.14079956925565,
+                29198.604687802588,
                 12.5,
-                0.05554691196520018,
-                0.05554691196520018
+                0.13171629283607963,
+                0.13171629283607963
             ],
             [
                 6,
-                26.96055996769418,
-                4598.492084215201,
+                236.1407995692556,
+                25856.78956639081,
                 6.0,
-                0.05227164545233606,
-                0.05227164545233606
+                0.12394977714939504,
+                0.12394977714939504
             ]
         ],
-        "U_mean_m_s": 5.488178868169984,
+        "U_mean_m_s": 13.013911113358445,
         "p_max_bar": 21.42857142857143,
         "p_max_Pa": 2142857.142857143,
         "eta_carnot": 0.6526315789473685,
         "eta_th": 0.3589473684210527
     },
     "CombustionAgent": {
-        "P_thermal_input_kW": 58.59477540856966,
-        "fuel_consumption_kg_h": 4.891957130585594,
-        "fuel_consumption_g_s": 1.3588769807182204,
-        "air_flow_kg_s": 0.019975491616557838
+        "P_thermal_input_kW": 781.2636721142619,
+        "fuel_consumption_kg_h": 65.22609507447456,
+        "fuel_consumption_g_s": 18.1183597429096,
+        "air_flow_kg_s": 0.2663398882207711
     },
     "CaptiveGasAgent": {
-        "V_cold_mean_liter": 1.3460761879122363,
-        "mass_gas_g": 6.867034934762964,
+        "V_cold_mean_liter": 17.947682505496477,
+        "mass_gas_g": 91.56046579683951,
         "P_max_buffer_bar": 7.47970096964133
     },
     "MechanicalAgent": {
-        "piston_height_mm": 55.979424455333856,
-        "pin_diameter_mm": 19.757443925411945,
-        "sf_pin_shear": 43.6476803507357,
-        "rod_length_mm": 115.25175623156967,
-        "rod_section_width_mm": 4.515765820475221,
-        "rod_section_depth_mm": 6.773648730712832,
-        "crank_pin_diameter_mm": 32.92907320901991,
-        "crank_pin_length_mm": 32.92907320901991,
+        "piston_height_mm": 132.74189335625613,
+        "pin_diameter_mm": 46.85008000809041,
+        "sf_pin_shear": 43.64768035073571,
+        "rod_length_mm": 273.2921333805274,
+        "rod_section_width_mm": 10.708064807662259,
+        "rod_section_depth_mm": 16.06209721149339,
+        "crank_pin_diameter_mm": 78.08346668015068,
+        "crank_pin_length_mm": 78.08346668015068,
         "bearing_pressure_MPa": 6.731984257692415,
-        "mass_piston_kg": 0.3146453089244853,
-        "mass_rod_kg": 0.21787452427642212,
+        "mass_piston_kg": 4.195270785659802,
+        "mass_rod_kg": 2.9049936570189625,
         "tol_bore": "H7 (+0/+35 \u00b5m)",
         "tol_piston": "f7 (-30/-60 \u00b5m)",
         "tol_pin": "g6 (-7/-20 \u00b5m)",
@@ -98,10 +98,10 @@
         "ra_crank_journals": 0.2,
         "PV_factor_skirt": 5385587.406153932,
         "FMEP_bar": 1.2847428571428572,
-        "design_clearance_cold_mm": 0.24935647268876202,
-        "Clearance_Hot_mm": 0.01999999999999602,
-        "liner_thickness_mm": 3.0,
-        "piston_crown_thickness_mm": 5.268651713443186,
+        "design_clearance_cold_mm": 0.5639899131605063,
+        "Clearance_Hot_mm": 0.020000000000010232,
+        "liner_thickness_mm": 3.346434286292172,
+        "piston_crown_thickness_mm": 12.493354668824109,
         "shsem_components": {
             "Piston": {
                 "name": "Piston Moteur",
@@ -109,15 +109,15 @@
                 "specs": [
                     [
                         "Diam\u00e8tre",
-                        "65.86 mm"
+                        "156.17 mm"
                     ],
                     [
                         "Hauteur",
-                        "56.0 mm"
+                        "132.7 mm"
                     ],
                     [
                         "Masse Estim.",
-                        "0.315 kg"
+                        "4.195 kg"
                     ],
                     [
                         "Jeu Jupe",
@@ -152,23 +152,23 @@
                 "specs": [
                     [
                         "Entraxe",
-                        "115.3 mm"
+                        "273.3 mm"
                     ],
                     [
                         "Section",
-                        "4.5 x 6.8 mm"
+                        "10.7 x 16.1 mm"
                     ],
                     [
                         "Masse Estim.",
-                        "0.218 kg"
+                        "2.905 kg"
                     ],
                     [
                         "\u00d8 Axe Piston",
-                        "19.8 mm"
+                        "46.9 mm"
                     ],
                     [
                         "\u00d8 Maneton",
-                        "32.9 mm"
+                        "78.1 mm"
                     ]
                 ],
                 "stress_data": [
@@ -201,15 +201,15 @@
                 "specs": [
                     [
                         "Course",
-                        "65.9 mm"
+                        "156.2 mm"
                     ],
                     [
                         "\u00d8 Tourillons",
-                        "32.9 mm (Est.)"
+                        "78.1 mm (Est.)"
                     ],
                     [
                         "\u00d8 Manetons",
-                        "32.9 mm"
+                        "78.1 mm"
                     ],
                     [
                         "Pression Paliers",
@@ -232,9 +232,9 @@
         },
         "geometry": {
             "piston": {
-                "D": 65.85814641803982,
-                "H": 55.979424455333856,
-                "t_crown": 5.268651713443186,
+                "D": 156.16693336030136,
+                "H": 132.74189335625613,
+                "t_crown": 12.493354668824109,
                 "h_land_top": 6.0,
                 "h_land_2": 4.0,
                 "h_land_3": 3.0,
@@ -252,29 +252,29 @@
                         3.0
                     ]
                 ],
-                "pin_boss_width": 26.34325856721593,
-                "pin_bore_D": 19.757443925411945
+                "pin_boss_width": 62.46677334412055,
+                "pin_bore_D": 46.85008000809041
             },
             "liner": {
-                "ID": 65.85814641803982,
-                "OD": 71.85814641803982,
-                "H": 164.64536604509954,
+                "ID": 156.16693336030136,
+                "OD": 162.8598019328857,
+                "H": 390.41733340075336,
                 "flange_h": 5.0,
                 "flange_w": 4.0,
-                "t_wall": 3.0
+                "t_wall": 3.346434286292172
             },
             "rod": {
-                "L": 115.25175623156967,
-                "D_big": 42.92907320901991,
-                "D_small": 27.757443925411945,
-                "W_big": 19.757443925411945,
-                "W_small": 10.86659415897657
+                "L": 273.2921333805274,
+                "D_big": 88.08346668015068,
+                "D_small": 54.85008000809041,
+                "W_big": 46.85008000809041,
+                "W_small": 25.767544004449725
             }
         }
     },
     "DogClutchAgent": {
-        "contact_pressure_MPa": 4.74217789153194,
-        "shear_stress_MPa": 1.8113785259001838,
+        "contact_pressure_MPa": 63.22903855375918,
+        "shear_stress_MPa": 24.151713678669115,
         "sync_energy_check_J": 0.6853891945200945,
         "shsem_components": {
             "Crabots": {
@@ -291,18 +291,18 @@
                     ],
                     [
                         "Force Tang.",
-                        "3414 N"
+                        "45525 N"
                     ]
                 ],
                 "stress_data": [
                     [
                         "Pression Contact",
-                        "4.7 MPa",
+                        "63.2 MPa",
                         "200.0"
                     ],
                     [
                         "Cisaillement",
-                        "1.8 MPa",
+                        "24.2 MPa",
                         "400.0"
                     ],
                     [
@@ -319,17 +319,17 @@
         }
     },
     "CoolingAgent": {
-        "heat_rejection_kW": 17.578432622570897,
-        "coolant_flow_L_min": 30.134455924407252
+        "heat_rejection_kW": 234.37910163427856,
+        "coolant_flow_L_min": 401.79274565876324
     },
     "ElectricalAgent": {
-        "alternator_power_kW": 16.447368421052637,
-        "current_max_A": 41.11842105263159,
-        "cable_section_mm2": 10.279605263157897
+        "alternator_power_kW": 219.29824561403512,
+        "current_max_A": 548.2456140350878,
+        "cable_section_mm2": 137.06140350877195
     },
     "BatteryAgent": {
-        "capacity_Ah": 30.0,
-        "charging_C_rate": 1.3706140350877196
+        "capacity_Ah": 125.0,
+        "charging_C_rate": 4.385964912280702
     },
     "SecurityAgent": {
         "status": "SAFE"
@@ -350,10 +350,10 @@
         ]
     },
     "FreePistonAgent": {
-        "free_piston_height_mm": 26.34325856721593,
-        "free_piston_wall_thickness_mm": 3.2929073209019912,
-        "free_piston_mass_kg": 0.09332794902858173,
-        "thermal_leak_conduction_W": 387.93650431116544,
+        "free_piston_height_mm": 62.46677334412054,
+        "free_piston_wall_thickness_mm": 7.8083466680150675,
+        "free_piston_mass_kg": 1.2443726537144226,
+        "thermal_leak_conduction_W": 919.8991698344428,
         "shsem_components": {
             "Piston Libre": {
                 "name": "Piston Libre (S\u00e9parateur)",
@@ -361,25 +361,25 @@
                 "specs": [
                     [
                         "Diam\u00e8tre",
-                        "65.9 mm"
+                        "156.2 mm"
                     ],
                     [
                         "Hauteur",
-                        "26.3 mm"
+                        "62.5 mm"
                     ],
                     [
                         "Masse",
-                        "93.3 g"
+                        "1244.4 g"
                     ],
                     [
                         "\u00c9paisseur paroi",
-                        "3.3 mm"
+                        "7.8 mm"
                     ]
                 ],
                 "stress_data": [
                     [
                         "Fuite Thermique",
-                        "387.9 W",
+                        "919.9 W",
                         "Minimiser"
                     ]
                 ],
@@ -403,7 +403,7 @@
             {
                 "Group": "A. Bloc Thermo-Pneumatique",
                 "Part": "Chemise Cylindre",
-                "Spec": "\u00d865.9 H7 (Tra\u00eet\u00e9e)",
+                "Spec": "\u00d8156.2 H7 (Tra\u00eet\u00e9e)",
                 "Qty": 3,
                 "Material": "Fonte GS 600-3"
             },
@@ -494,7 +494,7 @@
             {
                 "Group": "C. Attelage Mobile (Piston)",
                 "Part": "Axe de Piston",
-                "Spec": "\u00d819.8 g6 (DLC)",
+                "Spec": "\u00d846.9 g6 (DLC)",
                 "Qty": 3,
                 "Material": "Acier 16MnCr5"
             },
@@ -529,7 +529,7 @@
             {
                 "Group": "D. Piston Libre / S\u00e9parateur",
                 "Part": "Piston Libre",
-                "Spec": "Si3N4 \u00d865.9 (Masse 93g)",
+                "Spec": "Si3N4 \u00d8156.2 (Masse 1244g)",
                 "Qty": 3,
                 "Material": "C\u00e9ramique Si3N4"
             },
@@ -550,7 +550,7 @@
             {
                 "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
                 "Part": "Bielle",
-                "Spec": "Entraxe 115.3 (I-Beam)",
+                "Spec": "Entraxe 273.3 (I-Beam)",
                 "Qty": 3,
                 "Material": "Acier Forg\u00e9 42CrMo4"
             },
@@ -767,7 +767,7 @@
             {
                 "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
                 "Part": "Stator Bobin\u00e9",
-                "Spec": "16.4 kW / Refroidi Eau",
+                "Spec": "219.3 kW / Refroidi Eau",
                 "Qty": 1,
                 "Material": "Cuivre Class H / FerSi"
             },
@@ -802,7 +802,7 @@
             {
                 "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
                 "Part": "C\u00e2ble Phase (Orange)",
-                "Spec": "Blind\u00e9 10mm\u00b2",
+                "Spec": "Blind\u00e9 137mm\u00b2",
                 "Qty": 3,
                 "Material": "Cuivre/Silicone"
             },
@@ -816,7 +816,7 @@
             {
                 "Group": "E. Circuit Refroidissement",
                 "Part": "Pompe \u00e0 Eau \u00c9lectrique",
-                "Spec": "PWM 30 L/min",
+                "Spec": "PWM 402 L/min",
                 "Qty": 1,
                 "Material": "PPS / Brushless"
             },

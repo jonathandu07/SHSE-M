@@ -1,170 +1,60 @@
-2026-01-01 22:17:46,208 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
-2026-01-01 22:17:46,209 - [INFO] - EfficiencyAgent - Target Battery Power: 15.0 kW
-2026-01-01 22:17:46,209 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
-2026-01-01 22:17:46,209 - [INFO] - EfficiencyAgent - Required Shaft Power: 17.878 kW
-2026-01-01 22:17:46,209 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
-2026-01-01 22:17:46,209 - [INFO] - EfficiencyAgent - Required Indicated Power: 21.032 kW
-2026-01-01 22:17:46,210 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
-2026-01-01 22:17:46,210 - [INFO] - ThermodynamicAgent - Total Displacement Required: 673.0 cc
-2026-01-01 22:17:46,210 - [INFO] - ThermodynamicAgent -    N=4: Mass=27.0, Score=16.0
-2026-01-01 22:17:46,210 - [INFO] - ThermodynamicAgent -    N=5: Mass=27.0, Score=12.5
-2026-01-01 22:17:46,211 - [INFO] - ThermodynamicAgent -    N=6: Mass=27.0, Score=6.0
-2026-01-01 22:17:46,211 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 3 Cylinders
-2026-01-01 22:17:46,211 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 65.9 mm
-2026-01-01 22:17:46,211 - [INFO] - ThermodynamicAgent -    > Est. Mass: 27.0 kg (Limit: 50.0)
-2026-01-01 22:17:46,211 - [INFO] - ThermodynamicAgent -    > Unit Force: 7300 N
-2026-01-01 22:17:46,212 - [INFO] - ThermodynamicAgent - Mean Piston Speed: 5.49 m/s (Limit: 12.0)
-2026-01-01 22:17:46,212 - [INFO] - ThermodynamicAgent - Estimated Max Pressure: 21.4 bar
-2026-01-01 22:17:46,212 - [INFO] - ThermodynamicAgent - Carnot Efficiency: 0.653 (Th=950.0K, Tc=330.0K)
-2026-01-01 22:17:46,212 - [INFO] - ThermodynamicAgent - Estimated Thermal Efficiency: 0.359 (Factor=0.55)
-2026-01-01 22:17:46,213 - [INFO] - CombustionAgent - Starting combustion analysis...
-2026-01-01 22:17:46,213 - [INFO] - CombustionAgent - Required Thermal Input: 58.59 kW
-2026-01-01 22:17:46,213 - [INFO] - CombustionAgent - Fuel Consumption: 4.892 kg/h
-2026-01-01 22:17:46,214 - [INFO] - CombustionAgent - Air Flow: 71.91 kg/h
-2026-01-01 22:17:46,214 - [INFO] - CaptiveGasAgent - Starting captive gas sizing...
-2026-01-01 22:17:46,215 - [INFO] - CaptiveGasAgent - Cold Buffer Volume: 1.35 L
-2026-01-01 22:17:46,217 - [INFO] - CaptiveGasAgent - Gas Mass (N2): 6.87 g
-2026-01-01 22:17:46,217 - [INFO] - CaptiveGasAgent - Est. Max Buffer Pressure: 7.48 bar
-2026-01-01 22:17:46,218 - [INFO] - MechanicalAgent - Starting mechanical component sizing...
-2026-01-01 22:17:46,218 - [INFO] - MechanicalAgent - Inputs: B=65.85814641803982mm, S=65.85814641803982mm, P_max=21.42857142857143bar
-2026-01-01 22:17:46,218 - [INFO] - MechanicalAgent - Max Gas Force: 7299.7 N
-2026-01-01 22:17:46,218 - [INFO] - MechanicalAgent - Rod Sized for Buckling: 4.5x6.8mm
-2026-01-01 22:17:46,218 - [INFO] - MechanicalAgent - FMEP Estimated (Friction): 1.28 bar
-2026-01-01 22:17:46,218 - [INFO] - MechanicalAgent - REQUIRED Cold Clearance: 249.4 µm (for 20µm Hot)
-2026-01-01 22:17:46,219 - [INFO] - DogClutchAgent - Starting dog clutch sizing...
-2026-01-01 22:17:46,219 - [INFO] - DogClutchAgent - Tangential Force: 3414.4 N
-2026-01-01 22:17:46,220 - [INFO] - DogClutchAgent - Contact Pressure: 4.7 MPa
-2026-01-01 22:17:46,220 - [INFO] - DogClutchAgent - Sync Check: Energy manageable if Delta-RPM < 50.
-2026-01-01 22:17:46,220 - [INFO] - CoolingAgent - Starting cooling system sizing...
-2026-01-01 22:17:46,220 - [INFO] - CoolingAgent - Heat Rejection Target: 17.6 kW
-2026-01-01 22:17:46,221 - [INFO] - CoolingAgent - Coolant Flow: 30.1 L/min
-2026-01-01 22:17:46,222 - [INFO] - ElectricalAgent - Starting electrical sizing...
-2026-01-01 22:17:46,223 - [INFO] - ElectricalAgent - Alternator Power: 16.4 kW
-2026-01-01 22:17:46,223 - [INFO] - ElectricalAgent - Bus Current: 41.1 A (@400.0V)
-2026-01-01 22:17:46,224 - [INFO] - ElectricalAgent - Recommended Cable Section: 10.3 mm2
-2026-01-01 22:17:46,224 - [INFO] - BatteryAgent - Starting battery sizing...
-2026-01-01 22:17:46,224 - [INFO] - BatteryAgent - Battery Capacity: 30.0 Ah
-2026-01-01 22:17:46,225 - [INFO] - BatteryAgent - Charging C-Rate: 1.37 C
-2026-01-01 22:17:46,226 - [INFO] - SecurityAgent - Running security checks...
-2026-01-01 22:17:46,228 - [INFO] - SecurityAgent - Security checks completed.
-2026-01-01 22:17:46,228 - [INFO] - ControlAgent - Defining control strategy...
-2026-01-01 22:17:46,229 - [INFO] - FreePistonAgent - Starting Free Piston sizing...
-2026-01-01 22:17:46,229 - [INFO] - FreePistonAgent - Free Piston Mass (Si3N4): 93.3 g
-2026-01-01 22:17:46,229 - [INFO] - FreePistonAgent - Est. Thermal Leak (Conduction): 387.9 W
-2026-01-01 22:17:46,229 - [INFO] - BOMAgent - Generating Exhaustive BOM for 3 Cylinders...
-2026-01-01 22:17:46,230 - [INFO] - GraphiqueAgent - Generating technical graphs...
-2026-01-01 22:17:49,845 - [INFO] - BOMAgent - Generating Exhaustive BOM for 3 Cylinders...
-2026-01-01 22:17:49,846 - [INFO] - ReportAgent - Generating SHSE-M Technical Manual...
-2026-01-01 22:17:49,847 - [INFO] - ReportAgent - Report generated: output_shse_m\SHSE_M_Manuel_Technique.md
-2026-01-01 22:18:36,801 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
-2026-01-01 22:18:36,802 - [INFO] - EfficiencyAgent - Target Battery Power: 22.0 kW
-2026-01-01 22:18:36,802 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
-2026-01-01 22:18:36,802 - [INFO] - EfficiencyAgent - Required Shaft Power: 26.220 kW
-2026-01-01 22:18:36,802 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
-2026-01-01 22:18:36,803 - [INFO] - EfficiencyAgent - Required Indicated Power: 30.848 kW
-2026-01-01 22:18:36,803 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
-2026-01-01 22:18:36,803 - [INFO] - ThermodynamicAgent - Total Displacement Required: 987.1 cc
-2026-01-01 22:18:36,803 - [INFO] - ThermodynamicAgent -    N=4: Mass=34.9, Score=16.0
-2026-01-01 22:18:36,804 - [INFO] - ThermodynamicAgent -    N=5: Mass=34.9, Score=12.5
-2026-01-01 22:18:36,804 - [INFO] - ThermodynamicAgent -    N=6: Mass=34.9, Score=6.0
-2026-01-01 22:18:36,804 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 3 Cylinders
-2026-01-01 22:18:36,804 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 74.8 mm
-2026-01-01 22:18:36,804 - [INFO] - ThermodynamicAgent -    > Est. Mass: 34.9 kg (Limit: 50.0)
-2026-01-01 22:18:36,805 - [INFO] - ThermodynamicAgent -    > Unit Force: 9423 N
-2026-01-01 22:18:36,805 - [INFO] - ThermodynamicAgent - Mean Piston Speed: 6.24 m/s (Limit: 12.0)
-2026-01-01 22:18:36,805 - [INFO] - ThermodynamicAgent - Estimated Max Pressure: 21.4 bar
-2026-01-01 22:18:36,805 - [INFO] - ThermodynamicAgent - Carnot Efficiency: 0.653 (Th=950.0K, Tc=330.0K)
-2026-01-01 22:18:36,806 - [INFO] - ThermodynamicAgent - Estimated Thermal Efficiency: 0.359 (Factor=0.55)
-2026-01-01 22:18:36,806 - [INFO] - CombustionAgent - Starting combustion analysis...
-2026-01-01 22:18:36,806 - [INFO] - CombustionAgent - Required Thermal Input: 85.94 kW
-2026-01-01 22:18:36,806 - [INFO] - CombustionAgent - Fuel Consumption: 7.175 kg/h
-2026-01-01 22:18:36,806 - [INFO] - CombustionAgent - Air Flow: 105.47 kg/h
-2026-01-01 22:18:36,807 - [INFO] - CaptiveGasAgent - Starting captive gas sizing...
-2026-01-01 22:18:36,808 - [INFO] - CaptiveGasAgent - Cold Buffer Volume: 1.97 L
-2026-01-01 22:18:36,808 - [INFO] - CaptiveGasAgent - Gas Mass (N2): 10.07 g
-2026-01-01 22:18:36,808 - [INFO] - CaptiveGasAgent - Est. Max Buffer Pressure: 7.48 bar
-2026-01-01 22:18:36,808 - [INFO] - MechanicalAgent - Starting mechanical component sizing...
-2026-01-01 22:18:36,808 - [INFO] - MechanicalAgent - Inputs: B=74.82613455191485mm, S=74.82613455191485mm, P_max=21.42857142857143bar
-2026-01-01 22:18:36,809 - [INFO] - MechanicalAgent - Max Gas Force: 9423.0 N
-2026-01-01 22:18:36,809 - [INFO] - MechanicalAgent - Rod Sized for Buckling: 5.1x7.7mm
-2026-01-01 22:18:36,809 - [INFO] - MechanicalAgent - FMEP Estimated (Friction): 1.28 bar
-2026-01-01 22:18:36,809 - [INFO] - MechanicalAgent - REQUIRED Cold Clearance: 280.6 µm (for 20µm Hot)
-2026-01-01 22:18:36,809 - [INFO] - DogClutchAgent - Starting dog clutch sizing...
-2026-01-01 22:18:36,809 - [INFO] - DogClutchAgent - Tangential Force: 5007.7 N
-2026-01-01 22:18:36,810 - [INFO] - DogClutchAgent - Contact Pressure: 7.0 MPa
-2026-01-01 22:18:36,810 - [INFO] - DogClutchAgent - Sync Check: Energy manageable if Delta-RPM < 50.
-2026-01-01 22:18:36,810 - [INFO] - CoolingAgent - Starting cooling system sizing...
-2026-01-01 22:18:36,810 - [INFO] - CoolingAgent - Heat Rejection Target: 25.8 kW
-2026-01-01 22:18:36,811 - [INFO] - CoolingAgent - Coolant Flow: 44.2 L/min
-2026-01-01 22:18:36,811 - [INFO] - ElectricalAgent - Starting electrical sizing...
-2026-01-01 22:18:36,811 - [INFO] - ElectricalAgent - Alternator Power: 24.1 kW
-2026-01-01 22:18:36,811 - [INFO] - ElectricalAgent - Bus Current: 60.3 A (@400.0V)
-2026-01-01 22:18:36,811 - [INFO] - ElectricalAgent - Recommended Cable Section: 15.1 mm2
-2026-01-01 22:18:36,811 - [INFO] - BatteryAgent - Starting battery sizing...
-2026-01-01 22:18:36,812 - [INFO] - BatteryAgent - Battery Capacity: 30.0 Ah
-2026-01-01 22:18:36,812 - [INFO] - BatteryAgent - Charging C-Rate: 2.01 C
-2026-01-01 22:18:36,812 - [INFO] - SecurityAgent - Running security checks...
-2026-01-01 22:18:36,812 - [INFO] - SecurityAgent - Security checks completed.
-2026-01-01 22:18:36,812 - [INFO] - ControlAgent - Defining control strategy...
-2026-01-01 22:18:36,813 - [INFO] - FreePistonAgent - Starting Free Piston sizing...
-2026-01-01 22:18:36,815 - [INFO] - FreePistonAgent - Free Piston Mass (Si3N4): 136.9 g
-2026-01-01 22:18:36,815 - [INFO] - FreePistonAgent - Est. Thermal Leak (Conduction): 440.8 W
-2026-01-01 22:18:36,817 - [INFO] - BOMAgent - Generating Exhaustive BOM for 3 Cylinders...
-2026-01-01 22:18:36,817 - [INFO] - GraphiqueAgent - Generating technical graphs...
-2026-01-01 22:18:41,329 - [INFO] - BOMAgent - Generating Exhaustive BOM for 3 Cylinders...
-2026-01-01 22:18:41,330 - [INFO] - ReportAgent - Generating SHSE-M Technical Manual...
-2026-01-01 22:18:41,335 - [INFO] - ReportAgent - Report generated: output_shse_m\SHSE_M_Manuel_Technique.md
-2026-01-01 22:18:59,184 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
-2026-01-01 22:18:59,184 - [INFO] - EfficiencyAgent - Target Battery Power: 200.0 kW
-2026-01-01 22:18:59,185 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
-2026-01-01 22:18:59,185 - [INFO] - EfficiencyAgent - Required Shaft Power: 238.368 kW
-2026-01-01 22:18:59,185 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
-2026-01-01 22:18:59,185 - [INFO] - EfficiencyAgent - Required Indicated Power: 280.433 kW
-2026-01-01 22:18:59,187 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
-2026-01-01 22:18:59,187 - [INFO] - ThermodynamicAgent - Total Displacement Required: 8973.8 cc
-2026-01-01 22:18:59,187 - [INFO] - ThermodynamicAgent -    N=2: Mass=236.1, Score=-1000.0
-2026-01-01 22:18:59,188 - [INFO] - ThermodynamicAgent -    N=3: Mass=236.1, Score=-1000.0
-2026-01-01 22:18:59,188 - [INFO] - ThermodynamicAgent -    N=4: Mass=236.1, Score=-1000.0
-2026-01-01 22:18:59,188 - [INFO] - ThermodynamicAgent -    N=5: Mass=236.1, Score=-1000.0
-2026-01-01 22:18:59,188 - [INFO] - ThermodynamicAgent -    N=6: Mass=236.1, Score=-1000.0
-2026-01-01 22:18:59,189 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 1 Cylinders
-2026-01-01 22:18:59,189 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 225.2 mm
-2026-01-01 22:18:59,189 - [INFO] - ThermodynamicAgent -    > Est. Mass: 236.1 kg (Limit: 50.0)
-2026-01-01 22:18:59,189 - [INFO] - ThermodynamicAgent -    > Unit Force: 85377 N
-2026-01-01 22:18:59,190 - [ERROR] - ThermodynamicAgent - CRITICAL CHECK FAILED: Mean Piston Speed 18.77 m/s exceeds limit 12.0 m/s
-2026-01-01 22:19:12,641 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
-2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Target Battery Power: 200.0 kW
-2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
-2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Required Shaft Power: 238.368 kW
-2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
-2026-01-01 22:19:12,642 - [INFO] - EfficiencyAgent - Required Indicated Power: 280.433 kW
-2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
-2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent - Total Displacement Required: 8973.8 cc
-2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent -    N=2: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent -    N=3: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:12,643 - [INFO] - ThermodynamicAgent -    N=4: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:12,644 - [INFO] - ThermodynamicAgent -    N=5: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:12,644 - [INFO] - ThermodynamicAgent -    N=6: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:12,644 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 1 Cylinders
-2026-01-01 22:19:12,644 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 225.2 mm
-2026-01-01 22:19:12,645 - [INFO] - ThermodynamicAgent -    > Est. Mass: 236.1 kg (Limit: 50.0)
-2026-01-01 22:19:12,645 - [INFO] - ThermodynamicAgent -    > Unit Force: 85377 N
-2026-01-01 22:19:12,645 - [ERROR] - ThermodynamicAgent - CRITICAL CHECK FAILED: Mean Piston Speed 18.77 m/s exceeds limit 12.0 m/s
-2026-01-01 22:19:22,350 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
-2026-01-01 22:19:22,350 - [INFO] - EfficiencyAgent - Target Battery Power: 200.0 kW
-2026-01-01 22:19:22,351 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
-2026-01-01 22:19:22,352 - [INFO] - EfficiencyAgent - Required Shaft Power: 238.368 kW
-2026-01-01 22:19:22,352 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
-2026-01-01 22:19:22,353 - [INFO] - EfficiencyAgent - Required Indicated Power: 280.433 kW
-2026-01-01 22:19:22,353 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
-2026-01-01 22:19:22,353 - [INFO] - ThermodynamicAgent - Total Displacement Required: 8973.8 cc
-2026-01-01 22:19:22,354 - [INFO] - ThermodynamicAgent -    N=2: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:22,354 - [INFO] - ThermodynamicAgent -    N=3: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:22,354 - [INFO] - ThermodynamicAgent -    N=4: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:22,354 - [INFO] - ThermodynamicAgent -    N=5: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:22,355 - [INFO] - ThermodynamicAgent -    N=6: Mass=236.1, Score=-1000.0
-2026-01-01 22:19:22,355 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 1 Cylinders
-2026-01-01 22:19:22,355 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 225.2 mm
-2026-01-01 22:19:22,355 - [INFO] - ThermodynamicAgent -    > Est. Mass: 236.1 kg (Limit: 50.0)
-2026-01-01 22:19:22,357 - [INFO] - ThermodynamicAgent -    > Unit Force: 85377 N
-2026-01-01 22:19:22,358 - [ERROR] - ThermodynamicAgent - CRITICAL CHECK FAILED: Mean Piston Speed 18.77 m/s exceeds limit 12.0 m/s
+2026-01-01 22:28:21,637 - [INFO] - root - AUTO-SIZING: Battery Capacity set to 50.00 kWh (Power=200.0kW @ 30min double-energy rule)
+2026-01-01 22:28:21,638 - [INFO] - EfficiencyAgent - Starting efficiency analysis...
+2026-01-01 22:28:21,638 - [INFO] - EfficiencyAgent - Target Battery Power: 200.0 kW
+2026-01-01 22:28:21,638 - [INFO] - EfficiencyAgent - Electrical Chain Efficiency: 0.839
+2026-01-01 22:28:21,638 - [INFO] - EfficiencyAgent - Required Shaft Power: 238.368 kW
+2026-01-01 22:28:21,638 - [INFO] - EfficiencyAgent - Mechanical Efficiency: 0.85
+2026-01-01 22:28:21,638 - [INFO] - EfficiencyAgent - Required Indicated Power: 280.433 kW
+2026-01-01 22:28:21,638 - [INFO] - ThermodynamicAgent - Starting thermodynamic sizing...
+2026-01-01 22:28:21,638 - [INFO] - ThermodynamicAgent - Total Displacement Required: 8973.8 cc
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent -    N=4: Mass=236.1, Score=16.0
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent -    N=5: Mass=236.1, Score=12.5
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent -    N=6: Mass=236.1, Score=6.0
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent - OPTIMIZATION RESULT: 3 Cylinders
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent -    > Bore/Stroke: 156.2 mm
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent -    > Est. Mass: 236.1 kg (Limit: 500.0)
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent -    > Unit Force: 41045 N
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent - Mean Piston Speed: 13.01 m/s (Limit: 14.0)
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent - Estimated Max Pressure: 21.4 bar
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent - Carnot Efficiency: 0.653 (Th=950.0K, Tc=330.0K)
+2026-01-01 22:28:21,639 - [INFO] - ThermodynamicAgent - Estimated Thermal Efficiency: 0.359 (Factor=0.55)
+2026-01-01 22:28:21,639 - [INFO] - CombustionAgent - Starting combustion analysis...
+2026-01-01 22:28:21,639 - [INFO] - CombustionAgent - Required Thermal Input: 781.26 kW
+2026-01-01 22:28:21,639 - [INFO] - CombustionAgent - Fuel Consumption: 65.226 kg/h
+2026-01-01 22:28:21,639 - [INFO] - CombustionAgent - Air Flow: 958.82 kg/h
+2026-01-01 22:28:21,639 - [INFO] - CaptiveGasAgent - Starting captive gas sizing...
+2026-01-01 22:28:21,640 - [INFO] - CaptiveGasAgent - Cold Buffer Volume: 17.95 L
+2026-01-01 22:28:21,640 - [INFO] - CaptiveGasAgent - Gas Mass (N2): 91.56 g
+2026-01-01 22:28:21,640 - [INFO] - CaptiveGasAgent - Est. Max Buffer Pressure: 7.48 bar
+2026-01-01 22:28:21,640 - [INFO] - MechanicalAgent - Starting mechanical component sizing...
+2026-01-01 22:28:21,640 - [INFO] - MechanicalAgent - Inputs: B=156.16693336030136mm, S=156.16693336030136mm, P_max=21.42857142857143bar
+2026-01-01 22:28:21,640 - [INFO] - MechanicalAgent - Max Gas Force: 41045.1 N
+2026-01-01 22:28:21,640 - [INFO] - MechanicalAgent - Rod Sized for Buckling: 10.7x16.1mm
+2026-01-01 22:28:21,640 - [INFO] - MechanicalAgent - FMEP Estimated (Friction): 1.28 bar
+2026-01-01 22:28:21,640 - [INFO] - MechanicalAgent - REQUIRED Cold Clearance: 564.0 µm (for 20µm Hot)
+2026-01-01 22:28:21,640 - [INFO] - DogClutchAgent - Starting dog clutch sizing...
+2026-01-01 22:28:21,640 - [INFO] - DogClutchAgent - Tangential Force: 45524.9 N
+2026-01-01 22:28:21,640 - [INFO] - DogClutchAgent - Contact Pressure: 63.2 MPa
+2026-01-01 22:28:21,640 - [INFO] - DogClutchAgent - Sync Check: Energy manageable if Delta-RPM < 50.
+2026-01-01 22:28:21,640 - [INFO] - CoolingAgent - Starting cooling system sizing...
+2026-01-01 22:28:21,640 - [INFO] - CoolingAgent - Heat Rejection Target: 234.4 kW
+2026-01-01 22:28:21,641 - [INFO] - CoolingAgent - Coolant Flow: 401.8 L/min
+2026-01-01 22:28:21,641 - [INFO] - ElectricalAgent - Starting electrical sizing...
+2026-01-01 22:28:21,641 - [INFO] - ElectricalAgent - Alternator Power: 219.3 kW
+2026-01-01 22:28:21,641 - [INFO] - ElectricalAgent - Bus Current: 548.2 A (@400.0V)
+2026-01-01 22:28:21,641 - [INFO] - ElectricalAgent - Recommended Cable Section: 137.1 mm2
+2026-01-01 22:28:21,641 - [INFO] - BatteryAgent - Starting battery sizing...
+2026-01-01 22:28:21,641 - [INFO] - BatteryAgent - Battery Capacity: 125.0 Ah
+2026-01-01 22:28:21,641 - [INFO] - BatteryAgent - Charging C-Rate: 4.39 C
+2026-01-01 22:28:21,641 - [WARNING] - BatteryAgent - High charging C-rate: 4.39C
+2026-01-01 22:28:21,641 - [INFO] - SecurityAgent - Running security checks...
+2026-01-01 22:28:21,641 - [INFO] - SecurityAgent - Security checks completed.
+2026-01-01 22:28:21,641 - [INFO] - ControlAgent - Defining control strategy...
+2026-01-01 22:28:21,641 - [INFO] - FreePistonAgent - Starting Free Piston sizing...
+2026-01-01 22:28:21,642 - [INFO] - FreePistonAgent - Free Piston Mass (Si3N4): 1244.4 g
+2026-01-01 22:28:21,642 - [INFO] - FreePistonAgent - Est. Thermal Leak (Conduction): 919.9 W
+2026-01-01 22:28:21,642 - [INFO] - BOMAgent - Generating Exhaustive BOM for 3 Cylinders...
+2026-01-01 22:28:21,642 - [INFO] - GraphiqueAgent - Generating technical graphs...
+2026-01-01 22:28:34,625 - [INFO] - BOMAgent - Generating Exhaustive BOM for 3 Cylinders...
+2026-01-01 22:28:34,626 - [INFO] - ReportAgent - Generating SHSE-M Technical Manual...
+2026-01-01 22:28:34,626 - [INFO] - ReportAgent - Report generated: output_shse_m\SHSE_M_Manuel_Technique.md

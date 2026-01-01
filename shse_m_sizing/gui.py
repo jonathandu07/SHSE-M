@@ -115,15 +115,38 @@ class MinimalistGUI:
             sub_r = 0
             for k, v in items.items():
                 if isinstance(v, dict): continue
-                tk.Label(lf, text=k, bg="white").grid(row=sub_r, column=0, sticky="w")
+                
+                # SPECIAL LOGIC FOR AUTO-SIZING
+                is_auto = (category == 'subsystems' and k == 'capacity_kWh')
+                is_master = (category == 'input' and k == 'P_batt_target_kW')
+                
+                label_text = k
+                if is_master: label_text = "⭐ " + k + " (MASTER)"
+                if is_auto: label_text = k + " (AUTO)"
+                
+                tk.Label(lf, text=label_text, bg="white", 
+                         fg=self.colors["primary"] if is_master else self.colors["text"],
+                         font=("Segoe UI", 9, "bold") if is_master else ("Segoe UI", 9)).grid(row=sub_r, column=0, sticky="w")
+                
                 var = tk.StringVar(value=str(v))
                 self.input_vars[f"{category}.{k}"] = var
-                ttk.Entry(lf, textvariable=var, width=12).grid(row=sub_r, column=1, padx=5)
+                
+                entry = ttk.Entry(lf, textvariable=var, width=12)
+                if is_auto:
+                    entry.configure(state="readonly")
+                    tk.Label(lf, text="= Power / 4", bg="white", fg="#999", font=("Segoe UI", 8, "italic")).grid(row=sub_r, column=2, padx=2)
+                
+                entry.grid(row=sub_r, column=1, padx=5)
                 sub_r+=1
             c+=1
             if c > 3: 
                 c=0 
                 r+=1
+        
+        # Add a help banner
+        banner = tk.Label(frame, text="💡 REGLE MOTEUR : La Puissance Cible définit automatiquement la Capacité Batterie (Double de l'énergie de charge en 30 min).", 
+                          bg=self.colors["highlight"], fg=self.colors["primary"], padx=10, pady=10, font=("Segoe UI", 10, "italic"))
+        banner.grid(row=r+1, column=0, columnspan=4, sticky="ew", pady=20)
         
         frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 

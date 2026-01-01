@@ -15,18 +15,18 @@ class TechnicalDrawer:
     def _setup_fig(self):
         fig, ax = plt.subplots(figsize=(6, 6))
         
-        # Blueprint Style
-        fig.patch.set_facecolor('#003366') # Dark Engineering Blue
-        ax.set_facecolor('#003366')
+        # Schematic Style (White Background)
+        fig.patch.set_facecolor('white')
+        ax.set_facecolor('white')
         
         ax.set_aspect('equal')
         ax.axis('off')
         
         # Default colors for drawing methods to use
-        self.color_line = 'white'
-        self.color_fill = '#004080' # Slightly lighter blue
-        self.color_hatch = 'white'
-        self.color_text = 'white'
+        self.color_line = 'black'
+        self.color_fill = '#E6F0FF' # Very Light Blue
+        self.color_hatch = 'black'
+        self.color_text = 'black'
         
         return fig, ax
 
@@ -126,7 +126,7 @@ class TechnicalDrawer:
         # Pin
         ax.annotate(f"Ø{pin_d:.1f} g6", xy=(0, boss_y), xytext=(0, boss_y), color='white', ha='center', va='center')
         
-        ax.set_title("PLAN DE DÉFINITION : PISTON", fontweight='bold', color='white')
+        ax.set_title("SCHÉMA DE PRINCIPE : PISTON", fontweight='bold', color='black')
         return self._save_fig(fig, "detail_piston_prod.png")
 
     def draw_liner_detailed(self, geom):
@@ -162,7 +162,7 @@ class TechnicalDrawer:
         # Surface Finish
         ax.text(0, H/2 + 20, "Ra 0.4 (Plateau Honing)", color='white', ha='center', fontsize=8)
         
-        ax.set_title("PLAN DE DÉFINITION : CHEMISE", fontweight='bold', color='white')
+        ax.set_title("SCHÉMA DE PRINCIPE : CHEMISE", fontweight='bold', color='black')
         return self._save_fig(fig, "detail_liner_prod.png")
 
     def draw_rod_detailed(self, L, D_big, D_small):
@@ -186,7 +186,7 @@ class TechnicalDrawer:
         # Dim
         ax.annotate(f"L={L:.1f}", xy=(-10, 0), xytext=(-10, L), arrowprops=dict(arrowstyle='<->', color='white'), color='white')
         
-        ax.set_title("PLAN DÉTAILLÉ : BIELLE", fontweight='bold', color='white')
+        ax.set_title("SCHÉMA DE PRINCIPE : BIELLE", fontweight='bold', color='black')
         return self._save_fig(fig, "detail_rod.png")
 
     def draw_crank_detailed(self, S, D_pin):
@@ -209,7 +209,7 @@ class TechnicalDrawer:
         # Dim
         ax.annotate(f"R={r:.1f}", xy=(0, 0), xytext=(0, r), arrowprops=dict(arrowstyle='->', color='white'), color='white')
         
-        ax.set_title("PLAN DÉTAILLÉ : VILEBREQUIN", fontweight='bold', color='white')
+        ax.set_title("SCHÉMA DE PRINCIPE : VILEBREQUIN", fontweight='bold', color='black')
         return self._save_fig(fig, "detail_crank.png")
 
     def draw_free_piston(self, D, mass, fp_data):

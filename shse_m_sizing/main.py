@@ -39,6 +39,17 @@ def run_full_sizing(config):
     """
     all_results = {}
     
+    # 0. Battery Auto-Sizing (Rule: Capacity = Power / 4)
+    P_target = config['input'].get('P_batt_target_kW', 15.0)
+    C_batt = P_target / 4.0
+    
+    # Force update in config so all agents see the same value
+    if 'subsystems' not in config: config['subsystems'] = {}
+    if 'battery' not in config['subsystems']: config['subsystems']['battery'] = {}
+    config['subsystems']['battery']['capacity_kWh'] = C_batt
+    
+    logging.info(f"AUTO-SIZING: Battery Capacity set to {C_batt:.2f} kWh (Power={P_target}kW @ 30min double-energy rule)")
+
     # 1. Efficiency Agent
     eff_agent = EfficiencyAgent(config)
     res_eff = eff_agent.run()

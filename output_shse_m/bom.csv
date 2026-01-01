@@ -1,6 +1,6 @@
 Group,Part,Spec,Qty,Material
 A. Bloc Thermo-Pneumatique,Carter Monobloc,Usiné CNC / Moulé,1,Alu 6061-T6
-A. Bloc Thermo-Pneumatique,Chemise Cylindre,Ø65.9 H7 (Traîtée),3,Fonte GS 600-3
+A. Bloc Thermo-Pneumatique,Chemise Cylindre,Ø156.2 H7 (Traîtée),3,Fonte GS 600-3
 A. Bloc Thermo-Pneumatique,Culasse (Chambre Chaude),Design Hémisphérique,3,Inconel 718
 A. Bloc Thermo-Pneumatique,Couvre-Culasse,Étanchéité,1,Alu / Composite
 A. Bloc Thermo-Pneumatique,Joint de Culasse,Multi-feuilles MLS,3,Inox/Viton
@@ -13,15 +13,15 @@ A. Bloc Thermo-Pneumatique,Vis Carter,M8 x 30 CHC,14,Acier 8.8 Zingué
 A. Bloc Thermo-Pneumatique,Bouchon Vidange/Purge,M14 x 1.25 + Joint Cuivre,2,Acier/Cuivre
 A. Bloc Thermo-Pneumatique,Pions de Centrage,Ø8 x 16,4,Acier Rectifié
 C. Attelage Mobile (Piston),Piston Moteur,Ø0.0 f7 (Forgé),3,Alu 2618A
-C. Attelage Mobile (Piston),Axe de Piston,Ø19.8 g6 (DLC),3,Acier 16MnCr5
+C. Attelage Mobile (Piston),Axe de Piston,Ø46.9 g6 (DLC),3,Acier 16MnCr5
 C. Attelage Mobile (Piston),Clips Axe Piston,Circlips Intérieur Ø30,6,Acier Ressort
 C. Attelage Mobile (Piston),Segment Feu,Cromé / Barrel,3,Acier Inox
 C. Attelage Mobile (Piston),Segment Étanchéité,Bec d'aigle,3,Fonte Nodulaire
 C. Attelage Mobile (Piston),Segment Racleur,3 pièces (Ressort),3,Acier/Expander Inox
-D. Piston Libre / Séparateur,Piston Libre,Si3N4 Ø65.9 (Masse 93g),3,Céramique Si3N4
+D. Piston Libre / Séparateur,Piston Libre,Si3N4 Ø156.2 (Masse 1244g),3,Céramique Si3N4
 D. Piston Libre / Séparateur,Segments Piston Libre,Polymère Haute Temp (PEEK),6,PEEK / Bronze
 D. Piston Libre / Séparateur,Ressort de Rappel (Opt),Pneumatique ou Méca,3,Acier Ressort
-F. Conversion Mécanique (Bas Moteur),Bielle,Entraxe 115.3 (I-Beam),3,Acier Forgé 42CrMo4
+F. Conversion Mécanique (Bas Moteur),Bielle,Entraxe 273.3 (I-Beam),3,Acier Forgé 42CrMo4
 F. Conversion Mécanique (Bas Moteur),Vis de Bielle,ARP 2000 M9x1.0,6,Acier Haute Résistance
 F. Conversion Mécanique (Bas Moteur),Coussinets Bielle (Paire),Trimétal (Al-Sn-Cu),3,Standard SAE
 F. Conversion Mécanique (Bas Moteur),Vilebrequin,3 Cylindres / Course 95mm,1,Acier 42CrMo4 Nitruré
@@ -52,14 +52,14 @@ G. Transmission / Accouplement,Axe de Fourchette,Rectifié,1,Acier Trempé
 G. Transmission / Accouplement,Solénoïde d'Engagement,Push/Pull 12V,1,Cuivre/Fer
 G. Transmission / Accouplement,Ressort de Rappel Crabot,Compression,1,Acier Ressort
 G. Transmission / Accouplement,Circlips Axe,Exterieur Ø12,2,Acier
-H. Génératrice & Puissance,Stator Bobiné,16.4 kW / Refroidi Eau,1,Cuivre Class H / FerSi
+H. Génératrice & Puissance,Stator Bobiné,219.3 kW / Refroidi Eau,1,Cuivre Class H / FerSi
 H. Génératrice & Puissance,Rotor à Aimants,IPM (Interior PM),1,NdFeB N42UH
 H. Génératrice & Puissance,Roulements Génératrice,Ceramic Hybrid (Haut RPM),2,Si3N4 / Acier
 H. Génératrice & Puissance,Boîtier Génératrice,Alu Extrudé Aileté,1,Alu 6063
 H. Génératrice & Puissance,Presse-étoupe Câbles,IP68 M25,3,Polyamide
-H. Génératrice & Puissance,Câble Phase (Orange),Blindé 10mm²,3,Cuivre/Silicone
+H. Génératrice & Puissance,Câble Phase (Orange),Blindé 137mm²,3,Cuivre/Silicone
 H. Génératrice & Puissance,Connecteur Puissance,3 Pôles HV,1,Plastique UL94
-E. Circuit Refroidissement,Pompe à Eau Électrique,PWM 30 L/min,1,PPS / Brushless
+E. Circuit Refroidissement,Pompe à Eau Électrique,PWM 402 L/min,1,PPS / Brushless
 E. Circuit Refroidissement,Radiateur Échangeur,Alu Brazé 300x300,1,Alu 3003
 E. Circuit Refroidissement,Ventilateur,Axial 12V,1,PA6-GF30
 E. Circuit Refroidissement,Thermostat,Ouverture 85°C,1,Laiton/Cire
