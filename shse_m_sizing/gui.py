@@ -1,4 +1,4 @@
-import tkinter as tk
+import sys
 from tkinter import ttk, messagebox
 import os
 import csv
@@ -9,6 +9,22 @@ from .check import verify_constraints
 from .report import generate_markdown_report, generate_bom_csv, generate_json_export
 from .sketches import generate_sketches
 from .materials import list_materials_by_category
+
+class TextRedirector(object):
+    def __init__(self, widget, tag="stdout"):
+        self.widget = widget
+        self.tag = tag
+
+    def write(self, str):
+        self.widget.configure(state="normal")
+        self.widget.insert("end", str, (self.tag,))
+        self.widget.see("end")
+        self.widget.configure(state="disabled")
+        # Update immediately
+        self.widget.update_idletasks()
+        
+    def flush(self):
+        pass
 
 class ModernSHSEApp:
     def __init__(self, root):
@@ -31,11 +47,13 @@ class ModernSHSEApp:
         self.tab_results = ttk.Frame(self.notebook)
         self.tab_sketches = ttk.Frame(self.notebook)
         self.tab_report = ttk.Frame(self.notebook)
+        self.tab_debug = ttk.Frame(self.notebook)
         
         self.notebook.add(self.tab_config, text=" 1. CONFIGURATION ")
         self.notebook.add(self.tab_results, text=" 2. DONNÉES TECHNIQUES ")
         self.notebook.add(self.tab_sketches, text=" 3. CROQUIS & SCHÉMAS ")
         self.notebook.add(self.tab_report, text=" 4. RAPPORT TEXTE ")
+        self.notebook.add(self.tab_debug, text=" 5. DÉBOGAGE / LOGS ")
         
         self.vars = {}
         self.image_refs = [] # Keep references to avoid GC
@@ -44,6 +62,8 @@ class ModernSHSEApp:
         self._build_results_tab()
         self._build_sketches_tab()
         self._build_report_tab()
+        self._build_debug_tab()
+
 
     # --- TAB 1: CONFIG ---
     def _build_config_tab(self):
@@ -227,6 +247,31 @@ class ModernSHSEApp:
                 mat_bolt=self.vars["mat_bolt"].get()
             )
         )
+
+    # --- TAB 5: DEBUG ---
+    def _build_debug_tab(self):
+        # Frame
+        frame = ttk.Frame(self.tab_debug)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Text Widget
+        self.txt_debug = tk.Text(frame, wrap="word", bg="black", fg="lightgreen", font=("Consolas", 10))
+        scr = ttk.Scrollbar(frame, command=self.txt_debug.yview)
+        self.txt_debug.configure(yscrollcommand=scr.set)
+        
+        scr.pack(side="right", fill="y")
+        self.txt_debug.pack(side="left", fill="both", expand=True)
+        
+        # Tags for stdout/stderr
+        self.txt_debug.tag_config("stdout", foreground="lightgreen")
+        self.txt_debug.tag_config("stderr", foreground="red")
+        
+        # Redirect
+        sys.stdout = TextRedirector(self.txt_debug, "stdout")
+        sys.stderr = TextRedirector(self.txt_debug, "stderr")
+        
+        print("--- SHSE-M DEBUG LOG SYSTEM INITIALIZED ---")
+        print("Les erreurs Python s'afficheront ici.")
 
     def _update_results_tree(self, res, bom_path):
         # Clear

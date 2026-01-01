@@ -1,29 +1,19 @@
 ﻿# Outil de Dimensionnement SHSE-M
 
-Programme de dimensionnement complet pour générateur thermo-pneumatique.
+Programme de dimensionnement complet (Thermique + Mécanique + Croquis + Matériaux).
 
-## Interface Moderne (V4)
-L'outil dispose d'une interface graphique ergonomique (`shse_m_sizing.gui`) :
-- **Onglet Config** : Paramétrage complet.
-- **Onglet Données** : Tableau dynamique listant toutes les cotes de toutes les pièces.
-- **Onglet Croquis** : Visualisation directe des coupes (Piston, Bielle, Vilebrequin).
-- **Onglet Rapport** : Synthèse.
-
-## Fonctionnalités Métier
-- Calcul détaillé de la chaîne de cotes moteur (Piston, Bielle, Vilebrequin, Visserie, Parois).
-- Vérification automatique des contraintes (Vitesse piston, Pression, Flambage).
-- Exports Automatiques : CSV, JSON, Markdown, PNG.
+## Interface (V6)
+L'outil dispose de 5 onglets :
+1. **Config** : Paramétrage et choix Matériaux.
+2. **Données** : Tableau des résultats.
+3. **Croquis** : Visualisation (Piston, Bielle, Vilebrequin).
+4. **Rapport** : Texte.
+5. **Débogage** : Logs d'exécution et erreurs.
 
 ## Installation
 1. Python 3.12+ requis.
-2. Dépendances :
-   ```bash
-   pip install matplotlib
-   ```
-3. Lancer :
-   ```bash
-   python -m shse_m_sizing.gui
-   ```
+2. Dépendances : `pip install matplotlib`
+3. Lancer : `python -m shse_m_sizing.gui`
 
-## Exécutable
-Double-cliquez sur `build_exe.bat` pour générer un `.exe` portable (Windows).
+## En cas de bug
+Consultez l'onglet **5. DÉBOGAGE / LOGS** et copiez le message d'erreur.
