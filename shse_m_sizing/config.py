@@ -18,13 +18,23 @@ class Constraints:
     U_p_max: float = 6.0         # Max mean piston speed [m/s]
     S_over_B: float = 1.0        # Stroke to Bore ratio
     phi: float = 0.35            # p_me / p_max ratio
-    sigma_adm_steel: float = 400e6     # Allowable stress Steel [Pa] (e.g., 42CrMo4)
-    sigma_adm_alum: float = 150e6      # Allowable stress Aluminum [Pa]
     safety_factor: float = 2.0         # Global Safety Factor
+    
+    # Material Selection Keys
+    mat_cylinder: str = "Alu_6061_T6"
+    mat_piston: str = "Alu_2618A" 
+    mat_rod: str = "42CrMo4_QT"
+    mat_crank: str = "42CrMo4_QT"
+    mat_bolt: str = "42CrMo4_QT" 
+    
+    # Deprecated fields kept for compatibility or internal conversion
+    sigma_adm_steel: float = 0.0 
+    sigma_adm_alum: float = 0.0
+
     rod_lambda: float = 3.5            # Rod length / Crank radius
     flywheel_Cf: float = 0.05          # Coefficient of fluctuation
     bearing_L10h: float = 5000         # Target bearing life [hours]
-    max_diameter_limit: Optional[float] = None # Constraint on max outer dim
+    max_diameter_limit: Optional[float] = None
 
 @dataclass
 class InputParameters:
