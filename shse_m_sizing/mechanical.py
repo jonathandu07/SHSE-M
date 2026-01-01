@@ -1,5 +1,6 @@
 import math
 from .config import InputParameters, DimensionResults
+from .materials import get_material
 
 def dimension_components(inputs: InputParameters, res: DimensionResults) -> DimensionResults:
     """
@@ -22,10 +23,22 @@ def dimension_components(inputs: InputParameters, res: DimensionResults) -> Dime
     res.F_max = res.p_max * (math.pi * res.Bore**2 / 4.0)
     res.Torque_mean = res.P_shaft_req / omega
     
-    # Material Allowables
-    sigma_adm_steel = inputs.limits.sigma_adm_steel / inputs.limits.safety_factor
-    sigma_adm_alum = inputs.limits.sigma_adm_alum / inputs.limits.safety_factor
-    tau_adm_steel = sigma_adm_steel * 0.58 # Shear assumption
+    # Material Loading
+    sf = inputs.limits.safety_factor
+    m_cyl = get_material(inputs.limits.mat_cylinder)
+    m_pist = get_material(inputs.limits.mat_piston)
+    m_rod = get_material(inputs.limits.mat_rod)
+    m_crank = get_material(inputs.limits.mat_crank)
+    m_bolt = get_material(inputs.limits.mat_bolt) # Using high strength steel usually
+    
+    # Allowables
+    sigma_cyl = m_cyl.yield_strength / sf
+    sigma_pist = m_pist.yield_strength / sf
+    sigma_rod = m_rod.yield_strength / sf
+    sigma_crank = m_crank.yield_strength / sf
+    sigma_bolt = m_bolt.yield_strength / sf # Bolts often yield limited
+    
+    E_rod = m_rod.young_modulus
 
     ## --- DETAILED COMPONENTS ---
 
@@ -50,7 +63,8 @@ def dimension_components(inputs: InputParameters, res: DimensionResults) -> Dime
     
     # Piston Crown Thickness (Plate bending)
     # t = D * sqrt(3 * p_max / (16 * sigma))
-    res.piston_top_thickness = res.Bore * math.sqrt(3.0 * res.p_max / (16.0 * sigma_adm_alum))
+    # Using Piston Material
+    res.piston_top_thickness = res.Bore * math.sqrt(3.0 * res.p_max / (16.0 * sigma_pist))
 
     # B. CONNECTING ROD
     # Small end (Pied): OD ~ Pin + 2*wall. Wall ~ 0.2*Pin
@@ -81,7 +95,8 @@ def dimension_components(inputs: InputParameters, res: DimensionResults) -> Dime
     # Conservative F_bolt_load ~ F_max (tensile is usually less than compression, but verify)
     # Let's size for F_max/2 per bolt to be safe (simplified)
     # A_bolt * sigma = F_max / 2
-    a_bolt = (res.F_max / 2.0) / sigma_adm_steel
+    # Using Bolt Material
+    a_bolt = (res.F_max / 2.0) / sigma_bolt
     res.rod_bolt_diameter = math.sqrt(4.0 * a_bolt / math.pi)
 
     # C. CRANKSHAFT
@@ -101,14 +116,16 @@ def dimension_components(inputs: InputParameters, res: DimensionResults) -> Dime
     
     # D. CYLINDER / BLOCK
     # Wall thickness (Lamé / Thin Cylinder)
-    res.wall_thickness = (res.p_max * res.Bore) / (2.0 * sigma_adm_alum) + 0.002 # +2mm casting margin
+    # Using Cylinder Material
+    res.wall_thickness = (res.p_max * res.Bore) / (2.0 * sigma_cyl) + 0.002 # +2mm casting margin
     res.cyl_outer_diameter = res.Bore + 2.0 * res.wall_thickness + 0.015 # +Water jacket space
     
     # Head Bolts (Goujons)
     # F_gas = p_max * Area. 4 bolts.
     # F_bolt = F_gas / 4.
+    # Using Bolt Material
     f_bolt = res.F_max / 4.0
-    a_head_bolt = f_bolt / sigma_adm_steel
+    a_head_bolt = f_bolt / sigma_bolt
     res.head_bolt_diameter = math.sqrt(4.0 * a_head_bolt / math.pi)
     res.num_head_bolts = 4
 
