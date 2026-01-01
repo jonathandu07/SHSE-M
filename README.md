@@ -1,35 +1,45 @@
-﻿# SHSE-M Sizing Tool
+﻿# Outil de Dimensionnement SHSE-M
 
 Programme de dimensionnement pour générateur thermo-pneumatique hybride SHSE-M.
+Développé en Python, avec une interface graphique simple et des exports complets.
 
 ## Fonctionnalités
-- Calcul des besoins en puissance (Arbre, Indiquée) à partir de la cible Batterie.
-- Dimensionnement géométrique (Alésage, Course, Cylindrée).
-- Dimensionnement préliminaire des composants (Bielle, Vilebrequin, Volant, Parois).
-- Vérifications des contraintes (Vitesse piston, Pression, Flambage).
-- Génération de rapports (Markdown), BOM (CSV) et paramètres (JSON).
+- **Calculs thermodynamiques** : Puissance nécessaire, cylindrée.
+- **Dimensionnement mécanique** : Alésage, course, bielle, vilebrequin, piston, volant d'inertie.
+- **Vérifications de sécurité** : Vitesse piston, flambage, contraintes matériaux.
+- **Rapports** : Génération de fichiers Markdown, CSV (Nomenclature) et JSON.
 
 ## Installation
-Ce programme est écrit en Python 3.12 et n'utilise que la librairie standard.
+
+### Option 1 : Utiliser l'exécutable (Windows)
+1. Allez dans le dossier `dist/` (s'il est fourni) ou téléchargez la dernière release.
+2. Lancez `SHSE_Dimensionnement.exe`.
+3. Pas besoin de Python installé.
+
+### Option 2 : Depuis les sources (Développeurs)
+1. Installez Python 3.12+.
+2. Clonez ce dépôt.
+3. (Optionnel) Créez un environnement virtuel.
+4. Lancez l'interface graphique :
+   ```bash
+   python -m shse_m_sizing.gui
+   ```
 
 ## Utilisation
 
-### Ligne de commande
-```bash
-python -m shse_m_sizing.main --P_batt 10 --N 3000 --p_me 6
-```
+1. **Remplir les champs** dans l'interface :
+   - Cibles : Puissance Batterie, Régime, Pression.
+   - Rendements : Chaîne complète du thermique à la batterie.
+   - Contraintes : Limites matériaux et sécurité.
+2. Cliquez sur **LANCER LE CALCUL**.
+3. Le rapport s'affiche à droite.
+4. Cliquez sur **Ouvrir le dossier de sortie** pour voir les fichiers Excel (CSV) et PDF (Markdown converti).
 
-Ou via un fichier de configuration :
-```bash
-python -m shse_m_sizing.main --json test_case.json
-```
+## Compilation (Créer l'.exe)
+Pour créer votre propre exécutable à un seul fichier :
+1. Double-cliquez sur `build_exe.bat`.
+2. Attendez la fin de la compilation.
+3. L'application sera dans le dossier `dist/`.
 
-### Paramètres
-Voir `test_case.json` pour un exemple complet de tous les paramètres configurables.
-
-## Architecture
-- `config.py` : Définitions des données.
-- `thermodynamics.py` : Chaîne de puissance et cycle.
-- `mechanical.py` : Géométrie et RDM.
-- `check.py` : Validation.
-- `report.py` : Export.
+## Auteurs
+Conçu pour le projet SHSE-M.
