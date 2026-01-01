@@ -6,9 +6,62 @@
     },
     "ThermodynamicAgent": {
         "Vd_total_cc": 673.0380939561181,
-        "Bore_mm": 94.98388337266033,
-        "Stroke_mm": 94.98388337266033,
-        "U_mean_m_s": 7.9153236143883605,
+        "N_cylinders": 3,
+        "Bore_mm": 65.85814641803982,
+        "Stroke_mm": 65.85814641803982,
+        "Est_System_Mass_kg": 26.96055996769418,
+        "Max_Force_Per_Piston_N": 7299.651171950647,
+        "optimization_candidates": [
+            [
+                1,
+                26.960559967694174,
+                15183.886316696418,
+                8.5,
+                0.09498388337266032,
+                0.09498388337266032
+            ],
+            [
+                2,
+                26.960559967694174,
+                9565.248994808275,
+                14.0,
+                0.07538875819289288,
+                0.07538875819289288
+            ],
+            [
+                3,
+                26.96055996769418,
+                7299.651171950647,
+                16.5,
+                0.06585814641803982,
+                0.06585814641803982
+            ],
+            [
+                4,
+                26.960559967694174,
+                6025.729278022361,
+                16.0,
+                0.05983609703098719,
+                0.05983609703098719
+            ],
+            [
+                5,
+                26.96055996769418,
+                5192.816075724861,
+                12.5,
+                0.05554691196520018,
+                0.05554691196520018
+            ],
+            [
+                6,
+                26.96055996769418,
+                4598.492084215201,
+                6.0,
+                0.05227164545233606,
+                0.05227164545233606
+            ]
+        ],
+        "U_mean_m_s": 5.488178868169984,
         "p_max_bar": 21.42857142857143,
         "p_max_Pa": 2142857.142857143,
         "eta_carnot": 0.6526315789473685,
@@ -26,19 +79,244 @@
         "P_max_buffer_bar": 7.47970096964133
     },
     "MechanicalAgent": {
-        "piston_height_mm": 80.73630086676128,
-        "pin_diameter_mm": 28.495165011798097,
-        "sf_pin_shear": 43.647680350735705,
-        "rod_length_mm": 166.22179590215558,
-        "rod_section_width_mm": 6.512861314189271,
-        "rod_section_depth_mm": 9.769291971283907,
-        "crank_pin_diameter_mm": 47.491941686330165,
-        "crank_pin_length_mm": 47.491941686330165,
-        "bearing_pressure_MPa": 6.731984257692416
+        "piston_height_mm": 55.979424455333856,
+        "pin_diameter_mm": 19.757443925411945,
+        "sf_pin_shear": 43.6476803507357,
+        "rod_length_mm": 115.25175623156967,
+        "rod_section_width_mm": 4.515765820475221,
+        "rod_section_depth_mm": 6.773648730712832,
+        "crank_pin_diameter_mm": 32.92907320901991,
+        "crank_pin_length_mm": 32.92907320901991,
+        "bearing_pressure_MPa": 6.731984257692415,
+        "mass_piston_kg": 0.3146453089244853,
+        "mass_rod_kg": 0.21787452427642212,
+        "tol_bore": "H7 (+0/+35 \u00b5m)",
+        "tol_piston": "f7 (-30/-60 \u00b5m)",
+        "tol_pin": "g6 (-7/-20 \u00b5m)",
+        "ra_cylinder_liner": 0.4,
+        "ra_piston_skirt": 0.8,
+        "ra_crank_journals": 0.2,
+        "PV_factor_skirt": 5385587.406153932,
+        "FMEP_bar": 1.2847428571428572,
+        "design_clearance_cold_mm": 0.24935647268876202,
+        "Clearance_Hot_mm": 0.01999999999999602,
+        "liner_thickness_mm": 3.0,
+        "piston_crown_thickness_mm": 5.268651713443186,
+        "shsem_components": {
+            "Piston": {
+                "name": "Piston Moteur",
+                "material": "Alu 2618A",
+                "specs": [
+                    [
+                        "Diam\u00e8tre",
+                        "65.86 mm"
+                    ],
+                    [
+                        "Hauteur",
+                        "56.0 mm"
+                    ],
+                    [
+                        "Masse Estim.",
+                        "0.315 kg"
+                    ],
+                    [
+                        "Jeu Jupe",
+                        "30-60 \u00b5m"
+                    ],
+                    [
+                        "Etat Surface",
+                        "Ra 0.8"
+                    ]
+                ],
+                "stress_data": [
+                    [
+                        "Contrainte Thermique",
+                        "82.8 MPa",
+                        260.0
+                    ],
+                    [
+                        "Facteur PV (Usure)",
+                        "5.4 MPa.m/s",
+                        50.0
+                    ]
+                ],
+                "manufacturing": {
+                    "Tol\u00e9rance": "f7",
+                    "Traitement": "Anodisation dure",
+                    "Rugosit\u00e9": "Ra 0.8"
+                }
+            },
+            "Bielle": {
+                "name": "Bielle",
+                "material": "Acier 42CrMo4",
+                "specs": [
+                    [
+                        "Entraxe",
+                        "115.3 mm"
+                    ],
+                    [
+                        "Section",
+                        "4.5 x 6.8 mm"
+                    ],
+                    [
+                        "Masse Estim.",
+                        "0.218 kg"
+                    ],
+                    [
+                        "\u00d8 Axe Piston",
+                        "19.8 mm"
+                    ],
+                    [
+                        "\u00d8 Maneton",
+                        "32.9 mm"
+                    ]
+                ],
+                "stress_data": [
+                    [
+                        "Contrainte Comp.",
+                        "238.6 MPa",
+                        900.0
+                    ],
+                    [
+                        "Flambement (Crit)",
+                        "596.6 MPa",
+                        "N/A"
+                    ],
+                    [
+                        "S\u00e9curit\u00e9 Global",
+                        "2.50",
+                        "1.5"
+                    ]
+                ],
+                "manufacturing": {
+                    "Tol\u00e9rance T\u00eates": "H6/H7",
+                    "Traitement": "Grenaillage",
+                    "Rugosit\u00e9": "Ra 1.6",
+                    "Fillets": "R3 typ."
+                }
+            },
+            "Vilebrequin": {
+                "name": "Vilebrequin",
+                "material": "Acier Forg\u00e9 42CrMo4",
+                "specs": [
+                    [
+                        "Course",
+                        "65.9 mm"
+                    ],
+                    [
+                        "\u00d8 Tourillons",
+                        "32.9 mm (Est.)"
+                    ],
+                    [
+                        "\u00d8 Manetons",
+                        "32.9 mm"
+                    ],
+                    [
+                        "Pression Paliers",
+                        "6.7 MPa"
+                    ]
+                ],
+                "stress_data": [
+                    [
+                        "Pression Contact",
+                        "6.7 MPa",
+                        15.0
+                    ]
+                ],
+                "manufacturing": {
+                    "Tol\u00e9rance": "h6",
+                    "Traitement": "Nitruration",
+                    "Rugosit\u00e9": "Ra 0.2"
+                }
+            }
+        },
+        "geometry": {
+            "piston": {
+                "D": 65.85814641803982,
+                "H": 55.979424455333856,
+                "t_crown": 5.268651713443186,
+                "h_land_top": 6.0,
+                "h_land_2": 4.0,
+                "h_land_3": 3.0,
+                "rings": [
+                    [
+                        1.2,
+                        3.5
+                    ],
+                    [
+                        1.5,
+                        3.8
+                    ],
+                    [
+                        3.0,
+                        3.0
+                    ]
+                ],
+                "pin_boss_width": 26.34325856721593,
+                "pin_bore_D": 19.757443925411945
+            },
+            "liner": {
+                "ID": 65.85814641803982,
+                "OD": 71.85814641803982,
+                "H": 164.64536604509954,
+                "flange_h": 5.0,
+                "flange_w": 4.0,
+                "t_wall": 3.0
+            },
+            "rod": {
+                "L": 115.25175623156967,
+                "D_big": 42.92907320901991,
+                "D_small": 27.757443925411945,
+                "W_big": 19.757443925411945,
+                "W_small": 10.86659415897657
+            }
+        }
     },
     "DogClutchAgent": {
         "contact_pressure_MPa": 4.74217789153194,
-        "shear_stress_MPa": 1.8113785259001838
+        "shear_stress_MPa": 1.8113785259001838,
+        "sync_energy_check_J": 0.6853891945200945,
+        "shsem_components": {
+            "Crabots": {
+                "name": "Syst\u00e8me d'Accouplement",
+                "material": "Acier 16MnCr5",
+                "specs": [
+                    [
+                        "Type",
+                        "6 Dents"
+                    ],
+                    [
+                        "Rayon Moyen",
+                        "40.0 mm"
+                    ],
+                    [
+                        "Force Tang.",
+                        "3414 N"
+                    ]
+                ],
+                "stress_data": [
+                    [
+                        "Pression Contact",
+                        "4.7 MPa",
+                        "200.0"
+                    ],
+                    [
+                        "Cisaillement",
+                        "1.8 MPa",
+                        "400.0"
+                    ],
+                    [
+                        "Sync Requise",
+                        "OUI",
+                        "DeltaW=0"
+                    ]
+                ],
+                "manufacturing": {
+                    "Duret\u00e9": "60 HRC",
+                    "Jeu Flanc": "0.1 mm"
+                }
+            }
+        }
     },
     "CoolingAgent": {
         "heat_rejection_kW": 17.578432622570897,
@@ -52,5 +330,601 @@
     "BatteryAgent": {
         "capacity_Ah": 30.0,
         "charging_C_rate": 1.3706140350877196
+    },
+    "SecurityAgent": {
+        "status": "SAFE"
+    },
+    "ControlAgent": {
+        "strategy": "Intermittent Operation (Range Extender)",
+        "start_condition": "SOC < 30%",
+        "stop_condition": "SOC > 80%",
+        "target_rpm": 2500.0,
+        "sensors_required": [
+            "T_hot_wall",
+            "P_combustion",
+            "Position_FreePiston",
+            "RPM_Crank",
+            "I_Bus",
+            "V_Batt",
+            "W_Coolant_Temp"
+        ]
+    },
+    "FreePistonAgent": {
+        "free_piston_height_mm": 26.34325856721593,
+        "free_piston_wall_thickness_mm": 3.2929073209019912,
+        "free_piston_mass_kg": 0.09332794902858173,
+        "thermal_leak_conduction_W": 387.93650431116544,
+        "shsem_components": {
+            "Piston Libre": {
+                "name": "Piston Libre (S\u00e9parateur)",
+                "material": "C\u00e9ramique Si3N4",
+                "specs": [
+                    [
+                        "Diam\u00e8tre",
+                        "65.9 mm"
+                    ],
+                    [
+                        "Hauteur",
+                        "26.3 mm"
+                    ],
+                    [
+                        "Masse",
+                        "93.3 g"
+                    ],
+                    [
+                        "\u00c9paisseur paroi",
+                        "3.3 mm"
+                    ]
+                ],
+                "stress_data": [
+                    [
+                        "Fuite Thermique",
+                        "387.9 W",
+                        "Minimiser"
+                    ]
+                ],
+                "manufacturing": {
+                    "Proc\u00e9d\u00e9": "Sint\u00e9risation",
+                    "Tol\u00e9rance": "g6",
+                    "\u00c9tat Surface": "Rectifi\u00e9 Ra 0.2"
+                }
+            }
+        }
+    },
+    "BOMAgent": {
+        "BOM_List": [
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Carter Monobloc",
+                "Spec": "Usin\u00e9 CNC / Moul\u00e9",
+                "Qty": 1,
+                "Material": "Alu 6061-T6"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Chemise Cylindre",
+                "Spec": "\u00d865.9 H7 (Tra\u00eet\u00e9e)",
+                "Qty": 3,
+                "Material": "Fonte GS 600-3"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Culasse (Chambre Chaude)",
+                "Spec": "Design H\u00e9misph\u00e9rique",
+                "Qty": 3,
+                "Material": "Inconel 718"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Couvre-Culasse",
+                "Spec": "\u00c9tanch\u00e9it\u00e9",
+                "Qty": 1,
+                "Material": "Alu / Composite"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Joint de Culasse",
+                "Spec": "Multi-feuilles MLS",
+                "Qty": 3,
+                "Material": "Inox/Viton"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Joint Torique Chemise (Haut)",
+                "Spec": "Viton \u00d898x2",
+                "Qty": 3,
+                "Material": "FKM"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Joint Torique Chemise (Bas)",
+                "Spec": "Viton \u00d898x2",
+                "Qty": 3,
+                "Material": "FKM"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Goujons de Culasse",
+                "Spec": "M12 x 1.5 - Classe 12.9",
+                "Qty": 18,
+                "Material": "Acier Haute R\u00e9sistance"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "\u00c9crous de Culasse",
+                "Spec": "M12 Embase",
+                "Qty": 18,
+                "Material": "Acier 12.9"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Rondelles Culasse",
+                "Spec": "M12 Durcies",
+                "Qty": 18,
+                "Material": "Acier Tremp\u00e9"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Vis Carter",
+                "Spec": "M8 x 30 CHC",
+                "Qty": 14,
+                "Material": "Acier 8.8 Zingu\u00e9"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Bouchon Vidange/Purge",
+                "Spec": "M14 x 1.25 + Joint Cuivre",
+                "Qty": 2,
+                "Material": "Acier/Cuivre"
+            },
+            {
+                "Group": "A. Bloc Thermo-Pneumatique",
+                "Part": "Pions de Centrage",
+                "Spec": "\u00d88 x 16",
+                "Qty": 4,
+                "Material": "Acier Rectifi\u00e9"
+            },
+            {
+                "Group": "C. Attelage Mobile (Piston)",
+                "Part": "Piston Moteur",
+                "Spec": "\u00d80.0 f7 (Forg\u00e9)",
+                "Qty": 3,
+                "Material": "Alu 2618A"
+            },
+            {
+                "Group": "C. Attelage Mobile (Piston)",
+                "Part": "Axe de Piston",
+                "Spec": "\u00d819.8 g6 (DLC)",
+                "Qty": 3,
+                "Material": "Acier 16MnCr5"
+            },
+            {
+                "Group": "C. Attelage Mobile (Piston)",
+                "Part": "Clips Axe Piston",
+                "Spec": "Circlips Int\u00e9rieur \u00d830",
+                "Qty": 6,
+                "Material": "Acier Ressort"
+            },
+            {
+                "Group": "C. Attelage Mobile (Piston)",
+                "Part": "Segment Feu",
+                "Spec": "Crom\u00e9 / Barrel",
+                "Qty": 3,
+                "Material": "Acier Inox"
+            },
+            {
+                "Group": "C. Attelage Mobile (Piston)",
+                "Part": "Segment \u00c9tanch\u00e9it\u00e9",
+                "Spec": "Bec d'aigle",
+                "Qty": 3,
+                "Material": "Fonte Nodulaire"
+            },
+            {
+                "Group": "C. Attelage Mobile (Piston)",
+                "Part": "Segment Racleur",
+                "Spec": "3 pi\u00e8ces (Ressort)",
+                "Qty": 3,
+                "Material": "Acier/Expander Inox"
+            },
+            {
+                "Group": "D. Piston Libre / S\u00e9parateur",
+                "Part": "Piston Libre",
+                "Spec": "Si3N4 \u00d865.9 (Masse 93g)",
+                "Qty": 3,
+                "Material": "C\u00e9ramique Si3N4"
+            },
+            {
+                "Group": "D. Piston Libre / S\u00e9parateur",
+                "Part": "Segments Piston Libre",
+                "Spec": "Polym\u00e8re Haute Temp (PEEK)",
+                "Qty": 6,
+                "Material": "PEEK / Bronze"
+            },
+            {
+                "Group": "D. Piston Libre / S\u00e9parateur",
+                "Part": "Ressort de Rappel (Opt)",
+                "Spec": "Pneumatique ou M\u00e9ca",
+                "Qty": 3,
+                "Material": "Acier Ressort"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Bielle",
+                "Spec": "Entraxe 115.3 (I-Beam)",
+                "Qty": 3,
+                "Material": "Acier Forg\u00e9 42CrMo4"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Vis de Bielle",
+                "Spec": "ARP 2000 M9x1.0",
+                "Qty": 6,
+                "Material": "Acier Haute R\u00e9sistance"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Coussinets Bielle (Paire)",
+                "Spec": "Trim\u00e9tal (Al-Sn-Cu)",
+                "Qty": 3,
+                "Material": "Standard SAE"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Vilebrequin",
+                "Spec": "3 Cylindres / Course 95mm",
+                "Qty": 1,
+                "Material": "Acier 42CrMo4 Nitrur\u00e9"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Clavette Vilebrequin",
+                "Spec": "Disque / Woodruff",
+                "Qty": 1,
+                "Material": "Acier C45"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Paliers Vilebrequin (Main)",
+                "Spec": "Roulements \u00e0 Rouleaux ou Lisses",
+                "Qty": 4,
+                "Material": "100Cr6 / Bronze"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Joint Spy Vilebrequin AV",
+                "Spec": "Double L\u00e8vre",
+                "Qty": 1,
+                "Material": "FKM"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Joint Spy Vilebrequin AR",
+                "Spec": "Double L\u00e8vre",
+                "Qty": 1,
+                "Material": "FKM"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Volant Moteur",
+                "Spec": "Monomasse \u00c9quilibr\u00e9",
+                "Qty": 1,
+                "Material": "Acier C45"
+            },
+            {
+                "Group": "F. Conversion M\u00e9canique (Bas Moteur)",
+                "Part": "Vis Volant Moteur",
+                "Spec": "M10 x 1.0 (Frein filet)",
+                "Qty": 6,
+                "Material": "Acier 10.9"
+            },
+            {
+                "Group": "B. Syst\u00e8me Combustion",
+                "Part": "Injecteur Carburant",
+                "Spec": "Haute Pression (GDI)",
+                "Qty": 3,
+                "Material": "Inox / Sol\u00e9no\u00efde"
+            },
+            {
+                "Group": "B. Syst\u00e8me Combustion",
+                "Part": "Joint Injecteur",
+                "Spec": "Torique Viton",
+                "Qty": 3,
+                "Material": "FKM"
+            },
+            {
+                "Group": "B. Syst\u00e8me Combustion",
+                "Part": "Bride Fixation Injecteur",
+                "Spec": "Plaque Inox",
+                "Qty": 3,
+                "Material": "Inox 304"
+            },
+            {
+                "Group": "B. Syst\u00e8me Combustion",
+                "Part": "Bougie Allumage",
+                "Spec": "Iridium / Platine",
+                "Qty": 3,
+                "Material": "C\u00e9ramique / Inox"
+            },
+            {
+                "Group": "B. Syst\u00e8me Combustion",
+                "Part": "Bobine Crayon",
+                "Spec": "COP (Coil on Plug)",
+                "Qty": 3,
+                "Material": "Cuivre / Epoxy"
+            },
+            {
+                "Group": "B. Syst\u00e8me Combustion",
+                "Part": "Pompe Carburant HP",
+                "Spec": "Piston Radial",
+                "Qty": 1,
+                "Material": "Inox"
+            },
+            {
+                "Group": "B. Syst\u00e8me Combustion",
+                "Part": "Raccords Hoses Carburant",
+                "Spec": "AN-6",
+                "Qty": 4,
+                "Material": "Alu Anodis\u00e9"
+            },
+            {
+                "Group": "B. Syst\u00e8me Combustion",
+                "Part": "Durite Carburant",
+                "Spec": "T\u00e9flon tress\u00e9 Inox",
+                "Qty": 1.5,
+                "Material": "PTFE/SS"
+            },
+            {
+                "Group": "D. Gaz Captif (Azote/H\u00e9lium)",
+                "Part": "R\u00e9servoir Buffer",
+                "Spec": "1.0L (Accumulateur)",
+                "Qty": 1,
+                "Material": "Acier Hydropneumatique"
+            },
+            {
+                "Group": "D. Gaz Captif (Azote/H\u00e9lium)",
+                "Part": "Valve Schrader Remplissage",
+                "Spec": "Haute Pression",
+                "Qty": 1,
+                "Material": "Laiton Nickel\u00e9"
+            },
+            {
+                "Group": "D. Gaz Captif (Azote/H\u00e9lium)",
+                "Part": "Capteur Pression Absolu",
+                "Spec": "0-100 bar",
+                "Qty": 3,
+                "Material": "Piezo-r\u00e9sistif"
+            },
+            {
+                "Group": "D. Gaz Captif (Azote/H\u00e9lium)",
+                "Part": "Joint Torique Buffer",
+                "Spec": "\u00c9tanch\u00e9it\u00e9 Statique",
+                "Qty": 1,
+                "Material": "NBR 90 Shore"
+            },
+            {
+                "Group": "D. Gaz Captif (Azote/H\u00e9lium)",
+                "Part": "Raccord Banjo Gaz",
+                "Spec": "1/4 BSP",
+                "Qty": 6,
+                "Material": "Acier Bichromat\u00e9"
+            },
+            {
+                "Group": "D. Gaz Captif (Azote/H\u00e9lium)",
+                "Part": "Tuyauterie Gaz Rigide",
+                "Spec": "\u00d86mm",
+                "Qty": 1.5,
+                "Material": "Acier Inox recuit"
+            },
+            {
+                "Group": "G. Transmission / Accouplement",
+                "Part": "Crabot Mobile (Moteur)",
+                "Spec": "Acier C\u00e9ment\u00e9 6 Dents",
+                "Qty": 1,
+                "Material": "16MnCr5"
+            },
+            {
+                "Group": "G. Transmission / Accouplement",
+                "Part": "Crabot Fixe (G\u00e9n\u00e9ratrice)",
+                "Spec": "Acier C\u00e9ment\u00e9 6 Dents",
+                "Qty": 1,
+                "Material": "16MnCr5"
+            },
+            {
+                "Group": "G. Transmission / Accouplement",
+                "Part": "Fourchette de commande",
+                "Spec": "Bronze / Alu",
+                "Qty": 1,
+                "Material": "CuAl10Ni"
+            },
+            {
+                "Group": "G. Transmission / Accouplement",
+                "Part": "Axe de Fourchette",
+                "Spec": "Rectifi\u00e9",
+                "Qty": 1,
+                "Material": "Acier Tremp\u00e9"
+            },
+            {
+                "Group": "G. Transmission / Accouplement",
+                "Part": "Sol\u00e9no\u00efde d'Engagement",
+                "Spec": "Push/Pull 12V",
+                "Qty": 1,
+                "Material": "Cuivre/Fer"
+            },
+            {
+                "Group": "G. Transmission / Accouplement",
+                "Part": "Ressort de Rappel Crabot",
+                "Spec": "Compression",
+                "Qty": 1,
+                "Material": "Acier Ressort"
+            },
+            {
+                "Group": "G. Transmission / Accouplement",
+                "Part": "Circlips Axe",
+                "Spec": "Exterieur \u00d812",
+                "Qty": 2,
+                "Material": "Acier"
+            },
+            {
+                "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
+                "Part": "Stator Bobin\u00e9",
+                "Spec": "16.4 kW / Refroidi Eau",
+                "Qty": 1,
+                "Material": "Cuivre Class H / FerSi"
+            },
+            {
+                "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
+                "Part": "Rotor \u00e0 Aimants",
+                "Spec": "IPM (Interior PM)",
+                "Qty": 1,
+                "Material": "NdFeB N42UH"
+            },
+            {
+                "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
+                "Part": "Roulements G\u00e9n\u00e9ratrice",
+                "Spec": "Ceramic Hybrid (Haut RPM)",
+                "Qty": 2,
+                "Material": "Si3N4 / Acier"
+            },
+            {
+                "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
+                "Part": "Bo\u00eetier G\u00e9n\u00e9ratrice",
+                "Spec": "Alu Extrud\u00e9 Ailet\u00e9",
+                "Qty": 1,
+                "Material": "Alu 6063"
+            },
+            {
+                "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
+                "Part": "Presse-\u00e9toupe C\u00e2bles",
+                "Spec": "IP68 M25",
+                "Qty": 3,
+                "Material": "Polyamide"
+            },
+            {
+                "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
+                "Part": "C\u00e2ble Phase (Orange)",
+                "Spec": "Blind\u00e9 10mm\u00b2",
+                "Qty": 3,
+                "Material": "Cuivre/Silicone"
+            },
+            {
+                "Group": "H. G\u00e9n\u00e9ratrice & Puissance",
+                "Part": "Connecteur Puissance",
+                "Spec": "3 P\u00f4les HV",
+                "Qty": 1,
+                "Material": "Plastique UL94"
+            },
+            {
+                "Group": "E. Circuit Refroidissement",
+                "Part": "Pompe \u00e0 Eau \u00c9lectrique",
+                "Spec": "PWM 30 L/min",
+                "Qty": 1,
+                "Material": "PPS / Brushless"
+            },
+            {
+                "Group": "E. Circuit Refroidissement",
+                "Part": "Radiateur \u00c9changeur",
+                "Spec": "Alu Braz\u00e9 300x300",
+                "Qty": 1,
+                "Material": "Alu 3003"
+            },
+            {
+                "Group": "E. Circuit Refroidissement",
+                "Part": "Ventilateur",
+                "Spec": "Axial 12V",
+                "Qty": 1,
+                "Material": "PA6-GF30"
+            },
+            {
+                "Group": "E. Circuit Refroidissement",
+                "Part": "Thermostat",
+                "Spec": "Ouverture 85\u00b0C",
+                "Qty": 1,
+                "Material": "Laiton/Cire"
+            },
+            {
+                "Group": "E. Circuit Refroidissement",
+                "Part": "Durites Silicone",
+                "Spec": "\u00d825mm",
+                "Qty": 4,
+                "Material": "Silicone Renforc\u00e9"
+            },
+            {
+                "Group": "E. Circuit Refroidissement",
+                "Part": "Colliers de Serrage",
+                "Spec": "Worm Drive Inox",
+                "Qty": 8,
+                "Material": "Inox A2"
+            },
+            {
+                "Group": "E. Circuit Refroidissement",
+                "Part": "Liquide de Refroidissement",
+                "Spec": "OAT -35\u00b0C",
+                "Qty": 3,
+                "Material": "Glycol/Eau"
+            },
+            {
+                "Group": "J/M. Contr\u00f4le & Structure",
+                "Part": "ECU Principal",
+                "Spec": "PCB en Bo\u00eetier Alu IP67",
+                "Qty": 1,
+                "Material": "FR4 / Alu"
+            },
+            {
+                "Group": "J/M. Contr\u00f4le & Structure",
+                "Part": "Capteur PMH (Crank)",
+                "Spec": "Hall Effect",
+                "Qty": 1,
+                "Material": "Plastique/Cuivre"
+            },
+            {
+                "Group": "J/M. Contr\u00f4le & Structure",
+                "Part": "Capteur Temp\u00e9rature Eau",
+                "Spec": "NTC",
+                "Qty": 1,
+                "Material": "Laiton"
+            },
+            {
+                "Group": "J/M. Contr\u00f4le & Structure",
+                "Part": "Faisceau Basse Tension",
+                "Spec": "Gaine Tress\u00e9e",
+                "Qty": 1,
+                "Material": "Cuivre/PVC"
+            },
+            {
+                "Group": "J/M. Contr\u00f4le & Structure",
+                "Part": "Silentblocs Moteur",
+                "Spec": "Caoutchouc Shore 60A",
+                "Qty": 4,
+                "Material": "NR/SBR + Acier"
+            },
+            {
+                "Group": "J/M. Contr\u00f4le & Structure",
+                "Part": "Vis Support Moteur",
+                "Spec": "M10 x 50",
+                "Qty": 4,
+                "Material": "Acier 10.9"
+            },
+            {
+                "Group": "J/M. Contr\u00f4le & Structure",
+                "Part": "Ch\u00e2ssis Berceau",
+                "Spec": "Tube Carr\u00e9 25x25 Soud\u00e9",
+                "Qty": 1,
+                "Material": "Acier E24"
+            }
+        ]
+    },
+    "GraphiqueAgent": {
+        "path_graph_pv": "output_shse_m\\graph_pv.png",
+        "path_graph_vitesse": "output_shse_m\\graph_vitesse.png"
+    },
+    "Sketches": {
+        "Piston": "output_shse_m\\detail_piston_prod.png",
+        "Chemise": "output_shse_m\\detail_liner_prod.png",
+        "Bielle": "output_shse_m\\detail_rod.png",
+        "Vilebrequin": "output_shse_m\\detail_crank.png",
+        "PistonLibre": null
+    },
+    "ReportAgent": {
+        "report_path": "output_shse_m\\SHSE_M_Manuel_Technique.md"
     }
 }

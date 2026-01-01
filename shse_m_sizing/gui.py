@@ -1,340 +1,386 @@
 import tkinter as tk
-import sys
 from tkinter import ttk, messagebox
+import json
 import os
-import csv
-from .config import InputParameters, Efficiencies, Constraints, DimensionResults
-from .thermodynamics import calculate_thermodynamics
-from .mechanical import dimension_components
-from .check import verify_constraints
-from .report import generate_markdown_report, generate_bom_csv, generate_json_export
-from .sketches import generate_sketches
-from .materials import list_materials_by_category
+import sys
+import threading
+from PIL import Image, ImageTk
 
-class TextRedirector(object):
-    def __init__(self, widget, tag="stdout"):
-        self.widget = widget
-        self.tag = tag
+# Import logic
+from .main import run_full_sizing
 
-    def write(self, str):
-        self.widget.configure(state="normal")
-        self.widget.insert("end", str, (self.tag,))
-        self.widget.see("end")
-        self.widget.configure(state="disabled")
-        # Update immediately
-        self.widget.update_idletasks()
-        
+class RedirectText:
+    def __init__(self, text_widget):
+        self.output = text_widget
+
+    def write(self, string):
+        self.output.insert("end", string)
+        self.output.see("end")
+
     def flush(self):
         pass
 
-class ModernSHSEApp:
+class MinimalistGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Dimensionnement SHSE-M - Suite Complète")
-        self.root.geometry("1000x800")
+        self.root.title("SHSE-M | Interface Ingénierie Interactive")
+        self.root.geometry("1600x1000")
         
-        # Styles
-        style = ttk.Style()
-        style.theme_use('clam')
-        style.configure("TNotebook.Tab", font=('Helvetica', 10, 'bold'))
-        style.configure("Treeview.Heading", font=('Helvetica', 9, 'bold'))
+        # GLOBAL STYLE
+        self.colors = {
+            "bg": "#f5f5f7", 
+            "panel": "#ffffff",
+            "primary": "#007aff", 
+            "text": "#1d1d1f",
+            "success": "#34c759",
+            "border": "#d2d2d7",
+            "highlight": "#e5f1ff"
+        }
         
-        # NOTEBOOK (TABS)
-        self.notebook = ttk.Notebook(root)
-        self.notebook.pack(fill="both", expand=True)
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
         
-        # TABS
-        self.tab_config = ttk.Frame(self.notebook)
-        self.tab_results = ttk.Frame(self.notebook)
-        self.tab_sketches = ttk.Frame(self.notebook)
-        self.tab_report = ttk.Frame(self.notebook)
-        self.tab_debug = ttk.Frame(self.notebook)
+        self.style.configure("TFrame", background=self.colors["bg"])
+        self.style.configure("TLabel", background=self.colors["bg"], foreground=self.colors["text"], font=("Segoe UI", 10))
+        self.style.configure("TButton", font=("Segoe UI", 10, "bold"), padding=8)
+        self.style.configure("TNotebook", background=self.colors["bg"])
+        self.style.configure("TNotebook.Tab", font=("Segoe UI", 11), padding=[20, 8])
+        self.style.map("TNotebook.Tab", background=[("selected", self.colors["primary"])], foreground=[("selected", "white")])
+        self.style.configure("Treeview", font=("Segoe UI", 10), rowheight=30, borderwidth=0)
+        self.style.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"), background=self.colors["panel"], padding=5)
+        self.style.map("Treeview", background=[("selected", self.colors["highlight"])], foreground=[("selected", "black")])
         
-        self.notebook.add(self.tab_config, text=" 1. CONFIGURATION ")
-        self.notebook.add(self.tab_results, text=" 2. DONNÉES TECHNIQUES ")
-        self.notebook.add(self.tab_sketches, text=" 3. CROQUIS & SCHÉMAS ")
-        self.notebook.add(self.tab_report, text=" 4. RAPPORT TEXTE ")
-        self.notebook.add(self.tab_debug, text=" 5. DÉBOGAGE / LOGS ")
-        
-        self.vars = {}
-        self.image_refs = [] # Keep references to avoid GC
-        
-        self._build_config_tab()
-        self._build_results_tab()
-        self._build_sketches_tab()
-        self._build_report_tab()
-        self._build_debug_tab()
-
-
-    # --- TAB 1: CONFIG ---
-    def _build_config_tab(self):
-        container = ttk.Frame(self.tab_config)
-        container.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Columns
-        left = ttk.Frame(container)
-        right = ttk.Frame(container)
-        left.pack(side="left", fill="both", expand=True)
-        right.pack(side="right", fill="both", expand=True)
-        
-        # Sections
-        self._create_input_group(left, "Objectifs & Cycle", [
-            ("Puissance Batterie (kW):", "P_batt_target", 10.0),
-            ("Régime (tr/min):", "N_rpm", 3000.0),
-            ("Pression Moy. (bar):", "p_me_target_bar", 6.0),
-            ("Nb Cylindres:", "N_cyl", 1.0)
-        ])
-        
-        self._create_input_group(left, "Rendements", [
-            ("Thermique:", "eta_th", 0.22),
-            ("Mécanique:", "eta_m", 0.85),
-            ("Générateur:", "eta_gen", 0.90),
-            ("Électronique:", "eta_elec", 0.95),
-            ("Charge:", "eta_charge", 0.95)
-        ])
-        
-        self._create_input_group(right, "Contraintes Géométriques", [
-            ("Ratio Stroke/Bore:", "S_over_B", 1.0),
-            ("Ratio Bielle/Manivelle:", "rod_lambda", 3.5),
-            ("Coeff. Fluctuation (Volant):", "flywheel_Cf", 0.05),
-            ("U_p_max (m/s):", "U_p_max", 6.0),
-            ("Phi (p_me/p_max):", "phi", 0.35),
-            ("Facteur Sécurité (SF):", "safety_factor", 2.0)
-        ])
-        
-        # Material Selectors
-        self._create_material_group(right, "Matériaux", [
-            ("Cylindre:", "mat_cylinder", "Alu_6061_T6", "Aluminum"),
-            ("Piston:", "mat_piston", "Alu_2618A", "Aluminum"),
-            ("Bielle:", "mat_rod", "42CrMo4_QT", "Steel"),
-            ("Vilebrequin:", "mat_crank", "42CrMo4_QT", "Steel"),
-            ("Visserie:", "mat_bolt", "42CrMo4_QT", "Steel")
-        ])
-        
-        # Big Button
-        btn_calc = ttk.Button(container, text="▶ LANCER LE CALCUL COMPLET", command=self.run_calculation)
-        btn_calc.pack(side="bottom", fill="x", pady=20)
-
-    def _create_input_group(self, parent, title, items):
-        frame = ttk.LabelFrame(parent, text=title, padding=10)
-        frame.pack(fill="x", padx=5, pady=5)
-        for i, (label, var_name, default) in enumerate(items):
-            ttk.Label(frame, text=label).grid(row=i, column=0, sticky="w", pady=2)
-            var = tk.DoubleVar(value=default)
-            self.vars[var_name] = var
-            ttk.Entry(frame, textvariable=var, width=15).grid(row=i, column=1, sticky="e", pady=2)
-
-    def _create_material_group(self, parent, title, items):
-        frame = ttk.LabelFrame(parent, text=title, padding=10)
-        frame.pack(fill="x", padx=5, pady=5)
-        for i, (label, var_name, default, category) in enumerate(items):
-            ttk.Label(frame, text=label).grid(row=i, column=0, sticky="w", pady=2)
-            var = tk.StringVar(value=default)
-            self.vars[var_name] = var
-            
-            # Combo with filtered list
-            values = list_materials_by_category(None) # Or filter by category if strictly enforced
-            combo = ttk.Combobox(frame, textvariable=var, values=values, width=25, state="readonly")
-            combo.grid(row=i, column=1, sticky="e", pady=2)
-
-    # --- TAB 2: RESULTS (TREEVIEW) ---
-    def _build_results_tab(self):
-        # Scrollbars
-        tree_scroll_y = ttk.Scrollbar(self.tab_results)
-        tree_scroll_y.pack(side="right", fill="y")
-        
-        self.tree = ttk.Treeview(self.tab_results, columns=("Detail", "Valeur", "Unite", "Info"), show="headings", yscrollcommand=tree_scroll_y.set)
-        tree_scroll_y.config(command=self.tree.yview)
-        
-        self.tree.heading("Detail", text="Paramètre / Composant")
-        self.tree.heading("Valeur", text="Valeur")
-        self.tree.heading("Unite", text="Unité")
-        self.tree.heading("Info", text="Note")
-        
-        self.tree.column("Detail", width=300)
-        self.tree.column("Valeur", width=100)
-        self.tree.column("Unite", width=80)
-        self.tree.column("Info", width=200)
-        
-        self.tree.pack(fill="both", expand=True)
-
-    # --- TAB 3: SKETCHES ---
-    def _build_sketches_tab(self):
-        self.canvas_sketches = tk.Canvas(self.tab_sketches, bg="white")
-        scr_y = ttk.Scrollbar(self.tab_sketches, orient="vertical", command=self.canvas_sketches.yview)
-        
-        self.frame_images = ttk.Frame(self.canvas_sketches)
-        
-        self.canvas_sketches.configure(yscrollcommand=scr_y.set)
-        
-        # Layout
-        scr_y.pack(side="right", fill="y")
-        self.canvas_sketches.pack(side="left", fill="both", expand=True)
-        
-        self.canvas_sketches.create_window((0,0), window=self.frame_images, anchor="nw")
-        self.frame_images.bind("<Configure>", lambda e: self.canvas_sketches.configure(scrollregion=self.canvas_sketches.bbox("all")))
-
-    # --- TAB 4: REPORT ---
-    def _build_report_tab(self):
-        self.txt_report = tk.Text(self.tab_report, wrap="word", padx=10, pady=10)
-        scr = ttk.Scrollbar(self.tab_report, command=self.txt_report.yview)
-        self.txt_report.configure(yscrollcommand=scr.set)
-        
-        scr.pack(side="right", fill="y")
-        self.txt_report.pack(fill="both", expand=True)
-
-    # --- LOGIC ---
-    def run_calculation(self):
-        try:
-            # 1. READ INPUTS
-            inputs = self._get_inputs()
-            
-            # 2. RUN MODULES
-            res = calculate_thermodynamics(inputs)
-            res = dimension_components(inputs, res)
-            res = verify_constraints(inputs, res)
-            
-            # 3. GENERATE FILES & IMAGES
-            output_dir = os.path.abspath("output_shse_m")
-            os.makedirs(output_dir, exist_ok=True)
-            
-            try:
-                generate_sketches(inputs, res, output_dir)
-            except Exception as e:
-                print(f"Sketch Error: {e}")
-            
-            generate_markdown_report(inputs, res, os.path.join(output_dir, "rapport.md"))
-            generate_bom_csv(res, os.path.join(output_dir, "bom.csv"))
-            generate_json_export(inputs, res, os.path.join(output_dir, "params.json"))
-            
-            # 4. UPDATE UI
-            self._update_results_tree(res, os.path.join(output_dir, "bom.csv"))
-            self._update_sketches_display(res)
-            self._update_report_text(os.path.join(output_dir, "rapport.md"))
-            
-            # Switch to results tab
-            self.notebook.select(self.tab_results)
-            messagebox.showinfo("Calcul Terminé", "Dimensionnement effectué avec succès !")
-            
-        except Exception as e:
-            messagebox.showerror("Erreur", str(e))
-
-    def _get_inputs(self):
-        return InputParameters(
-            P_batt_target=self.vars["P_batt_target"].get(),
-            N_rpm=self.vars["N_rpm"].get(),
-            p_me_target_bar=self.vars["p_me_target_bar"].get(),
-            N_cyl=int(self.vars["N_cyl"].get()),
-            eta=Efficiencies(
-                eta_th=self.vars["eta_th"].get(),
-                eta_m=self.vars["eta_m"].get(),
-                eta_gen=self.vars["eta_gen"].get(),
-                eta_elec=self.vars["eta_elec"].get(),
-                eta_charge=self.vars["eta_charge"].get(),
-            ),
-            limits=Constraints(
-                U_p_max=self.vars["U_p_max"].get(),
-                S_over_B=self.vars["S_over_B"].get(),
-                phi=self.vars["phi"].get(),
-                safety_factor=self.vars["safety_factor"].get(),
-                rod_lambda=self.vars["rod_lambda"].get(),
-                flywheel_Cf=self.vars["flywheel_Cf"].get(),
-                
-                # Material Strings
-                mat_cylinder=self.vars["mat_cylinder"].get(),
-                mat_piston=self.vars["mat_piston"].get(),
-                mat_rod=self.vars["mat_rod"].get(),
-                mat_crank=self.vars["mat_crank"].get(),
-                mat_bolt=self.vars["mat_bolt"].get()
-            )
-        )
-
-    # --- TAB 5: DEBUG ---
-    def _build_debug_tab(self):
-        # Frame
-        frame = ttk.Frame(self.tab_debug)
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Text Widget
-        self.txt_debug = tk.Text(frame, wrap="word", bg="black", fg="lightgreen", font=("Consolas", 10))
-        scr = ttk.Scrollbar(frame, command=self.txt_debug.yview)
-        self.txt_debug.configure(yscrollcommand=scr.set)
-        
-        scr.pack(side="right", fill="y")
-        self.txt_debug.pack(side="left", fill="both", expand=True)
-        
-        # Tags for stdout/stderr
-        self.txt_debug.tag_config("stdout", foreground="lightgreen")
-        self.txt_debug.tag_config("stderr", foreground="red")
-        
-        # Redirect
-        sys.stdout = TextRedirector(self.txt_debug, "stdout")
-        sys.stderr = TextRedirector(self.txt_debug, "stderr")
-        
-        print("--- SHSE-M DEBUG LOG SYSTEM INITIALIZED ---")
-        print("Les erreurs Python s'afficheront ici.")
-
-    def _update_results_tree(self, res, bom_path):
-        # Clear
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-            
-        # Add summary rows first
-        self.tree.insert("", "end", values=("Puissance BAT Cible", f"{self.vars['P_batt_target'].get()}", "kW", "Entrée"))
-        self.tree.insert("", "end", values=("Vitesse Piston", f"{res.U_mean:.2f}", "m/s", "Calculé"))
-        self.tree.insert("", "end", values=("Pression Max", f"{res.p_max/1e5:.1f}", "bar", "Calculé"))
-        
-        # Load detailed BOM
-        if os.path.exists(bom_path):
-            with open(bom_path, "r", encoding="utf-8") as f:
-                reader = csv.reader(f)
-                next(reader) # Skip header
-                for row in reader:
-                    # CSV: System, Comp, Detail, Val, Unit, Mat, Note
-                    # We map to: Detail= Comp + Detail, Val, Unit, Note=Mat
-                    detail_str = f"{row[1]} - {row[2]}"
-                    self.tree.insert("", "end", values=(detail_str, row[3], row[4], row[5]))
-        
-        # Warnings Highlight
-        if res.warnings:
-            web_id = self.tree.insert("", "0", values=("!!! ALERTE !!!", str(len(res.warnings)), "-", "Voir Rapport"), tags=('warning',))
-            self.tree.tag_configure('warning', foreground='red', background='yellow')
-
-    def _update_sketches_display(self, res):
-        # Clear old images
-        for widget in self.frame_images.winfo_children():
-            widget.destroy()
+        # VARIABLES
+        self.config_path = os.path.join(os.path.dirname(__file__), "config.json")
+        self.config = self.load_config()
+        self.input_vars = {}
+        self.current_results = {}
         self.image_refs = []
         
-        if not res.sketch_paths:
-            ttk.Label(self.frame_images, text="Aucun croquis généré.").pack()
-            return
-            
-        for path in res.sketch_paths:
-            if os.path.exists(path):
-                # Frame for each image
-                fr = ttk.Frame(self.frame_images, relief="groove", padding=5)
-                fr.pack(pady=10, padx=10, fill="x")
-                
-                ttk.Label(fr, text=os.path.basename(path)).pack()
-                
-                img = tk.PhotoImage(file=path)
-                # Downscale if huge? Tkinter PhotoImage has no resize, usually standard.
-                # Matplotlib saves reasonably sized PNGs (600x800).
-                
-                lbl = ttk.Label(fr, image=img)
-                lbl.pack()
-                self.image_refs.append(img) # Prevent GC
+        # LAYOUT
+        self.main_container = ttk.Frame(root)
+        self.main_container.pack(fill="both", expand=True)
+        
+        self.build_header()
+        
+        self.notebook = ttk.Notebook(self.main_container)
+        self.notebook.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        self.tab_config = ttk.Frame(self.notebook, padding=20)
+        self.tab_interactive = ttk.Frame(self.notebook, padding=0) # New Interactive Tab
+        self.tab_logs = ttk.Frame(self.notebook, padding=20)
+        
+        self.notebook.add(self.tab_config, text="CONFIGURATION")
+        self.notebook.add(self.tab_interactive, text="EXPLORATION SYSTÈME (BOM & DÉTAILS)")
+        self.notebook.add(self.tab_logs, text="LOGS")
+        
+        self.build_config_tab()
+        self.build_interactive_tab()
+        self.build_logs_tab()
 
-    def _update_report_text(self, path):
-        self.txt_report.delete(1.0, tk.END)
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                self.txt_report.insert(tk.END, f.read())
+    def build_header(self):
+        header = tk.Frame(self.main_container, bg=self.colors["panel"], height=60, padx=20)
+        header.pack(fill="x", side="top")
+        
+        tk.Label(header, text="SHSE-M · Platforme Avancée", 
+                 bg=self.colors["panel"], fg=self.colors["text"], 
+                 font=("Segoe UI", 16, "bold")).pack(side="left", pady=15)
+        
+        tk.Button(header, text="▶ LANCER SIMULATION", 
+                  bg=self.colors["primary"], fg="white", font=("Segoe UI", 10, "bold"),
+                  relief="flat", padx=20, pady=8, command=self.run_sim_thread).pack(side="right", pady=10)
+
+    def load_config(self):
+        try:
+            with open(self.config_path, "r") as f: return json.load(f)
+        except: return {}
+
+    def build_config_tab(self):
+        # Quick config editor
+        canvas = tk.Canvas(self.tab_config, bg=self.colors["bg"], highlightthickness=0)
+        sb = ttk.Scrollbar(self.tab_config, command=canvas.yview)
+        frame = ttk.Frame(canvas)
+        canvas.create_window((0,0), window=frame, anchor="nw")
+        canvas.configure(yscrollcommand=sb.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        
+        r, c = 0, 0
+        for category, items in self.config.items():
+            if not isinstance(items, dict): continue
+            lf = tk.LabelFrame(frame, text=f" {category.upper()} ", font=("Segoe UI", 9, "bold"), bg="white", padx=10, pady=10)
+            lf.grid(row=r, column=c, sticky="nsew", padx=10, pady=10)
+            
+            sub_r = 0
+            for k, v in items.items():
+                if isinstance(v, dict): continue
+                tk.Label(lf, text=k, bg="white").grid(row=sub_r, column=0, sticky="w")
+                var = tk.StringVar(value=str(v))
+                self.input_vars[f"{category}.{k}"] = var
+                ttk.Entry(lf, textvariable=var, width=12).grid(row=sub_r, column=1, padx=5)
+                sub_r+=1
+            c+=1
+            if c > 3: 
+                c=0 
+                r+=1
+        
+        frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+    # --- INTERACTIVE EXPLORER ---
+    def build_interactive_tab(self):
+        # Paned Window: Left (BOM List), Right (Detail View)
+        paned = ttk.PanedWindow(self.tab_interactive, orient='horizontal')
+        paned.pack(fill="both", expand=True)
+        
+        # LEFT: BOM TREE
+        frame_left = ttk.Frame(paned, padding=0)
+        paned.add(frame_left, weight=1)
+        
+        cols = ("Part", "Spec")
+        self.tree = ttk.Treeview(frame_left, columns=cols, show="tree headings")
+        self.tree.heading("#0", text="Système / Composant")
+        self.tree.heading("Part", text="Élément")
+        self.tree.heading("Spec", text="Spécification")
+        self.tree.column("#0", width=250)
+        self.tree.column("Part", width=200)
+        self.tree.column("Spec", width=150)
+        
+        sb = ttk.Scrollbar(frame_left, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        
+        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
+        
+        # RIGHT: DETAIL PANEL
+        self.detail_frame = tk.Frame(paned, bg="white", bd=1, relief="solid")
+        paned.add(self.detail_frame, weight=2)
+        
+        # Initial State
+        self.lbl_empty = tk.Label(self.detail_frame, text="Sélectionnez un composant pour voir les détails", 
+                                  bg="white", fg="#999", font=("Segoe UI", 12))
+        self.lbl_empty.pack(expand=True)
+        
+        # Content Container (Hidden initially)
+        self.content_container = tk.Frame(self.detail_frame, bg="white")
+
+    def on_tree_select(self, event):
+        sel = self.tree.selection()
+        if not sel: return
+        item_id = sel[0]
+        item = self.tree.item(item_id)
+        
+        # Clean Right Panel
+        self.lbl_empty.pack_forget()
+        for w in self.content_container.winfo_children(): w.destroy()
+        self.content_container.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Check if it's a "Component" with rich data (Piston, Bielle...)
+        comp_name = item['text']
+        # Map Tree Label to Results Key if needed
+        # In populate, I will use IDs that match keys if possible
+        
+        # Look for data in 'shsem_components'
+        comp_data = None
+        comps = self.current_results.get('MechanicalAgent', {}).get('shsem_components', {})
+        
+        if comp_name in comps: # Check mechanical
+            comp_data = comps[comp_name]
+        else:
+            # Check other agents
+            for agent_name in ['FreePistonAgent', 'DogClutchAgent']:
+                c = self.current_results.get(agent_name, {}).get('shsem_components', {})
+                if comp_name in c:
+                    comp_data = c[comp_name]
+                    break
+        
+        if comp_data:
+            self.show_component_details(comp_name, comp_data)
+        elif item_id.startswith("BOM_"):
+            # Show Standard BOM Info
+            vals = item['values']
+            self.show_simple_bom_details(item['text'], vals)
+        else:
+             tk.Label(self.content_container, text=f"Info: {item['text']}", bg="white", font=("Segoe UI", 14, "bold")).pack()
+
+    def show_component_details(self, name, data):
+        # Title
+        tk.Label(self.content_container, text=name.upper(), bg="white", fg=self.colors["primary"], font=("Segoe UI", 18, "bold")).pack(anchor="w", pady=(0,10))
+        
+        # Notebook for details
+        nb = ttk.Notebook(self.content_container)
+        nb.pack(fill="both", expand=True)
+        
+        # Data Tab
+        tab_data = tk.Frame(nb, bg="white", padx=20, pady=20)
+        nb.add(tab_data, text="Données Techniques")
+        
+        # Material
+        tk.Label(tab_data, text="Matériau:", bg="white", fg="#777").grid(row=0, column=0, sticky="w")
+        tk.Label(tab_data, text=data.get('material', '-'), bg="white", font=("Segoe UI", 11, "bold")).grid(row=0, column=1, sticky="w", padx=10)
+        
+        # Specs List
+        r = 2
+        tk.Label(tab_data, text="Géométrie & Masse", bg="white", font=("Segoe UI", 10, "bold", "underline")).grid(row=1, column=0, sticky="w", pady=(10,5))
+        for k, v in data.get('specs', []):
+            tk.Label(tab_data, text=k, bg="white").grid(row=r, column=0, sticky="w")
+            tk.Label(tab_data, text=v, bg="white", fg="#333").grid(row=r, column=1, sticky="w", padx=10)
+            r += 1
+
+        # Stress & Wear Limit Bars
+        r += 1
+        tk.Label(tab_data, text="Résistance & Usure (RDM)", bg="white", font=("Segoe UI", 10, "bold", "underline")).grid(row=r, column=0, sticky="w", pady=(15,5))
+        r += 1
+        
+        for k, val_str, limit in data.get('stress_data', []):
+            # Parse value
+            try:
+                val = float(val_str.split()[0])
+                if isinstance(limit, (int, float)):
+                    pct = min((val / limit) * 100, 100)
+                    color = self.colors["success"] if pct < 80 else "#ffcc00" if pct < 100 else "#ff3b30"
+                else: 
+                    pct = 0
+                    color = "#999"
+            except:
+                pct = 0
+                color = "#999"
+                
+            tk.Label(tab_data, text=k, bg="white").grid(row=r, column=0, sticky="w")
+            tk.Label(tab_data, text=val_str, bg="white").grid(row=r, column=1, sticky="w", padx=10)
+            
+            # Bar
+            cv = tk.Canvas(tab_data, width=150, height=10, bg="#eee", highlightthickness=0)
+            cv.grid(row=r, column=2, padx=10)
+            cv.create_rectangle(0, 0, 1.5*pct, 10, fill=color, outline="")
+            
+            if isinstance(limit, (int, float)):
+                tk.Label(tab_data, text=f"(Lim: {limit})", bg="white", fg="#777", font=("Segoe UI", 8)).grid(row=r, column=3)
+            r += 1
+
+        # Manufacturing
+        r += 1
+        tk.Label(tab_data, text="Fabrication", bg="white", font=("Segoe UI", 10, "bold", "underline")).grid(row=r, column=0, sticky="w", pady=(15,5))
+        r += 1
+        manuf = data.get('manufacturing', {})
+        for k, v in manuf.items():
+             tk.Label(tab_data, text=k, bg="white").grid(row=r, column=0, sticky="w")
+             tk.Label(tab_data, text=v, bg="white").grid(row=r, column=1, sticky="w", padx=10)
+             r+=1
+
+        # Sketch Tab
+        tab_draw = tk.Frame(nb, bg="white", padx=20, pady=20)
+        nb.add(tab_draw, text="Plans & Croquis")
+        
+        # Load specific sketch
+        # Sketches dict is in all_results['Sketches'] but it's a dict now?
+        # Main.py returns a list path or dict? Need to check main.py.
+        # sketches_tech.py returns a Dict. main.py puts it in 'Sketches'.
+        
+        sketches = self.current_results.get('Sketches', {})
+        sketch_path = sketches.get(name) # Key matches "Piston", "Bielle"
+        
+        if sketch_path and os.path.exists(sketch_path):
+             pil_img = Image.open(sketch_path)
+             # Resize to fit
+             pil_img.thumbnail((500, 500))
+             tk_img = ImageTk.PhotoImage(pil_img)
+             self.image_refs.append(tk_img) # keep ref
+             tk.Label(tab_draw, image=tk_img, bg="white").pack()
+             tk.Label(tab_draw, text=f"Fichier: {os.path.basename(sketch_path)}", bg="white", fg="#999").pack(pady=5)
+        else:
+            tk.Label(tab_draw, text="Aucun croquis spécifique disponible.", bg="white").pack()
+            
+    def show_simple_bom_details(self, text, values):
+        tk.Label(self.content_container, text=text, bg="white", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        tk.Label(self.content_container, text=f"Spécification: {values[0]}", bg="white").pack(anchor="w", pady=5)
+        # Add a generic placeholder image or icon
+        
+    def populate_tree(self, res):
+        self.tree.delete(*self.tree.get_children())
+        
+        # 1. System Summary (N_cyl)
+        thermo = res.get('ThermodynamicAgent', {})
+        N_cyl = thermo.get('N_cylinders', 1)
+        mass_sys = thermo.get('Est_System_Mass_kg', 0)
+        
+        root_sys = self.tree.insert("", "end", text=f"Architecture Globale ({N_cyl} Cyl.)", open=True)
+        self.tree.insert(root_sys, "end", text="Masse Système (Est.)", values=(f"{mass_sys:.1f} kg", f"Obj < 50kg"))
+        self.tree.insert(root_sys, "end", text="Alésage x Course", values=(f"{thermo.get('Bore_mm',0):.1f} x {thermo.get('Stroke_mm',0):.1f} mm", "Carré"))
+        
+        # 2. Main Components (Interactive - Aggregated from all agents)
+        root_mech = self.tree.insert("", "end", text="Organes Mécaniques (Détaillés)", open=True)
+        
+        # Helper to add comps from an agent
+        def add_agent_comps(agent_name):
+            agent_res = res.get(agent_name, {})
+            comps = agent_res.get('shsem_components', {})
+            for name, data in comps.items():
+                # Avoid duplicates if any
+                if not self.tree.exists(name):
+                    self.tree.insert(root_mech, "end", text=name, values=("Voir détail >>", data.get('material')))
+        
+        add_agent_comps('MechanicalAgent')
+        add_agent_comps('FreePistonAgent')
+        add_agent_comps('DogClutchAgent')
+            
+        # 2. General BOM
+        root_bom = self.tree.insert("", "end", text="BOM Globale", open=True)
+        bom_list = res.get('BOMAgent', {}).get('BOM_List', [])
+        
+        # Group by 'Group'
+        groups = {}
+        for item in bom_list:
+            g = item.get('Group', 'Divers')
+            if g not in groups: groups[g] = []
+            groups[g].append(item)
+            
+        for g_name, items in groups.items():
+            g_node = self.tree.insert(root_bom, "end", text=g_name, open=False)
+            for it in items:
+                self.tree.insert(g_node, "end", text=it.get('Part'), values=(it.get('Spec'), it.get('Material')), iid=f"BOM_{it['Part']}")
+
+    def build_logs_tab(self):
+        self.txt_log = tk.Text(self.tab_logs, bg="#222", fg="#0f0", font=("Consolas", 9))
+        self.txt_log.pack(fill="both", expand=True)
+
+    def run_sim_thread(self):
+        # Save config
+        for k, v in self.input_vars.items():
+             cat, key = k.split(".", 1)
+             try: self.config[cat][key] = float(v.get())
+             except: self.config[cat][key] = v.get()
+        with open(self.config_path, "w") as f: json.dump(self.config, f)
+        
+        self.txt_log.delete(1.0, tk.END)
+        self.notebook.select(self.tab_logs)
+        
+        def task():
+            old_out = sys.stdout
+            sys.stdout = RedirectText(self.txt_log)
+            try:
+                print(">>> CALCUL EN COURS...")
+                self.current_results = run_full_sizing(self.config)
+                
+                print(">>> CHARGEMENT DE L'INTERFACE INTERACTIVE...")
+                self.populate_tree(self.current_results)
+                
+                print(">>> DONE.")
+                messagebox.showinfo("Succès", "Simulation Terminée")
+                self.notebook.select(self.tab_interactive)
+            except Exception as e:
+                print(f"ERROR: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                sys.stdout = old_out
+                
+        threading.Thread(target=task).start()
 
 def main():
     root = tk.Tk()
-    app = ModernSHSEApp(root)
+    app = MinimalistGUI(root)
     root.mainloop()
 
 if __name__ == "__main__":

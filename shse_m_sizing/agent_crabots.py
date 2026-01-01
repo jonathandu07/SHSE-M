@@ -48,9 +48,45 @@ class DogClutchAgent(Agent):
         
         self.results['shear_stress_MPa'] = Tau_shear / 1e6
         
-        # 4. Self-Locking / Back-taper
-        # Need tan(alpha) < mu to hold? Or > mu to release? 
-        # Typically back-taper prevents disengagement.
-        # Here just logging the friction capability.
+        # 4. Synchronization Check (SHSE-M Requirement)
+        # E_sync = 0.5 * J_eq * (Delta_omega)^2
+        # We must enforce E_sync ~ 0.
+        # Let's assume J_eq of the generator rotor is 0.05 kg.m2 (typical for PM)
+        J_eq = 0.05 
+        
+        # Scenario: 50 RPM discrepancy (Bad sync)
+        d_rpm_bad = 50.0
+        d_omega_bad = d_rpm_bad * 2 * math.pi / 60.0
+        E_sync_bad = 0.5 * J_eq * d_omega_bad**2
+        
+        # Safe Limit
+        E_max_safe = 5.0 # Joules
+        
+        self.results['sync_energy_check_J'] = E_sync_bad
+        
+        if E_sync_bad > E_max_safe:
+            self.warn(f"SHSE-M Warning: Dog Clutch MUST be synchronized! @50rpm delta, Energy={E_sync_bad:.1f}J")
+        else:
+            self.log("Sync Check: Energy manageable if Delta-RPM < 50.")
+            
+        self.results['shsem_components'] = {}
+        self.results['shsem_components']['Crabots'] = {
+            "name": "Système d'Accouplement",
+            "material": "Acier 16MnCr5",
+            "specs": [
+                ("Type", f"{n} Dents"),
+                ("Rayon Moyen", f"{rm*1000:.1f} mm"),
+                ("Force Tang.", f"{Ft:.0f} N")
+            ],
+            "stress_data": [
+                ("Pression Contact", f"{P_contact/1e6:.1f} MPa", "200.0"),
+                ("Cisaillement", f"{Tau_shear/1e6:.1f} MPa", "400.0"),
+                ("Sync Requise", "OUI", "DeltaW=0")
+            ],
+            "manufacturing": {
+                "Dureté": "60 HRC",
+                "Jeu Flanc": "0.1 mm"
+            }
+        }
         
         return self.results
