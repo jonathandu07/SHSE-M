@@ -44,6 +44,8 @@ class ModernSHSEApp:
         self._build_sketches_tab()
         self._build_report_tab()
 
+from .materials import list_materials_by_category
+
     # --- TAB 1: CONFIG ---
     def _build_config_tab(self):
         container = ttk.Frame(self.tab_config)
@@ -74,15 +76,19 @@ class ModernSHSEApp:
         self._create_input_group(right, "Contraintes Géométriques", [
             ("Ratio Stroke/Bore:", "S_over_B", 1.0),
             ("Ratio Bielle/Manivelle:", "rod_lambda", 3.5),
-            ("Coeff. Fluctuation (Volant):", "flywheel_Cf", 0.05)
+            ("Coeff. Fluctuation (Volant):", "flywheel_Cf", 0.05),
+            ("U_p_max (m/s):", "U_p_max", 6.0),
+            ("Phi (p_me/p_max):", "phi", 0.35),
+            ("Facteur Sécurité (SF):", "safety_factor", 2.0)
         ])
         
-        self._create_input_group(right, "Sécurité & Matériaux", [
-            ("Vitesse Piston Max (m/s):", "U_p_max", 6.0),
-            ("Phi (p_me/p_max):", "phi", 0.35),
-            ("Facteur Sécurité (SF):", "safety_factor", 2.0),
-            ("Limite Acier (Pa):", "sigma_adm_steel", 400e6),
-            ("Limite Alu (Pa):", "sigma_adm_alum", 150e6)
+        # Material Selectors
+        self._create_material_group(right, "Matériaux", [
+            ("Cylindre:", "mat_cylinder", "Alu_6061_T6", "Aluminum"),
+            ("Piston:", "mat_piston", "Alu_2618A", "Aluminum"),
+            ("Bielle:", "mat_rod", "42CrMo4_QT", "Steel"),
+            ("Vilebrequin:", "mat_crank", "42CrMo4_QT", "Steel"),
+            ("Visserie:", "mat_bolt", "42CrMo4_QT", "Steel")
         ])
         
         # Big Button
@@ -97,6 +103,19 @@ class ModernSHSEApp:
             var = tk.DoubleVar(value=default)
             self.vars[var_name] = var
             ttk.Entry(frame, textvariable=var, width=15).grid(row=i, column=1, sticky="e", pady=2)
+
+    def _create_material_group(self, parent, title, items):
+        frame = ttk.LabelFrame(parent, text=title, padding=10)
+        frame.pack(fill="x", padx=5, pady=5)
+        for i, (label, var_name, default, category) in enumerate(items):
+            ttk.Label(frame, text=label).grid(row=i, column=0, sticky="w", pady=2)
+            var = tk.StringVar(value=default)
+            self.vars[var_name] = var
+            
+            # Combo with filtered list
+            values = list_materials_by_category(None) # Or filter by category if strictly enforced
+            combo = ttk.Combobox(frame, textvariable=var, values=values, width=25, state="readonly")
+            combo.grid(row=i, column=1, sticky="e", pady=2)
 
     # --- TAB 2: RESULTS (TREEVIEW) ---
     def _build_results_tab(self):
@@ -198,10 +217,15 @@ class ModernSHSEApp:
                 S_over_B=self.vars["S_over_B"].get(),
                 phi=self.vars["phi"].get(),
                 safety_factor=self.vars["safety_factor"].get(),
-                sigma_adm_steel=self.vars["sigma_adm_steel"].get(),
-                sigma_adm_alum=self.vars["sigma_adm_alum"].get(),
                 rod_lambda=self.vars["rod_lambda"].get(),
-                flywheel_Cf=self.vars["flywheel_Cf"].get()
+                flywheel_Cf=self.vars["flywheel_Cf"].get(),
+                
+                # Material Strings
+                mat_cylinder=self.vars["mat_cylinder"].get(),
+                mat_piston=self.vars["mat_piston"].get(),
+                mat_rod=self.vars["mat_rod"].get(),
+                mat_crank=self.vars["mat_crank"].get(),
+                mat_bolt=self.vars["mat_bolt"].get()
             )
         )
 
