@@ -6,99 +6,105 @@ import math
 # Ajout du chemin racine pour les imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from backend.modules.architecture.resolution_globale_architecture import resoudre_architecture_globale
+from backend.consistency.dimensionnement import calcul_puissance_vilebrequin
+from backend.consistency.optimizer import ArchitectureOptimizer
 from backend.definition_pieces import dimensionner_pieces_completes
 from backend.system_generator import DriveChainGenerator
 
 def dimensionner_systeme_shsem(puissance_traction_kw: float, charger_batterie: bool = True):
     """
     Calcule les besoins globaux et détermine l'architecture moteur optimale.
+    Utilise le nouveau moteur de dimensionnement cohérent.
     """
     print(f"=== DIMENSIONNEMENT SYSTÈME SHSE-M ({puissance_traction_kw} kW) ===\n")
 
-    # 1. PARAMÈTRES DE RENDEMENT (Standards industriels SHSE-M)
-    ETA_INVERTER = 0.97
+    # 1. BILAN DE PUISSANCE COHÉRENT
+    ETA_INV = 0.97
+    ETA_MOT = 0.92
     ETA_GEN = 0.95
-    ETA_TRANS_MECA = 0.98
+    ETA_TRA = 0.98
     
-    # 2. PUISSANCES ANNEXES
-    # Auxiliaires (Climatisation, Pompes, Electronique)
-    p_aux_w = 5000.0  # 5 kW par défaut
-    
-    # Charge Batterie (Tampon pour hybride série)
-    # On prévoit de quoi charger environ 20% de la puissance de traction en continu 
-    # ou une valeur fixe si batterie vide.
-    p_charge_bat_w = 0.0
-    if charger_batterie:
-        p_charge_bat_w = max(20000.0, puissance_traction_kw * 1000.0 * 0.1) # Min 20kW ou 10%
+    p_aux_w = 5000.0
+    p_charge_bat_w = 20000.0 if charger_batterie else 0.0
 
-    # 3. CALCUL DU BUS DC
-    # Puissance électrique demandée par l'onduleur pour la traction
-    p_traction_dc = (puissance_traction_kw * 1000.0) / ETA_INVERTER
-    
-    p_dc_total = p_traction_dc + p_charge_bat_w + p_aux_w
-    print(f"Puissance Traction (Meca Roues): {puissance_traction_kw:.1f} kW")
-    print(f"Puissance Charge Batterie: {p_charge_bat_w/1000:.1f} kW")
-    print(f"Puissance Auxiliaires: {p_aux_w/1000:.1f} kW")
-    print(f"---")
-    print(f"PUISSANCE TOTALE REQUISE (Bus DC): {p_dc_total/1000:.1f} kW\n")
-
-    # 4. BESOIN THERMIQUE (Le moteur doit fournir ça via la génératrice)
-    p_meca_thermique_w = p_dc_total / (ETA_GEN * ETA_TRANS_MECA)
-    
-    print(f">> BESOIN MOTEUR THERMIQUE (Sortie Vilebrequin): {p_meca_thermique_w/1000:.1f} kW ({p_meca_thermique_w/735.5:.0f} ch)")
-
-    # 5. RÉSOLUTION ARCHITECTURALE
-    # On définit des contraintes physiques raisonnables pour un groupe électrogène
-    print("\n[Étape 2: Optimisation de l'Architecture]")
-    
-    config = resoudre_architecture_globale(
-        puissance_cible_w=p_meca_thermique_w,
-        regime_tr_min=3000.0,        # Régime stable pour génératrice
-        pme_pa=15e5,                # 15 bars (Turbo Standard)
-        vitesse_piston_max_ms=16.0, # Pour la longévité (GenSet)
-        L_max_m=1.8,                # Contraintes packaging
-        W_max_m=1.2
+    p_vilo_w = calcul_puissance_vilebrequin(
+        puissance_traction_kw * 1000.0,
+        p_charge_bat_w,
+        p_aux_w,
+        ETA_INV, ETA_MOT, ETA_GEN, ETA_TRA
     )
+    
+    p_dc_total = (puissance_traction_kw * 1000.0 / (ETA_MOT * ETA_INV)) + p_charge_bat_w + p_aux_w
+
+    print(f"Puissance Traction (Roues): {puissance_traction_kw:.1f} kW")
+    print(f"Puissance Bus DC Total: {p_dc_total/1000:.1f} kW")
+    print(f">> BESOIN MOTEUR THERMIQUE (Vilo): {p_vilo_w/1000:.1f} kW\n")
+
+    # 2. RÉSOLUTION ARCHITECTURALE STRICTE
+    print("[Étape 2: Optimisation de l'Architecture]")
+    optimizer = ArchitectureOptimizer(bore_max_mm=133.3, up_max_ms=16.0)
+    pme_pa = 15e5 # 15 bars
+    rpm = 3000.0
+    
+    results = optimizer.optimize(p_vilo_w, rpm, pme_pa)
+    
+    if not results:
+        print("\nAucune configuration physique valide trouvée.")
+        return None
+        
+    best = results[0] # Le meilleur score
+    
+    # Mapping vers l'ancien format pour compatibilité GUI
+    config = {
+        "N_cyl": best["n_cyl"],
+        "Architecture": best["architecture"],
+        "Score": best["score"],
+        "Cout_Maint_Estime": best["cout_maint"],
+        "Bore_mm": best["bore_mm"],
+        "Stroke_mm": best["stroke_mm"],
+        "RPM": rpm,
+        "PME": pme_pa,
+        "PME_bar": best["pme_bar"],
+        "vd_tot_cc": best["vd_tot_cc"],
+        "masse_totale_kg": best["masse_kg"], # Sera complété plus bas
+        "L_max_m": best["vd_tot_cc"] / 5000.0,
+        "W_max_m": 0.8
+    }
 
     if config:
-        print(f"\n[RÉSULTAT FINAL]")
+        print(f"\n[RÉSULTAT OPTIMAL]")
         print(f"Nombre de cylindres : {config['N_cyl']}")
         print(f"Architecture : {config['Architecture']}")
         print(f"Alésage : {config['Bore_mm']:.1f} mm")
-        print(f"Coût maintenance estimé : {config['Cout_Maint_Estime']:.0f} € / 20kh")
+        print(f"Course  : {config['Stroke_mm']:.1f} mm")
+        print(f"Cylindrée Totale : {config['vd_tot_cc']:.1f} cc")
         
-        # 6. DIMENSIONNEMENT COMPLET DES PIÈCES (Moteurs de base)
+        # 3. DIMENSIONNEMENT COMPLET DES PIÈCES
         dimensionner_pieces_completes(
-            puissance_cible_w=p_meca_thermique_w,
+            puissance_cible_w=p_vilo_w,
             regime_tr_min=config['RPM'],
             n_cyl=config['N_cyl'],
-            pression_max_pa=config.get('P_max', 90e5)
+            pression_max_pa=pme_pa * 6.0 # Pmax estimation simple
         )
         
-        # 7. LOGIQUE COMPLÉMENTAIRE (Alt / Bat / Boîte) via DriveChainGenerator
-        # Utilise les fichiers existants comme demandé
+        # 4. LOGIQUE COMPLÉMENTAIRE (Alt / Bat / Boîte)
         gen = DriveChainGenerator()
         gen.compute(puissance_traction_kw)
         
-        # Fusion des résultats pour le GUI
         config['drivetrain'] = gen.results
-        # On ajoute des métriques globales réelles au lieu d'estimations au pif
+        
+        # 5. MASSE TOTALE REELLE
         m_bat = float(gen.results['batterie']['masse_estimee'].split()[0])
-        config['masse_totale_kg'] = m_bat + (p_meca_thermique_w/1000 * 0.8) # Masse moteur approx + batterie
+        config['masse_totale_kg'] = m_bat + best["masse_kg"]
         
         return config
-    else:
-        print("\nAucune configuration n'a pu être validée pour cette puissance.")
-        return None
+    
+    return None
 
 if __name__ == "__main__":
-    # Puissance par défaut (150kW) ou via argument
     p_in = 150.0
     if len(sys.argv) > 1:
-        try:
-            p_in = float(sys.argv[1])
-        except ValueError:
-            pass
+        try: p_in = float(sys.argv[1])
+        except ValueError: pass
             
     dimensionner_systeme_shsem(p_in)
