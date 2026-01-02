@@ -1,65 +1,75 @@
 import sys
 import os
 
-# Ajout du chemin racine
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from pieces.cylindre_chemise import Piece as Cylindre
 from pieces.piston_puissance import Piece as Piston
 from pieces.axe_piston import Piece as Axe
+from pieces.bielle_corps import Piece as Bielle
+from pieces.vilebrequin_corps import Piece as Vilebrequin
+from pieces.maneton import Piece as Maneton
+from pieces.vis_couvercle import Piece as Vis
+from pieces.arbre_sortie_portee_sortie import Piece as ArbreSortie
+from pieces.roulements_bagues_galet import Piece as Roulement
 
 def main():
-    print("=== DÉFINITION DES PIÈCES DU SYSTÈME SHSE-M ===\n")
+    print("=== DÉFINITION DES PIÈCES (INTERDÉPENDANCE FORTE) ===\n")
 
-    # 1. PARAMÈTRES GLOBAUX DU SYSTÈME (Objectifs)
-    PUISSANCE_CIBLE_W = 200000.0  # 200 kW
-    REGIME_CIBLE_TR_MIN = 3000.0
-    PME_CIBLE_PA = 15e5           # 15 Bar de Pression Moyenne Effective
-    PRESSION_MAX_PA = 80e5        # 80 Bar Pression Max Combustion
-    NB_CYLINDRES = 4
-    FATIO_S_B = 1.1               # Moteur longue course
+    # OBJECTIFS
+    PUISSANCE_CIBLE_W = 150000.0
+    REGIME_TR_MIN = 4500.0
+    PRESSION_MAX_PA = 90e5
+    NB_CYL = 4
     
-    print(f"Objectifs:\n  Puissance: {PUISSANCE_CIBLE_W/1000:.0f} kW\n  Régime: {REGIME_CIBLE_TR_MIN} tr/min\n  PME: {PME_CIBLE_PA/1e5:.0f} bar\n")
+    print(f"INPUTS: {PUISSANCE_CIBLE_W/1000}kW @ {REGIME_TR_MIN}rpm, Pmax={PRESSION_MAX_PA/1e5}bar")
 
-    # 2. INSTANCIATION DES PIÈCES
-    cylindre = Cylindre()
-    piston = Piston()
+    # INSTANCES
+    cyl = Cylindre()
+    pis = Piston()
     axe = Axe()
+    bie = Bielle()
+    vil = Vilebrequin()
+    man = Maneton()
+    vis = Vis()
+    arb = ArbreSortie()
+    rlt = Roulement()
 
-    # 3. CALCUL / DIMENSIONNEMENT EN CHAÎNE
+    # 1. CYLINDRE (Point de départ)
+    cyl.dimensionner(PUISSANCE_CIBLE_W, 12e5, REGIME_TR_MIN, NB_CYL, 1.0, PRESSION_MAX_PA)
     
-    # A. Cylindre (Maître)
-    cylindre.dimensionner(
-        puissance_cible_w=PUISSANCE_CIBLE_W,
-        pme_pa=PME_CIBLE_PA,
-        regime_tr_min=REGIME_CIBLE_TR_MIN,
-        nb_cylindres=NB_CYLINDRES,
-        ratio_course_alesage=FATIO_S_B,
-        pression_max_pa=PRESSION_MAX_PA
-    )
+    # 2. PISTON (Dépend du Cylindre)
+    pis.dimensionner(cyl, REGIME_TR_MIN, PRESSION_MAX_PA)
     
-    # B. Piston (Dépend du cylindre)
-    piston.dimensionner(
-        alesage_m=cylindre.alesage_m,
-        course_m=cylindre.course_m,
-        regime_tr_min=REGIME_CIBLE_TR_MIN,
-        pression_max_pa=PRESSION_MAX_PA
-    )
+    # 3. AXE (Dépend du Piston)
+    axe.dimensionner(pis)
     
-    # C. Axe Piston (Dépend du piston et de la force gaz)
-    axe.dimensionner(
-        force_max_n=piston.force_max_gaz_n,
-        diametre_piston_m=piston.diametre_m
-    )
+    # 4. BIELLE (Dépend Cylindre, Piston, Axe)
+    bie.dimensionner(cyl, pis, axe, PRESSION_MAX_PA, REGIME_TR_MIN)
+    
+    # 5. VILEBREQUIN (Dépend Cylindre, Bielle)
+    vil.dimensionner(cyl, bie)
+    
+    # 6. MANETON (Dépend Bielle (force), et Vilo (diamètre principal pour ratio))
+    # Note: On n'a pas refactor maneton.py pour prendre l'objet Vilo, on passe les float pour l'instant
+    # Amélioration possible: man.dimensionner(vil, bie, regime)
+    man.dimensionner(bie.force_compression_max_n, vil.diametre_tourillon_m, REGIME_TR_MIN)
+    
+    # 7. VIS (Dépend Cylindre)
+    vis.dimensionner(PRESSION_MAX_PA, cyl.alesage_m * 1.3)
+    
+    # 8. ARBRE SORTIE (Dépend Vilebrequin)
+    arb.dimensionner(vil.couple_max_approx_nm, 5000.0) 
+    
+    # 9. ROULEMENT
+    rlt.dimensionner(5000.0, 0, REGIME_TR_MIN)
 
-    # 4. RAPPORT FINAL
-    pieces = [cylindre, piston, axe]
-    
-    for p in pieces:
-        print("------------------------------------------------")
+    # AFFICHAGE
+    liste = [cyl, pis, axe, bie, vil, man, vis, arb, rlt]
+    for p in liste:
+        print("-" * 40)
         print(p.decrire())
-    print("------------------------------------------------")
-    print("\nCalcul terminé. Ces dimensions sont mathématiquement cohérentes avec les formules modules.")
+    print("-" * 40)
 
 if __name__ == "__main__":
     main()
