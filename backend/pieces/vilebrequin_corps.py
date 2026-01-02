@@ -14,11 +14,14 @@ class Piece:
         self.diametre_tourillon_m = 0.0
         self.couple_max_approx_nm = 0.0
 
-    def dimensionner(self, cylindre, bielle):
+    def dimensionner(self, cylindre, bielle, nb_cylindres=4):
         """
         Dépendances: Cylindre, Bielle
         """
         self.rayon_manivelle_m = cylindre.course_m / 2
+        
+        # Simplification: 1 maneton par cylindre (Moteur Ligne)
+        self.nb_manetons = nb_cylindres
         
         # Dimensionnement Tourillon (Empirique ~ 0.7 * Alésage ou basé sur torsion)
         self.diametre_tourillon_m = 0.7 * cylindre.alesage_m
