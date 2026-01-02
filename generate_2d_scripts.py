@@ -5,7 +5,7 @@ import inspect
 
 # Configuration
 BACKEND_PIECES_DIR = os.path.join("backend", "pieces")
-FRONTEND_2D_DIR = os.path.join("frontend", "pieces", "2D")
+FRONTEND_2D_DIR = os.path.join("frontend", "pieces", "sketches_2d")
 
 def get_piece_class(filepath):
     """Dynamically imports the Piece class from a file."""

@@ -3,8 +3,8 @@ import sys
 import re
 
 # Configuration
-FRONTEND_2D_DIR = os.path.join("frontend", "pieces", "2D")
-TEST_2D_DIR = os.path.join("frontend", "tests", "2D")
+FRONTEND_2D_DIR = os.path.join("frontend", "pieces", "sketches_2d")
+TEST_2D_DIR = os.path.join("frontend", "tests", "test_sketches_2d")
 
 def generate_test_content(module_name):
     # Determine the file path to read and extract attributes to mock
@@ -42,7 +42,7 @@ def generate_test_content(module_name):
     # Template
     test_code = f"""import unittest
 import matplotlib.pyplot as plt
-from frontend.pieces.2D import {module_name}
+from frontend.pieces.sketches_2d import {module_name}
 
 class Test{module_name.title().replace('_', '')}2D(unittest.TestCase):
     def test_draw(self):
