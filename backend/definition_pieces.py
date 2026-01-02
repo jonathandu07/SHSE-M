@@ -69,17 +69,15 @@ from pieces.huile_graisse import Piece as Huile
 from pieces.butees_mecaniques_fin_de_course import Piece as ButeesMeca
 
 # Import BDD
-from database import SecureDatabase
+from backend.database import SecureDatabase
 
-def main():
-    print("=== DÉFINITION INTEGRALE HAUTE PRÉCISION DU SYSTÈME SHSE-M ===\\n")
-
-    PUISSANCE_CIBLE_W = 150000.0   
-    REGIME_TR_MIN = 4500.0
-    PRESSION_MAX_PA = 90e5         
-    NB_CYL = 4
+def dimensionner_pieces_completes(puissance_cible_w, regime_tr_min, n_cyl, pression_max_pa=90e5):
+    """
+    Exécute le dimensionnement physique de haute précision pour les 58 composants.
+    """
+    print(f"=== DIMENSIONNEMENT PHYSIQUE HI-PRECISION ({puissance_cible_w/1000:.1f} kW) ===")
     
-    print(f"INPUTS: {PUISSANCE_CIBLE_W/1000}kW @ {REGIME_TR_MIN}rpm")
+    print(f"INPUTS: {puissance_cible_w/1000}kW @ {regime_tr_min}rpm")
 
     # 1. INSTANCIATION (Tous les objets)
     cyl = Cylindre()
@@ -149,28 +147,28 @@ def main():
     # 2. CALCULS DE DIMENSIONNEMENT (Séquence Dépendances)
     
     # --- MOTEUR DE BASE ---
-    cyl.dimensionner(PUISSANCE_CIBLE_W, 12e5, REGIME_TR_MIN, NB_CYL, 1.0, PRESSION_MAX_PA)
-    pis.dimensionner(cyl, REGIME_TR_MIN, PRESSION_MAX_PA)
+    cyl.dimensionner(puissance_cible_w, 12e5, regime_tr_min, n_cyl, 1.0, pression_max_pa)
+    pis.dimensionner(cyl, regime_tr_min, pression_max_pa)
     axe.dimensionner(pis)
-    circ.dimensionner(axe, REGIME_TR_MIN) # New
+    circ.dimensionner(axe, regime_tr_min) # New
     
-    bie.dimensionner(cyl, pis, axe, PRESSION_MAX_PA, REGIME_TR_MIN)
-    vil.dimensionner(cyl, bie, NB_CYL)
-    man.dimensionner(bie.force_compression_max_n, vil.diametre_tourillon_m, REGIME_TR_MIN)
+    bie.dimensionner(cyl, pis, axe, pression_max_pa, regime_tr_min)
+    vil.dimensionner(cyl, bie, n_cyl)
+    man.dimensionner(bie.force_compression_max_n, vil.diametre_tourillon_m, regime_tr_min)
     
-    cp.dimensionner(vil, bie, pis, REGIME_TR_MIN) # New
+    cp.dimensionner(vil, bie, pis, regime_tr_min) # New
     cous_m.dimensionner(man, bie, 4e5, bie.force_compression_max_n) # New (remplace cous_t avec arguments précis)
     cous_p.dimensionner(axe, bie)
     
     # --- TRANSMISSION ---
     arb.dimensionner(vil.couple_max_approx_nm, 5000.0)
     clav.dimensionner(arb)
-    vol.dimensionner(vil, PUISSANCE_CIBLE_W, REGIME_TR_MIN, NB_CYL)
-    jt_out.dimensionner(arb, REGIME_TR_MIN) # New
+    vol.dimensionner(vil, puissance_cible_w, regime_tr_min, n_cyl)
+    jt_out.dimensionner(arb, regime_tr_min) # New
     
     # --- THERMODYNAMIQUE & FLUIDES ---
-    ch_chaud.dimensionner(cyl, PRESSION_MAX_PA)
-    ch_froid.dimensionner(cyl, PRESSION_MAX_PA)
+    ch_chaud.dimensionner(cyl, pression_max_pa)
+    ch_froid.dimensionner(cyl, pression_max_pa)
     deplac.dimensionner(ch_chaud, cyl)
     paroi.dimensionner(cyl)
     
@@ -178,25 +176,25 @@ def main():
     guid_p.dimensionner(paroi, 100.0) # New
     
     ech.dimensionner(cyl)
-    tub_g.dimensionner(ch_chaud, PRESSION_MAX_PA)
+    tub_g.dimensionner(ch_chaud, pression_max_pa)
     
-    circ_eau.dimensionner(PUISSANCE_CIBLE_W)
+    circ_eau.dimensionner(puissance_cible_w)
     jaq.dimensionner(cyl) # New
     
-    circ_huil.dimensionner(NB_CYL, REGIME_TR_MIN)
-    huile.dimensionner((cyl.cylindree_unitaire_m3 * NB_CYL), has_turbo=True) # New
+    circ_huil.dimensionner(n_cyl, regime_tr_min)
+    huile.dimensionner((cyl.cylindree_unitaire_m3 * n_cyl), has_turbo=True) # New
     
-    col_adm.dimensionner(cyl, REGIME_TR_MIN)
+    col_adm.dimensionner(cyl, regime_tr_min)
     
     # --- STRUCTURE ---
-    carter.dimensionner(cyl, NB_CYL)
-    vis.dimensionner(PRESSION_MAX_PA, cyl.alesage_m * 1.3)
-    gouj.dimensionner(vis, NB_CYL, carter)
+    carter.dimensionner(cyl, n_cyl)
+    vis.dimensionner(pression_max_pa, cyl.alesage_m * 1.3)
+    gouj.dimensionner(vis, n_cyl, carter)
     ecr.dimensionner(gouj.diametre_m) # New
     rond.dimensionner(ecr)
     entre.dimensionner(gouj.diametre_m, 0.05) # New (Entretoise 50mm)
     
-    culasse.dimensionner(cyl, NB_CYL, PRESSION_MAX_PA)
+    culasse.dimensionner(cyl, n_cyl, pression_max_pa)
     couv_av.dimensionner(carter)
     couv_ar.dimensionner(carter)
     brides.dimensionner(carter.masse_estimee_kg * 4.0) # New (Masse totale estimée x4 coeff ?) Non, juste masse moteur.
@@ -207,31 +205,31 @@ def main():
     
     debit_eau_m3s = circ_eau.debit_eau_m3h / 3600
     diam_eau = math.sqrt(4 * (debit_eau_m3s / 2.0) / math.pi)
-    jts_eau.dimensionner(diam_eau, NB_CYL*2)
-    jts_gaz.dimensionner(col_adm.diametre_conduit_mm / 1000.0, NB_CYL)
+    jts_eau.dimensionner(diam_eau, n_cyl*2)
+    jts_gaz.dimensionner(col_adm.diametre_conduit_mm / 1000.0, n_cyl)
     
     # --- COLLECTEURS ---
     col_eau_in.dimensionner(circ_eau, carter.longueur_m)
     col_eau_out.dimensionner(col_eau_in)
     col_gaz_out.dimensionner(col_adm)
-    tub_eau.dimensionner(ch_froid, PRESSION_MAX_PA)
-    isol.dimensionner(ch_chaud, NB_CYL)
+    tub_eau.dimensionner(ch_froid, pression_max_pa)
+    isol.dimensionner(ch_chaud, n_cyl)
     
     # --- KINEMATICS ---
     force_lat = bie.force_compression_max_n * 0.15 
     ax_gal.dimensionner(force_lat)
-    rlt.dimensionner(5000.0, ax_gal.diametre_m, REGIME_TR_MIN) # Roulement Galet
+    rlt.dimensionner(5000.0, ax_gal.diametre_m, regime_tr_min) # Roulement Galet
     rail.dimensionner(cyl, ax_gal)
     pal_av.dimensionner(vil)
     pal_ar.dimensionner(vil) # Palier Principal (Vilo)
     but.dimensionner(vil)
-    goup.dimensionner(vis, NB_CYL)
+    goup.dimensionner(vis, n_cyl)
 
-    ress.dimensionner(5.0, REGIME_TR_MIN, cyl.course_m) # New (5kg masse mobile ?) Stirling displacer est lourd.
+    ress.dimensionner(5.0, regime_tr_min, cyl.course_m) # New (5kg masse mobile ?) Stirling displacer est lourd.
     but_meca.dimensionner(deplac.masse_kg, 1.5) # New (1.5 m/s impact)
 
     # 3. SAUVEGARDE EN BDD
-    print("\\n[BDD] Mise à jour complète avec High Precision Physics...")
+    print("\n[BDD] Mise à jour complète avec High Precision Physics...")
     db = SecureDatabase()
     
     liste_complete = [
@@ -244,12 +242,10 @@ def main():
         ax_gal, rlt, rail, pal_av, pal_ar, but, goup, ress, but_meca, paroi
     ]
     
-    count = 0
     for p in liste_complete:
         db.save_piece(p)
-        count += 1
         
-    print(f"\\n[SUCCÈS] {count} composants définis avec précision et sauvegardés.")
+    print(f"\n[SUCCÈS] {len(liste_complete)} composants définis et sauvegardés.")
 
 if __name__ == "__main__":
-    main()
+    dimensionner_pieces_completes(150000.0, 4500.0, 4)
