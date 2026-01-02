@@ -45,6 +45,15 @@ from pieces.collecteur_gaz_sortie import Piece as ColGazSortie
 from pieces.tubes_helicoidaux_serpentins_cote_eau import Piece as TubesEau
 from pieces.isolation_thermique_externe import Piece as Isolation
 
+from pieces.axes_galet import Piece as AxeGalet
+from pieces.rail_glissiere_translation_galet import Piece as Rail
+from pieces.paliers_principaux_avant import Piece as PalierAv
+from pieces.paliers_principaux_arriere import Piece as PalierAr
+from pieces.butee_axiale import Piece as Butee
+from pieces.goupilles_centrage import Piece as Goupilles
+from pieces.clavettes_cannelures import Piece as Clavettes
+from pieces.paroi_mobile_cloison_translateuse import Piece as Paroi
+
 # Import BDD
 from database import SecureDatabase
 
@@ -102,6 +111,16 @@ def main():
     col_gaz_out = ColGazSortie()
     tub_eau = TubesEau()
     isol = Isolation()
+    
+    # Batch 3: Kinematics
+    ax_gal = AxeGalet()
+    rail = Rail()
+    pal_av = PalierAv()
+    pal_ar = PalierAr()
+    but = Butee()
+    goup = Goupilles()
+    clav = Clavettes()
+    paroi = Paroi()
 
     # 2. CALCULS DE DIMENSIONNEMENT (Séquence optimisée)
     
@@ -164,6 +183,18 @@ def main():
     col_gaz_out.dimensionner(col_adm)
     tub_eau.dimensionner(ch_froid, PRESSION_MAX_PA)
     isol.dimensionner(ch_chaud, NB_CYL)
+    
+    # Kinematics Batch 3
+    # Force laterale approx = 10% force compression (tan beta)
+    force_lat = bie.force_compression_max_n * 0.15 
+    ax_gal.dimensionner(force_lat)
+    rail.dimensionner(cyl, ax_gal)
+    pal_av.dimensionner(vil)
+    pal_ar.dimensionner(vil)
+    but.dimensionner(vil)
+    goup.dimensionner(vis, NB_CYL) # Nb Carters ? disons NB_CYL comme proxy ou 1 bloc
+    clav.dimensionner(arb)
+    paroi.dimensionner(cyl)
 
     # 3. SAUVEGARDE EN BDD
     print("\n[BDD] Initialisation de la base de données sécurisée...")
@@ -176,7 +207,9 @@ def main():
         # Batch 1
         couv_av, couv_ar, culasse, jt_cart, jt_cul, jts_eau, jts_gaz,
         # Batch 2
-        col_eau_in, col_eau_out, col_gaz_out, tub_eau, isol
+        col_eau_in, col_eau_out, col_gaz_out, tub_eau, isol,
+        # Batch 3
+        ax_gal, rail, pal_av, pal_ar, but, goup, clav, paroi
     ]
     
     for p in liste:
