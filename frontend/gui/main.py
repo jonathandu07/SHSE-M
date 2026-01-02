@@ -141,7 +141,7 @@ class ConfigScreen(Screen):
         # En-tête
         header = BoxLayout(orientation='vertical', size_hint_y=0.4)
         header.add_widget(Label(text="SHSE-M", font_size='64sp', bold=True, color=COLORS['BF']))
-        header.add_widget(Label(text="ENGINE GENERATOR", font_size='24sp', color=COLORS['BA'], letter_spacing=5))
+        header.add_widget(Label(text="ENGINE GENERATOR", font_size='24sp', color=COLORS['BA']))
         l.add_widget(header)
         
         # Saisie
