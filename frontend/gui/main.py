@@ -32,6 +32,7 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.popup import Popup
 from kivy.properties import StringProperty, DictProperty
 from kivy.graphics import Color, RoundedRectangle
 from kivy.core.window import Window
@@ -49,7 +50,6 @@ try:
     import matplotlib.pyplot as plt
     MATPLOTLIB_AVAILABLE = True
 except Exception:
-    # Tentative sans garden si installé différemment
     try:
         from kivy.garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
         import matplotlib.pyplot as plt
@@ -79,44 +79,79 @@ COLORS = {
 }
 
 # =========================
-# Input : FIX AZERTY + virgule
+# Popup util
 # =========================
-AZERTY_MAP = {
-    "&": "1", "é": "2", '"': "3", "'": "4", "(": "5",
-    "-": "6", "è": "7", "_": "8", "ç": "9", "à": "0",
-}
+def show_popup(title: str, message: str) -> None:
+    content = BoxLayout(orientation="vertical", padding=20, spacing=15)
+    content.add_widget(Label(text=message, color=COLORS["BF"], halign="left", valign="middle"))
+    btn = Button(text="OK", size_hint_y=None, height=44)
+    content.add_widget(btn)
 
+    pop = Popup(
+        title=title,
+        content=content,
+        size_hint=(None, None),
+        size=(560, 260),
+        auto_dismiss=False,
+    )
+    btn.bind(on_press=lambda *_: pop.dismiss())
+    pop.open()
+
+# =========================
+# Input : NUMÉRIQUE VISIBLE
+# - Pas de mapping clavier
+# - On laisse s'afficher ce que tu tapes
+# - On filtre seulement digits + '.' + ','
+# =========================
 class NeumorphicInput(TextInput):
-    """Champ de saisie neumorphique : accepte AZERTY + virgule."""
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            self.focus = True
-        return super().on_touch_down(touch)
+    """Champ de saisie neumorphique : chiffres + séparateur décimal visible ('.' ou ',')."""
 
     def insert_text(self, substring, from_undo=False):
-        substring = (substring or "").replace(",", ".")
+        s = substring or ""
+        current = self.text or ""
+        sel = self.selection_text or ""
+
         out = []
-        for ch in substring:
-            if ch not in "0123456789." and ch in AZERTY_MAP:
-                ch = AZERTY_MAP[ch]
-            if ch in "0123456789.":
+        for ch in s:
+            # Autorise chiffres + séparateur décimal (visible)
+            if ch.isdigit() or ch in ".,":
+
+                # Une seule virgule/point total (sauf si on remplace une sélection)
+                if ch in ".,":
+
+                    if sel == "":
+                        if "." in current or "," in current:
+                            continue
+
                 out.append(ch)
+
         return super().insert_text("".join(out), from_undo=from_undo)
 
-
-Builder.load_string("""
+Builder.load_string(r"""
 <NeumorphicInput>:
     background_normal: ''
     background_active: ''
     background_color: 0, 0, 0, 0
+
+    # IMPORTANT : si tu ne "vois pas" quand tu écris, c'est souvent un souci
+    # d'alignement/texte_size. Ici on force un rendu stable.
+    size_hint_y: None
+    height: '76dp'
     font_size: '32sp'
-    padding: [20, 20]
-    halign: 'center'
     multiline: False
-    # IMPORTANT: PAS de input_filter ici (AZERTY sinon bloqué)
+    padding: [20, 18]
+
+    # Texte bien visible
     foreground_color: 0.02, 0.08, 0.25, 1
+    hint_text_color: 0.45, 0.45, 0.45, 1
     cursor_color: 0.92, 0.10, 0.12, 1
-    selection_color: 0.60, 0.80, 0.95, 0.60
+    cursor_width: '2dp'
+
+    # Centre horizontal + vertical (sinon parfois impression "je tape mais rien ne se voit")
+    halign: 'center'
+    valign: 'middle'
+    text_size: self.size
+
     canvas.before:
         Color:
             rgba: 0.85, 0.85, 0.85, 1
@@ -207,8 +242,7 @@ class ConfigScreen(Screen):
         main_card.add_widget(Label(text="PUISSANCE CIBLE (kW)", color=COLORS["BF"], bold=True, font_size="18sp"))
 
         self.power_input = NeumorphicInput(text="150")
-        self.power_input.foreground_color = COLORS["BF"]
-        self.power_input.cursor_color = COLORS["RF"]
+        self.power_input.hint_text = "Ex: 150"
         main_card.add_widget(self.power_input)
 
         self.err = Label(text="", color=COLORS["RF"], font_size="14sp", size_hint_y=None, height=20)
@@ -230,10 +264,13 @@ class ConfigScreen(Screen):
         self.bg_rect.size = self.size
 
     def launch_generation(self, *_):
-        txt = (self.power_input.text or "").strip().replace(",", ".")
+        # Parse tolérant : accepte '.' ou ','
+        txt_raw = (self.power_input.text or "").strip()
+        txt = txt_raw.replace(",", ".")
         try:
             val = float(txt)
-            if val <= 0: raise ValueError("P > 0 requis")
+            if val <= 0:
+                raise ValueError("P > 0 requis")
             if val > 5000:
                 self.err.text = "Limite: 5000 kW (Physique)"
                 return
@@ -288,6 +325,7 @@ class DashboardScreen(Screen):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
         layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
 
         top = BoxLayout(size_hint_y=0.1, spacing=20)
@@ -296,7 +334,7 @@ class DashboardScreen(Screen):
             font_size="24sp", bold=True, color=COLORS["BF"],
             size_hint_x=0.7, halign="left", valign="middle"
         ))
-        back = Button(text="RECONFIGURER", size_hint_x=0.3, background_color=(0,0,0,0), color=COLORS["GAXD"])
+        back = Button(text="RECONFIGURER", size_hint_x=0.3, background_color=(0, 0, 0, 0), color=COLORS["GAXD"])
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "config"))
         top.add_widget(back)
         layout.add_widget(top)
@@ -328,6 +366,7 @@ class DashboardScreen(Screen):
         c3.add_widget(lbl_ncyl)
         grid.add_widget(c3)
 
+        # Accès rapide (les boutons mènent maintenant quelque part)
         c4 = PremiumCard(title="Accès Rapide")
         btn_grid = GridLayout(cols=2, spacing=10)
 
@@ -335,9 +374,18 @@ class DashboardScreen(Screen):
         btn_lib.bind(on_press=lambda *_: setattr(self.manager, "current", "piece_library"))
         btn_grid.add_widget(btn_lib)
 
-        btn_grid.add_widget(ModernButton(text="VUE VECTORIELLE", font_size="14sp"))
-        btn_grid.add_widget(ModernButton(text="DOSSIER PDF", font_size="14sp"))
-        btn_grid.add_widget(ModernButton(text="SIMULATION LIVE", font_size="14sp"))
+        btn_vec = ModernButton(text="VUE VECTORIELLE", font_size="14sp")
+        btn_vec.bind(on_press=lambda *_: setattr(self.manager, "current", "vector_view"))
+        btn_grid.add_widget(btn_vec)
+
+        btn_pdf = ModernButton(text="DOSSIER PDF", font_size="14sp")
+        btn_pdf.bind(on_press=lambda *_: setattr(self.manager, "current", "pdf_folder"))
+        btn_grid.add_widget(btn_pdf)
+
+        btn_live = ModernButton(text="SIMULATION LIVE", font_size="14sp")
+        btn_live.bind(on_press=lambda *_: setattr(self.manager, "current", "simulation_live"))
+        btn_grid.add_widget(btn_live)
+
         c4.add_widget(btn_grid)
         grid.add_widget(c4)
 
@@ -354,8 +402,7 @@ class DashboardScreen(Screen):
         self.dt_card.add_widget(self.dt_grid)
         layout.add_widget(self.dt_card)
 
-        # Footer
-        footer = BoxLayout(size_hint_y=0.1, spacing=20)
+        self.add_widget(layout)
 
     def on_enter(self, *args):
         app = App.get_running_app()
@@ -377,21 +424,91 @@ class DashboardScreen(Screen):
         self.res_ncyl = f"{n}"
         self.res_arch = str(arch)
 
-        m_tot = res.get('masse_totale_kg', p * 0.6 + n * 10)
+        m_tot = res.get("masse_totale_kg", p * 0.6 + n * 10)
         v_est = (p * 0.002) + (n * 0.05)
         self.res_mass = f"{m_tot:.0f} kg"
         self.res_vol = f"{v_est:.2f} m³"
 
-        # Remplissage Détails Transmission
         self.dt_grid.clear_widgets()
-        dt = res.get('drivetrain', {})
+        dt = res.get("drivetrain", {})
         for comp_name, specs in dt.items():
-            box = BoxLayout(orientation='vertical', spacing=5)
-            box.add_widget(Label(text=comp_name.upper(), color=COLORS['BF'], bold=True, font_size='14sp', size_hint_y=None, height=30))
+            box = BoxLayout(orientation="vertical", spacing=5)
+            box.add_widget(Label(
+                text=comp_name.upper(),
+                color=COLORS["BF"],
+                bold=True,
+                font_size="14sp",
+                size_hint_y=None,
+                height=30
+            ))
             for k, v in specs.items():
-                short_k = k.replace('_', ' ').capitalize()[:15]
-                box.add_widget(Label(text=f"{short_k}: {v}", color=COLORS['GAXD'], font_size='11sp', size_hint_y=None, height=20))
+                short_k = k.replace("_", " ").capitalize()[:15]
+                box.add_widget(Label(
+                    text=f"{short_k}: {v}",
+                    color=COLORS["GAXD"],
+                    font_size="11sp",
+                    size_hint_y=None,
+                    height=20
+                ))
             self.dt_grid.add_widget(box)
+
+class VectorViewScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        root = BoxLayout(orientation="vertical", padding=20, spacing=20)
+
+        top = BoxLayout(size_hint_y=None, height=60, spacing=10)
+        top.add_widget(Label(text="VUE VECTORIELLE", font_size="24sp", bold=True, color=COLORS["BF"]))
+        back = ModernButton(text="RETOUR", size_hint_x=0.2)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
+        top.add_widget(back)
+        root.add_widget(top)
+
+        msg = Label(
+            text="Écran prêt.\nImplémente ici : rendu SVG/DXF, schémas, vues éclatées, etc.",
+            color=COLORS["GAXD"]
+        )
+        root.add_widget(msg)
+        self.add_widget(root)
+
+class PdfFolderScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        root = BoxLayout(orientation="vertical", padding=20, spacing=20)
+
+        top = BoxLayout(size_hint_y=None, height=60, spacing=10)
+        top.add_widget(Label(text="DOSSIER PDF", font_size="24sp", bold=True, color=COLORS["BF"]))
+        back = ModernButton(text="RETOUR", size_hint_x=0.2)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
+        top.add_widget(back)
+        root.add_widget(top)
+
+        # Exemple : chemin à adapter si tu as déjà un dossier
+        pdf_path = os.path.join(BASE_DIR, "output", "pdf")
+        root.add_widget(Label(text=f"Dossier attendu :\n{pdf_path}", color=COLORS["GAXD"]))
+        root.add_widget(Label(
+            text="Si tu veux : bouton 'Ouvrir dossier' (Windows) via os.startfile(pdf_path).",
+            color=COLORS["GAXD"]
+        ))
+        self.add_widget(root)
+
+class SimulationLiveScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        root = BoxLayout(orientation="vertical", padding=20, spacing=20)
+
+        top = BoxLayout(size_hint_y=None, height=60, spacing=10)
+        top.add_widget(Label(text="SIMULATION LIVE", font_size="24sp", bold=True, color=COLORS["BF"]))
+        back = ModernButton(text="RETOUR", size_hint_x=0.2)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
+        top.add_widget(back)
+        root.add_widget(top)
+
+        root.add_widget(Label(
+            text="Écran prêt.\nImplémente ici : courbes temps réel, progression, logs, etc.",
+            color=COLORS["GAXD"]
+        ))
+        self.add_widget(root)
 
 class PieceLibraryScreen(Screen):
     def __init__(self, **kwargs):
@@ -422,6 +539,10 @@ class PieceLibraryScreen(Screen):
             return
 
         files = [f for f in os.listdir(pieces_path) if f.endswith(".py") and f != "__init__.py"]
+        if not files:
+            self.grid.add_widget(Label(text="Aucune pièce trouvée dans backend/pieces", color=COLORS["GAXD"]))
+            return
+
         for f in sorted(files):
             raw_name = f[:-3]
             display_name = raw_name.replace("_", " ").upper()
@@ -458,12 +579,8 @@ class PieceDetailScreen(Screen):
 
         grid = GridLayout(cols=3, spacing=15, size_hint_y=0.9)
 
-        # ---- 1. Croquis 2D
         sketch_card = PremiumCard(title="Croquis 2D")
-        # --- 2. Radar Chart (Nouveau)
         radar_card = PremiumCard(title="Résistance Mécanique")
-        # --- 3. Données
-        data_card = PremiumCard(title="Données Techniques")
 
         data = None
         try:
@@ -473,24 +590,24 @@ class PieceDetailScreen(Screen):
         except Exception:
             pass
 
+        class PO:
+            pass
+        p = PO()
+        p.nom = raw_name
+        if data:
+            for k, v in data.items():
+                setattr(p, k, v)
+
         if MATPLOTLIB_AVAILABLE:
-            # Rendu Croquis
             try:
                 draw_mod = importlib.import_module(f"frontend.pieces.sketches_2d.{raw_name}")
                 fig, ax = plt.subplots(figsize=(4, 4))
-                class PO: pass
-                p = PO()
-                p.nom = raw_name
-                if data:
-                    for k, v in data.items(): setattr(p, k, v)
                 draw_mod.draw(ax, p)
-                sketch_card.add_widget(FigureCanvasKivyAgg(plt.gcf()))
+                sketch_card.add_widget(FigureCanvasKivyAgg(fig))
             except Exception as e:
                 sketch_card.add_widget(Label(text=f"No Sketch: {e}", color=COLORS["RF"]))
 
-            # Rendu Radar
             try:
-                import matplotlib.pyplot as plt
                 plt.clf()
                 chart_mod = importlib.import_module(f"frontend.pieces.charts.{raw_name}")
                 fig_r = plt.figure(figsize=(4, 4))
@@ -499,7 +616,7 @@ class PieceDetailScreen(Screen):
                 radar_card.add_widget(FigureCanvasKivyAgg(fig_r))
             except Exception as e:
                 radar_card.add_widget(Label(text=f"No Radar: {e}", color=COLORS["RF"]))
-        if not MATPLOTLIB_AVAILABLE:
+        else:
             fallback = BoxLayout(orientation="vertical", padding=40)
             fallback.add_widget(Label(text="[ SCHÉMA TECHNIQUE ]", bold=True, font_size="24sp", color=COLORS["BF"]))
             fallback.add_widget(Label(text=f"ID: {raw_name.upper()}", color=COLORS["GAXD"]))
@@ -509,7 +626,6 @@ class PieceDetailScreen(Screen):
         grid.add_widget(sketch_card)
         grid.add_widget(radar_card)
 
-        # ---- Données techniques
         data_card = PremiumCard(title="Données de Dimensionnement")
         sc = ScrollView()
         data_grid = GridLayout(cols=2, spacing=10, size_hint_y=None, padding=10)
@@ -558,6 +674,12 @@ class SHSEMApp(App):
         sm.add_widget(DashboardScreen(name="dashboard"))
         sm.add_widget(PieceLibraryScreen(name="piece_library"))
         sm.add_widget(PieceDetailScreen(name="piece_detail"))
+
+        # Nouveaux écrans (les boutons ne “mènent” plus nulle part)
+        sm.add_widget(VectorViewScreen(name="vector_view"))
+        sm.add_widget(PdfFolderScreen(name="pdf_folder"))
+        sm.add_widget(SimulationLiveScreen(name="simulation_live"))
+
         return sm
 
 if __name__ == "__main__":
