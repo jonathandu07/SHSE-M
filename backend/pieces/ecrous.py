@@ -1,14 +1,10 @@
-# backend\pieces\ecrous.py
-
-"""
-Pièce: ecrous
-"""
-
 class Piece:
-    \"\"\"Squelette minimal pour la pièce 'ecrous'.\"\"\"
-
     def __init__(self):
         self.nom = "ecrous"
-
-    def decrire(self) -> str:
-        return f"Pièce: {self.nom}"
+        self.diametre_m = 0.0
+        self.hauteur_m = 0.0
+    def dimensionner(self, goujons):
+        self.diametre_m = goujons.diametre_m
+        self.hauteur_m = 0.8 * self.diametre_m # Standard
+    def decrire(self):
+        return f"Pièce: {self.nom} (M{self.diametre_m*1000:.0f})"

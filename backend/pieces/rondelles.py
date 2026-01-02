@@ -1,14 +1,10 @@
-# backend\pieces\rondelles.py
-
-"""
-Pièce: rondelles
-"""
-
 class Piece:
-    \"\"\"Squelette minimal pour la pièce 'rondelles'.\"\"\"
-
     def __init__(self):
         self.nom = "rondelles"
-
-    def decrire(self) -> str:
-        return f"Pièce: {self.nom}"
+        self.diametre_interne_m = 0.0
+        self.diametre_externe_m = 0.0
+    def dimensionner(self, ecrous):
+        self.diametre_interne_m = ecrous.diametre_m * 1.05
+        self.diametre_externe_m = ecrous.diametre_m * 2.0
+    def decrire(self):
+        return f"Pièce: {self.nom} ({self.diametre_interne_m*1000:.1f}x{self.diametre_externe_m*1000:.1f})"
