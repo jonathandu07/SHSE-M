@@ -1,14 +1,17 @@
-# backend\pieces\systeme_rappel_precharge.py
+import sys
+import os
 
-"""
-Pièce: systeme_rappel_precharge
-"""
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 class Piece:
-    \"\"\"Squelette minimal pour la pièce 'systeme_rappel_precharge'.\"\"\"
+    """Modèle générique pour 'systeme_rappel_precharge'."""
 
     def __init__(self):
         self.nom = "systeme_rappel_precharge"
 
+    def dimensionner(self, *args, **kwargs):
+        """Dimensionnement par défaut (Pass-through)."""
+        pass
+
     def decrire(self) -> str:
-        return f"Pièce: {self.nom}"
+        return f"Pièce: {self.nom} (Standard)"

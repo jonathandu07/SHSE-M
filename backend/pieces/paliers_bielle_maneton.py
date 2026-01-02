@@ -1,14 +1,17 @@
-# backend\pieces\paliers_bielle_maneton.py
+import sys
+import os
 
-"""
-Pièce: paliers_bielle_maneton
-"""
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 class Piece:
-    \"\"\"Squelette minimal pour la pièce 'paliers_bielle_maneton'.\"\"\"
+    """Modèle générique pour 'paliers_bielle_maneton'."""
 
     def __init__(self):
         self.nom = "paliers_bielle_maneton"
 
+    def dimensionner(self, *args, **kwargs):
+        """Dimensionnement par défaut (Pass-through)."""
+        pass
+
     def decrire(self) -> str:
-        return f"Pièce: {self.nom}"
+        return f"Pièce: {self.nom} (Standard)"

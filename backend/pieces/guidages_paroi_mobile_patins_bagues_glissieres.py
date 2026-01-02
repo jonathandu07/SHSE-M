@@ -1,14 +1,17 @@
-# backend\pieces\guidages_paroi_mobile_patins_bagues_glissieres.py
+import sys
+import os
 
-"""
-Pièce: guidages_paroi_mobile_patins_bagues_glissieres
-"""
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 class Piece:
-    \"\"\"Squelette minimal pour la pièce 'guidages_paroi_mobile_patins_bagues_glissieres'.\"\"\"
+    """Modèle générique pour 'guidages_paroi_mobile_patins_bagues_glissieres'."""
 
     def __init__(self):
         self.nom = "guidages_paroi_mobile_patins_bagues_glissieres"
 
+    def dimensionner(self, *args, **kwargs):
+        """Dimensionnement par défaut (Pass-through)."""
+        pass
+
     def decrire(self) -> str:
-        return f"Pièce: {self.nom}"
+        return f"Pièce: {self.nom} (Standard)"

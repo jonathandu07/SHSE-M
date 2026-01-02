@@ -1,14 +1,17 @@
-# backend\pieces\entretoises.py
+import sys
+import os
 
-"""
-Pièce: entretoises
-"""
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 class Piece:
-    \"\"\"Squelette minimal pour la pièce 'entretoises'.\"\"\"
+    """Modèle générique pour 'entretoises'."""
 
     def __init__(self):
         self.nom = "entretoises"
 
+    def dimensionner(self, *args, **kwargs):
+        """Dimensionnement par défaut (Pass-through)."""
+        pass
+
     def decrire(self) -> str:
-        return f"Pièce: {self.nom}"
+        return f"Pièce: {self.nom} (Standard)"

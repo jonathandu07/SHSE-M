@@ -1,14 +1,17 @@
-# backend\pieces\circlips_axe_piston.py
+import sys
+import os
 
-"""
-Pièce: circlips_axe_piston
-"""
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 class Piece:
-    \"\"\"Squelette minimal pour la pièce 'circlips_axe_piston'.\"\"\"
+    """Modèle générique pour 'circlips_axe_piston'."""
 
     def __init__(self):
         self.nom = "circlips_axe_piston"
 
+    def dimensionner(self, *args, **kwargs):
+        """Dimensionnement par défaut (Pass-through)."""
+        pass
+
     def decrire(self) -> str:
-        return f"Pièce: {self.nom}"
+        return f"Pièce: {self.nom} (Standard)"

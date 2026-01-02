@@ -1,14 +1,17 @@
-# backend\pieces\jaquette_refroidissement_enveloppe_eau.py
+import sys
+import os
 
-"""
-Pièce: jaquette_refroidissement_enveloppe_eau
-"""
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 class Piece:
-    \"\"\"Squelette minimal pour la pièce 'jaquette_refroidissement_enveloppe_eau'.\"\"\"
+    """Modèle générique pour 'jaquette_refroidissement_enveloppe_eau'."""
 
     def __init__(self):
         self.nom = "jaquette_refroidissement_enveloppe_eau"
 
+    def dimensionner(self, *args, **kwargs):
+        """Dimensionnement par défaut (Pass-through)."""
+        pass
+
     def decrire(self) -> str:
-        return f"Pièce: {self.nom}"
+        return f"Pièce: {self.nom} (Standard)"
