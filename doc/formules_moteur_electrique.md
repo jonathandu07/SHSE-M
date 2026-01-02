@@ -244,3 +244,195 @@ avec (P_{\max,util}(v)) choisi selon FWD/RWD.
 ---
 
 Si tu me donnes (m, L, h, l_f) (ou répartition statique), (R), (\mu), et 2 cas d’usage (ex : 0–50 km/h, et montée 6% à 110), je te fournis une fiche chiffrée traction vs propulsion : **accélération max, couple roue max, puissance utile max**, et donc la puissance moteur “cohérente” avec ta batterie.
+
+
+## 9) Ajouts utiles pour rendre le cadre “complet” (FWD/RWD/AWD)
+
+### 9.1 Répartition statique des charges (si tu n’as pas (l_f,l_r))
+
+Charge normale **statique** (route plane, (a=0), (\theta=0)) :
+[
+N_{f0}=mg\frac{l_r}{L}
+\qquad
+N_{r0}=mg\frac{l_f}{L}
+]
+Donc si tu connais la répartition de masse statique avant ( \lambda_f ) (ex. 0,60) :
+[
+\lambda_f=\frac{N_{f0}}{mg}=\frac{l_r}{L}
+\Rightarrow
+l_r=\lambda_f L
+\qquad
+l_f=(1-\lambda_f)L
+]
+
+---
+
+### 9.2 Limite “power-limited” vs “traction-limited”
+
+Force réellement disponible à la roue (si moteur limité en puissance/couple) :
+
+* **limite puissance** :
+  [
+  F_{pow}(v)=\frac{P_{wheel,max}}{v}
+  ]
+* **limite couple roue** (moteur + rapport) :
+  [
+  F_{tor}=\frac{T_{w,max,drivetrain}}{R}
+  ]
+* **limite adhérence** :
+  [
+  F_{\mu}=
+  \begin{cases}
+  \mu N_f & \text{FWD}\
+  \mu N_r & \text{RWD}\
+  \mu(N_f+N_r) & \text{AWD (idéal)}
+  \end{cases}
+  ]
+
+Force de traction effective :
+[
+F_{drive}(v)=\min\big(F_{pow}(v),;F_{tor},;F_{\mu}\big)
+]
+
+Accélération réellement obtenue :
+[
+a(v)=\frac{F_{drive}(v)-F_{res}(v,\theta)}{m}
+]
+
+Vitesse à partir de laquelle tu deviens “power-limited” (si tu étais traction-limited avant) :
+[
+v^* \approx \frac{P_{wheel,max}}{F_{\mu}}
+]
+(en prenant (F_{\mu}) à (a) faible ou avec une itération si besoin).
+
+---
+
+### 9.3 Modèle (\mu) réaliste (dépendant de la charge) – optionnel mais utile
+
+Sur pneus réels, (\mu) diminue quand la charge augmente (sensibilité charge). Un modèle simple :
+[
+\mu(N)=\mu_0\left(\frac{N}{N_0}\right)^{-k}
+\quad (k>0)
+]
+Alors la force max n’est plus exactement (\mu N) avec (\mu) constant, mais :
+[
+F_{\max}=\mu(N),N
+]
+(utile si tu compares FWD/RWD sur gros transferts de charge).
+
+---
+
+### 9.4 Cas multi-essieux moteurs : limite par essieu et somme
+
+Si AWD non idéal (répartition (\alpha) au train avant) :
+[
+F_{front}\le \mu N_f,\quad F_{rear}\le \mu N_r
+]
+[
+F_{\max,AWD}(\alpha)=\min(\alpha F_{req},\mu N_f)+\min((1-\alpha)F_{req},\mu N_r)
+]
+En pratique, pour maximiser :
+[
+\alpha^* \approx \frac{N_f}{N_f+N_r}
+]
+(répartition proportionnelle aux charges, si (\mu) identique).
+
+---
+
+### 9.5 Limite par **capacité de traction du groupe motopropulseur** (rapport + couple moteur)
+
+Si rapport total (G) et couple moteur max (T_{m,max}(\omega)) :
+[
+T_{w,max,drivetrain}=T_{m,max}(\omega),G,\eta_{trans}
+]
+[
+F_{tor}=\frac{T_{m,max}(\omega),G,\eta_{trans}}{R}
+]
+Lien vitesse ↔ régime moteur (1 rapport fixe ou rapport engagé (G_k)) :
+[
+\omega_m=\frac{v}{R},G
+\qquad
+n_m=\omega_m\frac{60}{2\pi}
+]
+
+---
+
+### 9.6 Condition de **décollage en côte** (très parlant)
+
+À vitesse quasi nulle ((v\to 0), donc pas d’aéro) :
+[
+F_{res}\approx mg,C_{rr}\cos\theta + mg\sin\theta
+]
+Condition “je démarre sans patiner” :
+[
+F_{drive}\ge F_{res}
+\quad\text{avec}\quad
+F_{drive}\le F_{\mu}
+]
+Donc pente maximale “adhérence” (ordre 1) :
+
+* FWD :
+  [
+  \mu N_f \ge mg(C_{rr}\cos\theta+\sin\theta)
+  ]
+* RWD :
+  [
+  \mu N_r \ge mg(C_{rr}\cos\theta+\sin\theta)
+  ]
+
+---
+
+### 9.7 Freinage (transfert de charge inverse) – utile si tu compares architecture
+
+En freinage (a<0), les signes s’inversent dans (N_f,N_r).
+Sur route plane ((\theta=0)) :
+[
+N_f=\frac{mg,l_r - m a,h}{L}
+\qquad
+N_r=\frac{mg,l_f + m a,h}{L}
+]
+Si (a<0) (freinage), ( -ma h/L ) devient **+** : l’avant se charge fortement.
+
+---
+
+### 9.8 Contrôle traction / limite par glissement (si tu veux coller à la réalité)
+
+On peut poser un ratio de glissement (\kappa) :
+[
+\kappa=\frac{\omega_w R - v}{\max(v,\epsilon)}
+]
+et une loi pneu simplifiée :
+[
+F_x(\kappa)=\mu_{peak}N;\frac{\kappa}{\kappa_{peak}+\kappa}
+]
+Ça sert à relier “commande” (couple) → “force” sans supposer tout-ou-rien.
+
+---
+
+## 10) Check-list “ce qui manquait” (si tu veux un document robuste)
+
+1. **Force réelle dispo** : (F_{drive}=\min(F_{pow},F_{tor},F_\mu))
+2. **Vitesse de bascule** traction-limited → power-limited : (v^*\approx P/F_\mu)
+3. **Répartition statique** si (l_f,l_r) inconnus : (l_r=\lambda_f L)
+4. **AWD non idéal** : optimum (\alpha^*\approx N_f/(N_f+N_r))
+5. **Démarrage en côte** (v→0) : comparaison directe (F_\mu) vs (mg\sin\theta)
+6. Option pneus : (\mu(N)) ou (F_x(\kappa)) (pour éviter (\mu) constant)
+
+---
+
+## 11) Petite correction de forme (mineure mais importante)
+
+Dans tes équations de charges normales, écris clairement les produits (évite les “;”) :
+
+[
+N_f=\frac{mg\cos\theta;l_r - ma,h - mg\sin\theta;h}{L}
+]
+[
+N_r=\frac{mg\cos\theta;l_f + ma,h + mg\sin\theta;h}{L}
+]
+
+(Le reste est cohérent.)
+
+---
+
+Si tu veux, je peux aussi te donner une version “prête à coller” où j’intègre ces ajouts directement dans ton texte, sans changer ta structure.
