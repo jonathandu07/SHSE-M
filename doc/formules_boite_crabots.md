@@ -371,3 +371,396 @@ Si tu me donnes ces valeurs (même approximatives), je peux te rendre une **fich
 Sans ces entrées, je peux uniquement donner le **cadre** (ci-dessus), mais pas “la taille précise” de chaque pièce.
 
 Si tu enchaînes avec tes valeurs (même grossières), je te sors : (B), (S), (t_{cyl}) (Lamé), calotte piston, axe, bielle (l, section, flambage), diamètre maneton, paliers, force de serrage et diamètre/quantité minimale de vis, et un tableau BOM.
+
+
+Pour la **boîte à crabots**, ce qui manque par rapport au cadre “moteur” c’est tout le bloc **cinématique + chocs d’engagement + denture + arbre/paliers + crabots + synchro (si) + lubrification**. Voici un cadre de dimensionnement avec les formules.
+
+---
+
+## 0) Entrées spécifiques boîte à crabots
+
+* Couple moteur au primaire : (T_{in}(n)) (ou (T_{max})), facteur de service (K_s)
+* Rapports (i_k), rendement (\eta_g)
+* Régime d’engagement, écart de vitesse (\Delta\omega) (ou (\Delta n))
+* Temps d’engagement visé (t_{eng})
+* Géométrie : entraxe, place dispo, type (2 arbres / 3 arbres), type de crabot (dents frontales, “dog clutch”)
+* Matériaux + traitements (dents pignons, crabots, arbres)
+
+Couple de calcul :
+[
+T_d = K_s,T_{max}
+]
+
+Couples par étage :
+[
+T_{out,k}=T_d,i_k,\eta_g
+]
+
+---
+
+## 1) Pignons : effort tangent + radial
+
+Au diamètre primitif (d) (rayon (r=d/2)) :
+[
+F_t = \frac{2T}{d}
+]
+
+Avec angle de pression (\varphi) (souvent 20°), hélicoïdal (\beta) :
+
+* Droit ((\beta=0)) :
+  [
+  F_r = F_t \tan\varphi,\qquad F_a \approx 0
+  ]
+* Hélicoïdal :
+  [
+  F_r = \frac{F_t \tan\varphi}{\cos\beta},
+  \qquad
+  F_a = F_t \tan\beta
+  ]
+
+Ces efforts servent à dimensionner **arbres** et **paliers**.
+
+---
+
+## 2) Denture : contraintes (bending + contact)
+
+### 2.1 Flexion dent (Lewis, ordre 1)
+
+[
+\sigma_F \approx \frac{F_t}{b,m,Y}
+]
+
+* (b) largeur denture
+* (m) module
+* (Y) facteur de forme (dépend dents)
+
+Critère :
+[
+\sigma_F \le \sigma_{adm,F} \quad (\text{avec fatigue})
+]
+
+### 2.2 Contact (Hertz simplifié)
+
+Forme normalisée (ordre 1) :
+[
+\sigma_H \approx Z_H\sqrt{\frac{F_t}{b,d_m}}
+]
+
+* (d_m) diamètre primitif moyen
+* (Z_H) facteur matériau/géométrie
+
+Critère :
+[
+\sigma_H \le \sigma_{adm,H}
+]
+
+(En pratique on utilise ISO/AGMA, mais ces formes suffisent pour cadrer le module (m) et la largeur (b).)
+
+---
+
+## 3) Arbres : torsion + flexion + fatigue (comme moteur, mais avec (F_r,F_a))
+
+Torsion :
+[
+\tau_{max}=\frac{16T}{\pi d^3}
+]
+
+Flexion (avec moment (M) issu du schéma paliers/charges) :
+[
+\sigma_b=\frac{32M}{\pi d^3}
+]
+
+Von Mises :
+[
+\sigma_{eq}=\sqrt{\sigma_b^2+3\tau_{max}^2}\le\sigma_{adm}
+]
+
+Rigidité torsion (crucial pour crabot) :
+[
+\theta=\frac{TL}{GJ},\quad J=\frac{\pi d^4}{32}
+]
+
+---
+
+## 4) Paliers : roulements ou bagues
+
+### 4.1 Résultante charge roulement
+
+[
+P = X F_r + Y F_a
+]
+
+### 4.2 Durée de vie (L_{10})
+
+[
+L_{10}=\left(\frac{C}{P}\right)^p
+\quad
+(p=3\ \text{billes},\ 10/3\ \text{rouleaux})
+]
+[
+L_{10h}=\frac{10^6L_{10}}{60n}
+]
+
+---
+
+## 5) Crabot (dog clutch) : couple transmissible et pression de contact
+
+### 5.1 Capacité en cisaillement/écrasement des dents de crabot
+
+Si (N_d) dents, rayon moyen (r_m), surface portante par dent (A_d) :
+
+Couple via pression admissible (p_{adm}) :
+[
+T_{cap} \approx N_d,p_{adm},A_d,r_m
+]
+
+Avec (A_d \approx h,b_d) (hauteur utile (h), largeur de dent crabot (b_d)) :
+[
+T_{cap} \approx N_d,p_{adm},h,b_d,r_m
+]
+
+Critère :
+[
+T_{cap} \ge \gamma,T_{out,k}
+]
+
+### 5.2 Contrainte locale (écrasement)
+
+[
+p=\frac{F}{A_d}\le p_{adm}
+\quad\text{avec}\quad
+F \approx \frac{T}{N_d r_m}
+]
+
+---
+
+## 6) Choc d’engagement (point souvent oublié)
+
+L’énergie à dissiper pour accoupler deux inerties (équivalent) avec un écart de vitesse (\Delta\omega) :
+
+Inertie équivalente vue au crabot :
+[
+J_{eq}=\frac{J_1J_2}{J_1+J_2}
+]
+
+Énergie :
+[
+\Delta E=\frac12 J_{eq}(\Delta\omega)^2
+]
+
+Si tu engages en temps (t_{eng}), couple moyen requis (ordre 1) :
+[
+T_{sync}\approx \frac{J_{eq}\Delta\omega}{t_{eng}}
+]
+
+Sans synchroniseur, cette énergie part en **choc** (dents, bruit, arrachement). D’où :
+
+* soit tu imposes (\Delta\omega) faible (commande, stratégie)
+* soit tu ajoutes un dispositif (friction, synchro, rampe)
+
+---
+
+## 7) Effort axial de crabot + commande
+
+Si la géométrie crée une composante axiale (chanfreins/angles), effort axial d’engagement :
+[
+F_{ax}\approx \frac{T}{r_m}\tan\alpha
+]
+((\alpha) angle de rampe/chanfrein)
+
+Dimensionnement fourchette/actuateur :
+[
+F_{cmd} \ge \gamma,F_{ax} + F_{frictions}
+]
+
+---
+
+## 8) Lubrification : cisaillement huile (échauffement) + film
+
+Puissance perdue par agitation/cisaillement (ordre 1) :
+[
+P_{loss}\sim C,\mu,\omega^2,R^3,b
+]
+(utile pour vérifier température d’huile, surtout à haut régime)
+
+---
+
+## 9) Ce que tu dois ajouter à ton “cadre” (checklist)
+
+1. **Forces d’engrenage** (F_t,F_r,F_a)
+2. **Denture** : flexion Lewis + contact Hertz (m, b)
+3. **Crabot** : (T_{cap}), pression de contact, nombre de dents
+4. **Engagement** : (\Delta E), (T_{sync}), stratégie anti-choc
+5. **Arbres/paliers** : charges, (L_{10h})
+6. **Commande** : (F_{ax}), dimensionnement fourchette/actuateur
+7. **Lubrification/échauffement**
+
+---
+
+Si tu veux, je peux te donner une version “prête à coller” dans ton document, structurée comme ton cadre moteur, mais dédiée **boîte à crabots** (arbres, pignons, crabots, paliers, commande, engagement).
+
+
+Non. L’ensemble est très solide comme **cadre**, mais il manque (ou mérite d’être explicité) quelques points importants, et il y a 2–3 petites corrections/formalisations à faire.
+
+---
+
+## Corrections rapides (à faire)
+
+1. **Notation IMEP / cylindrée**
+   Tu écris :
+   [
+   W_i = p_{mi},V_d
+   ]
+   Mets plutôt :
+   [
+   W_i = p_{mi},V_d
+   ]
+   (et pareil partout : remplacer les virgules “produit” par un produit explicite).
+
+2. **Épaisseur calotte piston**
+   Ta relation :
+   [
+   t_{crown} \gtrsim \sqrt{\frac{p_{max}B^2}{k\sigma_{adm}}}
+   ]
+   est une bonne borne, mais précise que (k) est un **facteur de modèle** (plaque circulaire encastrée/posée) et que la forme exacte dépend aussi du **rayon effectif chargé** (souvent plus petit que (B/2) si nervuré).
+
+3. **Fuite annulaire**
+   Tu mets “(\dot m \propto)” (ok), mais tu peux écrire une formule complète (utile) :
+   [
+   Q \approx \frac{\pi D,h^3}{12\mu L},\Delta p
+   ]
+   (débit volumique laminaire dans un jeu annulaire fin), puis (\dot m=\rho Q).
+
+---
+
+## À ajouter côté “moteur thermique / cylindre” (points souvent dimensionnants)
+
+### 1) Transfert thermique / température de paroi (indispensable pour les matériaux)
+
+Comme tu parles d’échangeurs hélicoïdaux et de gradients, il faut un mini-bloc “thermique par paroi” :
+
+Convection gaz / conduction paroi / convection eau :
+[
+q'' = h_g,(T_g-T_{w,h})
+]
+[
+q'' = \frac{k}{t},(T_{w,h}-T_{w,c})
+]
+[
+q'' = h_w,(T_{w,c}-T_w)
+]
+Résistance thermique équivalente :
+[
+q''=\frac{T_g-T_w}{\frac{1}{h_g}+\frac{t}{k}+\frac{1}{h_w}}
+]
+
+Ça te permet d’estimer (T_{w,h}) et donc de décider “inox standard vs inox réfractaire vs superalliage” (et surtout le **fluage**).
+
+### 2) Contraintes thermo-mécaniques (cycle thermique)
+
+Gradient à travers paroi (ordre 1) :
+[
+\Delta T = \frac{q'',t}{k}
+]
+Contrainte thermique empêchée (ordre 1) :
+[
+\sigma_{th}\approx \frac{E,\alpha,\Delta T}{1-\nu}
+]
+À combiner avec pression + fatigue.
+
+### 3) Fluage à chaud (si (T) élevé)
+
+Forme générique (loi de Norton) :
+[
+\dot\varepsilon = A,\sigma^n,e^{-Q/(RT)}
+]
+et critère de service :
+[
+\sigma_{service} \le \sigma_{adm}(T,t_{life})
+]
+(ici, tu ne “calcules” pas sans courbes matériau, mais tu dois au moins l’indiquer, parce que c’est souvent le verrou réel côté chaud).
+
+### 4) Stabilité / ovalisation du cylindre
+
+Si montage avec chemise, serrage, gradients, il faut au moins une mention “ovalisation/jeu”.
+Un rappel utile :
+[
+\Delta d \approx \alpha,d,\Delta T
+]
+pour relier jeu piston/cylindre au gradient.
+
+### 5) Paliers vilebrequin (lubrification) – si tu as des coussinets
+
+Ton cadre parle de “paliers”, mais sans équations de film. Selon choix :
+
+* **Roulements** : OK avec (L_{10}) (comme boîte).
+* **Coussinets hydrodynamiques** : ajouter au minimum le **nombre de Sommerfeld** (cadre) :
+  [
+  S=\frac{\mu,n}{p}\left(\frac{r}{c}\right)^2
+  ]
+  ((c)=jeu radial, (p)=pression moyenne de palier).
+  Même si tu ne fais pas toute la théorie, il faut signaler que “palier lisse = film d’huile = critères dédiés”.
+
+---
+
+## À ajouter côté “assemblage couvercle / vis / joint” (pratique)
+
+### 6) Vérif “arrachement taraudage” + longueur d’engagement
+
+Surtout si carter en alu :
+[
+L_e \gtrsim k,d
+]
+avec (k) typiquement plus grand en matériaux faibles (cadre de règle).
+
+### 7) Vérif d’étanchéité par flèche couvercle (tu l’évoques ailleurs, pas dans ce texte)
+
+Pour une plaque circulaire :
+[
+D=\frac{E t^3}{12(1-\nu^2)},\qquad
+w_{max}\approx C_w\frac{p a^4}{D}
+]
+À mettre en 5) car c’est souvent la raison réelle des fuites.
+
+---
+
+## À ajouter (ou clarifier) pour la **boîte à crabots** (si tu colles les deux cadres)
+
+Ton bloc boîte est bon, mais ajoute ces 3 points si tu veux qu’il soit “complet” :
+
+1. **Vitesse périphérique et contraintes centrifuges** (haut régime)
+   [
+   v=\omega r
+   ]
+   utile pour limites de lubrification, échauffement, projections.
+
+2. **Clavettes/cannelures** (liaison arbre–pignon/crabot)
+   [
+   F_t=\frac{2T}{d}
+   ]
+   [
+   \tau_k=\frac{F_t}{b_kL_k},\qquad
+   \sigma_{bear}=\frac{F_t}{h_kL_k}
+   ]
+
+3. **Vérif fatigue denture** (tu as contraintes statiques ; rappelle qu’il faut une vérif fatigue)
+   [
+   \frac{\sigma_a}{\sigma_D}+\frac{\sigma_m}{R_u}\le 1
+   ]
+   ou mention ISO/AGMA si tu veux rester “cadre”.
+
+---
+
+## Conclusion
+
+* **Le cœur est bon** (structure + chaîne de calcul).
+* Pour que ce soit “tout est bon” au sens **cadre complet**, ajoute surtout :
+
+1. **bloc thermique par paroi** (convection/conduction) + (T_{w,h})
+2. **contraintes thermiques** + **dilatation/jeu**
+3. **fluage** côté chaud
+4. **paliers (roulement vs coussinet)**
+5. **flèche couvercle** et **arrachement taraudage**
+6. (si tu ajoutes la boîte) **liaisons arbre–moyeu** + rappel fatigue denture.
+
+Si tu veux, je peux te renvoyer ton texte “propre”, en gardant ton style, avec uniquement les ajouts ci-dessus insérés aux bons endroits.
