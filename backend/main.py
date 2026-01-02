@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from backend.modules.architecture.resolution_globale_architecture import resoudre_architecture_globale
 from backend.definition_pieces import dimensionner_pieces_completes
+from backend.system_generator import DriveChainGenerator
 
 def dimensionner_systeme_shsem(puissance_traction_kw: float, charger_batterie: bool = True):
     """
@@ -67,14 +68,24 @@ def dimensionner_systeme_shsem(puissance_traction_kw: float, charger_batterie: b
         print(f"Alésage : {config['Bore_mm']:.1f} mm")
         print(f"Coût maintenance estimé : {config['Cout_Maint_Estime']:.0f} € / 20kh")
         
-        # 6. DIMENSIONNEMENT COMPLET DES PIÈCES
-        # On injecte les résultats de l'optimisation dans le moteur de calcul des pièces
+        # 6. DIMENSIONNEMENT COMPLET DES PIÈCES (Moteurs de base)
         dimensionner_pieces_completes(
             puissance_cible_w=p_meca_thermique_w,
             regime_tr_min=config['RPM'],
             n_cyl=config['N_cyl'],
-            pression_max_pa=config.get('P_max', 90e5) # Pmax du cycle
+            pression_max_pa=config.get('P_max', 90e5)
         )
+        
+        # 7. LOGIQUE COMPLÉMENTAIRE (Alt / Bat / Boîte) via DriveChainGenerator
+        # Utilise les fichiers existants comme demandé
+        gen = DriveChainGenerator()
+        gen.compute(puissance_traction_kw)
+        
+        # Fusion des résultats pour le GUI
+        config['drivetrain'] = gen.results
+        # On ajoute des métriques globales réelles au lieu d'estimations au pif
+        m_bat = float(gen.results['batterie']['masse_estimee'].split()[0])
+        config['masse_totale_kg'] = m_bat + (p_meca_thermique_w/1000 * 0.8) # Masse moteur approx + batterie
         
         return config
     else:

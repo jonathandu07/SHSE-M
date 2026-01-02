@@ -49,7 +49,13 @@ try:
     import matplotlib.pyplot as plt
     MATPLOTLIB_AVAILABLE = True
 except Exception:
-    print("[AVERTISSEMENT] kivy.garden.matplotlib non trouvé. Les croquis 2D seront remplacés par des placeholders.")
+    # Tentative sans garden si installé différemment
+    try:
+        from kivy.garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
+        import matplotlib.pyplot as plt
+        MATPLOTLIB_AVAILABLE = True
+    except Exception:
+        print("[AVERTISSEMENT] kivy.garden.matplotlib non trouvé. Les croquis 2D seront remplacés par des placeholders.")
 
 # =========================
 # Palette
@@ -81,17 +87,13 @@ AZERTY_MAP = {
 }
 
 class NeumorphicInput(TextInput):
-    """Champ de saisie neumorphique : accepte AZERTY + virgule, sans input_filter Kivy."""
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            self.focus = True
-        return super().on_touch_down(touch)
-
+    """Champ de saisie neumorphique : accepte AZERTY + virgule."""
     def insert_text(self, substring, from_undo=False):
         substring = substring.replace(",", ".")
         out = []
         for ch in substring:
-            if ch in AZERTY_MAP:
+            # On ne mappe QUE si ce n'est pas déjà un chiffre/point
+            if ch not in "0123456789." and ch in AZERTY_MAP:
                 ch = AZERTY_MAP[ch]
             if ch in "0123456789.":
                 out.append(ch)
@@ -226,8 +228,10 @@ class ConfigScreen(Screen):
         txt = (self.power_input.text or "").strip().replace(",", ".")
         try:
             val = float(txt)
-            if val <= 0:
-                raise ValueError("doit être > 0")
+            if val <= 0: raise ValueError("P > 0 requis")
+            if val > 5000:
+                self.err.text = "Limite: 5000 kW (Physique)"
+                return
         except Exception as e:
             self.err.text = f"Entrée invalide: {e}"
             return
@@ -338,7 +342,15 @@ class DashboardScreen(Screen):
         grid.add_widget(c5)
 
         layout.add_widget(grid)
-        self.add_widget(layout)
+
+        # Bas : Chaîne de Traction
+        self.dt_card = PremiumCard(title="CHAÎNE DE TRACTION (BATTERIE / ALT / BOÎTE)", size_hint_y=0.3)
+        self.dt_grid = GridLayout(cols=3, spacing=15, padding=10)
+        self.dt_card.add_widget(self.dt_grid)
+        layout.add_widget(self.dt_card)
+
+        # Footer
+        footer = BoxLayout(size_hint_y=0.1, spacing=20)
 
     def on_enter(self, *args):
         app = App.get_running_app()
@@ -350,14 +362,9 @@ class DashboardScreen(Screen):
             self.res_ncyl = "--"
             self.res_mass = "--"
             self.res_vol = "--"
-            # tu peux aussi afficher res["__error__"] dans une popup si tu veux
             return
 
-        try:
-            p = float(app.target_power)
-        except Exception:
-            p = 0.0
-
+        p = float(app.target_power)
         n = res.get("N_cyl", 0)
         arch = res.get("Architecture", "Inconnue")
 
@@ -365,11 +372,21 @@ class DashboardScreen(Screen):
         self.res_ncyl = f"{n}"
         self.res_arch = str(arch)
 
-        # Estimation “wow”
-        m_est = p * 0.6 + n * 10
+        m_tot = res.get('masse_totale_kg', p * 0.6 + n * 10)
         v_est = (p * 0.002) + (n * 0.05)
-        self.res_mass = f"{m_est:.0f} kg"
+        self.res_mass = f"{m_tot:.0f} kg"
         self.res_vol = f"{v_est:.2f} m³"
+
+        # Remplissage Détails Transmission
+        self.dt_grid.clear_widgets()
+        dt = res.get('drivetrain', {})
+        for comp_name, specs in dt.items():
+            box = BoxLayout(orientation='vertical', spacing=5)
+            box.add_widget(Label(text=comp_name.upper(), color=COLORS['BF'], bold=True, font_size='14sp', size_hint_y=None, height=30))
+            for k, v in specs.items():
+                short_k = k.replace('_', ' ').capitalize()[:15]
+                box.add_widget(Label(text=f"{short_k}: {v}", color=COLORS['GAXD'], font_size='11sp', size_hint_y=None, height=20))
+            self.dt_grid.add_widget(box)
 
 class PieceLibraryScreen(Screen):
     def __init__(self, **kwargs):
@@ -427,45 +444,57 @@ class PieceDetailScreen(Screen):
         display_name = getattr(app, "selected_piece_display", "PIÈCE")
         raw_name = getattr(app, "selected_piece_raw", "")
 
-        top = BoxLayout(size_hint_y=0.1)
+        top = BoxLayout(size_hint_y=0.1, spacing=10)
         top.add_widget(Label(text=display_name, font_size="28sp", bold=True, color=COLORS["BF"]))
         back = ModernButton(text="RETOUR LISTE", size_hint_x=0.2)
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "piece_library"))
         top.add_widget(back)
         self.layout.add_widget(top)
 
-        grid = GridLayout(cols=2, spacing=20, size_hint_y=0.9)
+        grid = GridLayout(cols=3, spacing=15, size_hint_y=0.9)
 
-        # ---- Croquis 2D
-        sketch_card = PremiumCard(title="Croquis Technique")
+        # ---- 1. Croquis 2D
+        sketch_card = PremiumCard(title="Croquis 2D")
+        # --- 2. Radar Chart (Nouveau)
+        radar_card = PremiumCard(title="Résistance Mécanique")
+        # --- 3. Données
+        data_card = PremiumCard(title="Données Techniques")
 
         data = None
         try:
             from backend.database import SecureDatabase
             db = SecureDatabase()
             data = db.get_piece_data(raw_name)
-        except Exception as e:
-            sketch_card.add_widget(Label(text=f"BDD indisponible: {e}", color=COLORS["RF"], font_size="14sp"))
+        except Exception:
+            pass
 
         if MATPLOTLIB_AVAILABLE:
+            # Rendu Croquis
             try:
-                draw_mod_path = f"frontend.pieces.sketches_2d.{raw_name}"
-                draw_module = importlib.import_module(draw_mod_path)
-
-                fig, ax = plt.subplots(figsize=(5, 5))
-                class PieceObj: pass
-                p = PieceObj()
+                draw_mod = importlib.import_module(f"frontend.pieces.sketches_2d.{raw_name}")
+                fig, ax = plt.subplots(figsize=(4, 4))
+                class PO: pass
+                p = PO()
                 p.nom = raw_name
                 if data:
-                    for k, v in data.items():
-                        setattr(p, k, v)
-
-                draw_module.draw(ax, p)
-                canvas = FigureCanvasKivyAgg(fig)
-                sketch_card.add_widget(canvas)
+                    for k, v in data.items(): setattr(p, k, v)
+                draw_mod.draw(ax, p)
+                sketch_card.add_widget(FigureCanvasKivyAgg(plt.gcf()))
             except Exception as e:
-                sketch_card.add_widget(Label(text=f"Erreur rendu: {e}", color=COLORS["RF"]))
-        else:
+                sketch_card.add_widget(Label(text=f"No Sketch: {e}", color=COLORS["RF"]))
+
+            # Rendu Radar
+            try:
+                import matplotlib.pyplot as plt
+                plt.clf()
+                chart_mod = importlib.import_module(f"frontend.pieces.charts.{raw_name}")
+                fig_r = plt.figure(figsize=(4, 4))
+                ax_r = fig_r.add_subplot(111, polar=True)
+                chart_mod.plot_data(ax_r, p)
+                radar_card.add_widget(FigureCanvasKivyAgg(fig_r))
+            except Exception as e:
+                radar_card.add_widget(Label(text=f"No Radar: {e}", color=COLORS["RF"]))
+        if not MATPLOTLIB_AVAILABLE:
             fallback = BoxLayout(orientation="vertical", padding=40)
             fallback.add_widget(Label(text="[ SCHÉMA TECHNIQUE ]", bold=True, font_size="24sp", color=COLORS["BF"]))
             fallback.add_widget(Label(text=f"ID: {raw_name.upper()}", color=COLORS["GAXD"]))
@@ -473,6 +502,7 @@ class PieceDetailScreen(Screen):
             sketch_card.add_widget(fallback)
 
         grid.add_widget(sketch_card)
+        grid.add_widget(radar_card)
 
         # ---- Données techniques
         data_card = PremiumCard(title="Données de Dimensionnement")

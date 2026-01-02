@@ -77,6 +77,7 @@ class TestGUILogic(unittest.TestCase):
         frontend.gui.main.App.get_running_app = lambda: app
         
         screen = ConfigScreen(name='config')
+        screen.manager = MagicMock() # Mock pour éviter le crash au changement d'écran
         screen.power_input.text = " 250,5 "
         screen.launch_generation()
         
