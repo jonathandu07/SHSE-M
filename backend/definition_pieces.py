@@ -1,5 +1,6 @@
 import sys
 import os
+import math
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -30,6 +31,19 @@ from pieces.carter_bati import Piece as Carter
 from pieces.goujons import Piece as Goujons
 from pieces.ecrous import Piece as Ecrous
 from pieces.rondelles import Piece as Rondelles
+from pieces.couvercle_avant import Piece as CouvercleAvant
+from pieces.couvercle_arriere import Piece as CouvercleArriere
+from pieces.culasse_couvercle_principal import Piece as Culasse
+from pieces.joint_statique_plan_joint_couvercle_carter import Piece as JointCarter
+from pieces.joint_statique_plan_joint_culasse_chambre import Piece as JointCulasse
+from pieces.joints_statiques_collecteurs_eau import Piece as JointsEau
+from pieces.joints_statiques_collecteurs_gaz import Piece as JointsGaz
+
+from pieces.collecteur_eau_entree import Piece as ColEauEntree
+from pieces.collecteur_eau_sortie import Piece as ColEauSortie
+from pieces.collecteur_gaz_sortie import Piece as ColGazSortie
+from pieces.tubes_helicoidaux_serpentins_cote_eau import Piece as TubesEau
+from pieces.isolation_thermique_externe import Piece as Isolation
 
 # Import BDD
 from database import SecureDatabase
@@ -72,6 +86,22 @@ def main():
     gouj = Goujons()
     ecr = Ecrous()
     rond = Rondelles()
+    
+    # Batch 1: Structure & Seals
+    couv_av = CouvercleAvant()
+    couv_ar = CouvercleArriere()
+    culasse = Culasse()
+    jt_cart = JointCarter()
+    jt_cul = JointCulasse()
+    jts_eau = JointsEau()
+    jts_gaz = JointsGaz()
+    
+    # Batch 2: Fluids
+    col_eau_in = ColEauEntree()
+    col_eau_out = ColEauSortie()
+    col_gaz_out = ColGazSortie()
+    tub_eau = TubesEau()
+    isol = Isolation()
 
     # 2. CALCULS DE DIMENSIONNEMENT (Séquence optimisée)
     
@@ -110,6 +140,30 @@ def main():
     gouj.dimensionner(vis, NB_CYL, carter)
     ecr.dimensionner(gouj)
     rond.dimensionner(ecr)
+    
+    # Structure Batch 1
+    culasse.dimensionner(cyl, NB_CYL, PRESSION_MAX_PA)
+    couv_av.dimensionner(carter)
+    couv_ar.dimensionner(carter)
+    
+    # Seals Batch 1
+    jt_cart.dimensionner(carter, couv_av, couv_ar)
+    jt_cul.dimensionner(cyl)
+    
+    # Info pour joints fluides
+    # Eau: Vitesse ~ 2 m/s. Q = v*S => S = Q/v. D = sqrt(4S/pi)
+    debit_eau_m3s = circ_eau.debit_eau_m3h / 3600
+    diam_eau = math.sqrt(4 * (debit_eau_m3s / 2.0) / math.pi)
+    jts_eau.dimensionner(diam_eau, NB_CYL*2) # Entrée/Sortie par cyl
+    
+    jts_gaz.dimensionner(col_adm.diametre_conduit_mm / 1000.0, NB_CYL)
+    
+    # Fluids Batch 2
+    col_eau_in.dimensionner(circ_eau, carter.longueur_m)
+    col_eau_out.dimensionner(col_eau_in)
+    col_gaz_out.dimensionner(col_adm)
+    tub_eau.dimensionner(ch_froid, PRESSION_MAX_PA)
+    isol.dimensionner(ch_chaud, NB_CYL)
 
     # 3. SAUVEGARDE EN BDD
     print("\n[BDD] Initialisation de la base de données sécurisée...")
@@ -118,7 +172,11 @@ def main():
     liste = [
         cyl, pis, axe, bie, vil, man, vis, arb, rlt, seg_c, seg_r, cous_t, cous_p, vol,
         ch_chaud, ch_froid, deplac, ech, tub_g, circ_eau, circ_huil, col_adm, carter,
-        gouj, ecr, rond
+        gouj, ecr, rond,
+        # Batch 1
+        couv_av, couv_ar, culasse, jt_cart, jt_cul, jts_eau, jts_gaz,
+        # Batch 2
+        col_eau_in, col_eau_out, col_gaz_out, tub_eau, isol
     ]
     
     for p in liste:
