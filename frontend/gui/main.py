@@ -1,4 +1,9 @@
-# backend\gui\main.py
+# backend/gui/main.py
+# =========================================================
+# SHSE-M - Interface Technique Haute Fidélité (Kivy)
+# Design : Neumorphisme Premium & Bento Design
+# =========================================================
+
 # =========================
 # PATH + CONFIG (TOUT EN HAUT)
 # =========================
@@ -17,14 +22,9 @@ if BASE_DIR not in sys.path:
 
 # IMPORTANT : ces Config DOIVENT être avant tout autre import kivy
 from kivy.config import Config
+
 Config.set("input", "mouse", "mouse,disable_multitouch")
 Config.set("graphics", "resizable", "1")
-
-"""
-SHSE-M - Interface Technique Haute Fidélité
-Design : Neumorphisme Premium & Bento Design
-Palette de Couleurs Utilisateur Stricte
-"""
 
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
@@ -41,27 +41,26 @@ from kivy.graphics import Color, RoundedRectangle
 from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.graphics.texture import Texture
 
 # =========================
 # Palette
 # =========================
 COLORS = {
-    "BL": (244/255, 254/255, 254/255, 1),
-    "GW": (247/255, 247/255, 255/255, 1),
-    "BG": (229/255, 229/255, 229/255, 1),
-    "GF": (217/255, 217/255, 217/255, 1),
-    "GAXD": (112/255, 112/255, 112/255, 1),
-    "VG": (107/255, 108/255, 102/255, 1),
-    "JV": (255/255, 198/255, 0/255, 1),
-    "BF": (5/255, 20/255, 64/255, 1),
-    "BA": (129/255, 161/255, 184/255, 1),
-    "BM": (3/255, 34/255, 76/255, 1),
-    "BFW": (9/255, 18/255, 38/255, 1),
-    "NF": (30/255, 30/255, 30/255, 1),
+    "BL": (244 / 255, 254 / 255, 254 / 255, 1),
+    "GW": (247 / 255, 247 / 255, 255 / 255, 1),
+    "BG": (229 / 255, 229 / 255, 229 / 255, 1),
+    "GF": (217 / 255, 217 / 255, 217 / 255, 1),
+    "GAXD": (112 / 255, 112 / 255, 112 / 255, 1),
+    "VG": (107 / 255, 108 / 255, 102 / 255, 1),
+    "JV": (255 / 255, 198 / 255, 0 / 255, 1),
+    "BF": (5 / 255, 20 / 255, 64 / 255, 1),
+    "BA": (129 / 255, 161 / 255, 184 / 255, 1),
+    "BM": (3 / 255, 34 / 255, 76 / 255, 1),
+    "BFW": (9 / 255, 18 / 255, 38 / 255, 1),
+    "NF": (30 / 255, 30 / 255, 30 / 255, 1),
     "white": (1, 1, 1, 1),
     "black": (0, 0, 0, 1),
-    "RF": (236/255, 25/255, 32/255, 1),
+    "RF": (236 / 255, 25 / 255, 32 / 255, 1),
 }
 
 # =========================
@@ -70,12 +69,7 @@ COLORS = {
 def show_popup(title: str, message: str) -> None:
     content = BoxLayout(orientation="vertical", padding=20, spacing=15)
 
-    msg = Label(
-        text=message,
-        color=COLORS["BF"],
-        halign="left",
-        valign="top"
-    )
+    msg = Label(text=message, color=COLORS["BF"], halign="left", valign="top")
     msg.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
     content.add_widget(msg)
 
@@ -92,6 +86,7 @@ def show_popup(title: str, message: str) -> None:
     btn.bind(on_press=lambda *_: pop.dismiss())
     pop.open()
 
+
 # =========================
 # Matplotlib Bridge (Custom FigureCanvasKivyAgg)
 # =========================
@@ -100,34 +95,45 @@ try:
     import matplotlib.pyplot as plt
 
     class FigureCanvasKivyAgg(KivyImage):
-        """Bridge minimaliste remplaçant kivy.garden.matplotlib (render via savefig)."""
+        """Bridge minimaliste (render figure -> texture Kivy via savefig)."""
+
         def __init__(self, figure, **kwargs):
             super().__init__(**kwargs)
             self.figure = figure
             self.allow_stretch = True
             self.keep_ratio = True
             self.update_canvas()
+            # évite l'accumulation de figures (mémoire)
+            try:
+                plt.close(self.figure)
+            except Exception:
+                pass
 
         def update_canvas(self, *args):
             buf = io.BytesIO()
-            self.figure.savefig(buf, format="png", bbox_inches="tight", dpi=120)
+            self.figure.savefig(buf, format="png", bbox_inches="tight", dpi=130)
             buf.seek(0)
             from kivy.core.image import Image as CoreImage
+
             im = CoreImage(buf, ext="png")
             self.texture = im.texture
+            try:
+                buf.close()
+            except Exception:
+                pass
 
     MATPLOTLIB_AVAILABLE = True
 except Exception as e:
     print(f"[INFO] Matplotlib ou Bridge non disponible : {e}")
 
+
 # =========================
 # Input : NUMÉRIQUE VISIBLE
-# - Pas de mapping clavier
 # - On laisse s'afficher ce que tu tapes
 # - On filtre seulement digits + '.' + ','
 # =========================
 class NeumorphicInput(TextInput):
-    """Champ de saisie neumorphique : chiffres + séparateur décimal visible ('.' ou ',')."""
+    """Champ de saisie neumorphique : chiffres + séparateur décimal ('.' ou ',')."""
 
     def insert_text(self, substring, from_undo=False):
         s = substring or ""
@@ -138,18 +144,21 @@ class NeumorphicInput(TextInput):
         for ch in s:
             if ch.isdigit() or ch in ".,":
 
-                # Autoriser un seul séparateur décimal total (sauf si remplacement sélection)
-                if ch in ".,":
-
+                # Autoriser un seul séparateur décimal total (sauf remplacement sélection)
+                if ch in ".,":  # separator
                     if sel == "":
                         if "." in current or "," in current:
                             continue
-
                 out.append(ch)
 
         return super().insert_text("".join(out), from_undo=from_undo)
 
-Builder.load_string(r"""
+
+# IMPORTANT :
+# - TextInput n'a PAS de text_size (propriété de Label). On n'utilise pas text_size ici.
+# - Le "je ne vois pas ce que je tape" vient souvent d'une couleur/padding inadaptés.
+Builder.load_string(
+    r"""
 <NeumorphicInput>:
     background_normal: ''
     background_active: ''
@@ -159,14 +168,21 @@ Builder.load_string(r"""
     height: '76dp'
     font_size: '32sp'
     multiline: False
-    padding: [20, 18]
+    write_tab: False
+
+    # Padding : (left, top, right, bottom)
+    padding: [20, 18, 20, 18]
 
     halign: 'center'
 
+    # Couleurs lisibles
     foreground_color: 0.02, 0.08, 0.25, 1
     hint_text_color: 0.45, 0.45, 0.45, 1
     cursor_color: 0.92, 0.10, 0.12, 1
     cursor_width: '2dp'
+
+    selection_color: 0.70, 0.82, 0.95, 0.85
+    selection_text_color: 0.02, 0.08, 0.25, 1
 
     canvas.before:
         Color:
@@ -181,7 +197,8 @@ Builder.load_string(r"""
             pos: self.x + 2, self.y + 2
             size: self.width - 4, self.height - 4
             radius: [13]
-""")
+"""
+)
 
 # =========================
 # UI Components
@@ -194,7 +211,7 @@ class PremiumCard(BoxLayout):
         self.spacing = 10
 
         with self.canvas.before:
-            Color(200/255, 200/255, 200/255, 0.35)
+            Color(200 / 255, 200 / 255, 200 / 255, 0.35)
             self.shadow = RoundedRectangle(pos=(0, 0), size=(0, 0), radius=[24])
             Color(*COLORS["white"])
             self.bg = RoundedRectangle(pos=(0, 0), size=(0, 0), radius=[24])
@@ -221,6 +238,7 @@ class PremiumCard(BoxLayout):
         self.bg.pos = self.pos
         self.bg.size = self.size
 
+
 class ModernButton(Button):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -243,20 +261,22 @@ class ModernButton(Button):
         self.rect.pos = self.pos
         self.rect.size = self.size
 
+
 class TechRow(BoxLayout):
     """Une ligne clé/valeur lisible (fond léger + padding + wrap)."""
+
     def __init__(self, key_text: str, value_text: str, **kwargs):
         super().__init__(
             orientation="horizontal",
             size_hint_y=None,
-            height=42,
+            height=48,
             spacing=10,
             padding=[12, 6, 12, 6],
-            **kwargs
+            **kwargs,
         )
 
         with self.canvas.before:
-            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.75)
+            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.80)
             self._bg = RoundedRectangle(pos=self.pos, size=self.size, radius=[12])
         self.bind(pos=self._update_bg, size=self._update_bg)
 
@@ -266,7 +286,7 @@ class TechRow(BoxLayout):
             halign="left",
             valign="middle",
             font_size="13sp",
-            size_hint_x=0.58
+            size_hint_x=0.60,
         )
         self.val_lbl = Label(
             text=value_text,
@@ -274,7 +294,7 @@ class TechRow(BoxLayout):
             halign="right",
             valign="middle",
             font_size="14sp",
-            size_hint_x=0.42
+            size_hint_x=0.40,
         )
 
         self.key_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
@@ -286,6 +306,7 @@ class TechRow(BoxLayout):
     def _update_bg(self, *args):
         self._bg.pos = self.pos
         self._bg.size = self.size
+
 
 # =========================
 # Screens
@@ -313,8 +334,9 @@ class ConfigScreen(Screen):
         main_card.add_widget(self.power_input)
 
         self.err = Label(text="", color=COLORS["RF"], font_size="14sp", size_hint_y=None, height=20)
-        root.add_widget(main_card)
         main_card.add_widget(self.err)
+
+        root.add_widget(main_card)
 
         self.gen_btn = ModernButton(text="GÉNÉRER LE SYSTÈME", size_hint_y=0.2)
         self.gen_btn.bind(on_press=self.launch_generation)
@@ -348,6 +370,7 @@ class ConfigScreen(Screen):
         app.target_power = str(val)
         self.manager.current = "loading"
 
+
 class LoadingScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -364,6 +387,7 @@ class LoadingScreen(Screen):
 
     def do_math(self):
         import time
+
         app = App.get_running_app()
 
         steps = ["Architecture...", "Cylindrée...", "Vilebrequin...", "Thermodynamique...", "Finalisation..."]
@@ -373,6 +397,7 @@ class LoadingScreen(Screen):
 
         try:
             from backend.main import dimensionner_systeme_shsem
+
             p_target = float(app.target_power)
             res = dimensionner_systeme_shsem(p_target)
             app.simulation_results = res or {}
@@ -380,6 +405,7 @@ class LoadingScreen(Screen):
             app.simulation_results = {"__error__": traceback.format_exc()}
 
         Clock.schedule_once(lambda dt: setattr(self.manager, "current", "dashboard"))
+
 
 class DashboardScreen(Screen):
     res_pwr = StringProperty("-- kW")
@@ -394,11 +420,18 @@ class DashboardScreen(Screen):
         layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
 
         top = BoxLayout(size_hint_y=0.1, spacing=20)
-        top.add_widget(Label(
+        ttl = Label(
             text="RÉSULTATS DE GÉNÉRATION",
-            font_size="24sp", bold=True, color=COLORS["BF"],
-            size_hint_x=0.7, halign="left", valign="middle"
-        ))
+            font_size="24sp",
+            bold=True,
+            color=COLORS["BF"],
+            size_hint_x=0.7,
+            halign="left",
+            valign="middle",
+        )
+        ttl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        top.add_widget(ttl)
+
         back = Button(text="RECONFIGURER", size_hint_x=0.3, background_color=(0, 0, 0, 0), color=COLORS["GAXD"])
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "config"))
         top.add_widget(back)
@@ -455,7 +488,7 @@ class DashboardScreen(Screen):
         grid.add_widget(c4)
 
         c5 = PremiumCard(title="Alertes Santé")
-        c5.add_widget(Label(text="OK", font_size="48sp", bold=True, color=(30/255, 180/255, 50/255, 1)))
+        c5.add_widget(Label(text="OK", font_size="48sp", bold=True, color=(30 / 255, 180 / 255, 50 / 255, 1)))
         c5.add_widget(Label(text="Facteur de sécurité > 1.5", color=COLORS["GAXD"]))
         grid.add_widget(c5)
 
@@ -510,27 +543,32 @@ class DashboardScreen(Screen):
 
         for comp_name, specs in dt.items():
             box = BoxLayout(orientation="vertical", spacing=5)
-            box.add_widget(Label(
-                text=str(comp_name).upper(),
-                color=COLORS["BF"],
-                bold=True,
-                font_size="14sp",
-                size_hint_y=None,
-                height=30
-            ))
+            box.add_widget(
+                Label(
+                    text=str(comp_name).upper(),
+                    color=COLORS["BF"],
+                    bold=True,
+                    font_size="14sp",
+                    size_hint_y=None,
+                    height=30,
+                )
+            )
             if isinstance(specs, dict):
                 for k, v in specs.items():
                     short_k = k.replace("_", " ").capitalize()
-                    box.add_widget(Label(
-                        text=f"{short_k}: {v}",
-                        color=COLORS["GAXD"],
-                        font_size="11sp",
-                        size_hint_y=None,
-                        height=20
-                    ))
+                    box.add_widget(
+                        Label(
+                            text=f"{short_k}: {v}",
+                            color=COLORS["GAXD"],
+                            font_size="11sp",
+                            size_hint_y=None,
+                            height=20,
+                        )
+                    )
             else:
                 box.add_widget(Label(text=str(specs), color=COLORS["GAXD"], font_size="11sp"))
             self.dt_grid.add_widget(box)
+
 
 class VectorViewScreen(Screen):
     def __init__(self, **kwargs):
@@ -560,11 +598,10 @@ class VectorViewScreen(Screen):
         try:
             fig, ax = plt.subplots(figsize=(9, 4))
 
-            # Affiche seulement ce qu'on sait : encombrement si clés présentes
             l_max = res.get("L_max_m", None)
             w_max = res.get("W_max_m", None)
 
-            if l_max and w_max:
+            if isinstance(l_max, (int, float)) and isinstance(w_max, (int, float)) and l_max > 0 and w_max > 0:
                 ax.add_patch(plt.Rectangle((0, 0), l_max, w_max, fill=True, alpha=0.10))
                 ax.plot([0, l_max, l_max, 0, 0], [0, 0, w_max, w_max, 0], linewidth=2)
                 ax.set_title("Encombrement estimé (L_max / W_max)")
@@ -573,12 +610,13 @@ class VectorViewScreen(Screen):
                 ax.set_aspect("equal")
                 ax.grid(True, alpha=0.3)
             else:
-                ax.text(0.5, 0.5, "Clés L_max_m / W_max_m absentes dans res.", ha="center", va="center")
+                ax.text(0.5, 0.5, "Clés L_max_m / W_max_m absentes (ou invalides) dans res.", ha="center", va="center")
                 ax.axis("off")
 
             self.graph_box.add_widget(FigureCanvasKivyAgg(fig))
         except Exception as e:
             self.graph_box.add_widget(Label(text=f"Erreur graphique : {e}", color=COLORS["RF"]))
+
 
 class PdfFolderScreen(Screen):
     def __init__(self, **kwargs):
@@ -633,13 +671,15 @@ class PdfFolderScreen(Screen):
     def open_path(self, path):
         try:
             if sys.platform == "win32":
-                os.startfile(path)
+                os.startfile(path)  # noqa: S606
             else:
                 import subprocess
+
                 opener = "open" if sys.platform == "darwin" else "xdg-open"
-                subprocess.call([opener, path])
+                subprocess.call([opener, path])  # noqa: S603,S607
         except Exception as e:
             show_popup("Erreur", f"Impossible d'ouvrir :\n{path}\n\n{e}")
+
 
 class DetailedDatasheetScreen(Screen):
     """Fiche système lisible (n'affiche que ce que le backend/BDD fournit)."""
@@ -661,10 +701,14 @@ class DetailedDatasheetScreen(Screen):
             return f"{v:.{digits}f}{suffix}"
         return f"{v}{suffix}"
 
-    def _section(self, parent, title: str):
-        card = PremiumCard(title=title)
+    def _section(self, parent, title: str) -> BoxLayout:
+        # IMPORTANT : pour ScrollView, on force des hauteurs auto
+        card = PremiumCard(title=title, size_hint_y=None)
+        card.bind(minimum_height=card.setter("height"))
+
         stack = BoxLayout(orientation="vertical", spacing=8, size_hint_y=None, padding=[0, 6, 0, 4])
         stack.bind(minimum_height=stack.setter("height"))
+
         card.add_widget(stack)
         parent.add_widget(card)
         return stack
@@ -686,7 +730,7 @@ class DetailedDatasheetScreen(Screen):
             font_size="22sp",
             color=COLORS["BF"],
             halign="left",
-            valign="middle"
+            valign="middle",
         )
         title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
         top.add_widget(title)
@@ -708,21 +752,27 @@ class DetailedDatasheetScreen(Screen):
         db_error = None
         try:
             from backend.database import SecureDatabase
+
             db_path_abs = os.path.join(BASE_DIR, "backend", "shse_technical_data.db")
             db = SecureDatabase(db_path=db_path_abs)
             all_pieces = db.get_all_pieces() or {}
         except Exception as e:
             db_error = str(e)
 
-        sc = ScrollView()
-        page = BoxLayout(orientation="vertical", spacing=16, size_hint_y=None)
+        sc = ScrollView(do_scroll_x=False)
+
+        # IMPORTANT : GridLayout + minimum_height => ScrollView stable
+        page = GridLayout(cols=1, spacing=16, size_hint_y=None, padding=[2, 2, 2, 18])
         page.bind(minimum_height=page.setter("height"))
         sc.add_widget(page)
         self.root.add_widget(sc)
 
         # Résumé
         s0 = self._section(page, "Résumé")
-        self._kv_num(s0, "Puissance cible (kW)", float(app.target_power), digits=1)
+        try:
+            self._kv_num(s0, "Puissance cible (kW)", float(app.target_power), digits=1)
+        except Exception:
+            self._kv(s0, "Puissance cible (kW)", self._fmt(app.target_power))
         self._kv(s0, "Architecture", self._fmt(res.get("Architecture")))
         self._kv(s0, "Nombre de cylindres", self._fmt(res.get("N_cyl")))
         self._kv_num(s0, "Masse totale (kg)", res.get("masse_totale_kg"), digits=2)
@@ -748,17 +798,21 @@ class DetailedDatasheetScreen(Screen):
         if not drivetrain:
             self._kv(s3, "Données", "—")
         else:
-            for comp_name in sorted(drivetrain.keys()):
+            for comp_name in sorted(drivetrain.keys(), key=lambda x: str(x)):
                 specs = drivetrain.get(comp_name) or {}
                 sub = PremiumCard(title=str(comp_name).upper(), size_hint_y=None)
+                sub.bind(minimum_height=sub.setter("height"))
+
                 sub_stack = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None, padding=[0, 6, 0, 0])
                 sub_stack.bind(minimum_height=sub_stack.setter("height"))
 
                 if not specs:
                     sub_stack.add_widget(Label(text="—", color=COLORS["GAXD"], size_hint_y=None, height=24))
-                else:
-                    for k in sorted(specs.keys()):
+                elif isinstance(specs, dict):
+                    for k in sorted(specs.keys(), key=lambda x: str(x)):
                         sub_stack.add_widget(TechRow(k.replace("_", " ").capitalize(), self._fmt(specs[k], digits=3)))
+                else:
+                    sub_stack.add_widget(TechRow("Données", self._fmt(specs)))
 
                 sub.add_widget(sub_stack)
                 s3.add_widget(sub)
@@ -766,7 +820,9 @@ class DetailedDatasheetScreen(Screen):
         # Inventaire BDD
         s4 = self._section(page, "Inventaire composants (BDD)")
         if db_error:
-            s4.add_widget(Label(text=f"BDD indisponible : {db_error}", color=COLORS["RF"], size_hint_y=None, height=40))
+            s4.add_widget(
+                Label(text=f"BDD indisponible : {db_error}", color=COLORS["RF"], size_hint_y=None, height=40)
+            )
         elif not all_pieces:
             s4.add_widget(Label(text="Aucune pièce trouvée en BDD.", color=COLORS["GAXD"], size_hint_y=None, height=32))
         else:
@@ -781,30 +837,33 @@ class DetailedDatasheetScreen(Screen):
 
             header = BoxLayout(size_hint_y=None, height=34, padding=[6, 0], spacing=10)
             header.add_widget(Label(text=f"Nombre de pièces : {len(all_pieces)}", color=COLORS["BF"], halign="left"))
-            header.add_widget(Label(
-                text=("Masse totale BDD : " + self._fmt(sum(masses), digits=3, suffix=" kg")) if masses else "Masse totale BDD : —",
-                color=COLORS["BF"],
-                halign="right"
-            ))
+            header.add_widget(
+                Label(
+                    text=("Masse totale BDD : " + self._fmt(sum(masses), digits=3, suffix=" kg")) if masses else "Masse totale BDD : —",
+                    color=COLORS["BF"],
+                    halign="right",
+                )
+            )
             s4.add_widget(header)
 
-            inner_sc = ScrollView(size_hint_y=None, height=420)
+            inner_sc = ScrollView(size_hint_y=None, height=420, do_scroll_x=False)
             inner = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None)
             inner.bind(minimum_height=inner.setter("height"))
             inner_sc.add_widget(inner)
             s4.add_widget(inner_sc)
 
-            for name in sorted(all_pieces.keys()):
+            for name in sorted(all_pieces.keys(), key=lambda x: str(x)):
                 pdata = all_pieces[name] or {}
                 m = pdata.get("masse_kg", None)
 
                 if isinstance(m, (int, float)):
                     m = float(m)
-                    mass_txt = f"{m*1000:.1f} g" if m < 1 else f"{m:.3f} kg"
+                    mass_txt = f"{m * 1000:.1f} g" if m < 1 else f"{m:.3f} kg"
                 else:
                     mass_txt = "—"
 
                 inner.add_widget(TechRow(name.replace("_", " ").upper(), mass_txt))
+
 
 class PieceLibraryScreen(Screen):
     def __init__(self, **kwargs):
@@ -818,7 +877,7 @@ class PieceLibraryScreen(Screen):
         top.add_widget(back)
         l.add_widget(top)
 
-        sc = ScrollView()
+        sc = ScrollView(do_scroll_x=False)
         self.grid = GridLayout(cols=3, spacing=20, size_hint_y=None, padding=10)
         self.grid.bind(minimum_height=self.grid.setter("height"))
         sc.add_widget(self.grid)
@@ -856,6 +915,7 @@ class PieceLibraryScreen(Screen):
         app.selected_piece_raw = raw_name
         self.manager.current = "piece_detail"
 
+
 class PieceDetailScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -891,6 +951,7 @@ class PieceDetailScreen(Screen):
         data = None
         try:
             from backend.database import SecureDatabase
+
             db_path_abs = os.path.join(BASE_DIR, "backend", "shse_technical_data.db")
             db = SecureDatabase(db_path=db_path_abs)
             data = db.get_piece_data(raw_name)
@@ -901,6 +962,7 @@ class PieceDetailScreen(Screen):
 
         class PO:
             pass
+
         p = PO()
         p.nom = raw_name
         if isinstance(data, dict):
@@ -917,6 +979,8 @@ class PieceDetailScreen(Screen):
                 except Exception:
                     path = os.path.join(BASE_DIR, "frontend", "pieces", "sketches_2d", f"{raw_name}.py")
                     spec = importlib.util.spec_from_file_location(raw_name, path)
+                    if spec is None or spec.loader is None:
+                        raise ImportError(f"Module introuvable: {path}")
                     draw_mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(draw_mod)
 
@@ -934,6 +998,8 @@ class PieceDetailScreen(Screen):
                 except Exception:
                     path = os.path.join(BASE_DIR, "frontend", "pieces", "charts", f"{raw_name}.py")
                     spec = importlib.util.spec_from_file_location(raw_name, path)
+                    if spec is None or spec.loader is None:
+                        raise ImportError(f"Module introuvable: {path}")
                     chart_mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(chart_mod)
 
@@ -952,21 +1018,24 @@ class PieceDetailScreen(Screen):
             radar_card.add_widget(Label(text="Matplotlib non disponible", color=COLORS["GAXD"]))
 
         # --- Data list (lisible)
-        sc = ScrollView()
+        sc = ScrollView(do_scroll_x=False)
         stack = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None, padding=[0, 6, 0, 0])
         stack.bind(minimum_height=stack.setter("height"))
 
         if isinstance(data, dict) and data:
-            for k in sorted(data.keys()):
+            for k in sorted(data.keys(), key=lambda x: str(x)):
                 v = data[k]
-                # pas d'hypothèse d'unité ici, on affiche brut
-                if isinstance(v, float):
-                    val_str = f"{v:.6g}"
-                else:
-                    val_str = str(v)
+                val_str = f"{v:.6g}" if isinstance(v, float) else str(v)
                 stack.add_widget(TechRow(k.replace("_", " ").capitalize(), val_str))
         else:
-            stack.add_widget(Label(text="Données non calculées.\nLancez une génération.", color=COLORS["RF"], size_hint_y=None, height=70))
+            stack.add_widget(
+                Label(
+                    text="Données non calculées.\nLancez une génération.",
+                    color=COLORS["RF"],
+                    size_hint_y=None,
+                    height=70,
+                )
+            )
 
         sc.add_widget(stack)
         data_card.add_widget(sc)
@@ -977,6 +1046,7 @@ class PieceDetailScreen(Screen):
         grid.add_widget(data_card)
 
         self.layout.add_widget(grid)
+
 
 # =========================
 # App
@@ -1004,6 +1074,7 @@ class SHSEMApp(App):
         sm.add_widget(DetailedDatasheetScreen(name="detailed_datasheet"))
 
         return sm
+
 
 if __name__ == "__main__":
     SHSEMApp().run()
