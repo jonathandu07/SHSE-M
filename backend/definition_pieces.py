@@ -3,6 +3,7 @@ import os
 import math
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 # Importation de TOUTES les pièces (58 modules)
 from pieces.cylindre_chemise import Piece as Cylindre

@@ -97,7 +97,9 @@ def resoudre_architecture_globale(
                      "Architecture": best_arch_for_n,
                      "Score": score,
                      "Cout_Maint_Estime": cout_maint,
-                     "Bore_mm": bore_actuel*1000
+                     "Bore_mm": bore_actuel*1000,
+                     "RPM": regime_tr_min,
+                     "PME": pme_pa
                  }
                  
     print("\n=== RÉSULTAT OPTIMAL ===")

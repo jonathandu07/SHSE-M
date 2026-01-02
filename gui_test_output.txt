@@ -1,0 +1,63 @@
+[INFO   ] [Logger      ] Record log in C:\Users\alpha\.kivy\logs\kivy_26-01-02_28.txt
+[INFO   ] [deps        ] Successfully imported "kivy_deps.angle" 0.4.0
+[INFO   ] [deps        ] Successfully imported "kivy_deps.glew" 0.3.1
+[INFO   ] [deps        ] Successfully imported "kivy_deps.sdl2" 0.8.0
+[INFO   ] [Kivy        ] v2.3.1
+[INFO   ] [Kivy        ] Installed at "C:\Users\alpha\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\kivy\__init__.py"
+[INFO   ] [Python      ] v3.13.9 (tags/v3.13.9:8183fa5, Oct 14 2025, 14:09:13) [MSC v.1944 64 bit (AMD64)]
+[INFO   ] [Python      ] Interpreter at "C:\Users\alpha\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe"
+[INFO   ] [Logger      ] Purge log fired. Processing...
+[INFO   ] [Logger      ] Purge finished!
+[INFO   ] [Factory     ] 195 symbols loaded
+[INFO   ] [Image       ] Providers: img_tex, img_dds, img_sdl2, img_pil (img_ffpyplayer ignored)
+[INFO   ] [Text        ] Provider: sdl2
+[INFO   ] [Window      ] Provider: sdl2
+[INFO   ] [GL          ] Using the "OpenGL" graphics system
+[INFO   ] [GL          ] GLEW initialization succeeded
+[INFO   ] [GL          ] Backend used <glew>
+[INFO   ] [GL          ] OpenGL version <b'4.6.0 NVIDIA 572.42'>
+[INFO   ] [GL          ] OpenGL vendor <b'NVIDIA Corporation'>
+[INFO   ] [GL          ] OpenGL renderer <b'NVIDIA GeForce GTX 1050/PCIe/SSE2'>
+[INFO   ] [GL          ] OpenGL parsed version: 4, 6
+[INFO   ] [GL          ] Shading version <b'4.60 NVIDIA'>
+[INFO   ] [GL          ] Texture max size <32768>
+[INFO   ] [GL          ] Texture max units <32>
+[INFO   ] [Window      ] auto add sdl2 input provider
+[INFO   ] [Window      ] virtual keyboard not allowed, single mode, not docked
+[DEBUG  ] [matplotlib data path] C:\Users\alpha\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\matplotlib\mpl-data
+[DEBUG  ] CONFIGDIR=C:\Users\alpha\.matplotlib
+[DEBUG  ] interactive is False
+[DEBUG  ] platform is win32
+[INFO   ] [GL          ] NPOT texture support is available
+ .EE
+ ======================================================================
+ ERROR: test_comma_replacement (__main__.TestGUILogic.test_comma_replacement)
+ VÚrifie que la virgule est remplacÚe par un point.
+ ----------------------------------------------------------------------
+ Traceback (most recent call last):
+   File "D:\Documents\GitHub\SHSE-M\frontend\tests\test_gui_main.py", line 56, in test_comma_replacement
+     text_input.insert_text("12,5")
+     ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+   File "D:\Documents\GitHub\SHSE-M\frontend\gui\main.py", line 98, in insert_text
+     return super().insert_text("".join(out), from_undo=from_undo)
+            ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ TypeError: TestGUILogic.test_comma_replacement.<locals>.<lambda>() got an unexpected keyword argument 'from_undo'
+ 
+ ======================================================================
+ ERROR: test_invalid_chars (__main__.TestGUILogic.test_invalid_chars)
+ VÚrifie que les caractÞres non numÚriques sont ignorÚs.
+ ----------------------------------------------------------------------
+ Traceback (most recent call last):
+   File "D:\Documents\GitHub\SHSE-M\frontend\tests\test_gui_main.py", line 67, in test_invalid_chars
+     text_input.insert_text("12abc34!#")
+     ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+   File "D:\Documents\GitHub\SHSE-M\frontend\gui\main.py", line 98, in insert_text
+     return super().insert_text("".join(out), from_undo=from_undo)
+            ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ TypeError: TestGUILogic.test_invalid_chars.<locals>.<lambda>() got an unexpected keyword argument 'from_undo'
+ 
+ ----------------------------------------------------------------------
+ Ran 3 tests in 0.015s
+ 
+ FAILED (errors=2)
+[AVERTISSEMENT] kivy.garden.matplotlib non trouvÚ. Les croquis 2D seront remplacÚs par des placeholders.
