@@ -88,16 +88,21 @@ AZERTY_MAP = {
 
 class NeumorphicInput(TextInput):
     """Champ de saisie neumorphique : accepte AZERTY + virgule."""
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self.focus = True
+        return super().on_touch_down(touch)
+
     def insert_text(self, substring, from_undo=False):
-        substring = substring.replace(",", ".")
+        substring = (substring or "").replace(",", ".")
         out = []
         for ch in substring:
-            # On ne mappe QUE si ce n'est pas déjà un chiffre/point
             if ch not in "0123456789." and ch in AZERTY_MAP:
                 ch = AZERTY_MAP[ch]
             if ch in "0123456789.":
                 out.append(ch)
         return super().insert_text("".join(out), from_undo=from_undo)
+
 
 Builder.load_string("""
 <NeumorphicInput>:
