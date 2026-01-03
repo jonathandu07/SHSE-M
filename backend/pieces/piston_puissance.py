@@ -1,45 +1,69 @@
+import math
 import sys
 import os
-import math
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from pieces._base_piece import BasePiece
 
-from backend.modules.moteur_thermique.calcul_vitesse_piston import calcul_vitesse_moyenne_piston
-from backend.modules.moteur_thermique.calcul_force_gaz import calcul_force_gaz
-
-class Piece:
-    """Modèle calculable pour 'piston_puissance'."""
-
+class Piece(BasePiece):
     def __init__(self):
-        self.nom = "piston_puissance"
-        self.diametre_m = 0.0
-        self.hauteur_compression_m = 0.0
-        self.vitesse_moyenne_ms = 0.0
-        self.force_max_gaz_n = 0.0
-        self.masse_kg = 0.0 # Nouvelle propriété critique pour la bielle
-        self.matiere = "Alu"
-        self.densite_kg_m3 = 2700.0 # Alu
+        super().__init__()
+        self.name = "Piston De Puissance"
+        self.ref = "MEC-010"
+        self.category = "MECANIQUE"
+        self.description = "Piston de compression/détente. Dimensionné au matage de l'axe."
 
-    def dimensionner(self, cylindre, regime_tr_min: float, pression_max_pa: float):
+    def dimensionner(self, cyl, regime_tr_min, pression_max_pa=20e5):
         """
-        Dépendances: Cylindre
+        Dimensionnement Piston (Axe & Jupe).
         """
-        self.diametre_m = cylindre.alesage_m
-        
-        # 1. Vitesse moyenne
-        self.vitesse_moyenne_ms = calcul_vitesse_moyenne_piston(cylindre.course_m, regime_tr_min)
-        
-        # 2. Force Max gaz
-        self.force_max_gaz_n = calcul_force_gaz(pression_max_pa, self.diametre_m)
+        self.inputs = {
+            "Diamètre (mm)": 0,
+            "Pression Axe (MPa)": 0,
+            "Vitesse Moyenne (m/s)": 0
+        }
 
-        # 3. Géométrie et Masse estimée
-        self.hauteur_compression_m = 0.5 * self.diametre_m
-        # Volume estimé ~ Surface * 0.8 * Diamètre (jupe incluse)
-        volume_estim_m3 = (math.pi * (self.diametre_m**2) / 4) * (0.8 * self.diametre_m)
-        self.masse_kg = volume_estim_m3 * self.densite_kg_m3
-
-    def decrire(self) -> str:
-        return (f"Pièce: {self.nom}\n"
-                f"  - Diamètre: {self.diametre_m*1000:.2f} mm\n"
-                f"  - Masse estimée: {self.masse_kg*1000:.0f} g\n"
-                f"  - Force Max Gaz: {self.force_max_gaz_n/1000:.2f} kN")
+        # 1. GEOMETRIE BASE
+        # Jeu thermique Alu/Fonte ou Alu/Acier
+        coeff_dilat_alu = 23e-6
+        delta_t_skin = 150.0 # Piston chauffe un peu
+        jeu_diametral_mm = cyl.alesage_m * 1000.0 * coeff_dilat_alu * delta_t_skin
+        
+        diametre_mm = cyl.alesage_m * 1000.0 - max(0.10, jeu_diametral_mm)
+        
+        # 2. AXE DE PISTON
+        # D_axe = 25% Bore
+        diam_axe_m = cyl.alesage_m * 0.25
+        longueur_portee_m = diam_axe_m * 1.5 # Surface portee dans le bossage
+        
+        # 3. VERIFICATION PRESSION SPECIFIQUE (MATAGE)
+        # F = P_max * S_piston
+        force_gaz_max_n = pression_max_pa * (math.pi * (cyl.alesage_m/2)**2)
+        area_proj_m2 = diam_axe_m * longueur_portee_m
+        
+        pression_axe_pa = force_gaz_max_n / area_proj_m2
+        pression_axe_mpa = pression_axe_pa / 1e6
+        
+        # 4. RESULTATS
+        v_moy_ms = 2 * cyl.course_m * (regime_tr_min / 60.0)
+        
+        self.inputs["Diamètre (mm)"] = round(diametre_mm, 2)
+        self.inputs["Pression Axe (MPa)"] = round(pression_axe_mpa, 1)
+        self.inputs["Vitesse Moyenne (m/s)"] = round(v_moy_ms, 2)
+        
+        limit_bague_bronze = 40.0 # MPa
+        alert_msg = ""
+        if pression_axe_mpa > limit_bague_bronze:
+            alert_msg = f"ATTENTION: Pression Axe {pression_axe_mpa:.1f} > {limit_bague_bronze} MPa. Augmenter diam axe."
+        
+        self.dimensions = {
+            "Diametre_Ext_mm": diametre_mm,
+            "Hauteur_Totale_mm": cyl.alesage_m * 0.8 * 1000.0,
+            "Diam_Axe_mm": diam_axe_m * 1000.0,
+            "Jeu_Montage_mm": jeu_diametral_mm,
+            "Nb_Segments": 3
+        }
+        
+        self.materiau = "Alu 7075-T6 (Forgé)"
+        self.masse_estimee_kg = 2700 * (math.pi*(cyl.alesage_m/2)**2 * cyl.alesage_m*0.8) * 0.4 # 40% plein
+        self.cout_estime_euro = 80.0

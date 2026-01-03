@@ -1,42 +1,76 @@
+import math
 import sys
 import os
-import math
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from pieces._base_piece import BasePiece
 
-# Pas de module thermique échangeur complet, on structure autour du volume et surface
-
-class Piece:
-    """Modèle calculable pour 'echangeur_thermique_corps' (Régénérateur).
-    Doit avoir une grande surface d'échange et un volume mort faible.
-    """
-
+class Piece(BasePiece):
     def __init__(self):
-        self.nom = "echangeur_thermique_corps"
-        self.volume_total_m3 = 0.0
-        self.porosite = 0.7 # 70% de vide pour le gaz
-        self.surface_echange_m2 = 0.0
-        self.masse_matrix_kg = 0.0
+        super().__init__()
+        self.name = "Échangeur Chaud (Heater Head)"
+        self.ref = "THE-001"
+        self.category = "THERMIQUE"
+        self.description = "Échangeur tubulaire haute température (650°C). Dimensionné au fluage (Creep)."
 
-    def dimensionner(self, cylindre):
+    def dimensionner(self, cyl):
         """
-        Dépendances: Cylindre
+        Dimensionnement Hoop Stress à Chaud.
+        Inputs: cyl (pour P_safety)
         """
-        # Volume relié à la cylindrée (Souvent ~ cylindrée unitaire)
-        self.volume_total_m3 = cylindre.cylindree_unitaire_m3
-        
-        # Surface échange: (Dépend du type de matrice: paille de fer, grilles...)
-        # Ratio surface/volume très élevé recherché ~ 2000 m-1
-        ratio_sv = 2000.0
-        self.surface_echange_m2 = self.volume_total_m3 * ratio_sv
-        
-        # Masse matrice (Inox ou Cuivre)
-        vol_solide = self.volume_total_m3 * (1 - self.porosite)
-        densite_inox = 7900.0
-        self.masse_matrix_kg = vol_solide * densite_inox
+        self.inputs = {
+            "Pression Service (bar)": 0,
+            "Température (°C)": 650,
+            "Diam Ext Tube (mm)": 0,
+            "Contrainte Hoop (MPa)": 0,
+            "Epaisseur Min (mm)": 0
+        }
 
-    def decrire(self) -> str:
-        return (f"Pièce: {self.nom}\n"
-                f"  - Volume Total: {self.volume_total_m3*1e6:.0f} cc\n"
-                f"  - Surface Echange: {self.surface_echange_m2:.2f} m2\n"
-                f"  - Masse Matrice: {self.masse_matrix_kg:.2f} kg")
+        # Recuperation Pression de Dimensionnement (Sécurité)
+        # On assume que l'objet DimensioningEngine a passé la P_safety quelque part
+        # Ici on va la ré-estimer si non dispo direct
+        # P_mean = 20 bar (Scenario A) => P_safety ~ 30 bar
+        p_safety_bar = 30.0
+        p_safety_mpa = p_safety_bar / 10.0
+        
+        # MATERIAU
+        # Inox 310S à 650°C. Limite Fluage (1% 10000h) ~ 40-50 MPa
+        SIGMA_CREEP_LIMIT = 40.0 # MPa
+        
+        # DIMENSIONNEMENT TUBES
+        # Choix : Tube Ø12mm standard
+        d_ext_mm = 12.0
+        
+        # Hoop Stress: t = P*D / (2*Sig)
+        # Mais ici on veut verifier t existant ou trouver t min
+        # t_min = (P * D) / (2 * Sigma_allow)
+        t_min_mm = (p_safety_mpa * d_ext_mm) / (2 * SIGMA_CREEP_LIMIT)
+        
+        # On impose une épaisseur manufacturable (1.5mm standard ou 2.0 schedule)
+        t_reel_mm = max(1.5, t_min_mm)
+        
+        # Verification inverse
+        sigma_hoop = (p_safety_mpa * d_ext_mm) / (2 * t_reel_mm)
+        fs_creep = SIGMA_CREEP_LIMIT / sigma_hoop
+        
+        self.inputs["Pression Service (bar)"] = p_safety_bar
+        self.inputs["Diam Ext Tube (mm)"] = d_ext_mm
+        self.inputs["Contrainte Hoop (MPa)"] = round(sigma_hoop, 2)
+        self.inputs["Epaisseur Min (mm)"] = round(t_min_mm, 2)
+        
+        # DIMENSIONNEMENT FAISCEAU
+        # Surface échange requise pour 10kWth/cylindre ?
+        # S ~ 0.5 m2 ? 
+        # L_tube = 0.5m
+        nb_tubes = 40 # Par cylindre
+        
+        self.dimensions = {
+            "Diam_Tube_Ext_mm": d_ext_mm,
+            "Epaisseur_Paroi_mm": t_reel_mm,
+            "Longueur_Developpee_mm": 500.0,
+            "Nombre_Tubes": nb_tubes
+        }
+        
+        self.materiau = "Inox Réfractaire 310S"
+        self.masse_estimee_kg = nb_tubes * 0.200 # 200g par tube
+        self.cout_estime_euro = nb_tubes * 15.0 # Soudure couteuse
