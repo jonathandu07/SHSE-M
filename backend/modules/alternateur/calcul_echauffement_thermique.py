@@ -1,3 +1,4 @@
+# backend\modules\alternateur\calcul_echauffement_thermique.py
 def calcul_echauffement_thermique(puissance_pertes_totale: float, resistance_thermique: float) -> float:
     """
     Calcule l'élévation de température (Delta T) basée sur les pertes et la résistance thermique.
