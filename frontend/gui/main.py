@@ -128,6 +128,13 @@ except Exception as e:
 
 
 # =========================
+# AZERTY MAPPING
+# =========================
+AZERTY_MAP = {
+    "&": "1", "é": "2", '"': "3", "'": "4", "(": "5", "-": "6", "è": "7", "_": "8", "ç": "9", "à": "0"
+}
+
+# =========================
 # Input : NUMÉRIQUE VISIBLE
 # - On laisse s'afficher ce que tu tapes
 # - On filtre seulement digits + '.' + ','
@@ -142,12 +149,19 @@ class NeumorphicInput(TextInput):
 
         out = []
         for ch in s:
-            if ch.isdigit() or ch in ".,":
+            # AZERTY Support
+            if ch in AZERTY_MAP:
+                ch = AZERTY_MAP[ch]
 
-                # Autoriser un seul séparateur décimal total (sauf remplacement sélection)
-                if ch in ".,":  # separator
+            # Replace comma with dot
+            if ch == ",":
+                ch = "."
+
+            if ch.isdigit() or ch == ".":
+                # Autoriser un seul séparateur décimal total
+                if ch == ".":
                     if sel == "":
-                        if "." in current or "," in current:
+                        if "." in current:
                             continue
                 out.append(ch)
 
