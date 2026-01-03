@@ -1,3 +1,4 @@
+# backend\modules\architecture\calcul_cylindree_admissible.py
 import math
 
 def calcul_bore_max_admissible(vitesse_piston_max_ms: float, regime_tr_min: float, ratio_course_alesage_max: float) -> float:
