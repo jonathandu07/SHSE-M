@@ -441,103 +441,230 @@ class ArbrePiston:
         else:
             _push_inconnue(rapport, "partielles", "flambage", "Calculable si module_young_pa, longueur_libre_m, K_flambage et diametre_fut_central_m sont fournis.")
 
-        # ----------------------------
-        # 6) Taraudages : définition + calculs
-        # ----------------------------
-        # On traite gauche/droit de façon symétrique.
-        def analyser_taraudage(
-            cote: Literal["gauche", "droit"],
-            filetage: Optional[str],
-            profondeur_m: Optional[float],
-            effort_N: Optional[float],
-        ) -> Dict[str, Any]:
-            out: Dict[str, Any] = {
-                "filetage": filetage,
-                "profondeur_taraudage_m": profondeur_m,
-                "effort_axial_N": effort_N,
-                "iso": None,
-                "traction_noyau": None,
-                "cisaillement_filet": None,
-                "candidats_iso_si_non_defini": None,
-                "inconnues": [],
-            }
+    # Patch à appliquer dans backend/pieces/arbre_piston.py
+    # Objectif : faire dépendre le taraudage des contraintes mécaniques
+    # - calcule d_noyau_min (traction au noyau) à partir de F et Re/FS
+    # - calcule L_engagement_min (arrachement filets) à partir de F et tau_adm/FS
+    # - si filetage NON fourni : propose uniquement les filetages ISO qui satisfont
+    #   (1) traction noyau ET (2) arrachement filets avec la profondeur dispo
+    # - si filetage fourni : vérifie traction + arrachement, et calcule les marges
 
-            # effort : si non fourni, on ne le déduit pas (car ça dépend de ton montage)
-            if effort_N is None:
-                out["inconnues"].append("effort_axial_N (charge appliquée sur ce taraudage)")
-                return out
+    # ---------------------------------------------------------------------
+    # AJOUT : résistance traction / cisaillement admissibles côté taraudage
+    # ---------------------------------------------------------------------
+    # Dans ta dataclass ArbrePiston, garde :
+    #   resistance_cisaillement_matiere_taraudee_pa
+    # et ajoute (optionnel) une limite en traction côté filets si tu veux :
+    #   limite_elastique_matiere_taraudee_pa  (souvent = Re du piston si taraudé dans piston)
+    #
+    # Si tu ne la fournis pas, on utilisera Re de l'arbre (si c'est l'arbre qui est taraudé)
+    # sinon on laissera inconnue.
 
-            F = _req_pos(f"effort_axial_sur_taraudage_{cote}_N", effort_N, strictly=False)
+    # Ajoute dans la dataclass :
+    # limite_elastique_matiere_taraudee_pa: Optional[float] = None
 
-            # Si filetage défini via ISO -> on a d3, d2, foret, pas
-            iso = _iso_get(filetage) if filetage else None
-            if iso is None:
-                # On peut calculer un diamètre noyau MIN requis si Re connu
-                if Re is None:
-                    out["inconnues"].append("limite_elastique_pa (pour calculer d_noyau_min en traction)")
-                else:
-                    sigma_allow = float(Re) / FS
-                    if sigma_allow <= 0:
-                        out["inconnues"].append("sigma_allow<=0 (matériau)")
-                    else:
-                        A_min = abs(F) / sigma_allow
-                        d_noyau_min = math.sqrt((4.0 * A_min) / math.pi)
-                        out["traction_noyau"] = {
-                            "sigma_admissible_pa": sigma_allow,
-                            "aire_min_m2": A_min,
-                            "diametre_noyau_min_m": d_noyau_min,
-                        }
-                        out["candidats_iso_si_non_defini"] = _liste_filetages_compatibles_par_noyau(d_noyau_min)
 
-                # cisaillement filet : impossible sans d_moyen et profondeur
-                if profondeur_m is None:
-                    out["inconnues"].append("profondeur_taraudage_m (engagement) (pour cisaillement filet)")
-                if self.resistance_cisaillement_matiere_taraudee_pa is None:
-                    out["inconnues"].append("resistance_cisaillement_matiere_taraudee_pa (pour cisaillement filet)")
-                return out
+    def analyser_taraudage(
+        cote: Literal["gauche", "droit"],
+        filetage: Optional[str],
+        profondeur_m: Optional[float],
+        effort_N: Optional[float],
+    ) -> Dict[str, Any]:
+        out: Dict[str, Any] = {
+            "filetage": filetage,
+            "profondeur_taraudage_m": profondeur_m,
+            "effort_axial_N": effort_N,
+            "modele": {
+                "traction_noyau": "σ = F / A(d3)",
+                "arrachement_filets": "τ = F / (π * d2 * L_eng)",
+                "d2": "diamètre moyen ISO (table) ou inconnu",
+                "d3": "diamètre noyau taraudage ISO (table) ou inconnu",
+                "admissibles": "σ_adm = Re/FS ; τ_adm_eff = τ_adm/FS",
+            },
+            "resultats": {},
+            "candidats_iso": None,
+            "inconnues": [],
+        }
 
-            # filetage ISO connu
-            out["iso"] = iso
-            d3 = float(iso["d3"])   # noyau taraudage approx
-            d2 = float(iso["d2"])   # diamètre moyen approx
-
-            # traction au noyau du taraudage (si l'effort passe dans la vis, on check le noyau taraudé si pertinent)
-            Acore = _aire_disque(d3)
-            sigma_core = abs(F) / Acore if Acore > 0 else None
-            traction = {"diametre_noyau_m": d3, "aire_noyau_m2": Acore, "sigma_traction_pa": sigma_core}
-
-            if Re is not None and sigma_core is not None:
-                sigma_allow = float(Re) / FS
-                traction["sigma_admissible_pa"] = sigma_allow
-                traction["ok"] = sigma_core <= sigma_allow
-                traction["marge"] = (sigma_allow / sigma_core) if sigma_core > 0 else None
-            else:
-                traction["note"] = "Marge traction noyau calculable si limite_elastique_pa est connue."
-            out["traction_noyau"] = traction
-
-            # cisaillement des filets (arrachement) : A_shear ≈ π * d2 * L_engagement
-            if profondeur_m is None:
-                out["inconnues"].append("profondeur_taraudage_m (engagement) (pour cisaillement filet)")
-            elif self.resistance_cisaillement_matiere_taraudee_pa is None:
-                out["inconnues"].append("resistance_cisaillement_matiere_taraudee_pa (pour cisaillement filet)")
-            else:
-                L_eng = _req_pos(f"profondeur_taraudage_{cote}_m", profondeur_m)
-                tau_adm = _req_pos("resistance_cisaillement_matiere_taraudee_pa", self.resistance_cisaillement_matiere_taraudee_pa)
-                A_shear = math.pi * d2 * L_eng
-                tau = abs(F) / A_shear if A_shear > 0 else None
-                cis = {
-                    "diametre_moyen_filet_m": d2,
-                    "longueur_engagement_m": L_eng,
-                    "aire_cisaillement_m2_modele": A_shear,
-                    "tau_cisaillement_pa": tau,
-                    "tau_admissible_pa": tau_adm,
-                    "tau_admissible_effective_pa": tau_adm / FS,
-                    "ok": (tau <= (tau_adm / FS)) if (tau is not None) else None,
-                    "marge": ((tau_adm / FS) / tau) if (tau is not None and tau > 0) else None,
-                }
-                out["cisaillement_filet"] = cis
-
+        # 0) effort
+        if effort_N is None:
+            out["inconnues"].append("effort_axial_N (charge appliquée sur ce taraudage)")
             return out
+        F = float(effort_N)
+
+        # 1) admissibles
+        # Re_taraudage : si tu fournis limite_elastique_matiere_taraudee_pa -> priorité,
+        # sinon on retombe sur Re de l'arbre (si taraudage dans arbre), sinon inconnue.
+        Re_taraudage = getattr(self, "limite_elastique_matiere_taraudee_pa", None)
+        if Re_taraudage is None:
+            Re_taraudage = Re  # Re de l'arbre (déjà résolu)
+        tau_adm = self.resistance_cisaillement_matiere_taraudee_pa
+
+        sigma_allow = None
+        tau_allow = None
+        if Re_taraudage is not None and _is_finite(Re_taraudage):
+            sigma_allow = float(Re_taraudage) / FS
+        else:
+            out["inconnues"].append("limite_elastique_matiere_taraudee_pa (ou Re arbre) pour dimensionner traction noyau")
+
+        if tau_adm is not None and _is_finite(tau_adm):
+            tau_allow = float(tau_adm) / FS
+        else:
+            out["inconnues"].append("resistance_cisaillement_matiere_taraudee_pa pour dimensionner arrachement filets")
+
+        # 2) profondeur disponible
+        L_dispo = None
+        if profondeur_m is not None:
+            L_dispo = _req_pos(f"profondeur_taraudage_{cote}_m", profondeur_m)
+        else:
+            out["inconnues"].append("profondeur_taraudage_m (engagement disponible)")
+
+        # -----------------------------------------------------------------
+        # CAS A : filetage déjà choisi -> on vérifie contraintes + marges
+        # -----------------------------------------------------------------
+        iso = _iso_get(filetage) if filetage else None
+        if iso is not None:
+            d2 = float(iso["d2"])
+            d3 = float(iso["d3"])
+
+            # traction noyau
+            if sigma_allow is not None:
+                Acore = _aire_disque(d3)
+                sigma = abs(F) / Acore
+                out["resultats"]["traction_noyau"] = {
+                    "d3_m": d3,
+                    "A_noyau_m2": Acore,
+                    "sigma_pa": sigma,
+                    "sigma_admissible_pa": sigma_allow,
+                    "ok": sigma <= sigma_allow,
+                    "marge": (sigma_allow / sigma) if sigma > 0 else None,
+                }
+            else:
+                out["resultats"]["traction_noyau"] = {"d3_m": d3, "note": "σ_adm inconnue (Re manquant)."}
+
+            # arrachement filets
+            if tau_allow is not None and L_dispo is not None:
+                A_shear = math.pi * d2 * L_dispo
+                tau = abs(F) / A_shear
+                out["resultats"]["arrachement_filets"] = {
+                    "d2_m": d2,
+                    "L_eng_m": L_dispo,
+                    "A_cisaillement_m2_modele": A_shear,
+                    "tau_pa": tau,
+                    "tau_admissible_effective_pa": tau_allow,
+                    "ok": tau <= tau_allow,
+                    "marge": (tau_allow / tau) if tau > 0 else None,
+                }
+            else:
+                out["resultats"]["arrachement_filets"] = {"d2_m": d2, "note": "τ_adm ou L_eng manquant."}
+
+            # info foret taraudage
+            out["resultats"]["iso"] = {
+                "pas_m": float(iso["p"]),
+                "d_nom_m": float(iso["d_nom"]),
+                "d_percage_m": float(iso["d_percage"]),
+            }
+            return out
+
+        # -----------------------------------------------------------------
+        # CAS B : filetage NON choisi -> on DIMENSIONNE et PROPOSE
+        # -----------------------------------------------------------------
+        # 1) d_noyau_min via traction
+        d3_min = None
+        if sigma_allow is not None:
+            A_min = abs(F) / sigma_allow if sigma_allow > 0 else None
+            if A_min is not None:
+                d3_min = math.sqrt((4.0 * A_min) / math.pi)
+                out["resultats"]["traction_dimensionnement"] = {
+                    "sigma_admissible_pa": sigma_allow,
+                    "aire_min_m2": A_min,
+                    "d3_min_m": d3_min,
+                }
+
+        # 2) L_min via arrachement (si d2 connu -> dépend du filetage, donc on fera ça par candidat)
+        # On filtre les filetages ISO :
+        candidats = []
+        for name, v in ISO_METRIQUE_PAS_GROS.items():
+            d2 = float(v["d2"])
+            d3 = float(v["d3"])
+
+            # critère traction noyau
+            ok_traction = True
+            marge_tr = None
+            if d3_min is not None:
+                ok_traction = d3 >= d3_min
+                if ok_traction and sigma_allow is not None:
+                    sigma = abs(F) / _aire_disque(d3)
+                    marge_tr = (sigma_allow / sigma) if sigma > 0 else None
+
+            # critère arrachement filets
+            ok_filets = True
+            L_min = None
+            marge_f = None
+            if tau_allow is not None:
+                # τ = F / (π d2 L) <= τ_allow  -> L >= F / (π d2 τ_allow)
+                L_min = abs(F) / (math.pi * d2 * tau_allow) if (d2 > 0 and tau_allow > 0) else None
+                if L_min is not None:
+                    if L_dispo is None:
+                        ok_filets = False
+                    else:
+                        ok_filets = L_dispo >= L_min
+                        if ok_filets:
+                            # marge en utilisant L_dispo
+                            tau = abs(F) / (math.pi * d2 * L_dispo)
+                            marge_f = (tau_allow / tau) if tau > 0 else None
+
+            # On retient les candidats uniquement si on peut conclure
+            # (si sigma_allow ou tau_allow manquent, on ne peut pas filtrer correctement -> on liste quand même, mais flag)
+            verdict = True
+            infos_incompletes = False
+            if sigma_allow is None:
+                infos_incompletes = True
+            else:
+                verdict = verdict and ok_traction
+            if tau_allow is None or L_dispo is None:
+                infos_incompletes = True
+            else:
+                verdict = verdict and ok_filets
+
+            candidats.append({
+                "filetage": name,
+                "d_nom_m": float(v["d_nom"]),
+                "pas_m": float(v["p"]),
+                "d2_m": d2,
+                "d3_m": d3,
+                "d_percage_m": float(v["d_percage"]),
+                "critere_traction_ok": ok_traction if sigma_allow is not None else None,
+                "d3_min_m": d3_min,
+                "marge_traction": marge_tr,
+                "L_min_arrachement_m": L_min,
+                "critere_arrachement_ok": ok_filets if (tau_allow is not None and L_dispo is not None) else None,
+                "marge_arrachement": marge_f,
+                "infos_incompletes": infos_incompletes,
+                "verdict_ok": verdict if not infos_incompletes else None,
+            })
+
+        # tri : d_nom croissant
+        candidats.sort(key=lambda x: x["d_nom_m"])
+
+        # si on a assez d'infos, on peut extraire les "OK"
+        if sigma_allow is not None and tau_allow is not None and L_dispo is not None:
+            out["candidats_iso"] = {
+                "profondeur_disponible_m": L_dispo,
+                "liste_ok": [c for c in candidats if c["verdict_ok"] is True],
+                "liste_ko": [c for c in candidats if c["verdict_ok"] is False],
+            }
+            if not out["candidats_iso"]["liste_ok"]:
+                out["inconnues"].append(
+                    "Aucun filetage ISO (table) ne passe traction+arrachement avec la profondeur dispo : "
+                    "augmenter profondeur_taraudage_m, changer matériau (Re/tau), réduire effort, ou élargir table ISO."
+                )
+        else:
+            # info insuffisante pour filtrer, on fournit la liste annotée
+            out["candidats_iso"] = {"liste_annotée": candidats}
+
+        return out
+
 
         taraud_g = analyser_taraudage("gauche", self.filetage_gauche, self.profondeur_taraudage_gauche_m, self.effort_axial_sur_taraudage_gauche_N)
         taraud_d = analyser_taraudage("droit", self.filetage_droit, self.profondeur_taraudage_droit_m, self.effort_axial_sur_taraudage_droit_N)
