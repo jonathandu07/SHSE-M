@@ -1,1 +1,0 @@
-# backend\pieces\roullement-aiguille-arbre-vilbrequin.py
