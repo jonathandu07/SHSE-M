@@ -1,3 +1,4 @@
+# backend\modules\architecture\choix_architecture_optimale.py
 def evaluer_architecture(type_arch: str, nb_cylindres: int, longueur_dispo_m: float, largeur_dispo_m: float, cout_maintenance_estime: float = 0.0) -> tuple[float, bool]:
     """
     Évalue une architecture (L, V, W) selon l'encombrement, la complexité et la maintenance.
