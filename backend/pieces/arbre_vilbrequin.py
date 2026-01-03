@@ -129,7 +129,7 @@ def _von_mises_sigma_tau(sigma: float, tau: float) -> float:
 def _dmin_torsion_vonmises(T: float, Re: float, FS: float) -> float:
     """
     Hypothèse arbre ductile :
-    - Contrainte équivalente von Mises en torsion pure : σ_eq = sqrt(3) τ
+    - von Mises en torsion pure : σ_eq = sqrt(3) τ
     - Critère : σ_eq <= Re/FS
     -> τ <= Re/(FS*sqrt(3))
     -> 16T/(π d^3) <= Re/(FS*sqrt(3))
@@ -157,42 +157,47 @@ def _dmin_bending_vonmises(M: float, Re: float, FS: float) -> float:
 class ArbreVilbrequin:
     """
     Arbre de vilebrequin (journal(s) + maneton).
-    Objectif :
-    - Récupérer automatiquement ce qui existe dans les autres pièces.
-    - Calculer tout ce qui est strictement calculable.
-    - Ne rien “choisir” (ajustements H7/g6, rayons, normes…) sans entrée explicite.
+
+    Mise à jour importante :
+    - Le roulement à aiguilles (backend/pieces/roulement_aiguille_arbre_vilebrequin.py)
+      fournit maintenant :
+        * dimensions_requises.d_interieur_requis_m  (=> maneton nominal requis)
+        * dimensions_reference.{d_interieur_m, D_exterieur_m, B_largeur_m} (si référence choisie)
+    - Ce module :
+        * priorise un diamètre maneton imposé,
+        * sinon utilise la bielle,
+        * sinon utilise le roulement (d_interieur_requis_m) pour fixer le maneton.
     """
 
-    # ---- Liens (à fournir si tu veux “récupérer”) ----
-    cylindre: Optional[Any] = None          # backend.pieces.cylindre.Cylindre
-    piston: Optional[Any] = None            # backend.pieces.piston.Piston
-    bielle: Optional[Any] = None            # backend.pieces.corps_bielle.CorpsBielle
-    moteur_thermique: Optional[Any] = None  # backend.components.moteur_thermique.MoteurThermique
-    roulement_aiguille: Optional[Any] = None  # backend.pieces.roullement_aiguille_arbre_vilbrequin.RoulementAiguille
+    # ---- Liens ----
+    cylindre: Optional[Any] = None
+    piston: Optional[Any] = None
+    bielle: Optional[Any] = None
+    moteur_thermique: Optional[Any] = None
+    roulement_aiguille: Optional[Any] = None  # RoulementAiguilleArbreVilebrequin (ou équivalent)
 
-    # ---- Cinématique / données externes si non déductibles ----
-    course_m: Optional[float] = None  # si cylindre/piston absents
+    # ---- Cinématique / externes ----
+    course_m: Optional[float] = None
     couple_max_Nm: Optional[float] = None
-    moment_flexion_max_Nm: Optional[float] = None  # si tu as un modèle d'appuis (sinon inconnue)
+    moment_flexion_max_Nm: Optional[float] = None
     rpm: Optional[float] = None
 
-    # ---- Géométrie imposée (si tu imposes) ----
-    diametre_journal_principal_m: Optional[float] = None  # portée dans roulement
-    diametre_maneton_m: Optional[float] = None            # portée bielle
-    largeur_portee_journal_m: Optional[float] = None      # ex: largeur du roulement (si imposée)
-    largeur_portee_maneton_m: Optional[float] = None      # ex: largeur bielle/coussinet
+    # ---- Géométrie imposée ----
+    diametre_journal_principal_m: Optional[float] = None
+    diametre_maneton_m: Optional[float] = None
+    largeur_portee_journal_m: Optional[float] = None
+    largeur_portee_maneton_m: Optional[float] = None
 
-    # ---- Matériau arbre ----
+    # ---- Matériau ----
     materiau_cle: Optional[str] = None
     densite_kg_m3: Optional[float] = None
     limite_elastique_pa: Optional[float] = None
     module_young_pa: Optional[float] = None
     facteur_securite: float = 2.0
 
-    # ---- Ajustements / tolérances (ne pas inventer) ----
-    # Si tu veux calculer un “diamètre usiné cible”, il faut fournir un jeu/serrage cible
-    serrage_roulement_m: Optional[float] = None  # ex: -10 µm (serrage) -> valeur signée
-    jeu_roulement_m: Optional[float] = None      # ex: +5 µm (jeu) -> valeur signée
+    # ---- Ajustements (sans inventer) ----
+    serrage_roulement_m: Optional[float] = None
+    jeu_roulement_m: Optional[float] = None
 
     def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
@@ -215,7 +220,7 @@ class ArbreVilbrequin:
         FS = _req_pos("facteur_securite", self.facteur_securite)
 
         # ---------------------------------------------------------------------
-        # 1) Matériau (réduction inconnues via materiaux.py)
+        # 1) Matériau
         # ---------------------------------------------------------------------
         props = _resoudre_materiau(self.materiau_cle, self.densite_kg_m3, self.limite_elastique_pa, self.module_young_pa)
         rho = props["densite_kg_m3"]
@@ -230,11 +235,10 @@ class ArbreVilbrequin:
         }
 
         # ---------------------------------------------------------------------
-        # 2) Récupérer course (-> rayon manivelle)
+        # 2) Course -> rayon manivelle
         # ---------------------------------------------------------------------
         course = self.course_m
 
-        # 2.1 depuis cylindre.alesage/course si objet fourni
         if course is None and self.cylindre is not None:
             try:
                 if hasattr(self.cylindre, "course_m") and _is_finite(getattr(self.cylindre, "course_m")):
@@ -247,7 +251,6 @@ class ArbreVilbrequin:
             except Exception:
                 pass
 
-        # 2.2 sinon depuis piston
         if course is None and self.piston is not None:
             try:
                 if hasattr(self.piston, "course_m") and _is_finite(getattr(self.piston, "course_m")):
@@ -271,84 +274,104 @@ class ArbreVilbrequin:
             rapport["cinematique"] = {"course_m": course, "rayon_manivelle_m": r_manivelle}
 
         # ---------------------------------------------------------------------
-        # 3) Récupérer diamètres fonctionnels (roulement et maneton)
+        # 3) Roulement + maneton : extraction mise à jour (nouveau format)
         # ---------------------------------------------------------------------
-        # 3.1 Roulement aiguille (pièce du commerce) : on récupère son alésage (d), OD (D), largeur (B)
-        d_bore = None
-        D_ext = None
-        B_largeur = None
+        # Roulement : on veut (si dispo)
+        # - d_ref (d_interieur_m), D_ref (D_exterieur_m), B_ref (B_largeur_m)
+        # - d_requis (dimensions_requises.d_interieur_requis_m) = contrainte maneton nominal
+        d_ref = None
+        D_ref = None
+        B_ref = None
+        d_requis_maneton = None
 
         if self.roulement_aiguille is not None:
-            # conventions : d_alesage_m / diametre_interieur_m / d_m ; D_exterieur_m ; largeur_m
-            for attr in ("d_alesage_m", "diametre_interieur_m", "d_m", "diametre_bore_m"):
-                if hasattr(self.roulement_aiguille, attr) and _is_finite(getattr(self.roulement_aiguille, attr)):
-                    d_bore = float(getattr(self.roulement_aiguille, attr))
-                    rapport["notes_modele"].append(f"diamètre intérieur roulement récupéré depuis roulement_aiguille.{attr}.")
-                    break
-            for attr in ("D_exterieur_m", "diametre_exterieur_m", "D_m", "diametre_OD_m"):
-                if hasattr(self.roulement_aiguille, attr) and _is_finite(getattr(self.roulement_aiguille, attr)):
-                    D_ext = float(getattr(self.roulement_aiguille, attr))
-                    break
-            for attr in ("largeur_m", "B_m", "epaisseur_m", "width_m"):
-                if hasattr(self.roulement_aiguille, attr) and _is_finite(getattr(self.roulement_aiguille, attr)):
-                    B_largeur = float(getattr(self.roulement_aiguille, attr))
-                    break
-
-            # si la pièce expose calculer()/analyser(), on tente aussi
-            if d_bore is None and hasattr(self.roulement_aiguille, "calculer") and callable(self.roulement_aiguille.calculer):
-                try:
+            # 3.1.a : essayer analyser()/calculer() en priorité (format dict)
+            rr = None
+            try:
+                if hasattr(self.roulement_aiguille, "analyser") and callable(self.roulement_aiguille.analyser):
+                    rr = self.roulement_aiguille.analyser()
+                elif hasattr(self.roulement_aiguille, "calculer") and callable(self.roulement_aiguille.calculer):
                     rr = self.roulement_aiguille.calculer()
-                    if isinstance(rr, dict):
-                        dim = rr.get("dimensions", rr.get("geometrie", rr))
-                        for k in ("d_alesage_m", "diametre_interieur_m", "d_m"):
-                            if d_bore is None and _is_finite(dim.get(k)):
-                                d_bore = float(dim.get(k))
-                        for k in ("D_exterieur_m", "diametre_exterieur_m", "D_m"):
-                            if D_ext is None and _is_finite(dim.get(k)):
-                                D_ext = float(dim.get(k))
-                        for k in ("largeur_m", "B_m"):
-                            if B_largeur is None and _is_finite(dim.get(k)):
-                                B_largeur = float(dim.get(k))
-                except Exception:
-                    _push_inconnue(rapport, "partielles", "roulement dimensions", "Objet roulement fourni mais format non exploitable (calculer() invalide).")
+            except Exception:
+                rr = None
 
-        # valeur imposée > récupérée
+            if isinstance(rr, dict):
+                dim_req = rr.get("dimensions_requises", {}) if isinstance(rr.get("dimensions_requises", {}), dict) else {}
+                dim_ref = rr.get("dimensions_reference", {}) if isinstance(rr.get("dimensions_reference", {}), dict) else {}
+                bloc_r = rr.get("roulement", {}) if isinstance(rr.get("roulement", {}), dict) else {}
+
+                # requis maneton
+                v = dim_req.get("d_interieur_requis_m")
+                if _is_finite(v):
+                    d_requis_maneton = float(v)
+                    rapport["notes_modele"].append("d_interieur_requis_m récupéré depuis roulement_aiguille.dimensions_requises.")
+
+                # dimensions référence (si roulement choisi)
+                for k in ("d_interieur_m", "d_alesage_m"):
+                    v = dim_ref.get(k)
+                    if d_ref is None and _is_finite(v):
+                        d_ref = float(v)
+                v = dim_ref.get("D_exterieur_m")
+                if _is_finite(v):
+                    D_ref = float(v)
+                v = dim_ref.get("B_largeur_m")
+                if _is_finite(v):
+                    B_ref = float(v)
+
+                # fallback ancien bloc "roulement"
+                if d_ref is None and _is_finite(bloc_r.get("d_alesage_m")):
+                    d_ref = float(bloc_r.get("d_alesage_m"))
+                if D_ref is None and _is_finite(bloc_r.get("D_exterieur_m")):
+                    D_ref = float(bloc_r.get("D_exterieur_m"))
+                if B_ref is None and _is_finite(bloc_r.get("largeur_m")):
+                    B_ref = float(bloc_r.get("largeur_m"))
+
+            # 3.1.b : fallback attributs directs (compat)
+            # (ancien naming / mocks)
+            if d_ref is None:
+                for attr in ("d_interieur_m", "d_alesage_m", "diametre_interieur_m", "d_m", "diametre_bore_m"):
+                    if hasattr(self.roulement_aiguille, attr) and _is_finite(getattr(self.roulement_aiguille, attr)):
+                        d_ref = float(getattr(self.roulement_aiguille, attr))
+                        break
+            if D_ref is None:
+                for attr in ("D_exterieur_m", "diametre_exterieur_m", "D_m", "diametre_OD_m"):
+                    if hasattr(self.roulement_aiguille, attr) and _is_finite(getattr(self.roulement_aiguille, attr)):
+                        D_ref = float(getattr(self.roulement_aiguille, attr))
+                        break
+            if B_ref is None:
+                for attr in ("B_largeur_m", "largeur_m", "B_m", "epaisseur_m", "width_m"):
+                    if hasattr(self.roulement_aiguille, attr) and _is_finite(getattr(self.roulement_aiguille, attr)):
+                        B_ref = float(getattr(self.roulement_aiguille, attr))
+                        break
+
+        # Journal principal : inchangé (on prend d_ref comme alésage roulement journal si c'est bien le cas)
+        # NB : ici on ne sait pas si ton "roulement_aiguille" concerne le maneton (bielle) OU le journal principal.
+        # On conserve la logique : si tu veux imposer le journal principal, tu le fournis explicitement.
         d_journal = self.diametre_journal_principal_m
-        if d_journal is None and d_bore is not None:
-            d_journal = d_bore
-            rapport["notes_modele"].append("diametre_journal_principal_m pris = alésage roulement (avant ajustement).")
-        elif d_journal is not None:
+        if d_journal is not None:
             d_journal = _req_pos("diametre_journal_principal_m", d_journal)
 
-        if d_journal is None:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "diametre_journal_principal_m",
-                "Requis pour vérifier contraintes et compatibilité avec le roulement (donner roulement_aiguille ou diametre_journal_principal_m).",
-            )
-
-        # largeur portée journal
+        # Largeur portée journal : si tu l'imposes, ok ; sinon, on peut prendre B_ref (mais seulement si c'est bien le journal).
         largeur_journal = self.largeur_portee_journal_m
-        if largeur_journal is None and B_largeur is not None:
-            largeur_journal = B_largeur
-            rapport["notes_modele"].append("largeur_portee_journal_m prise = largeur roulement (B).")
-        elif largeur_journal is not None:
+        if largeur_journal is not None:
             largeur_journal = _req_pos("largeur_portee_journal_m", largeur_journal)
 
         rapport["roulement"] = {
-            "d_alesage_m": d_bore,
-            "D_exterieur_m": D_ext,
-            "largeur_m": B_largeur,
+            "d_interieur_reference_m": d_ref,
+            "D_exterieur_reference_m": D_ref,
+            "B_largeur_reference_m": B_ref,
+            "d_interieur_requis_maneton_m": d_requis_maneton,
             "diametre_journal_principal_m": d_journal,
             "largeur_portee_journal_m": largeur_journal,
         }
 
-        # 3.2 Maneton : depuis bielle (si possible) sinon imposé
+        # ---------------------------------------------------------------------
+        # 3.2 Maneton : priorité = imposé > bielle > roulement (d_requis)
+        # ---------------------------------------------------------------------
         d_maneton = self.diametre_maneton_m
+
         if d_maneton is None and self.bielle is not None:
             try:
-                # conventions dans CorpsBielle : attribut diametre_maneton_m
                 if hasattr(self.bielle, "diametre_maneton_m") and _is_finite(getattr(self.bielle, "diametre_maneton_m")):
                     d_maneton = float(getattr(self.bielle, "diametre_maneton_m"))
                     rapport["notes_modele"].append("diametre_maneton_m récupéré depuis bielle.diametre_maneton_m.")
@@ -362,17 +385,21 @@ class ArbreVilbrequin:
             except Exception:
                 _push_inconnue(rapport, "partielles", "diametre_maneton_m", "Bielle fournie mais format non exploitable pour récupérer le maneton.")
 
+        if d_maneton is None and d_requis_maneton is not None:
+            d_maneton = float(d_requis_maneton)
+            rapport["notes_modele"].append("diametre_maneton_m fixé depuis roulement_aiguille.dimensions_requises.d_interieur_requis_m.")
+
         if d_maneton is not None:
             d_maneton = _req_pos("diametre_maneton_m", d_maneton)
         else:
             _push_inconnue(
                 rapport,
-                "partielles",
+                "impossibles",
                 "diametre_maneton_m",
-                "Requis pour géométrie du vilebrequin (donner bielle ou diametre_maneton_m).",
+                "Requis pour géométrie du vilebrequin. Fournir bielle/diametre_maneton_m ou un roulement (d_interieur_requis_m).",
             )
 
-        # largeur portée maneton : souvent liée à la grande tête / coussinet, mais ne pas inventer
+        # largeur portée maneton
         largeur_maneton = self.largeur_portee_maneton_m
         if largeur_maneton is None and self.bielle is not None:
             try:
@@ -390,13 +417,12 @@ class ArbreVilbrequin:
         }
 
         # ---------------------------------------------------------------------
-        # 4) Récupérer couple / effort effectif depuis moteur_thermique si possible
+        # 4) Couple / efforts depuis moteur_thermique si possible
         # ---------------------------------------------------------------------
         T = self.couple_max_Nm
         F_bielle = None
 
         if self.moteur_thermique is not None:
-            # conventions (ton moteur_thermique.py expose rapport["forces"]["F_bielle_effective_N"] etc.)
             try:
                 rmt = None
                 if hasattr(self.moteur_thermique, "analyser") and callable(self.moteur_thermique.analyser):
@@ -405,25 +431,24 @@ class ArbreVilbrequin:
                     rmt = self.moteur_thermique.calculer()
 
                 if isinstance(rmt, dict):
-                    # couple
                     bloc_c = rmt.get("couple", rmt.get("resultats", rmt))
-                    for k in ("T_instantane_Nm", "couple_Nm", "couple_max_Nm", "T_Nm"):
-                        if T is None and _is_finite(bloc_c.get(k)):
-                            T = float(bloc_c.get(k))
-                            rapport["notes_modele"].append(f"couple_max_Nm récupéré depuis moteur_thermique ({k}).")
-                            break
+                    if isinstance(bloc_c, dict):
+                        for k in ("T_instantane_Nm", "couple_Nm", "couple_max_Nm", "T_Nm"):
+                            if T is None and _is_finite(bloc_c.get(k)):
+                                T = float(bloc_c.get(k))
+                                rapport["notes_modele"].append(f"couple_max_Nm récupéré depuis moteur_thermique ({k}).")
+                                break
 
-                    # force bielle effective
                     bloc_f = rmt.get("forces", rmt.get("resultats", rmt))
-                    for k in ("F_bielle_effective_N", "force_bielle_effective_N", "force_bielle_n", "force_bielle_N"):
-                        if _is_finite(bloc_f.get(k)):
-                            F_bielle = float(bloc_f.get(k))
-                            rapport["notes_modele"].append(f"F_bielle récupérée depuis moteur_thermique ({k}).")
-                            break
+                    if isinstance(bloc_f, dict):
+                        for k in ("F_bielle_effective_N", "force_bielle_effective_N", "force_bielle_n", "force_bielle_N"):
+                            if _is_finite(bloc_f.get(k)):
+                                F_bielle = float(bloc_f.get(k))
+                                rapport["notes_modele"].append(f"F_bielle récupérée depuis moteur_thermique ({k}).")
+                                break
             except Exception:
                 _push_inconnue(rapport, "partielles", "moteur_thermique", "Objet moteur_thermique fourni mais format non exploitable (analyser/calculer).")
 
-        # sinon, si tu as le couple par relation T = F * r (si r connu)
         if T is None and F_bielle is not None and course is not None:
             T = abs(F_bielle) * (0.5 * course)
             rapport["notes_modele"].append("couple_max_Nm déduit via T = |F_bielle| * r_manivelle (approx, sans angle).")
@@ -458,6 +483,7 @@ class ArbreVilbrequin:
         Mmax = self.moment_flexion_max_Nm
         if Mmax is not None:
             Mmax = _req_pos("moment_flexion_max_Nm", Mmax, strictly=False)
+
         if Mmax is not None and Re is not None:
             dmin_bend = _dmin_bending_vonmises(float(Mmax), float(Re), FS)
             rapport["dimensionnements"]["diametre_min_flexion_m"] = dmin_bend
@@ -470,7 +496,7 @@ class ArbreVilbrequin:
                 "Non calculable sans modèle d'appuis (entraxe paliers, positions charges). Donne moment_flexion_max_Nm ou les entraxes/charges pour le calculer ailleurs.",
             )
 
-        # Comparaison aux diamètres imposés (journal)
+        # Vérifs journal (si défini)
         if d_journal is not None and dmin_tors is not None:
             rapport["verifs_journal"] = {
                 "diametre_journal_m": d_journal,
@@ -493,7 +519,7 @@ class ArbreVilbrequin:
                 "marge_von_mises": (sigma_adm / sigma_eq) if (sigma_adm is not None and sigma_eq > 0) else None,
             }
 
-        # Maneton : contraintes torsion/flexion sur le diamètre maneton si fourni
+        # Maneton : contraintes sur d_maneton
         if d_maneton is not None and T is not None:
             tau = _tau_torsion_max(float(T), float(d_maneton))
             sigma_b = _sigma_flexion_max(float(Mmax), float(d_maneton)) if Mmax is not None else 0.0
@@ -511,8 +537,8 @@ class ArbreVilbrequin:
         # ---------------------------------------------------------------------
         # 6) Ajustement roulement (sans inventer)
         # ---------------------------------------------------------------------
-        if d_bore is not None and d_journal is not None:
-            # si tu donnes un jeu/serrage cible (en m), on peut sortir un diamètre d'usinage cible
+        # Ici on applique sur un "journal" associé à un alésage d_ref.
+        if d_ref is not None and d_journal is not None:
             if self.serrage_roulement_m is not None and self.jeu_roulement_m is not None:
                 _push_inconnue(
                     rapport,
@@ -522,12 +548,11 @@ class ArbreVilbrequin:
                 )
             elif self.serrage_roulement_m is not None:
                 s = _req_finite("serrage_roulement_m", self.serrage_roulement_m)
-                # d_arbre = d_alésage - serrage (si serrage positif = interférence)
-                rapport["geometrie"]["diametre_usinage_journal_m"] = d_bore + abs(s)
+                rapport["geometrie"]["diametre_usinage_journal_m"] = d_ref + abs(s)
                 rapport["notes_modele"].append("Diamètre usiné journal calculé à partir d'un serrage cible (modèle simplifié, tolérances non traitées).")
             elif self.jeu_roulement_m is not None:
                 j = _req_finite("jeu_roulement_m", self.jeu_roulement_m)
-                rapport["geometrie"]["diametre_usinage_journal_m"] = d_bore - abs(j)
+                rapport["geometrie"]["diametre_usinage_journal_m"] = d_ref - abs(j)
                 rapport["notes_modele"].append("Diamètre usiné journal calculé à partir d'un jeu cible (modèle simplifié, tolérances non traitées).")
             else:
                 _push_inconnue(
@@ -538,7 +563,7 @@ class ArbreVilbrequin:
                 )
 
         # ---------------------------------------------------------------------
-        # 7) Géométrie minimale (sans entraxes/épaulements inventés)
+        # 7) Géométrie minimale
         # ---------------------------------------------------------------------
         rapport["geometrie"].update({
             "diametre_journal_principal_m": d_journal,
@@ -546,9 +571,11 @@ class ArbreVilbrequin:
             "diametre_maneton_m": d_maneton,
             "largeur_portee_maneton_m": largeur_maneton,
             "rayon_manivelle_m": (0.5 * course) if course is not None else None,
+            # utile côté CAO/logement (si référence roulement connue)
+            "D_exterieur_reference_m": D_ref,
+            "B_largeur_reference_m": B_ref,
         })
 
-        # Ce qui manque pour “tout” connaître :
         _push_inconnue(
             rapport,
             "partielles",
@@ -567,10 +594,6 @@ class ArbreVilbrequin:
             "fatigue",
             "Nécessite spectre de charge (cycle, alternances), rugosité, traitements, et concentrations de contraintes.",
         )
-
-        # ---------------------------------------------------------------------
-        # 8) Masse/Inerties (si on a un modèle volumique)
-        # ---------------------------------------------------------------------
         _push_inconnue(
             rapport,
             "partielles",
@@ -579,7 +602,7 @@ class ArbreVilbrequin:
         )
 
         # ---------------------------------------------------------------------
-        # 9) Trace entrées + strict
+        # 8) Trace entrées + strict
         # ---------------------------------------------------------------------
         rapport["entrees"] = {
             "course_m": self.course_m,
@@ -614,18 +637,18 @@ class ArbreVilbrequin:
 # Exemple d'usage minimal (à supprimer en prod)
 # =============================================================================
 if __name__ == "__main__":
-    # Exemple “sans inventer” :
-    # - on impose un roulement (d, D, B) via un objet minimal (ou ta pièce dédiée)
-    class RoulementMock:
-        d_alesage_m = 0.030
-        D_exterieur_m = 0.037
-        largeur_m = 0.016
+    # Mock dans le format NOUVEAU (dict via calculer)
+    class RoulementAiguilleMock:
+        def calculer(self):
+            return {
+                "dimensions_requises": {"d_interieur_requis_m": 0.030},
+                "dimensions_reference": {"d_interieur_m": 0.030, "D_exterieur_m": 0.037, "B_largeur_m": 0.016},
+            }
 
     av = ArbreVilbrequin(
-        roulement_aiguille=RoulementMock(),
+        roulement_aiguille=RoulementAiguilleMock(),
         course_m=0.085,
         couple_max_Nm=134.0,
-        materiau_cle=None,
         limite_elastique_pa=800e6,
         facteur_securite=2.0,
     )
