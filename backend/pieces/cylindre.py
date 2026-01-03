@@ -2,27 +2,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Literal
 import math
 
 # ============================================================
-# Imports (si tes modules existent déjà dans ton projet)
+# Imports projet (avec fallbacks)
 # ============================================================
 
+# --- Cylindrée ---
 try:
     from backend.modules.moteur_thermique.calcul_cylindree import calcul_cylindree_unitaire
-except Exception:
+except Exception:  # pragma: no cover
     def calcul_cylindree_unitaire(*, alesage_m: float, course_m: float, allow_zero: bool = False, return_details: bool = False) -> float:
         if alesage_m <= 0 or course_m <= 0:
             raise ValueError("alesage_m et course_m doivent être > 0")
         return (math.pi * (alesage_m ** 2) / 4.0) * course_m
 
+# --- Epaisseur cylindre ---
 try:
     from backend.modules.moteur_thermique.calcul_epaisseur_paroi_cylindre import (
         calcul_epaisseur_cylindre_mince,
         calcul_epaisseur_cylindre_lame,
     )
-except Exception:
+except Exception:  # pragma: no cover
     def calcul_epaisseur_cylindre_mince(
         *,
         pression_pa: float,
@@ -33,7 +35,7 @@ except Exception:
         clamp_non_negative: bool = True,
         return_details: bool = False,
     ) -> float:
-        # Modèle mince (Barlow) : sigma_theta ~= p*ri/t
+        # Modèle paroi mince (Barlow) : sigma_theta ~= (p * ri) / t
         if rayon_interne_m <= 0 or contrainte_admissible_pa <= 0 or facteur_securite <= 0:
             raise ValueError("rayon_interne_m, contrainte_admissible_pa, facteur_securite doivent être > 0")
         p = abs(float(pression_pa))
@@ -52,25 +54,42 @@ except Exception:
         clamp_non_negative: bool = True,
         return_details: bool = False,
     ) -> float:
-        # Cylindre épais (Lamé, p_ext=0), contrainte cerclage max à l'alésage:
-        # sigma_theta_i = p * (ri^2 + ro^2) / (ro^2 - ri^2)
-        # -> ro^2 = ((sigma + p)/(sigma - p)) * ri^2, avec sigma = sigma_eff
+        # Cylindre épais (Lamé) avec p_ext=0 (fallback historique)
         ri = float(rayon_interne_m)
         if ri <= 0 or contrainte_admissible_pa <= 0 or facteur_securite <= 0:
             raise ValueError("rayon_interne_m, contrainte_admissible_pa, facteur_securite doivent être > 0")
         p = abs(float(pression_interne_pa))
         sigma_eff = contrainte_admissible_pa / facteur_securite
         if sigma_eff <= p:
-            # impossible d'avoir une solution si sigma_eff <= p
             raise ValueError("sigma_eff doit être > pression_interne_pa pour Lamé (sinon épaisseur infinie).")
         ro2 = ((sigma_eff + p) / (sigma_eff - p)) * (ri ** 2)
         ro = math.sqrt(ro2)
         t = ro - ri
         return max(0.0, t) if clamp_non_negative else t
 
+# --- Matériaux (réduction d'inconnues) ---
+try:
+    from backend.ensemble.materiaux import get_materiau, valeur
+except Exception:  # pragma: no cover
+    get_materiau = None  # type: ignore
+
+    def valeur(prop: Any, mode: str = "typique") -> Optional[float]:  # type: ignore
+        return float(prop) if prop is not None else None
+
+# --- Fluides (optionnel : calcul h interne/externe) ---
+try:
+    from backend.ensemble.eau import etat_eau_pure, etat_eau_salee, etat_antigel
+except Exception:  # pragma: no cover
+    etat_eau_pure = etat_eau_salee = etat_antigel = None  # type: ignore
+
+try:
+    from backend.ensemble.air import air_state
+except Exception:  # pragma: no cover
+    air_state = None  # type: ignore
+
 
 # ============================================================
-# Helpers
+# Helpers robustes
 # ============================================================
 
 def _is_finite(x: Any) -> bool:
@@ -102,65 +121,318 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
                 seen.add(key)
                 out.append(it)
         return out
+
     rapport["inconnues"]["impossibles"] = dedup(rapport["inconnues"]["impossibles"])
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
 
+def _von_mises_3d(s1: float, s2: float, s3: float) -> float:
+    # VM = sqrt(0.5*((s1-s2)^2 + (s2-s3)^2 + (s3-s1)^2))
+    return math.sqrt(0.5 * ((s1 - s2) ** 2 + (s2 - s3) ** 2 + (s3 - s1) ** 2))
+
 
 # ============================================================
-# Pièce : Cylindre (calculatoire, sans heuristiques “inventées”)
+# Convection interne/externe (optionnelle) : calcul h
+# ============================================================
+
+def _nu_laminaire_tube(*, condition_paroi: Literal["T_constante", "q_constante"]) -> float:
+    # Écoulement laminaire pleinement développé, tube circulaire :
+    # - paroi à température constante : Nu = 3.66
+    # - flux thermique constant : Nu = 4.36
+    return 3.66 if condition_paroi == "T_constante" else 4.36
+
+def _nu_dittus_boelter(Re: float, Pr: float, chauffage_fluide: bool) -> float:
+    # Dittus–Boelter (turbulent, Re ~> 1e4, 0.7<Pr<160)
+    n = 0.4 if chauffage_fluide else 0.3
+    return 0.023 * (Re ** 0.8) * (Pr ** n)
+
+def _f_darcy_blasius(Re: float) -> float:
+    # Blasius lisse : f = 0.3164/Re^0.25 (Re ~ 4e3..1e5+)
+    return 0.3164 / (Re ** 0.25)
+
+def _nu_gnielinski(Re: float, Pr: float, f_darcy: float) -> float:
+    # Gnielinski (≈ 3e3 < Re < 5e6, 0.5 < Pr < 2000)
+    return ((f_darcy / 8.0) * (Re - 1000.0) * Pr) / (
+        1.0 + 12.7 * math.sqrt(f_darcy / 8.0) * ((Pr ** (2.0 / 3.0)) - 1.0)
+    )
+
+def _h_tube_interne(
+    *,
+    rho: float,
+    mu: float,
+    k: float,
+    cp: float,
+    debit_massique_kg_s: float,
+    diametre_m: float,
+    modele: Literal["auto", "laminaire", "dittus_boelter", "gnielinski"],
+    condition_paroi: Literal["T_constante", "q_constante"],
+    chauffage_fluide: bool,
+) -> Dict[str, Any]:
+    """
+    h [W/m²/K] dans un tube circulaire.
+
+    Important :
+    - Aucune valeur inventée : tu dois fournir soit les propriétés fluide, soit une EntreeConvectionTube
+      (qui les déduit via backend.ensemble.air/eau).
+    - La corrélation (Nu) est un choix d’ingénierie : paramètre 'modele'.
+    """
+    if rho <= 0 or mu <= 0 or k <= 0 or cp <= 0:
+        raise ValueError("rho, mu, k, cp doivent être > 0")
+    mdot = _req_pos("debit_massique_kg_s", debit_massique_kg_s)
+    D = _req_pos("diametre_m", diametre_m)
+
+    A = math.pi * (D ** 2) / 4.0
+    v = mdot / (rho * A)
+    Re = rho * v * D / mu
+    Pr = (cp * mu) / k
+
+    modele_utilise: str
+
+    if modele == "auto":
+        if Re < 2300.0:
+            Nu = _nu_laminaire_tube(condition_paroi=condition_paroi)
+            modele_utilise = f"laminaire({condition_paroi})"
+        else:
+            if Re >= 3000.0:
+                f = _f_darcy_blasius(Re)
+                Nu = _nu_gnielinski(Re, Pr, f)
+                modele_utilise = "gnielinski+blasius"
+            else:
+                Nu = _nu_dittus_boelter(Re, Pr, chauffage_fluide=chauffage_fluide)
+                modele_utilise = "dittus_boelter"
+    elif modele == "laminaire":
+        Nu = _nu_laminaire_tube(condition_paroi=condition_paroi)
+        modele_utilise = f"laminaire({condition_paroi})"
+    elif modele == "dittus_boelter":
+        Nu = _nu_dittus_boelter(Re, Pr, chauffage_fluide=chauffage_fluide)
+        modele_utilise = "dittus_boelter"
+    elif modele == "gnielinski":
+        if Re <= 1000.0:
+            raise ValueError("Gnielinski nécessite Re > 1000.")
+        f = _f_darcy_blasius(Re)
+        Nu = _nu_gnielinski(Re, Pr, f)
+        modele_utilise = "gnielinski+blasius"
+    else:
+        raise ValueError("modele inconnu.")
+
+    h = Nu * k / D
+    return {
+        "A_section_m2": A,
+        "v_m_s": v,
+        "Re": Re,
+        "Pr": Pr,
+        "Nu": Nu,
+        "h_W_m2_K": h,
+        "modele_txt": modele_utilise,
+    }
+
+
+FluideType = Literal["air", "eau_pure", "eau_salee", "antigel"]
+
+@dataclass(frozen=True)
+class EntreeConvectionTube:
+    """
+    Spécifie un cas d'écoulement interne dans un tube, pour calculer h.
+    Utilisé uniquement si h_interne_w_m2_k / h_externe_w_m2_k n'est pas fourni.
+    """
+    fluide: FluideType
+    T_K: float
+    p_Pa: float
+
+    # Pour "air"
+    altitude_m: float = 0.0
+    RH: float = 0.0
+    co2_ppm: float = 420.0
+
+    # Pour eau salée
+    salinite_g_kg: float = 35.0
+
+    # Pour antigel
+    fraction_massique_glycol: float = 0.0
+    type_glycol: Literal["MEG", "MPG"] = "MEG"
+
+    # Ecoulement
+    debit_massique_kg_s: float = 0.0
+    diametre_m: float = 0.0
+
+    # Choix corrélation
+    modele: Literal["auto", "laminaire", "dittus_boelter", "gnielinski"] = "auto"
+    condition_paroi: Literal["T_constante", "q_constante"] = "T_constante"
+    chauffage_fluide: bool = True
+
+
+def _etat_fluide_pour_convection(ent: EntreeConvectionTube) -> Dict[str, float]:
+    if ent.fluide == "air":
+        if air_state is None:
+            raise RuntimeError("backend.ensemble.air.air_state indisponible.")
+        st = air_state(
+            altitude_m=float(ent.altitude_m),
+            T_K=float(ent.T_K),
+            p_Pa=float(ent.p_Pa),
+            RH=float(ent.RH),
+            co2_ppm=float(ent.co2_ppm),
+        )
+        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kgK), "mu": float(st.mu_Pa_s), "k": float(st.k_W_mK)}
+
+    if ent.fluide == "eau_pure":
+        if etat_eau_pure is None:
+            raise RuntimeError("backend.ensemble.eau.etat_eau_pure indisponible.")
+        st = etat_eau_pure(float(ent.T_K), float(ent.p_Pa))
+        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K)}
+
+    if ent.fluide == "eau_salee":
+        if etat_eau_salee is None:
+            raise RuntimeError("backend.ensemble.eau.etat_eau_salee indisponible.")
+        st = etat_eau_salee(float(ent.T_K), float(ent.p_Pa), float(ent.salinite_g_kg))
+        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K)}
+
+    if ent.fluide == "antigel":
+        if etat_antigel is None:
+            raise RuntimeError("backend.ensemble.eau.etat_antigel indisponible.")
+        st = etat_antigel(
+            float(ent.T_K),
+            float(ent.p_Pa),
+            float(ent.fraction_massique_glycol),
+            type_glycol=str(ent.type_glycol),
+        )
+        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K)}
+
+    raise ValueError("fluide inconnu.")
+
+
+def calcul_h_depuis_entree_convection(ent: EntreeConvectionTube) -> Dict[str, Any]:
+    props = _etat_fluide_pour_convection(ent)
+    res = _h_tube_interne(
+        rho=props["rho"],
+        mu=props["mu"],
+        k=props["k"],
+        cp=props["cp"],
+        debit_massique_kg_s=ent.debit_massique_kg_s,
+        diametre_m=ent.diametre_m,
+        modele=ent.modele,
+        condition_paroi=ent.condition_paroi,
+        chauffage_fluide=ent.chauffage_fluide,
+    )
+    res["fluide"] = ent.fluide
+    return res
+
+
+# ============================================================
+# Matériau : extraction (réduit fortement les inconnues)
+# ============================================================
+
+def _materiau_resoudre(
+    *,
+    materiau_cle: str,
+    mode: Literal["min", "typique", "max"],
+) -> Dict[str, Any]:
+    """
+    Extrait un paquet de propriétés SI depuis backend.ensemble.materiaux.
+    'mode' contrôle la sélection des intervalles.
+
+    Point important :
+    - Pour Re : on retourne une borne conservatrice (min global), indépendante de la section,
+      si la base matériau a une courbe "par section".
+    """
+    if get_materiau is None:
+        raise RuntimeError("backend.ensemble.materiaux.get_materiau indisponible.")
+    mat = get_materiau(materiau_cle)
+
+    rho = float(mat.densite_kg_m3) if mat.densite_kg_m3 is not None else None
+    E = valeur(mat.module_young_pa, mode=mode)
+    nu = valeur(mat.poisson, mode=mode)
+    k = valeur(mat.conductivite_thermique_w_mk, mode=mode)
+    alpha = valeur(mat.alpha_dilatation_1_k, mode=mode)
+
+    # Re conservateur (min global)
+    Re_candidates: list[float] = []
+    base_Re = mat.limite_elastique_effective_pa(mode="min", section_mm=None)
+    if base_Re is not None:
+        Re_candidates.append(float(base_Re))
+    if getattr(mat, "resistance_par_section", None):
+        for seg in mat.resistance_par_section:
+            if getattr(seg, "rp02_pa_min", None) is not None:
+                Re_candidates.append(float(seg.rp02_pa_min))
+    Re_min = min(Re_candidates) if Re_candidates else None
+
+    sigma_f = valeur(getattr(mat, "limite_fatigue_pa", None), mode="min")
+
+    return {
+        "densite_kg_m3": rho,
+        "module_young_pa": E,
+        "poisson": nu,
+        "conductivite_w_m_k": k,
+        "alpha_dilatation_1_k": alpha,
+        "limite_elastique_min_pa": Re_min,
+        "limite_fatigue_min_pa": sigma_f,
+        "T_service_min_C": getattr(mat, "temperature_service_min_c", None),
+        "T_service_max_C": getattr(mat, "temperature_service_max_c", None),
+        "materiau_nom": getattr(mat, "nom", materiau_cle),
+        "famille": getattr(mat, "famille", None),
+    }
+
+
+# ============================================================
+# Pièce : Cylindre
 # ============================================================
 
 @dataclass(frozen=True)
 class Cylindre:
     """
-    Objectif :
-    - Produire un maximum de grandeurs 100% calculées
-    - Zéro “valeur devinée” : tout ce qui dépend d’une donnée externe doit être fourni
-      (matériau, thermo, etc.), sinon reporté comme inconnue.
-    - Option strict=True : si une inconnue reste, on lève une erreur.
+    Objectif : produire un maximum de grandeurs calculées, en diminuant les inconnues.
 
-    Modèle :
-    - Dimensionnement pression interne via cylindre mince (Barlow) + cylindre épais (Lamé),
-      et choix conservatif t = max(t_mince, t_lame).
-    - Contraintes vérifiées (cerclage/longitudinale) et marges.
-    - Déformations (pression/thermique) uniquement si E, nu, alpha, ΔT sont fournis.
-    - Masse/inerties uniquement si densité + longueurs sont fournies.
+    Réduction d'inconnues intégrée :
+    - Si `materiau_cle` est fourni, on déduit automatiquement (si non fournis) :
+      densité, E, ν, k, α, Re(min) -> épaisseur dimensionnable.
+    - Si `convection_interne` / `convection_externe` sont fournis, on peut calculer h_i/h_o.
+
+    Rien n'est "inventé" :
+    - Si une donnée n'est ni fournie ni déductible via modules, elle reste une inconnue.
     """
 
-    # Géométrie
+    # --- Géométrie (obligatoire) ---
     alesage_m: float
     course_m: float
-    longueur_utile_m: float  # longueur utile du fût (pour masse/surface), sans couvercles
-    # Pressions
+    longueur_utile_m: float
+
+    # --- Pressions (absolues) ---
     pression_service_pa: float
     pression_max_pa: float
-    pression_externe_pa: float = 0.0  # si besoin (sinon 0)
-    # Matériau / admissible
-    contrainte_admissible_pa: Optional[float] = None  # si connue directement
-    limite_elastique_pa: Optional[float] = None       # sinon fournir Re et on calcule admissible = Re / FS
+    pression_externe_pa: float = 0.0
+
+    # --- Matériau (réduction inconnues) ---
+    materiau_cle: Optional[str] = None
+    mode_materiau: Literal["min", "typique", "max"] = "min"  # min = conservateur
+
+    # Overrides manuels (si fournis, ils priment)
+    contrainte_admissible_pa: Optional[float] = None  # interprétée comme "limite matériau" avant FS
+    limite_elastique_pa: Optional[float] = None       # Re
     facteur_securite: float = 2.0
 
-    # Propriétés mécaniques (pour déformation)
     module_young_pa: Optional[float] = None
     coefficient_poisson: Optional[float] = None
-
-    # Thermique (dilatation / conduction)
-    coefficient_dilatation_1_k: Optional[float] = None  # alpha
-    delta_temperature_k: Optional[float] = None         # ΔT
-    conductivite_w_m_k: Optional[float] = None          # k
-    h_interne_w_m2_k: Optional[float] = None            # convection interne
-    h_externe_w_m2_k: Optional[float] = None            # convection externe
-
-    # Masse
+    coefficient_dilatation_1_k: Optional[float] = None
+    conductivite_w_m_k: Optional[float] = None
     densite_kg_m3: Optional[float] = None
 
-    # Paramètres d’assemblage (facultatif, mais calculable si fourni)
+    temperature_service_C: Optional[float] = None
+    delta_temperature_k: Optional[float] = None
+
+    # Convection (optionnel)
+    convection_interne: Optional[EntreeConvectionTube] = None
+    convection_externe: Optional[EntreeConvectionTube] = None
+
+    # Valeurs directes (si tu veux bypass)
+    h_interne_w_m2_k: Optional[float] = None
+    h_externe_w_m2_k: Optional[float] = None
+
+    # Bride (optionnel)
     epaisseur_bride_m: Optional[float] = None
     largeur_bride_m: Optional[float] = None
 
     def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "entrees": {},
+            "materiau": {},
             "geometrie": {},
             "dimensionnement": {},
             "contraintes": {},
@@ -174,7 +446,7 @@ class Cylindre:
         }
 
         # ----------------------------
-        # 1) Validation & entrées
+        # 1) Validation entrées
         # ----------------------------
         D = _req_pos("alesage_m", self.alesage_m)
         S = _req_pos("course_m", self.course_m)
@@ -195,34 +467,65 @@ class Cylindre:
             "pression_max_pa": p_max,
             "pression_externe_pa": p_ext,
             "facteur_securite": FS,
-            "contrainte_admissible_pa": self.contrainte_admissible_pa,
-            "limite_elastique_pa": self.limite_elastique_pa,
+            "materiau_cle": self.materiau_cle,
+            "mode_materiau": self.mode_materiau,
+            "temperature_service_C": self.temperature_service_C,
         })
 
         ri = 0.5 * D
-        Ai = math.pi * (ri ** 2)  # aire piston / section interne
+        Ai = math.pi * (ri ** 2)
 
-        # Admissible effective (obligatoire pour dimensionner)
+        # ----------------------------
+        # 2) Matériau : déduction auto
+        # ----------------------------
+        matp: Dict[str, Any] = {}
+        if self.materiau_cle:
+            try:
+                matp = _materiau_resoudre(materiau_cle=self.materiau_cle, mode=self.mode_materiau)
+                rapport["materiau"].update(matp)
+
+                # vérification plage T matière (si connue)
+                if self.temperature_service_C is not None:
+                    tmin = matp.get("T_service_min_C")
+                    tmax = matp.get("T_service_max_C")
+                    if tmin is not None and self.temperature_service_C < float(tmin):
+                        rapport["notes_modele"].append(f"Température service {self.temperature_service_C}°C < Tmin matériau ({tmin}°C).")
+                    if tmax is not None and self.temperature_service_C > float(tmax):
+                        rapport["notes_modele"].append(f"Température service {self.temperature_service_C}°C > Tmax matériau ({tmax}°C).")
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "matériau auto", f"Impossible de charger materiau_cle={self.materiau_cle!r}: {e!r}")
+
+        # Propriétés résolues (priorité aux overrides manuels)
+        densite = self.densite_kg_m3 if self.densite_kg_m3 is not None else matp.get("densite_kg_m3")
+        E = self.module_young_pa if self.module_young_pa is not None else matp.get("module_young_pa")
+        nu = self.coefficient_poisson if self.coefficient_poisson is not None else matp.get("poisson")
+        alpha = self.coefficient_dilatation_1_k if self.coefficient_dilatation_1_k is not None else matp.get("alpha_dilatation_1_k")
+        k_mat = self.conductivite_w_m_k if self.conductivite_w_m_k is not None else matp.get("conductivite_w_m_k")
+        Re = self.limite_elastique_pa if self.limite_elastique_pa is not None else matp.get("limite_elastique_min_pa")
+
+        # ----------------------------
+        # 3) Contrainte admissible (obligatoire pour épaisseur)
+        # ----------------------------
         sigma_adm: Optional[float] = None
         if self.contrainte_admissible_pa is not None:
             sigma_adm = _req_pos("contrainte_admissible_pa", self.contrainte_admissible_pa)
-        elif self.limite_elastique_pa is not None:
-            Re = _req_pos("limite_elastique_pa", self.limite_elastique_pa)
-            sigma_adm = Re  # admissible brute; FS appliqué dans les formules
-            rapport["notes_modele"].append("contrainte_admissible_pa déduite de limite_elastique_pa (FS appliqué ensuite).")
+            rapport["materiau"]["contrainte_admissible_source"] = "contrainte_admissible_pa (input)"
+        elif Re is not None:
+            sigma_adm = _req_pos("limite_elastique_pa", Re)
+            rapport["materiau"]["contrainte_admissible_source"] = "limite_elastique_pa (Re) + FS"
         else:
             _push_inconnue(
                 rapport,
                 "impossibles",
                 "contrainte admissible",
-                "Impossible de dimensionner l’épaisseur sans contrainte_admissible_pa ou limite_elastique_pa.",
+                "Impossible de dimensionner l’épaisseur sans contrainte_admissible_pa, limite_elastique_pa ou materiau_cle exploitable.",
             )
 
         # ----------------------------
-        # 2) Géométrie calculée
+        # 4) Géométrie calculée
         # ----------------------------
         V_swept = float(calcul_cylindree_unitaire(alesage_m=D, course_m=S, allow_zero=False, return_details=False))
-        surface_interne_laterale = math.pi * D * L  # fût interne
+        surface_interne_laterale = math.pi * D * L
         volume_interne_total = Ai * L
 
         rapport["geometrie"].update({
@@ -234,27 +537,28 @@ class Cylindre:
         })
 
         # ----------------------------
-        # 3) Efforts pression
+        # 5) Efforts pression
         # ----------------------------
-        F_piston_service = p_serv * Ai
-        F_piston_max = p_max * Ai
+        F_piston_service = (p_serv - p_ext) * Ai
+        F_piston_max = (p_max - p_ext) * Ai
         rapport["dimensionnement"].update({
             "force_pression_piston_service_N": F_piston_service,
             "force_pression_piston_max_N": F_piston_max,
         })
 
         # ----------------------------
-        # 4) Épaisseur : mince + Lamé (conservatif)
+        # 6) Épaisseur : mince + Lamé (conservatif)
         # ----------------------------
         t_mince: Optional[float] = None
         t_lame: Optional[float] = None
         t_retenue: Optional[float] = None
 
-        # On dimensionne sur Δp interne-externe (conservatif)
-        delta_p = max(0.0, (p_max - p_ext))
+        p_i = p_max
+        p_o = p_ext
+        delta_p = max(0.0, p_i - p_o)
 
         if sigma_adm is not None:
-            # Modèle mince
+            # 6.1 paroi mince (Barlow)
             t_mince = float(calcul_epaisseur_cylindre_mince(
                 pression_pa=delta_p,
                 rayon_interne_m=ri,
@@ -265,36 +569,29 @@ class Cylindre:
                 return_details=False,
             ))
 
-            # Modèle Lamé (épais)
-            try:
-                t_lame = float(calcul_epaisseur_cylindre_lame(
-                    pression_interne_pa=delta_p,
-                    rayon_interne_m=ri,
-                    contrainte_admissible_pa=sigma_adm,
-                    facteur_securite=FS,
-                    clamp_non_negative=True,
-                    return_details=False,
-                ))
-            except ValueError as e:
-                # typiquement si sigma_eff <= p
-                _push_inconnue(rapport, "impossibles", "épaisseur Lamé", str(e))
-                t_lame = None
-
-            # Choix conservatif
-            candidates = [x for x in [t_mince, t_lame] if isinstance(x, (int, float)) and math.isfinite(float(x))]
-            if candidates:
-                t_retenue = max(candidates)
+            # 6.2 Lamé généralisé (p_o potentiellement != 0)
+            # σθ(ri)= (p_i*(ri^2+ro^2) - 2*p_o*ro^2)/(ro^2-ri^2)
+            # => ro^2 = ri^2*(σ + p_i)/(σ - p_i + 2*p_o), σ = sigma_eff = sigma_adm/FS
+            sigma_eff = sigma_adm / FS
+            denom = (sigma_eff - p_i + 2.0 * p_o)
+            if denom <= 0:
+                _push_inconnue(rapport, "impossibles", "épaisseur Lamé", "Pas de solution (sigma_eff - p_i + 2*p_o <= 0).")
             else:
-                _push_inconnue(
-                    rapport,
-                    "impossibles",
-                    "épaisseur cylindre",
-                    "Impossible de déterminer une épaisseur retenue (aucun modèle calculable).",
-                )
+                ro2 = (ri * ri) * (sigma_eff + p_i) / denom
+                t_lame = max(0.0, math.sqrt(ro2) - ri)
+
+            # 6.3 retenue (conservatif)
+            candidates = [x for x in (t_mince, t_lame) if isinstance(x, (int, float)) and math.isfinite(float(x))]
+            if candidates:
+                t_retenue = float(max(candidates))
+            else:
+                _push_inconnue(rapport, "impossibles", "épaisseur cylindre", "Aucun modèle calculable.")
         else:
             _push_inconnue(rapport, "impossibles", "épaisseur cylindre", "Pas de sigma_adm -> pas de dimensionnement pression.")
 
         rapport["dimensionnement"].update({
+            "p_i_dimensionnement_pa": p_i,
+            "p_o_dimensionnement_pa": p_o,
             "delta_p_dimensionnement_pa": delta_p,
             "epaisseur_mince_m": t_mince,
             "epaisseur_lame_m": t_lame,
@@ -302,160 +599,189 @@ class Cylindre:
         })
 
         # ----------------------------
-        # 5) Contraintes & marges (avec t_retenue)
+        # 7) Contraintes (mince + Lamé) + Von Mises
         # ----------------------------
         if t_retenue is not None and t_retenue > 0:
             ro = ri + t_retenue
             Do = 2.0 * ro
+            Di = 2.0 * ri
 
-            # Contraintes mince (référence)
-            sigma_theta_mince = (delta_p * ri) / t_retenue if t_retenue > 0 else None
-            sigma_long_mince = (delta_p * ri) / (2.0 * t_retenue) if t_retenue > 0 else None
+            # 7.1 mince (référence)
+            sigma_theta_mince = (delta_p * ri) / t_retenue
+            sigma_long_mince = (delta_p * ri) / (2.0 * t_retenue)
+            sigma_vm_mince = math.sqrt(sigma_theta_mince**2 + sigma_long_mince**2 - sigma_theta_mince * sigma_long_mince)
 
-            # Contraintes Lamé (au rayon interne), si ro défini
-            # A = (p_i*ri^2 - p_o*ro^2)/(ro^2 - ri^2)
-            # B = (ri^2*ro^2*(p_i - p_o))/(ro^2 - ri^2)
-            # sigma_theta(ri) = A + B/ri^2
+            # 7.2 Lamé exact au rayon interne
             ri2 = ri * ri
             ro2 = ro * ro
             denom = (ro2 - ri2)
             if denom <= 0:
                 _push_inconnue(rapport, "impossibles", "contraintes Lamé", "ro^2 - ri^2 <= 0 (géométrie invalide).")
-                sigma_theta_lame_i = None
-                sigma_r_lame_i = None
+                sigma_theta_lame_i = sigma_r_lame_i = sigma_z_lame = sigma_vm_lame_i = None
             else:
-                A = (delta_p * ri2 - 0.0 * ro2) / denom  # p_ext=0 dans Lamé fallback (delta_p déjà)
-                B = (ri2 * ro2 * (delta_p - 0.0)) / denom
-                sigma_theta_lame_i = A + (B / ri2)
-                sigma_r_lame_i = A - (B / ri2)  # doit ~ -p_i
+                A = (p_i * ri2 - p_o * ro2) / denom
+                B = (ri2 * ro2 * (p_i - p_o)) / denom
+                sigma_r_lame_i = A - (B / ri2)       # = -p_i
+                sigma_theta_lame_i = A + (B / ri2)   # cerclage max
+                sigma_z_lame = A                     # axial (extrémités fermées)
+                sigma_vm_lame_i = _von_mises_3d(sigma_theta_lame_i, sigma_r_lame_i, sigma_z_lame)
 
-            # Marges
-            marge_theta_mince = None
-            marge_theta_lame = None
+            # marges
+            marge_theta_mince = marge_theta_lame = None
+            marge_vm_mince = marge_vm_lame = None
             if sigma_adm is not None:
                 sigma_eff = sigma_adm / FS
-                if sigma_theta_mince is not None and sigma_eff > 0:
+                if sigma_eff > 0:
                     marge_theta_mince = sigma_eff / sigma_theta_mince if sigma_theta_mince != 0 else None
-                if sigma_theta_lame_i is not None and sigma_eff > 0:
-                    marge_theta_lame = sigma_eff / sigma_theta_lame_i if sigma_theta_lame_i != 0 else None
+                    if sigma_theta_lame_i is not None and sigma_theta_lame_i != 0:
+                        marge_theta_lame = sigma_eff / sigma_theta_lame_i
+                    marge_vm_mince = sigma_eff / sigma_vm_mince if sigma_vm_mince != 0 else None
+                    if sigma_vm_lame_i is not None and sigma_vm_lame_i != 0:
+                        marge_vm_lame = sigma_eff / sigma_vm_lame_i
 
-            # Critère paroi mince
-            ratio_t_sur_r = t_retenue / ri
-            paroi_mince_ok = ratio_t_sur_r <= 0.10
+            ratio_t_sur_ri = t_retenue / ri
+            paroi_mince_ok = ratio_t_sur_ri <= 0.10
 
             rapport["geometrie"].update({
                 "rayon_externe_m": ro,
                 "diametre_externe_m": Do,
-                "ratio_t_sur_ri": ratio_t_sur_r,
+                "diametre_interne_m": Di,
+                "ratio_t_sur_ri": ratio_t_sur_ri,
             })
 
             rapport["contraintes"].update({
                 "sigma_cerclage_mince_pa": sigma_theta_mince,
                 "sigma_longitudinale_mince_pa": sigma_long_mince,
+                "sigma_von_mises_mince_pa": sigma_vm_mince,
                 "sigma_cerclage_lame_au_ri_pa": sigma_theta_lame_i,
                 "sigma_radiale_lame_au_ri_pa": sigma_r_lame_i,
+                "sigma_axiale_lame_pa": sigma_z_lame,
+                "sigma_von_mises_lame_au_ri_pa": sigma_vm_lame_i,
                 "marge_cerclage_mince": marge_theta_mince,
                 "marge_cerclage_lame": marge_theta_lame,
+                "marge_von_mises_mince": marge_vm_mince,
+                "marge_von_mises_lame": marge_vm_lame,
             })
 
             rapport["verifications"].update({
                 "hypothese_paroi_mince_ok": paroi_mince_ok,
-                "note_paroi_mince": "OK (t/ri<=0.10)" if paroi_mince_ok else "NON (utiliser Lamé/épais)",
+                "note_paroi_mince": "OK (t/ri<=0.10)" if paroi_mince_ok else "NON (cylindre épais : utiliser Lamé)",
             })
+
+            # info : Re effectif si matériau dépend de la section (diamètre extérieur)
+            if self.materiau_cle and get_materiau is not None:
+                try:
+                    mat = get_materiau(self.materiau_cle)
+                    section_mm = Do * 1000.0
+                    Re_section = mat.limite_elastique_effective_pa(mode="min", section_mm=section_mm)
+                    if Re_section is not None:
+                        sigma_adm2 = float(Re_section)
+                        t_mince2 = float(calcul_epaisseur_cylindre_mince(
+                            pression_pa=delta_p, rayon_interne_m=ri, contrainte_admissible_pa=sigma_adm2,
+                            include_longitudinale=False, facteur_securite=FS, clamp_non_negative=True, return_details=False
+                        ))
+                        sigma_eff2 = sigma_adm2 / FS
+                        denom2 = (sigma_eff2 - p_i + 2.0 * p_o)
+                        t_lame2 = None
+                        if denom2 > 0:
+                            ro2b = (ri * ri) * (sigma_eff2 + p_i) / denom2
+                            t_lame2 = max(0.0, math.sqrt(ro2b) - ri)
+                        t_ret2 = max([x for x in (t_mince2, t_lame2) if x is not None])
+                        rapport["materiau"]["Re_section_mm"] = section_mm
+                        rapport["materiau"]["limite_elastique_section_pa"] = float(Re_section)
+                        rapport["dimensionnement"]["epaisseur_retenue_si_Re_section_m"] = float(t_ret2)
+                except Exception:
+                    pass
         else:
             _push_inconnue(rapport, "impossibles", "contraintes", "Impossible sans epaisseur_retenue_m > 0.")
 
         # ----------------------------
-        # 6) Déformations (pression + thermique) : 100% calcul si E, nu, alpha, ΔT fournis
+        # 8) Déformations (si E, nu, alpha, ΔT disponibles)
         # ----------------------------
         if t_retenue is not None and t_retenue > 0:
-            # 6.1 Dilatation sous pression (approx mince, extrémités fermées)
-            if self.module_young_pa is not None and self.coefficient_poisson is not None:
-                E = _req_pos("module_young_pa", self.module_young_pa)
-                nu = _req_pos("coefficient_poisson", self.coefficient_poisson, strictly=False)
+            if E is not None and nu is not None:
+                E2 = _req_pos("module_young_pa", E)
+                nu2 = _req_pos("coefficient_poisson", nu, strictly=False)
 
-                # εθ = (σθ - ν σL)/E
                 sigma_theta = (delta_p * ri) / t_retenue
                 sigma_long = (delta_p * ri) / (2.0 * t_retenue)
-                eps_theta = (sigma_theta - nu * sigma_long) / E
+                eps_theta = (sigma_theta - nu2 * sigma_long) / E2
                 delta_ri_p = eps_theta * ri
-                delta_D_p = 2.0 * delta_ri_p
 
                 rapport["deformations"].update({
                     "epsilon_cerclage_sous_pression": eps_theta,
                     "augmentation_rayon_interne_pression_m": delta_ri_p,
-                    "augmentation_diametre_interne_pression_m": delta_D_p,
+                    "augmentation_diametre_interne_pression_m": 2.0 * delta_ri_p,
                 })
             else:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "déformations sous pression",
-                    "Calculables si module_young_pa et coefficient_poisson sont fournis.",
-                )
+                _push_inconnue(rapport, "partielles", "déformations sous pression", "Calculables si module_young_pa et coefficient_poisson sont connus (ou via materiau_cle).")
 
-            # 6.2 Dilatation thermique
-            if self.coefficient_dilatation_1_k is not None and self.delta_temperature_k is not None:
-                alpha = _req_pos("coefficient_dilatation_1_k", self.coefficient_dilatation_1_k)
+            if alpha is not None and self.delta_temperature_k is not None:
+                a = _req_pos("coefficient_dilatation_1_k", alpha)
                 dT = _req_finite("delta_temperature_k", self.delta_temperature_k)
-                delta_D_th = alpha * D * dT
-                delta_ri_th = 0.5 * delta_D_th
+                delta_D_th = a * D * dT
                 rapport["deformations"].update({
                     "augmentation_diametre_interne_thermique_m": delta_D_th,
-                    "augmentation_rayon_interne_thermique_m": delta_ri_th,
+                    "augmentation_rayon_interne_thermique_m": 0.5 * delta_D_th,
                 })
             else:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "dilatation thermique",
-                    "Calculable si coefficient_dilatation_1_k et delta_temperature_k sont fournis.",
-                )
-        # sinon déjà marqué impossible via épaisseur
+                _push_inconnue(rapport, "partielles", "dilatation thermique", "Calculable si alpha (ou materiau_cle) et delta_temperature_k sont fournis.")
 
         # ----------------------------
-        # 7) Thermique : résistances (conduction + convection) si données fournies
+        # 9) Thermique : Rcond + convection (si possible)
         # ----------------------------
-        if t_retenue is not None and t_retenue > 0 and self.conductivite_w_m_k is not None:
-            k = _req_pos("conductivite_w_m_k", self.conductivite_w_m_k)
+        h_i = self.h_interne_w_m2_k
+        h_o = self.h_externe_w_m2_k
+
+        if h_i is None and self.convection_interne is not None:
+            try:
+                res = calcul_h_depuis_entree_convection(self.convection_interne)
+                h_i = float(res["h_W_m2_K"])
+                rapport["thermique"]["h_interne_calcule"] = res
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "h_interne", f"Impossible de calculer h_interne: {e!r}")
+
+        if h_o is None and self.convection_externe is not None:
+            try:
+                res = calcul_h_depuis_entree_convection(self.convection_externe)
+                h_o = float(res["h_W_m2_K"])
+                rapport["thermique"]["h_externe_calcule"] = res
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "h_externe", f"Impossible de calculer h_externe: {e!r}")
+
+        if t_retenue is not None and t_retenue > 0 and k_mat is not None:
+            k2 = _req_pos("conductivite_w_m_k", k_mat)
             ro = ri + t_retenue
 
-            # Résistance conduction cylindre : Rcond = ln(ro/ri)/(2πkL)
-            R_cond = math.log(ro / ri) / (2.0 * math.pi * k * L)
+            R_cond = math.log(ro / ri) / (2.0 * math.pi * k2 * L)
             rapport["thermique"]["R_conduction_K_W"] = R_cond
 
-            # Convection interne/externe (si fournis)
-            if self.h_interne_w_m2_k is not None:
-                h_i = _req_pos("h_interne_w_m2_k", self.h_interne_w_m2_k)
+            if h_i is not None:
+                hi = _req_pos("h_interne_w_m2_k", h_i)
                 A_i = 2.0 * math.pi * ri * L
-                R_hi = 1.0 / (h_i * A_i)
-                rapport["thermique"]["R_convection_interne_K_W"] = R_hi
+                rapport["thermique"]["R_convection_interne_K_W"] = 1.0 / (hi * A_i)
             else:
-                _push_inconnue(rapport, "partielles", "R convection interne", "Calculable si h_interne_w_m2_k est fourni.")
+                _push_inconnue(rapport, "partielles", "R convection interne", "Calculable si h_interne_w_m2_k est fourni (ou convection_interne).")
 
-            if self.h_externe_w_m2_k is not None:
-                h_o = _req_pos("h_externe_w_m2_k", self.h_externe_w_m2_k)
+            if h_o is not None:
+                ho = _req_pos("h_externe_w_m2_k", h_o)
                 A_o = 2.0 * math.pi * ro * L
-                R_ho = 1.0 / (h_o * A_o)
-                rapport["thermique"]["R_convection_externe_K_W"] = R_ho
+                rapport["thermique"]["R_convection_externe_K_W"] = 1.0 / (ho * A_o)
             else:
-                _push_inconnue(rapport, "partielles", "R convection externe", "Calculable si h_externe_w_m2_k est fourni.")
+                _push_inconnue(rapport, "partielles", "R convection externe", "Calculable si h_externe_w_m2_k est fourni (ou convection_externe).")
 
-            # Résistance totale si toutes présentes
-            R_tot = None
             if "R_convection_interne_K_W" in rapport["thermique"] and "R_convection_externe_K_W" in rapport["thermique"]:
-                R_tot = (
+                rapport["thermique"]["R_totale_K_W"] = (
                     rapport["thermique"]["R_convection_interne_K_W"]
                     + rapport["thermique"]["R_conduction_K_W"]
                     + rapport["thermique"]["R_convection_externe_K_W"]
                 )
-                rapport["thermique"]["R_totale_K_W"] = R_tot
         else:
-            if self.conductivite_w_m_k is None:
-                _push_inconnue(rapport, "partielles", "thermique (conduction/convection)", "Calculable si conductivite_w_m_k est fournie (et h_i/h_o pour convection).")
+            if k_mat is None:
+                _push_inconnue(rapport, "partielles", "thermique (conduction)", "Calculable si conductivite_w_m_k est fourni (souvent via materiau_cle).")
 
         # ----------------------------
-        # 8) Masse + inerties (tube) si densité fournie
+        # 10) Masse + inerties (tube) si densité dispo
         # ----------------------------
         if t_retenue is not None and t_retenue > 0:
             ro = ri + t_retenue
@@ -467,19 +793,18 @@ class Cylindre:
                 "volume_metal_m3": volume_metal,
             })
 
-            if self.densite_kg_m3 is not None:
-                rho = _req_pos("densite_kg_m3", self.densite_kg_m3)
+            if densite is not None:
+                rho = _req_pos("densite_kg_m3", densite)
                 m = rho * volume_metal
                 rapport["masse"]["masse_kg"] = m
                 rapport["masse"]["masse_lineique_kg_m"] = m / L if L > 0 else None
             else:
-                _push_inconnue(rapport, "partielles", "masse cylindre", "Calculable si densite_kg_m3 est fournie.")
+                _push_inconnue(rapport, "partielles", "masse cylindre", "Calculable si densite_kg_m3 est fournie (souvent via materiau_cle).")
 
-            # Inerties section (tube) : I = π/64 * (Do^4 - Di^4)
             Do = 2.0 * ro
             Di = 2.0 * ri
             I = (math.pi / 64.0) * (Do ** 4 - Di ** 4)
-            Jp = (math.pi / 32.0) * (Do ** 4 - Di ** 4)  # polaire
+            Jp = 2.0 * I
             rapport["inerties"].update({
                 "inertie_flexion_I_m4": I,
                 "inertie_polaire_J_m4": Jp,
@@ -488,7 +813,7 @@ class Cylindre:
             _push_inconnue(rapport, "impossibles", "masse/inerties", "Impossible sans epaisseur_retenue_m > 0.")
 
         # ----------------------------
-        # 9) Bride (si fournie) : volume + masse additionnelle
+        # 11) Bride (optionnel)
         # ----------------------------
         if self.epaisseur_bride_m is not None and self.largeur_bride_m is not None:
             if t_retenue is None or t_retenue <= 0:
@@ -498,18 +823,17 @@ class Cylindre:
                 w_b = _req_pos("largeur_bride_m", self.largeur_bride_m)
                 ro = ri + t_retenue
                 r_b = ro + w_b
-                # Volume approximatif 2 brides (haut/bas) : anneau * e_b * 2
                 A_anneau = math.pi * (r_b * r_b - ro * ro)
                 V_brides = 2.0 * A_anneau * e_b
-                rapport["masse"]["volume_bridges_m3"] = V_brides
-                if self.densite_kg_m3 is not None:
-                    rho = _req_pos("densite_kg_m3", self.densite_kg_m3)
-                    rapport["masse"]["masse_bridges_kg"] = rho * V_brides
+                rapport["masse"]["volume_brides_m3"] = V_brides
+                if densite is not None:
+                    rho = _req_pos("densite_kg_m3", densite)
+                    rapport["masse"]["masse_brides_kg"] = rho * V_brides
                 else:
-                    _push_inconnue(rapport, "partielles", "masse brides", "Calculable si densite_kg_m3 est fournie.")
+                    _push_inconnue(rapport, "partielles", "masse brides", "Calculable si densite_kg_m3 est fournie (souvent via materiau_cle).")
 
         # ----------------------------
-        # 10) “Zéro inconnue” : mode strict
+        # 12) Mode strict
         # ----------------------------
         _dedup_inconnues(rapport)
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
