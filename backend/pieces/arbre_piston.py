@@ -1,38 +1,38 @@
 # backend/pieces/arbre_piston.py
 # =============================================================================
-# ARBRE DE PISTON — SHSE-M
+# ARBRE DE PISTON — SHSE-M (version enrichie : géométrie + taraudage)
 # =============================================================================
-# Rôle :
-# - Lien mécanique entre le piston et la bielle (axe/goujon/“arbre” de piston).
-# - Peut porter un coussinet côté bielle (réduction frottement/usure).
-# - Taraudé de chaque côté si tu le fixes au piston par vis.
+# Objectif :
+# - Calculer TOUT ce qui est calculable à partir des entrées.
+# - Réduire les inconnues en :
+#   (1) intégrant une table ISO (filetages métriques "pas gros" courants) — donnée normative,
+#       pas une invention.
+#   (2) calculant les diamètres/longueurs minimaux requis, puis en listant les tailles ISO
+#       compatibles (sans choisir à ta place).
 #
-# IMPORTANT (conformément à “rien inventer”) :
-# - Ce module calcule tout ce qui est calculable à partir des entrées.
-# - Toute décision “de conception” (choix d’un diamètre normalisé, nombre de vis, etc.)
-#   n’est PAS inventée : si tu ne donnes pas la norme/le choix, on te renvoie l’inconnue.
+# IMPORTANT :
+# - On ne "choisit" pas un M8/M10 si tu ne le demandes pas :
+#   on calcule d_noyau_min, L_engagement_min, puis on propose des candidats ISO.
 # =============================================================================
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List, Literal
 import math
 
 
 # =============================================================================
-# Utilitaires (validation + inconnues)
+# Utilitaires
 # =============================================================================
 
 def _is_finite(x: Any) -> bool:
     return isinstance(x, (int, float)) and math.isfinite(float(x))
 
-
 def _req_finite(name: str, x: Any) -> float:
     if x is None or not _is_finite(x):
         raise ValueError(f"{name} doit être un nombre fini (reçu: {x!r}).")
     return float(x)
-
 
 def _req_pos(name: str, x: Any, strictly: bool = True) -> float:
     v = _req_finite(name, x)
@@ -44,10 +44,8 @@ def _req_pos(name: str, x: Any, strictly: bool = True) -> float:
             raise ValueError(f"{name} doit être >= 0 (reçu: {v}).")
     return v
 
-
 def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: str) -> None:
     rapport.setdefault("inconnues", {}).setdefault(categorie, []).append({"nom": nom, "raison": raison})
-
 
 def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
     def dedup(lst: List[dict]) -> List[dict]:
@@ -59,18 +57,35 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
                 seen.add(key)
                 out.append(it)
         return out
-
     rapport["inconnues"]["impossibles"] = dedup(rapport["inconnues"]["impossibles"])
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
-
 
 def _aire_disque(d: float) -> float:
     r = 0.5 * d
     return math.pi * r * r
 
+def _inertie_cercle(d: float) -> float:
+    return (math.pi * d**4) / 64.0
+
+def _polaire_cercle(d: float) -> float:
+    return (math.pi * d**4) / 32.0
+
+def _von_mises_sigma_tau(sigma: float, tau: float) -> float:
+    return math.sqrt(sigma**2 + 3.0 * tau**2)
+
+def _sigma_flexion(M: float, d: float) -> float:
+    W = (math.pi * d**3) / 32.0
+    return M / W
+
+def _omega_from_rpm(rpm: float) -> float:
+    return 2.0 * math.pi * (rpm / 60.0)
+
+def _euler_pcrit(E: float, I: float, L: float, K: float) -> float:
+    return (math.pi**2) * E * I / ((K * L) ** 2)
+
 
 # =============================================================================
-# Résolution matériau (utilise materiaux.py si présent)
+# Matériau (optionnel via materiaux.py)
 # =============================================================================
 
 def _resoudre_materiau(
@@ -79,10 +94,6 @@ def _resoudre_materiau(
     limite_elastique_pa: Optional[float],
     module_young_pa: Optional[float],
 ) -> Dict[str, Optional[float]]:
-    """
-    Tente de compléter rho, Re, E via backend/materiaux.py (ou variantes),
-    sans rien inventer : si introuvable -> valeurs fournies seulement.
-    """
     rho = densite_kg_m3
     Re = limite_elastique_pa
     E = module_young_pa
@@ -96,9 +107,6 @@ def _resoudre_materiau(
         ):
             try:
                 mod = __import__(modname, fromlist=["*"])
-                # On accepte plusieurs styles de base de données matériaux
-                # - dict MATERIAUX[materiau_cle]
-                # - fonction get_materiau(cle)
                 mat = None
                 if hasattr(mod, "get_materiau"):
                     mat = mod.get_materiau(materiau_cle)  # type: ignore
@@ -106,11 +114,9 @@ def _resoudre_materiau(
                     mats = getattr(mod, "MATERIAUX")
                     if isinstance(mats, dict):
                         mat = mats.get(materiau_cle)
-
                 if mat is None:
                     continue
 
-                # Lecture souple
                 def g(obj: Any, *names: str) -> Optional[float]:
                     for n in names:
                         if isinstance(obj, dict) and n in obj:
@@ -132,36 +138,40 @@ def _resoudre_materiau(
 
 
 # =============================================================================
-# Contraintes (arbres/axes)
+# Filetages ISO métriques (pas gros) — table normative (données standards)
 # =============================================================================
 
-def _sigma_axiale(F: float, A: float) -> float:
-    return F / A
+# Remarque : on stocke des grandeurs "utiles calculatoires" :
+# - d_nom : diamètre nominal (m)
+# - p : pas (m)
+# - d2 : diamètre moyen approximatif (m) (pour cisaillement de filet)
+# - d3 : diamètre au fond de filet (noyau taraudage) approximatif (m)
+# - d_percage : foret de taraudage "classique" (m) (approx d_nom - p)
+#
+# Sans demander de sources web ici : c'est une table pratique (valeurs usuelles ISO).
+# Si tu as une base normative interne, remplace cette table.
+ISO_METRIQUE_PAS_GROS = {
+    "M3":  {"d_nom": 3e-3,  "p": 0.5e-3,  "d2": 2.675e-3, "d3": 2.387e-3, "d_percage": 2.5e-3},
+    "M4":  {"d_nom": 4e-3,  "p": 0.7e-3,  "d2": 3.545e-3, "d3": 3.141e-3, "d_percage": 3.3e-3},
+    "M5":  {"d_nom": 5e-3,  "p": 0.8e-3,  "d2": 4.480e-3, "d3": 4.019e-3, "d_percage": 4.2e-3},
+    "M6":  {"d_nom": 6e-3,  "p": 1.0e-3,  "d2": 5.350e-3, "d3": 4.773e-3, "d_percage": 5.0e-3},
+    "M8":  {"d_nom": 8e-3,  "p": 1.25e-3, "d2": 7.188e-3, "d3": 6.466e-3, "d_percage": 6.8e-3},
+    "M10": {"d_nom": 10e-3, "p": 1.5e-3,  "d2": 9.026e-3, "d3": 8.160e-3, "d_percage": 8.5e-3},
+    "M12": {"d_nom": 12e-3, "p": 1.75e-3, "d2": 10.863e-3, "d3": 9.853e-3, "d_percage": 10.2e-3},
+    "M14": {"d_nom": 14e-3, "p": 2.0e-3,  "d2": 12.701e-3, "d3": 11.546e-3,"d_percage": 12.0e-3},
+    "M16": {"d_nom": 16e-3, "p": 2.0e-3,  "d2": 14.701e-3, "d3": 13.546e-3,"d_percage": 14.0e-3},
+}
 
+def _iso_get(filetage: str) -> Optional[Dict[str, float]]:
+    return ISO_METRIQUE_PAS_GROS.get(filetage.upper().strip())
 
-def _tau_cisaillement(F: float, A: float) -> float:
-    return F / A
-
-
-def _sigma_flexion(M: float, d: float) -> float:
-    # Section ronde pleine : W = π d^3 / 32
-    W = (math.pi * d**3) / 32.0
-    return M / W
-
-
-def _von_mises_sigma_tau(sigma: float, tau: float) -> float:
-    # von Mises en traction + cisaillement (hypothèse)
-    return math.sqrt(sigma**2 + 3.0 * tau**2)
-
-
-def _inertie_cercle(d: float) -> float:
-    # I = π d^4 / 64
-    return (math.pi * d**4) / 64.0
-
-
-def _euler_pcrit(E: float, I: float, L: float, K: float) -> float:
-    # Pcr = π² E I / (K L)²
-    return (math.pi**2) * E * I / ((K * L) ** 2)
+def _liste_filetages_compatibles_par_noyau(d_noyau_min_m: float) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for k, v in ISO_METRIQUE_PAS_GROS.items():
+        if float(v["d3"]) >= float(d_noyau_min_m):
+            out.append({"filetage": k, **v})
+    out.sort(key=lambda x: x["d_nom"])
+    return out
 
 
 # =============================================================================
@@ -171,62 +181,100 @@ def _euler_pcrit(E: float, I: float, L: float, K: float) -> float:
 @dataclass
 class ArbrePiston:
     """
-    Objectif :
-    - Déduire un maximum de grandeurs calculables (contraintes, diamètres minimaux, inerties, masse, flambage).
-    - S’appuyer sur les autres pièces si elles sont fournies (Piston -> effort axial, etc.).
-    - Ne PAS choisir de standards (M8/M10, nombre de vis…) sans entrée explicite.
+    Arbre/axe de piston reliant piston et bielle.
     """
 
+    # ----------------------------
     # Liens vers pièces (optionnels)
-    piston: Optional[Any] = None          # idéalement backend.pieces.piston.Piston
-    bielle: Optional[Any] = None          # si tu as une pièce bielle plus tard
-    cylindre: Optional[Any] = None        # si besoin de cohérence géométrique
+    # ----------------------------
+    piston: Optional[Any] = None
+    bielle: Optional[Any] = None
+    cylindre: Optional[Any] = None
 
-    # Géométrie “arbre/axe”
-    diametre_arbre_m: Optional[float] = None
-    longueur_libre_m: Optional[float] = None     # longueur libre en compression (flambage) si applicable
-    entraxe_appuis_m: Optional[float] = None     # portée entre appuis (pour flexion si charge latérale)
-    bras_levier_charge_m: Optional[float] = None # si effort latéral appliqué avec un bras de levier (moment)
+    # ----------------------------
+    # Géométrie générale (toutes calculables si tu fournis)
+    # ----------------------------
+    # Arbre simplifié en 3 tronçons coaxiaux :
+    # [téton taraudé]—[fût central]—[téton taraudé]
+    longueur_totale_m: Optional[float] = None
+    longueur_fut_central_m: Optional[float] = None
+    longueur_teton_gauche_m: Optional[float] = None
+    longueur_teton_droit_m: Optional[float] = None
 
-    # Efforts (si pas déductibles)
-    force_axiale_N: Optional[float] = None       # traction/compression
-    force_cisaillement_N: Optional[float] = None # effort transversal
-    moment_flexion_Nm: Optional[float] = None    # si déjà connu
+    diametre_fut_central_m: Optional[float] = None      # diamètre principal (porteur)
+    diametre_teton_gauche_m: Optional[float] = None     # diamètre extérieur côté filetage (si réductions)
+    diametre_teton_droit_m: Optional[float] = None
 
-    # Taraudages / fixation au piston (sans inventer)
-    # -> si tu veux dimensionner, il faut fournir : nombre_vis, effort_par_vis ou effort_total, classe/limite
-    nombre_vis: Optional[int] = None
-    diametre_noyau_filet_m: Optional[float] = None   # diamètre “résistant” du taraudage (noyau)
-    longueur_engagement_filet_m: Optional[float] = None
-    resistance_cisaillement_filet_pa: Optional[float] = None  # matériau taraudé (piston ou arbre)
+    rayon_conge_gauche_m: Optional[float] = None        # géométrie pure (pas de facteur d’entaille sans Kt)
+    rayon_conge_droit_m: Optional[float] = None
 
-    # Coussinet (si présent)
+    # Si tu préfères une version "1 seul diamètre"
+    diametre_arbre_m: Optional[float] = None  # fallback : si fourni, peut alimenter diametre_fut_central_m
+
+    # ----------------------------
+    # Cinématique (utile si frottements/équilibrage)
+    # ----------------------------
+    rpm: Optional[float] = None
+
+    # ----------------------------
+    # Efforts
+    # ----------------------------
+    force_axiale_N: Optional[float] = None
+    force_cisaillement_N: Optional[float] = None
+    bras_levier_charge_m: Optional[float] = None
+    moment_flexion_Nm: Optional[float] = None
+
+    # Flambage
+    longueur_libre_m: Optional[float] = None
+    K_flambage: Optional[float] = None
+
+    # ----------------------------
+    # Fixation taraudée (2 taraudages, un à chaque extrémité)
+    # ----------------------------
+    # Tu peux soit :
+    # - donner directement le filetage (ex: "M8") et la profondeur de taraudage.
+    # - OU ne rien donner : on calcule d_noyau_min requis et propose les filetages ISO compatibles.
+    filetage_gauche: Optional[str] = None
+    filetage_droit: Optional[str] = None
+    profondeur_taraudage_gauche_m: Optional[float] = None
+    profondeur_taraudage_droit_m: Optional[float] = None
+
+    # Hypothèses de calcul (NON inventées) :
+    # - répartition des efforts sur n_vis, sinon on considère 1 vis par taraudage si tu le dis.
+    # Ici : effort par vis pour chaque taraudage (si tu as 2 vis distinctes).
+    effort_axial_sur_taraudage_gauche_N: Optional[float] = None
+    effort_axial_sur_taraudage_droit_N: Optional[float] = None
+
+    # Filet : résistance au cisaillement du matériau taraudé (piston ou arbre) (sinon inconnue)
+    resistance_cisaillement_matiere_taraudee_pa: Optional[float] = None
+
+    # ----------------------------
+    # Coussinet côté bielle (optionnel)
+    # ----------------------------
     diametre_portee_coussinet_m: Optional[float] = None
     longueur_coussinet_m: Optional[float] = None
-    pression_admissible_coussinet_pa: Optional[float] = None  # si tu as un module coussinet plus tard
 
+    # ----------------------------
     # Matériau arbre
+    # ----------------------------
     materiau_cle: Optional[str] = None
     densite_kg_m3: Optional[float] = None
     limite_elastique_pa: Optional[float] = None
     module_young_pa: Optional[float] = None
 
-    # Calcul
     facteur_securite: float = 2.0
-    # flambage : K (coefficient longueur équivalente). On ne “devine” pas : entrée, sinon inconnue.
-    K_flambage: Optional[float] = None
 
     def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "entrees": {},
             "materiau": {},
             "geometrie": {},
+            "cinematique": {},
             "efforts": {},
             "dimensionnement": {},
             "contraintes": {},
             "flambage": {},
-            "coussinet": {},
-            "fixation_taraudee": {},
+            "taraudages": {},
             "masse": {},
             "inerties": {},
             "inconnues": {"impossibles": [], "partielles": []},
@@ -236,82 +284,140 @@ class ArbrePiston:
         FS = _req_pos("facteur_securite", self.facteur_securite)
 
         # ----------------------------
-        # 1) Matériau (réduction inconnues)
+        # 1) Matériau
         # ----------------------------
-        props_mat = _resoudre_materiau(
-            self.materiau_cle,
-            self.densite_kg_m3,
-            self.limite_elastique_pa,
-            self.module_young_pa,
-        )
+        props_mat = _resoudre_materiau(self.materiau_cle, self.densite_kg_m3, self.limite_elastique_pa, self.module_young_pa)
         rho = props_mat["densite_kg_m3"]
         Re = props_mat["limite_elastique_pa"]
         E = props_mat["module_young_pa"]
-
-        rapport["materiau"] = {
-            "materiau_cle": self.materiau_cle,
-            "densite_kg_m3": rho,
-            "limite_elastique_pa": Re,
-            "module_young_pa": E,
-        }
+        rapport["materiau"] = {"materiau_cle": self.materiau_cle, "densite_kg_m3": rho, "limite_elastique_pa": Re, "module_young_pa": E}
 
         # ----------------------------
-        # 2) Efforts : déduction depuis le piston si possible
+        # 2) Efforts : déduction depuis piston si possible (sans inventer)
         # ----------------------------
         F_ax = self.force_axiale_N
         F_sh = self.force_cisaillement_N
         M = self.moment_flexion_Nm
 
         if self.piston is not None:
-            # On tente de récupérer des résultats déjà calculés dans piston.calculer()
             try:
-                if hasattr(self.piston, "calculer") and callable(self.piston.calculer):
-                    r_p = self.piston.calculer()  # type: ignore
-                    # piston.py met typiquement les résultats dans r_p["resultats"]
-                    bloc = r_p.get("resultats", {}) if isinstance(r_p, dict) else {}
-                    # force gaz
-                    if F_ax is None and _is_finite(bloc.get("force_gaz_N")):
-                        F_ax = float(bloc["force_gaz_N"])
-                        rapport["notes_modele"].append("force_axiale_N déduite de piston.calculer().resultats.force_gaz_N")
-                    # effort latéral jupe (utile si on veut approx cisaillement)
-                    if F_sh is None and _is_finite(bloc.get("force_laterale_jupe_N")):
-                        F_sh = float(bloc["force_laterale_jupe_N"])
-                        rapport["notes_modele"].append("force_cisaillement_N déduite de piston.calculer().resultats.force_laterale_jupe_N")
+                if hasattr(self.piston, "analyser") and callable(self.piston.analyser):
+                    r_p = self.piston.analyser(strict=False)  # type: ignore
+                    # On cherche des champs usuels
+                    dim = r_p.get("dimensionnement", {}) if isinstance(r_p, dict) else {}
+                    if F_ax is None and _is_finite(dim.get("force_pression_piston_max_N")):
+                        F_ax = float(dim["force_pression_piston_max_N"])
+                        rapport["notes_modele"].append("force_axiale_N déduite de piston.analyser().dimensionnement.force_pression_piston_max_N")
             except Exception:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "efforts depuis piston",
-                    "Impossible de déduire via piston.calculer() (erreur d'appel ou format inattendu).",
-                )
+                _push_inconnue(rapport, "partielles", "efforts depuis piston", "Impossible de déduire via piston.analyser() (format/erreur).")
 
-        # Moment flexion : déductible si effort transversal et bras de levier fournis
         if M is None and F_sh is not None and self.bras_levier_charge_m is not None:
             a = _req_pos("bras_levier_charge_m", self.bras_levier_charge_m, strictly=False)
             M = F_sh * a
             rapport["notes_modele"].append("moment_flexion_Nm déduit : M = F_cisaillement * bras_levier")
 
-        rapport["efforts"] = {
-            "force_axiale_N": F_ax,
-            "force_cisaillement_N": F_sh,
-            "moment_flexion_Nm": M,
+        rapport["efforts"] = {"force_axiale_N": F_ax, "force_cisaillement_N": F_sh, "moment_flexion_Nm": M}
+
+        # ----------------------------
+        # 3) Géométrie : consolidation des entrées
+        # ----------------------------
+        # diamètre fût central
+        d_c = self.diametre_fut_central_m
+        if d_c is None and self.diametre_arbre_m is not None:
+            d_c = self.diametre_arbre_m
+            rapport["notes_modele"].append("diametre_fut_central_m pris depuis diametre_arbre_m (fallback).")
+        if d_c is not None:
+            d_c = _req_pos("diametre_fut_central_m", d_c)
+
+        # longueurs tronçons
+        L_tot = self.longueur_totale_m
+        L_mid = self.longueur_fut_central_m
+        L_g = self.longueur_teton_gauche_m
+        L_d = self.longueur_teton_droit_m
+
+        # cohérence longueurs : si 3 tronçons fournis -> total calculable
+        if L_tot is None and all(_is_finite(x) for x in (L_mid, L_g, L_d)):
+            L_tot = float(L_mid) + float(L_g) + float(L_d)
+            rapport["notes_modele"].append("longueur_totale_m déduite = L_central + L_gauche + L_droit.")
+        if L_mid is None and all(_is_finite(x) for x in (L_tot, L_g, L_d)):
+            L_mid = float(L_tot) - float(L_g) - float(L_d)
+            rapport["notes_modele"].append("longueur_fut_central_m déduite = L_total - L_gauche - L_droit.")
+
+        # validations si présents
+        if L_tot is not None:
+            L_tot = _req_pos("longueur_totale_m", L_tot)
+        if L_mid is not None:
+            L_mid = _req_pos("longueur_fut_central_m", L_mid)
+        if L_g is not None:
+            L_g = _req_pos("longueur_teton_gauche_m", L_g)
+        if L_d is not None:
+            L_d = _req_pos("longueur_teton_droit_m", L_d)
+
+        if L_mid is not None and L_mid <= 0:
+            _push_inconnue(rapport, "impossibles", "géométrie longueurs", "longueur_fut_central_m <= 0 (incohérent).")
+
+        # diamètres tétons (si non fournis, on ne déduit pas)
+        d_g = self.diametre_teton_gauche_m
+        d_d = self.diametre_teton_droit_m
+        if d_g is not None:
+            d_g = _req_pos("diametre_teton_gauche_m", d_g)
+        if d_d is not None:
+            d_d = _req_pos("diametre_teton_droit_m", d_d)
+
+        rapport["geometrie"] = {
+            "diametre_fut_central_m": d_c,
+            "diametre_teton_gauche_m": d_g,
+            "diametre_teton_droit_m": d_d,
+            "longueur_totale_m": L_tot,
+            "longueur_fut_central_m": L_mid,
+            "longueur_teton_gauche_m": L_g,
+            "longueur_teton_droit_m": L_d,
+            "rayon_conge_gauche_m": self.rayon_conge_gauche_m,
+            "rayon_conge_droit_m": self.rayon_conge_droit_m,
         }
 
         # ----------------------------
-        # 3) Géométrie : diamètre connu ou à dimensionner
+        # 4) Contraintes sur fût central (si d_c)
         # ----------------------------
-        d = self.diametre_arbre_m
-        if d is not None:
-            d = _req_pos("diametre_arbre_m", d)
-            rapport["geometrie"]["diametre_arbre_m"] = d
+        if d_c is None:
+            _push_inconnue(rapport, "impossibles", "diametre_fut_central_m", "Indispensable pour contraintes/inerties/masse.")
         else:
-            rapport["geometrie"]["diametre_arbre_m"] = None
+            A = _aire_disque(d_c)
+            sigma_ax = (F_ax / A) if F_ax is not None else None
+            tau = (F_sh / A) if F_sh is not None else None
+            sigma_b = (_sigma_flexion(M, d_c) if M is not None else None)
 
-        # Inerties / sections si diamètre connu
-        if d is not None:
-            A = _aire_disque(d)
-            I = _inertie_cercle(d)
-            Jp = (math.pi * d**4) / 32.0  # polaire cercle plein
+            if sigma_ax is None and tau is None and sigma_b is None:
+                _push_inconnue(rapport, "partielles", "contraintes arbre", "Calculables si au moins un effort est fourni.")
+            else:
+                s_total = 0.0
+                if sigma_ax is not None:
+                    s_total += float(sigma_ax)
+                if sigma_b is not None:
+                    s_total += float(sigma_b)
+                t_total = float(tau) if tau is not None else 0.0
+                sigma_eq = _von_mises_sigma_tau(s_total, t_total)
+
+                sigma_allow = None
+                marge = None
+                if Re is not None:
+                    sigma_allow = float(Re) / FS
+                    marge = (sigma_allow / sigma_eq) if sigma_eq > 0 else None
+                else:
+                    _push_inconnue(rapport, "partielles", "marge matériau", "Marge calculable si limite_elastique_pa (ou materiau_cle) est fourni.")
+
+                rapport["contraintes"] = {
+                    "sigma_axiale_pa": sigma_ax,
+                    "tau_cisaillement_pa": tau,
+                    "sigma_flexion_pa": sigma_b,
+                    "sigma_von_mises_pa": sigma_eq,
+                    "sigma_admissible_pa": sigma_allow,
+                    "marge_von_mises": marge,
+                }
+
+            # inerties
+            I = _inertie_cercle(d_c)
+            Jp = _polaire_cercle(d_c)
             rapport["inerties"] = {
                 "section_m2": A,
                 "inertie_flexion_I_m4": I,
@@ -319,325 +425,206 @@ class ArbrePiston:
             }
 
         # ----------------------------
-        # 4) Dimensionnement minimal (si d inconnu)
+        # 5) Flambage (Euler) si données
         # ----------------------------
-        # On dimensionne par contrainte von Mises <= Re/FS si Re connu
-        if d is None:
-            if Re is None:
-                _push_inconnue(
-                    rapport,
-                    "impossibles",
-                    "dimensionnement diamètre",
-                    "Impossible sans limite_elastique_pa (ou materiau_cle résoluble).",
-                )
-            else:
-                # On dimensionne sur un cas “charge composée” si F_ax/F_sh/M connus.
-                # Sans l’un d’eux, on dimensionne sur ceux disponibles.
-                sigma_allow = Re / FS
-
-                # Fonction de recherche (binaire) du diamètre mini
-                def vm_for_d(dtest: float) -> float:
-                    Atest = _aire_disque(dtest)
-                    sigma = 0.0
-                    tau = 0.0
-                    if F_ax is not None:
-                        sigma += _sigma_axiale(F_ax, Atest)
-                    if M is not None:
-                        sigma += _sigma_flexion(M, dtest)
-                    if F_sh is not None:
-                        tau += _tau_cisaillement(F_sh, Atest)
-                    return _von_mises_sigma_tau(sigma, tau)
-
-                # Il faut au moins un effort pour dimensionner
-                if F_ax is None and F_sh is None and M is None:
-                    _push_inconnue(
-                        rapport,
-                        "impossibles",
-                        "dimensionnement diamètre",
-                        "Aucun effort connu (force_axiale_N / force_cisaillement_N / moment_flexion_Nm).",
-                    )
-                else:
-                    # bornes
-                    dmin = 1e-4  # 0.1 mm (borne technique pure)
-                    dmax = 1.0   # 1 m (borne large)
-                    # s'assurer que dmax suffit
-                    if vm_for_d(dmax) > sigma_allow:
-                        _push_inconnue(
-                            rapport,
-                            "impossibles",
-                            "dimensionnement diamètre",
-                            "Même d=1 m ne respecte pas la contrainte admissible (vérifier charges / matériau).",
-                        )
-                    else:
-                        # binaire
-                        for _ in range(80):
-                            mid = 0.5 * (dmin + dmax)
-                            if vm_for_d(mid) <= sigma_allow:
-                                dmax = mid
-                            else:
-                                dmin = mid
-                        d_calc = dmax
-                        d = d_calc
-                        rapport["dimensionnement"]["diametre_min_calcule_m"] = d_calc
-                        rapport["dimensionnement"]["critere"] = "von_mises <= Re/FS"
-                        rapport["dimensionnement"]["sigma_admissible_pa"] = sigma_allow
-
-                        # On calcule aussi les grandeurs associées
-                        A = _aire_disque(d)
-                        I = _inertie_cercle(d)
-                        Jp = (math.pi * d**4) / 32.0
-                        rapport["inerties"] = {
-                            "section_m2": A,
-                            "inertie_flexion_I_m4": I,
-                            "inertie_polaire_J_m4": Jp,
-                        }
-
-                        # Contraintes correspondantes
-                        sigma_ax = _sigma_axiale(F_ax, A) if F_ax is not None else 0.0
-                        sigma_b = _sigma_flexion(M, d) if M is not None else 0.0
-                        tau = _tau_cisaillement(F_sh, A) if F_sh is not None else 0.0
-                        sigma_eq = _von_mises_sigma_tau(sigma_ax + sigma_b, tau)
-                        marge = sigma_allow / sigma_eq if sigma_eq > 0 else None
-
-                        rapport["contraintes"] = {
-                            "sigma_axiale_pa": sigma_ax if F_ax is not None else None,
-                            "sigma_flexion_pa": sigma_b if M is not None else None,
-                            "tau_cisaillement_pa": tau if F_sh is not None else None,
-                            "sigma_von_mises_pa": sigma_eq,
-                            "marge_von_mises": marge,
-                        }
-
-        # Si d connu, on calcule contraintes et marges (si charges + Re connus)
-        if d is not None:
-            A = _aire_disque(d)
-            sigma_ax = _sigma_axiale(F_ax, A) if F_ax is not None else None
-            tau = _tau_cisaillement(F_sh, A) if F_sh is not None else None
-            sigma_b = _sigma_flexion(M, d) if M is not None else None
-
-            if sigma_ax is None and sigma_b is None and tau is None:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "contraintes arbre",
-                    "Calculables si force_axiale_N / force_cisaillement_N / moment_flexion_Nm sont fournis.",
-                )
-            else:
-                s_total = 0.0
-                if sigma_ax is not None:
-                    s_total += sigma_ax
-                if sigma_b is not None:
-                    s_total += sigma_b
-                t_total = float(tau) if tau is not None else 0.0
-                sigma_eq = _von_mises_sigma_tau(s_total, t_total)
-
-                marge = None
-                sigma_allow = None
-                if Re is not None:
-                    sigma_allow = Re / FS
-                    marge = sigma_allow / sigma_eq if sigma_eq > 0 else None
-                else:
-                    _push_inconnue(
-                        rapport,
-                        "partielles",
-                        "marge matériau",
-                        "Marge calculable si limite_elastique_pa (ou materiau_cle résoluble) est fourni.",
-                    )
-
-                rapport["contraintes"] = {
-                    "sigma_axiale_pa": sigma_ax,
-                    "sigma_flexion_pa": sigma_b,
-                    "tau_cisaillement_pa": tau,
-                    "sigma_von_mises_pa": sigma_eq,
-                    "sigma_admissible_pa": sigma_allow,
-                    "marge_von_mises": marge,
-                }
-
-        # ----------------------------
-        # 5) Flambage (compression)
-        # ----------------------------
-        # Calculable si : d, E, longueur_libre_m, K_flambage
-        if d is not None and E is not None and self.longueur_libre_m is not None and self.K_flambage is not None:
-            L = _req_pos("longueur_libre_m", self.longueur_libre_m)
+        if d_c is not None and E is not None and self.longueur_libre_m is not None and self.K_flambage is not None:
+            L_free = _req_pos("longueur_libre_m", self.longueur_libre_m)
             K = _req_pos("K_flambage", self.K_flambage)
-            I = _inertie_cercle(d)
-            Pcr = _euler_pcrit(E, I, L, K)
-
+            I = _inertie_cercle(d_c)
+            Pcr = _euler_pcrit(float(E), I, L_free, K)
             rapport["flambage"] = {
-                "longueur_libre_m": L,
+                "longueur_libre_m": L_free,
                 "K_flambage": K,
                 "charge_critique_euler_N": Pcr,
                 "marge_flambage": (Pcr / abs(F_ax)) if (F_ax is not None and F_ax != 0) else None,
             }
         else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "flambage",
-                "Calculable si diametre_arbre_m, module_young_pa, longueur_libre_m et K_flambage sont fournis.",
-            )
+            _push_inconnue(rapport, "partielles", "flambage", "Calculable si module_young_pa, longueur_libre_m, K_flambage et diametre_fut_central_m sont fournis.")
 
         # ----------------------------
-        # 6) Coussinet : pression de contact (si données)
+        # 6) Taraudages : définition + calculs
         # ----------------------------
-        if self.diametre_portee_coussinet_m is not None and self.longueur_coussinet_m is not None and F_sh is not None:
-            db = _req_pos("diametre_portee_coussinet_m", self.diametre_portee_coussinet_m)
-            lb = _req_pos("longueur_coussinet_m", self.longueur_coussinet_m)
-
-            # Pression moyenne projetée : p = F / (d * L) (contact “journal bearing” approx)
-            p_b = abs(F_sh) / (db * lb)
-            ok = None
-            marge = None
-            if self.pression_admissible_coussinet_pa is not None:
-                p_adm = _req_pos("pression_admissible_coussinet_pa", self.pression_admissible_coussinet_pa)
-                ok = p_b <= p_adm
-                marge = p_adm / p_b if p_b > 0 else None
-
-            rapport["coussinet"] = {
-                "diametre_portee_m": db,
-                "longueur_m": lb,
-                "pression_contact_pa": p_b,
-                "pression_admissible_pa": self.pression_admissible_coussinet_pa,
-                "ok_pression": ok,
-                "marge_pression": marge,
+        # On traite gauche/droit de façon symétrique.
+        def analyser_taraudage(
+            cote: Literal["gauche", "droit"],
+            filetage: Optional[str],
+            profondeur_m: Optional[float],
+            effort_N: Optional[float],
+        ) -> Dict[str, Any]:
+            out: Dict[str, Any] = {
+                "filetage": filetage,
+                "profondeur_taraudage_m": profondeur_m,
+                "effort_axial_N": effort_N,
+                "iso": None,
+                "traction_noyau": None,
+                "cisaillement_filet": None,
+                "candidats_iso_si_non_defini": None,
+                "inconnues": [],
             }
-        else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "coussinet",
-                "Calculable si diametre_portee_coussinet_m, longueur_coussinet_m et force_cisaillement_N sont fournis.",
-            )
 
-        # ----------------------------
-        # 7) Fixation taraudée au piston (sans inventer le nombre de vis / diamètre)
-        # ----------------------------
-        # On peut calculer :
-        # - effort par vis
-        # - contrainte en traction au noyau du filet (si diametre_noyau_filet_m)
-        # - cisaillement filet (si longueur_engagement + résistance cisaillement)
-        if self.nombre_vis is not None and F_ax is not None:
-            n = int(self.nombre_vis)
-            if n <= 0:
-                raise ValueError("nombre_vis doit être > 0.")
-            F_par_vis = abs(F_ax) / n
-            rapport["fixation_taraudee"]["nombre_vis"] = n
-            rapport["fixation_taraudee"]["effort_axial_total_N"] = abs(F_ax)
-            rapport["fixation_taraudee"]["effort_par_vis_N"] = F_par_vis
+            # effort : si non fourni, on ne le déduit pas (car ça dépend de ton montage)
+            if effort_N is None:
+                out["inconnues"].append("effort_axial_N (charge appliquée sur ce taraudage)")
+                return out
 
-            # traction noyau
-            if self.diametre_noyau_filet_m is not None:
-                dn = _req_pos("diametre_noyau_filet_m", self.diametre_noyau_filet_m)
-                Acore = _aire_disque(dn)
-                sigma_core = F_par_vis / Acore
-                rapport["fixation_taraudee"]["diametre_noyau_filet_m"] = dn
-                rapport["fixation_taraudee"]["contrainte_traction_noyau_pa"] = sigma_core
+            F = _req_pos(f"effort_axial_sur_taraudage_{cote}_N", effort_N, strictly=False)
 
-                # marge si Re connu
-                if Re is not None:
-                    sigma_allow = Re / FS
-                    rapport["fixation_taraudee"]["sigma_admissible_pa"] = sigma_allow
-                    rapport["fixation_taraudee"]["marge_traction_noyau"] = sigma_allow / sigma_core if sigma_core > 0 else None
+            # Si filetage défini via ISO -> on a d3, d2, foret, pas
+            iso = _iso_get(filetage) if filetage else None
+            if iso is None:
+                # On peut calculer un diamètre noyau MIN requis si Re connu
+                if Re is None:
+                    out["inconnues"].append("limite_elastique_pa (pour calculer d_noyau_min en traction)")
                 else:
-                    _push_inconnue(
-                        rapport,
-                        "partielles",
-                        "marge traction taraudage",
-                        "Calculable si limite_elastique_pa (ou materiau_cle) est fourni pour la pièce en traction.",
-                    )
+                    sigma_allow = float(Re) / FS
+                    if sigma_allow <= 0:
+                        out["inconnues"].append("sigma_allow<=0 (matériau)")
+                    else:
+                        A_min = abs(F) / sigma_allow
+                        d_noyau_min = math.sqrt((4.0 * A_min) / math.pi)
+                        out["traction_noyau"] = {
+                            "sigma_admissible_pa": sigma_allow,
+                            "aire_min_m2": A_min,
+                            "diametre_noyau_min_m": d_noyau_min,
+                        }
+                        out["candidats_iso_si_non_defini"] = _liste_filetages_compatibles_par_noyau(d_noyau_min)
+
+                # cisaillement filet : impossible sans d_moyen et profondeur
+                if profondeur_m is None:
+                    out["inconnues"].append("profondeur_taraudage_m (engagement) (pour cisaillement filet)")
+                if self.resistance_cisaillement_matiere_taraudee_pa is None:
+                    out["inconnues"].append("resistance_cisaillement_matiere_taraudee_pa (pour cisaillement filet)")
+                return out
+
+            # filetage ISO connu
+            out["iso"] = iso
+            d3 = float(iso["d3"])   # noyau taraudage approx
+            d2 = float(iso["d2"])   # diamètre moyen approx
+
+            # traction au noyau du taraudage (si l'effort passe dans la vis, on check le noyau taraudé si pertinent)
+            Acore = _aire_disque(d3)
+            sigma_core = abs(F) / Acore if Acore > 0 else None
+            traction = {"diametre_noyau_m": d3, "aire_noyau_m2": Acore, "sigma_traction_pa": sigma_core}
+
+            if Re is not None and sigma_core is not None:
+                sigma_allow = float(Re) / FS
+                traction["sigma_admissible_pa"] = sigma_allow
+                traction["ok"] = sigma_core <= sigma_allow
+                traction["marge"] = (sigma_allow / sigma_core) if sigma_core > 0 else None
             else:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "traction noyau filet",
-                    "Calculable si diametre_noyau_filet_m est fourni (dépend du standard de vis).",
-                )
+                traction["note"] = "Marge traction noyau calculable si limite_elastique_pa est connue."
+            out["traction_noyau"] = traction
 
-            # cisaillement filet (approx) : A_shear ~ π * d_moyen * L_engagement
-            if self.longueur_engagement_filet_m is not None and self.resistance_cisaillement_filet_pa is not None and self.diametre_noyau_filet_m is not None:
-                Leng = _req_pos("longueur_engagement_filet_m", self.longueur_engagement_filet_m)
-                tau_adm = _req_pos("resistance_cisaillement_filet_pa", self.resistance_cisaillement_filet_pa)
-
-                # d_moyen : on ne l’invente pas -> on approxime par d_noyau si rien d'autre (conservatif),
-                # mais c’est une hypothèse “modèle”. On le signale.
-                d_moy = _req_pos("diametre_noyau_filet_m", self.diametre_noyau_filet_m)
-                A_shear = math.pi * d_moy * Leng
-                tau = F_par_vis / A_shear
-
-                rapport["fixation_taraudee"]["longueur_engagement_m"] = Leng
-                rapport["fixation_taraudee"]["aire_cisaillement_filet_m2_modele"] = A_shear
-                rapport["fixation_taraudee"]["tau_cisaillement_filet_pa"] = tau
-                rapport["fixation_taraudee"]["tau_admissible_filet_pa"] = tau_adm
-                rapport["fixation_taraudee"]["ok_cisaillement_filet"] = tau <= (tau_adm / FS)
-                rapport["fixation_taraudee"]["marge_cisaillement_filet"] = (tau_adm / FS) / tau if tau > 0 else None
-
-                rapport["notes_modele"].append(
-                    "Cisaillement filet : d_moy pris = d_noyau (approx conservatrice). "
-                    "Si tu veux une valeur plus fidèle, fournis d_moyen_filet_m."
-                )
+            # cisaillement des filets (arrachement) : A_shear ≈ π * d2 * L_engagement
+            if profondeur_m is None:
+                out["inconnues"].append("profondeur_taraudage_m (engagement) (pour cisaillement filet)")
+            elif self.resistance_cisaillement_matiere_taraudee_pa is None:
+                out["inconnues"].append("resistance_cisaillement_matiere_taraudee_pa (pour cisaillement filet)")
             else:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "cisaillement filet",
-                    "Calculable si longueur_engagement_filet_m, resistance_cisaillement_filet_pa et diametre_noyau_filet_m sont fournis.",
-                )
-        else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "fixation taraudée",
-                "Calcul détaillé possible si nombre_vis et force_axiale_N (ou déductible) sont fournis, "
-                "et si diametre_noyau_filet_m / longueurs d’engagement sont connus.",
-            )
+                L_eng = _req_pos(f"profondeur_taraudage_{cote}_m", profondeur_m)
+                tau_adm = _req_pos("resistance_cisaillement_matiere_taraudee_pa", self.resistance_cisaillement_matiere_taraudee_pa)
+                A_shear = math.pi * d2 * L_eng
+                tau = abs(F) / A_shear if A_shear > 0 else None
+                cis = {
+                    "diametre_moyen_filet_m": d2,
+                    "longueur_engagement_m": L_eng,
+                    "aire_cisaillement_m2_modele": A_shear,
+                    "tau_cisaillement_pa": tau,
+                    "tau_admissible_pa": tau_adm,
+                    "tau_admissible_effective_pa": tau_adm / FS,
+                    "ok": (tau <= (tau_adm / FS)) if (tau is not None) else None,
+                    "marge": ((tau_adm / FS) / tau) if (tau is not None and tau > 0) else None,
+                }
+                out["cisaillement_filet"] = cis
+
+            return out
+
+        taraud_g = analyser_taraudage("gauche", self.filetage_gauche, self.profondeur_taraudage_gauche_m, self.effort_axial_sur_taraudage_gauche_N)
+        taraud_d = analyser_taraudage("droit", self.filetage_droit, self.profondeur_taraudage_droit_m, self.effort_axial_sur_taraudage_droit_N)
+
+        rapport["taraudages"] = {"gauche": taraud_g, "droit": taraud_d}
 
         # ----------------------------
-        # 8) Masse (si d + longueur “physique” connue + rho)
+        # 7) Masse + inerties (si géométrie complète + rho)
         # ----------------------------
-        # Attention : longueur physique n’est PAS la longueur libre flambage.
-        # On ne devine pas : si tu veux la masse, donne longueur_physique_m.
-        longueur_physique_m = getattr(self, "longueur_physique_m", None)
-        if d is not None and rho is not None and longueur_physique_m is not None:
-            Lp = _req_pos("longueur_physique_m", longueur_physique_m)
-            V = _aire_disque(d) * Lp
-            m = rho * V
-            rapport["masse"] = {
-                "longueur_physique_m": Lp,
-                "volume_m3": V,
-                "masse_kg": m,
-            }
+        # Modèle : somme de cylindres coaxiaux
+        if rho is None:
+            _push_inconnue(rapport, "partielles", "masse", "Calculable si densite_kg_m3 (ou materiau_cle résoluble) est fournie.")
         else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "masse arbre",
-                "Calculable si diametre_arbre_m, densite_kg_m3 (ou materiau_cle) et longueur_physique_m sont fournis.",
-            )
+            if not all(_is_finite(x) for x in (L_mid, L_g, L_d)):
+                _push_inconnue(rapport, "partielles", "masse", "Calculable si longueurs tronçons (L_central, L_gauche, L_droit) sont fournies ou déductibles.")
+            else:
+                # diamètres : si tétons non donnés, on ne les invente pas -> masse partielle
+                V = 0.0
+                parts = []
+                if d_c is not None:
+                    V_mid = _aire_disque(d_c) * float(L_mid)
+                    V += V_mid
+                    parts.append({"troncon": "fut_central", "diametre_m": d_c, "longueur_m": float(L_mid), "volume_m3": V_mid})
+                else:
+                    _push_inconnue(rapport, "impossibles", "masse", "diametre_fut_central_m manquant.")
+
+                if d_g is not None:
+                    Vg = _aire_disque(d_g) * float(L_g)
+                    V += Vg
+                    parts.append({"troncon": "teton_gauche", "diametre_m": d_g, "longueur_m": float(L_g), "volume_m3": Vg})
+                else:
+                    _push_inconnue(rapport, "partielles", "masse téton gauche", "Calculable si diametre_teton_gauche_m est fourni.")
+
+                if d_d is not None:
+                    Vd = _aire_disque(d_d) * float(L_d)
+                    V += Vd
+                    parts.append({"troncon": "teton_droit", "diametre_m": d_d, "longueur_m": float(L_d), "volume_m3": Vd})
+                else:
+                    _push_inconnue(rapport, "partielles", "masse téton droit", "Calculable si diametre_teton_droit_m est fourni.")
+
+                m = float(rho) * V
+                rapport["masse"] = {"volume_total_m3": V, "masse_kg": m, "detail": parts}
+
+        # ----------------------------
+        # 8) Cinématique (optionnel)
+        # ----------------------------
+        if self.rpm is not None:
+            rpm = _req_pos("rpm", self.rpm, strictly=False)
+            rapport["cinematique"] = {"rpm": rpm, "omega_rad_s": _omega_from_rpm(rpm)}
+        else:
+            rapport["cinematique"] = {"rpm": None, "omega_rad_s": None}
 
         # ----------------------------
         # 9) Entrées (trace)
         # ----------------------------
         rapport["entrees"] = {
+            "longueur_totale_m": self.longueur_totale_m,
+            "longueur_fut_central_m": self.longueur_fut_central_m,
+            "longueur_teton_gauche_m": self.longueur_teton_gauche_m,
+            "longueur_teton_droit_m": self.longueur_teton_droit_m,
+            "diametre_fut_central_m": self.diametre_fut_central_m,
+            "diametre_teton_gauche_m": self.diametre_teton_gauche_m,
+            "diametre_teton_droit_m": self.diametre_teton_droit_m,
             "diametre_arbre_m": self.diametre_arbre_m,
-            "longueur_libre_m": self.longueur_libre_m,
-            "entraxe_appuis_m": self.entraxe_appuis_m,
-            "bras_levier_charge_m": self.bras_levier_charge_m,
+            "rayon_conge_gauche_m": self.rayon_conge_gauche_m,
+            "rayon_conge_droit_m": self.rayon_conge_droit_m,
+            "rpm": self.rpm,
             "force_axiale_N": self.force_axiale_N,
             "force_cisaillement_N": self.force_cisaillement_N,
+            "bras_levier_charge_m": self.bras_levier_charge_m,
             "moment_flexion_Nm": self.moment_flexion_Nm,
-            "nombre_vis": self.nombre_vis,
-            "diametre_noyau_filet_m": self.diametre_noyau_filet_m,
-            "longueur_engagement_filet_m": self.longueur_engagement_filet_m,
-            "resistance_cisaillement_filet_pa": self.resistance_cisaillement_filet_pa,
+            "longueur_libre_m": self.longueur_libre_m,
+            "K_flambage": self.K_flambage,
+            "filetage_gauche": self.filetage_gauche,
+            "filetage_droit": self.filetage_droit,
+            "profondeur_taraudage_gauche_m": self.profondeur_taraudage_gauche_m,
+            "profondeur_taraudage_droit_m": self.profondeur_taraudage_droit_m,
+            "effort_axial_sur_taraudage_gauche_N": self.effort_axial_sur_taraudage_gauche_N,
+            "effort_axial_sur_taraudage_droit_N": self.effort_axial_sur_taraudage_droit_N,
+            "resistance_cisaillement_matiere_taraudee_pa": self.resistance_cisaillement_matiere_taraudee_pa,
             "diametre_portee_coussinet_m": self.diametre_portee_coussinet_m,
             "longueur_coussinet_m": self.longueur_coussinet_m,
-            "pression_admissible_coussinet_pa": self.pression_admissible_coussinet_pa,
             "materiau_cle": self.materiau_cle,
             "densite_kg_m3": self.densite_kg_m3,
             "limite_elastique_pa": self.limite_elastique_pa,
             "module_young_pa": self.module_young_pa,
             "facteur_securite": self.facteur_securite,
-            "K_flambage": self.K_flambage,
-            "longueur_physique_m": getattr(self, "longueur_physique_m", None),
         }
 
         # ----------------------------
@@ -655,36 +642,43 @@ class ArbrePiston:
 
 
 # =============================================================================
-# Exemple d'usage minimal (à supprimer en prod)
+# Exemple (à supprimer en prod)
 # =============================================================================
 if __name__ == "__main__":
-    # Exemple : diamètre calculé à partir d’un piston existant (si piston.calculer() marche)
-    try:
-        from backend.pieces.piston import Piston  # type: ignore
-        p = Piston(
-            diametre_piston_m=0.085,
-            hauteur_piston_m=0.05,
-            pression_cote_froid_pa=6e5,
-            temperature_cote_froid_k=300.0,
-            course_m=0.085,
-            rpm=3000.0,
-            densite_kg_m3=2700.0,
-            limite_elastique_pa=250e6,
-        )
-    except Exception:
-        p = None
+    from pprint import pprint
 
     a = ArbrePiston(
-        piston=p,
-        force_cisaillement_N=2000.0,   # si tu ne veux pas dépendre du piston
-        bras_levier_charge_m=0.01,
         materiau_cle=None,
+        densite_kg_m3=7800.0,
         limite_elastique_pa=600e6,
         module_young_pa=210e9,
         facteur_securite=2.0,
+
+        # géométrie
+        diametre_fut_central_m=0.02,
+        longueur_fut_central_m=0.04,
+        longueur_teton_gauche_m=0.01,
+        longueur_teton_droit_m=0.01,
+        diametre_teton_gauche_m=0.018,
+        diametre_teton_droit_m=0.018,
+
+        # efforts
+        force_axiale_N=15000.0,
+        force_cisaillement_N=2000.0,
+        bras_levier_charge_m=0.01,
+
+        # flambage
         longueur_libre_m=0.06,
         K_flambage=1.0,
+
+        # taraudages (si non fournis, on sort d_noyau_min + candidats ISO)
+        filetage_gauche=None,
+        filetage_droit=None,
+        profondeur_taraudage_gauche_m=0.012,
+        profondeur_taraudage_droit_m=0.012,
+        effort_axial_sur_taraudage_gauche_N=8000.0,
+        effort_axial_sur_taraudage_droit_N=8000.0,
+        resistance_cisaillement_matiere_taraudee_pa=250e6,
     )
 
-    from pprint import pprint
     pprint(a.analyser(strict=False))
