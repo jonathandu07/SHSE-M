@@ -2,24 +2,10 @@
 # =============================================================================
 # ROULEMENT À AIGUILLES — ARBRE / VILEBREQUIN (côté maneton / grande tête)
 # =============================================================================
-# Objectif :
-# - Tu vas choisir une pièce du commerce (référence de roulement à aiguilles).
-# - Ce module :
-#   (1) récupère les efforts et la géométrie côté grande tête (bielle) si disponibles,
-#   (2) calcule les EXIGENCES minimales (C, C0, largeur, vitesses, pression moyenne),
-#   (3) vérifie une référence commerciale (d, D, B, C, C0, vitesse_limite) si fournie,
-#   (4) en déduit les dimensions à respecter côté bielle (alésage / largeur / maneton),
-#       sans jamais “inventer” un standard de roulement.
-#
-# IMPORTANT ("rien inventer") :
-# - Sans référence commerciale, on ne donne PAS d(diamètre intérieur), D(diamètre extérieur), B(largeur).
-#   On donne des exigences (min) et des inconnues.
-# - Les hypothèses de modèle (ex : charge radiale P ~= effort bielle max) sont explicitement notées.
-#
-# Références de calcul :
-# - Durée de vie ISO 281 : L10 = (C/P)^p * 1e6 tours, p = 10/3 pour roulements à rouleaux.
-#   -> C_min = P * (L10/1e6)^(1/p)
-# - Charge statique : vérification C0 (modèle simple si facteur fourni)
+# - Pièce du commerce.
+# - Sans référence : on ne "donne" pas (d, D, B). On calcule des EXIGENCES.
+# - Pour permettre le dimensionnement du vilebrequin :
+#   -> on fournit d_interieur_requis_m (= diamètre maneton nominal) si calculable.
 # =============================================================================
 
 from __future__ import annotations
@@ -97,113 +83,75 @@ def _try_call_report(obj: Any) -> Optional[Dict[str, Any]]:
 
 
 # =============================================================================
-# Modèles de calcul roulement
+# Modèles de calcul roulement (exigences)
 # =============================================================================
 
 def _L10_million_rev(vie_heures: float, rpm: float) -> float:
-    # tours = rpm * 60 * heures ; L10 en millions de tours
     tours = rpm * 60.0 * vie_heures
     return tours / 1e6
 
 def _C_requis_iso281(P_N: float, L10_million: float, p_exposant: float) -> float:
-    # C = P * (L10)^(1/p)
     return P_N * (L10_million ** (1.0 / p_exposant))
 
 def _pression_moyenne_proj(F_N: float, d_m: float, B_m: float) -> float:
-    # pression moyenne projetée p = F / (d*B) (modèle simplifié "journal/needle")
     return abs(F_N) / (d_m * B_m)
 
 
 # =============================================================================
-# Pièce : RoulementAiguilleArbreVilebrequin
+# Pièce
 # =============================================================================
 
 @dataclass
 class RoulementAiguilleArbreVilebrequin:
     """
-    Cible : roulement à aiguilles au niveau du maneton (grande tête de bielle).
+    Roulement à aiguilles au niveau du maneton (grande tête).
 
-    Le module sait :
-    - Déduire les efforts P à partir de la bielle (si disponible),
-    - Déduire la vitesse (rpm vilebrequin) si fournie,
-    - Calculer C_min (dynamique) pour une vie cible,
-    - Vérifier une référence commerciale si ses caractéristiques sont fournies.
+    Sorties utiles pour l'arbre de vilebrequin :
+    - d_interieur_requis_m : diamètre intérieur requis (nominal) = diamètre maneton
+    - dimensions_reference (si référence choisie) : d, D, B (catalogue)
     """
 
-    # -------------------------------------------------------------------------
-    # Liens vers autres pièces
-    # -------------------------------------------------------------------------
-    corps_bielle: Optional[Any] = None   # backend.pieces.corps_bielle.CorpsBielle (idéalement)
+    # Liens
+    corps_bielle: Optional[Any] = None
 
-    # -------------------------------------------------------------------------
     # Cinématique / durée de vie
-    # -------------------------------------------------------------------------
     rpm_vilebrequin: Optional[float] = None
     vie_cible_heures: Optional[float] = None
-
-    # Roulements à rouleaux/aiguilles : p = 10/3
     exposant_p_iso281: float = 10.0 / 3.0
 
-    # Facteurs d'application (si tu veux être conservatif, tu les fournis)
-    # Sans ces facteurs, on calcule "au nominal" sans inventer.
-    facteur_application_Ka: Optional[float] = None   # chocs / service
-    facteur_fiablete_a1: Optional[float] = None      # ISO (optionnel)
-    facteur_contamination_a23: Optional[float] = None  # ISO (optionnel)
+    # Facteurs (optionnels)
+    facteur_application_Ka: Optional[float] = None
+    facteur_fiablete_a1: Optional[float] = None
+    facteur_contamination_a23: Optional[float] = None
 
-    # -------------------------------------------------------------------------
-    # Efforts : si non déductibles
-    # -------------------------------------------------------------------------
-    # Charge équivalente dynamique P (radiale) en N : si tu la fournis, on l'utilise.
-    # Sinon, on tente de la déduire depuis la bielle.
+    # Charges
     charge_equivalente_P_N: Optional[float] = None
-
-    # Charge statique équivalente P0 (si tu veux vérifier C0) :
     charge_statique_P0_N: Optional[float] = None
-    facteur_securite_stat: Optional[float] = None  # ex: 1.5..3 selon cahier des charges, à fournir
+    facteur_securite_stat: Optional[float] = None
 
-    # -------------------------------------------------------------------------
-    # Géométrie interface (déductible partiellement depuis bielle)
-    # -------------------------------------------------------------------------
-    # Maneton (diamètre) et largeur de portée (côté grande tête).
-    # Si non fournis, on tente depuis CorpsBielle.
+    # Interface (déductible depuis bielle)
     diametre_maneton_m: Optional[float] = None
     largeur_portee_grande_tete_m: Optional[float] = None
 
-    # -------------------------------------------------------------------------
-    # Référence commerciale (si choisie) — à renseigner quand tu as une pièce catalogue
-    # -------------------------------------------------------------------------
-    # Dimensions
+    # Référence commerciale (si choisie)
     d_interieur_m: Optional[float] = None   # d
     D_exterieur_m: Optional[float] = None   # D
     B_largeur_m: Optional[float] = None     # B
-
-    # Capacités
     C_dynamique_N: Optional[float] = None
     C0_statique_N: Optional[float] = None
-
-    # Vitesse limite (si fournie par le fabricant)
     vitesse_limite_rpm: Optional[float] = None
-
-    # Vérifs "contact" si tu fournis une pression admissible (sinon inconnue)
     pression_admissible_pa: Optional[float] = None
 
     # -------------------------------------------------------------------------
-    # Extraction inter-pièces (bielle)
+    # Extraction bielle
     # -------------------------------------------------------------------------
     def _extraire_depuis_bielle(self, rapport: Dict[str, Any]) -> Dict[str, Optional[float]]:
-        """
-        Extrait :
-        - Fmax ~ effort axial max dans la bielle (utilisé comme charge radiale conservatrice)
-        - d_maneton, L_portee_grande
-        """
         out = {"Fmax_N": None, "d_maneton_m": None, "L_portee_m": None}
-
         rb = _try_call_report(self.corps_bielle)
         if not isinstance(rb, dict):
             _push_inconnue(rapport, "partielles", "bielle", "Impossible de lire corps_bielle (pas de dict retourné).")
             return out
 
-        # Force max bielle
         out["Fmax_N"] = _first_numeric_from_dict(
             rb,
             [
@@ -213,7 +161,6 @@ class RoulementAiguilleArbreVilebrequin:
             ],
         )
 
-        # Géométrie grande tête : diametre maneton
         out["d_maneton_m"] = _first_numeric_from_dict(
             rb,
             [
@@ -223,7 +170,6 @@ class RoulementAiguilleArbreVilebrequin:
             ],
         )
 
-        # Longueur de portée grande tête
         out["L_portee_m"] = _first_numeric_from_dict(
             rb,
             [
@@ -236,7 +182,7 @@ class RoulementAiguilleArbreVilebrequin:
         return out
 
     # -------------------------------------------------------------------------
-    # Calcul principal
+    # Calcul
     # -------------------------------------------------------------------------
     def calculer(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
@@ -245,273 +191,207 @@ class RoulementAiguilleArbreVilebrequin:
             "donnees_bielle": {},
             "charges": {},
             "exigences": {},
+            "dimensions_requises": {},
+            "dimensions_reference": {},
             "verification_reference": {},
-            "interface_bielle": {},
             "notes_modele": [],
             "inconnues": {"impossibles": [], "partielles": []},
         }
 
-        # 1) Déductions depuis bielle
+        # 1) Déductions bielle
         b = {"Fmax_N": None, "d_maneton_m": None, "L_portee_m": None}
         if self.corps_bielle is not None:
             b = self._extraire_depuis_bielle(rapport)
         rapport["donnees_bielle"] = b
 
-        # 2) Géométrie interface : maneton + largeur portée
+        # 2) Maneton + largeur portée
         d_maneton = self.diametre_maneton_m if self.diametre_maneton_m is not None else b["d_maneton_m"]
         L_portee = self.largeur_portee_grande_tete_m if self.largeur_portee_grande_tete_m is not None else b["L_portee_m"]
 
         if d_maneton is not None:
             d_maneton = _req_pos("diametre_maneton_m", d_maneton)
+            # >>> DIAMÈTRE INTERIEUR REQUIS (pour l'arbre / maneton)
+            rapport["dimensions_requises"]["d_interieur_requis_m"] = d_maneton
+            rapport["notes_modele"].append(
+                "d_interieur_requis_m fixé = diamètre maneton nominal. Les ajustements (jeu/serrage) dépendent du fabricant/ISO et ne sont pas inventés."
+            )
         else:
             _push_inconnue(
                 rapport,
-                "partielles",
+                "impossibles",
                 "diametre_maneton_m",
-                "Requis pour vérifier cohérence d_interieur (roulement) et calculer pression projetée.",
+                "Indispensable : impose d_interieur_requis_m (donc la portée de l'arbre). Déductible via CorpsBielle ou à fournir.",
             )
 
         if L_portee is not None:
             L_portee = _req_pos("largeur_portee_grande_tete_m", L_portee)
+            rapport["dimensions_requises"]["B_min_requis_m"] = L_portee
         else:
             _push_inconnue(
                 rapport,
                 "partielles",
                 "largeur_portee_grande_tete_m",
-                "Requis pour comparer à B du roulement et calculer pression projetée.",
+                "Utile pour comparer à B (largeur) du roulement choisi.",
             )
 
-        # 3) Charges équivalentes P / P0
-        # P : si fourni, on l'utilise. Sinon on déduit via effort bielle max.
+        # 3) Charge P
         P = self.charge_equivalente_P_N
         if P is None and b["Fmax_N"] is not None:
-            # Hypothèse conservatrice : charge radiale roulement ~= effort axial max bielle.
             P = abs(float(b["Fmax_N"]))
             rapport["notes_modele"].append(
-                "Hypothèse conservatrice : P (charge radiale équivalente roulement) ≈ |force_axiale_max_bielle|. "
-                "Si tu veux un modèle plus fidèle, fournis la loi en fonction de l'angle vilebrequin/rapport L/R."
+                "Hypothèse conservatrice : P ≈ |force_axiale_max_bielle| (charge radiale équivalente)."
             )
         if P is None:
             _push_inconnue(
                 rapport,
                 "impossibles",
                 "charge_equivalente_P_N",
-                "Indispensable pour dimensionner C (ISO 281). Fournir P ou rendre Fmax déductible depuis bielle.",
+                "Indispensable pour C_min (ISO 281). Fournir P ou rendre Fmax déductible depuis bielle.",
             )
 
-        # P0 : si fourni, sinon on peut (au mieux) réutiliser P comme approximation statique si tu le demandes explicitement.
         P0 = self.charge_statique_P0_N
         if P0 is None:
             _push_inconnue(
                 rapport,
                 "partielles",
                 "charge_statique_P0_N",
-                "Requis pour vérifier C0. Sinon, on ne peut pas valider la statique.",
+                "Requis pour vérifier C0 statique.",
             )
 
-        rapport["charges"] = {
-            "charge_equivalente_P_N": P,
-            "charge_statique_P0_N": P0,
-        }
+        rapport["charges"] = {"charge_equivalente_P_N": P, "charge_statique_P0_N": P0}
 
         # 4) Vie / vitesse
         rpm = self.rpm_vilebrequin
         vie_h = self.vie_cible_heures
 
         if rpm is None:
-            _push_inconnue(
-                rapport,
-                "impossibles",
-                "rpm_vilebrequin",
-                "Nécessaire pour convertir une vie en heures vers L10 (millions de tours).",
-            )
+            _push_inconnue(rapport, "impossibles", "rpm_vilebrequin", "Nécessaire pour L10.")
         else:
             rpm = _req_pos("rpm_vilebrequin", rpm)
 
         if vie_h is None:
-            _push_inconnue(
-                rapport,
-                "impossibles",
-                "vie_cible_heures",
-                "Nécessaire pour dimensionner C (ISO 281).",
-            )
+            _push_inconnue(rapport, "impossibles", "vie_cible_heures", "Nécessaire pour L10.")
         else:
             vie_h = _req_pos("vie_cible_heures", vie_h)
 
-        # 5) Exigences dynamiques C_min (ISO 281)
-        # Facteurs : si tu ne les fournis pas, on ne les invente pas.
+        # 5) Exigences C_min
         if P is not None and rpm is not None and vie_h is not None:
-            Ka = self.facteur_application_Ka
-            a1 = self.facteur_fiablete_a1
-            a23 = self.facteur_contamination_a23
-
             P_eff = float(P)
-            if Ka is not None:
-                Ka = _req_pos("facteur_application_Ka", Ka)
+            if self.facteur_application_Ka is not None:
+                Ka = _req_pos("facteur_application_Ka", self.facteur_application_Ka)
                 P_eff *= Ka
-                rapport["notes_modele"].append("P_eff = P * Ka (facteur application).")
+                rapport["notes_modele"].append("P_eff = P * Ka.")
 
-            # ISO 281 modifiée (a1, a23) : selon approche, on agit sur vie corrigée.
-            # Ici : on ne force pas une convention si tu ne fournis pas comment les appliquer.
-            # On reporte simplement les facteurs si donnés, sans inventer leur emploi.
-            if a1 is not None or a23 is not None:
+            if self.facteur_fiablete_a1 is not None or self.facteur_contamination_a23 is not None:
                 rapport["notes_modele"].append(
-                    "Facteurs a1/a23 fournis : leur usage dépend de ta convention ISO (vie corrigée). "
-                    "Par défaut ici : NON appliqués (pas d'invention)."
+                    "a1/a23 fournis mais non appliqués par défaut (convention ISO à préciser, non inventée)."
                 )
 
             L10_m = _L10_million_rev(float(vie_h), float(rpm))
             pexp = _req_pos("exposant_p_iso281", self.exposant_p_iso281)
             C_min = _C_requis_iso281(P_eff, L10_m, pexp)
 
-            rapport["exigences"]["L10_millions_tours"] = L10_m
-            rapport["exigences"]["P_eff_N"] = P_eff
-            rapport["exigences"]["C_dynamique_min_N"] = C_min
-            rapport["exigences"]["exposant_p"] = pexp
+            rapport["exigences"].update({
+                "L10_millions_tours": L10_m,
+                "P_eff_N": P_eff,
+                "C_dynamique_min_N": C_min,
+                "exposant_p": pexp,
+            })
 
-        # 6) Exigences statiques C0_min (si facteur fourni)
+        # 6) C0_min
         if P0 is not None and self.facteur_securite_stat is not None:
             fs0 = _req_pos("facteur_securite_stat", self.facteur_securite_stat)
-            C0_min = abs(float(P0)) * fs0
-            rapport["exigences"]["C0_statique_min_N"] = C0_min
+            rapport["exigences"]["C0_statique_min_N"] = abs(float(P0)) * fs0
             rapport["exigences"]["facteur_securite_stat"] = fs0
         elif P0 is not None and self.facteur_securite_stat is None:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "C0_statique_min_N",
-                "Calculable si facteur_securite_stat est fourni.",
-            )
+            _push_inconnue(rapport, "partielles", "facteur_securite_stat", "Requis pour C0_statique_min_N.")
 
-        # 7) Vérification d'une référence commerciale (si renseignée)
-        verif: Dict[str, Any] = {"ok": None, "details": {}, "dimensions": {}}
-
+        # 7) Dimensions de référence (si roulement choisi)
+        # >>> C'est ici qu'on a d / D / B réels.
         if self.d_interieur_m is not None:
-            d = _req_pos("d_interieur_m", self.d_interieur_m)
-            verif["dimensions"]["d_interieur_m"] = d
-            # cohérence avec maneton : sans jeu/fits définis, on ne peut pas conclure, mais on peut comparer nominal.
+            d_ref = _req_pos("d_interieur_m", self.d_interieur_m)
+            rapport["dimensions_reference"]["d_interieur_m"] = d_ref
             if d_maneton is not None:
-                verif["details"]["coherence_maneton_nominale"] = {"d_interieur_m": d, "diametre_maneton_m": d_maneton, "ecart_m": d - d_maneton}
-                rapport["notes_modele"].append(
-                    "Comparaison nominale d_interieur vs maneton faite. Les ajustements (jeu/serrage) dépendent des fits fabricant/ISO : non inventés."
-                )
+                rapport["verification_reference"].setdefault("interface", {})
+                rapport["verification_reference"]["interface"]["d_vs_maneton_nominal"] = {
+                    "d_interieur_m": d_ref,
+                    "diametre_maneton_m": d_maneton,
+                    "ecart_m": d_ref - d_maneton,
+                }
         else:
+            # Sans référence, impossible de fixer la portée finale si tu refuses d'utiliser d_requis=maneton.
             _push_inconnue(
                 rapport,
                 "partielles",
-                "d_interieur_m",
-                "Requis pour valider l'interface maneton.",
+                "d_interieur_m (reference)",
+                "Sera connu quand tu choisis la référence. En attendant, d_interieur_requis_m = diametre_maneton_m sert de contrainte.",
             )
 
         if self.D_exterieur_m is not None:
-            D = _req_pos("D_exterieur_m", self.D_exterieur_m)
-            verif["dimensions"]["D_exterieur_m"] = D
+            D_ref = _req_pos("D_exterieur_m", self.D_exterieur_m)
+            rapport["dimensions_reference"]["D_exterieur_m"] = D_ref
+            # >>> logement bielle requis
+            rapport["dimensions_requises"]["D_exterieur_requis_m"] = D_ref
         else:
             _push_inconnue(
                 rapport,
                 "partielles",
-                "D_exterieur_m",
-                "Requis pour définir l'alésage de la grande tête (logement roulement).",
+                "D_exterieur_m (reference)",
+                "Indispensable pour dimensionner l'alésage logement dans la grande tête. Connu uniquement après choix du roulement.",
             )
 
         if self.B_largeur_m is not None:
-            B = _req_pos("B_largeur_m", self.B_largeur_m)
-            verif["dimensions"]["B_largeur_m"] = B
+            B_ref = _req_pos("B_largeur_m", self.B_largeur_m)
+            rapport["dimensions_reference"]["B_largeur_m"] = B_ref
             if L_portee is not None:
-                verif["details"]["coherence_largeur_portee"] = {"B_largeur_m": B, "largeur_portee_m": L_portee, "marge_m": L_portee - B}
+                rapport["verification_reference"].setdefault("interface", {})
+                rapport["verification_reference"]["interface"]["B_vs_portee"] = {
+                    "B_largeur_m": B_ref,
+                    "largeur_portee_m": L_portee,
+                    "marge_m": L_portee - B_ref,
+                    "ok": (L_portee >= B_ref),
+                }
         else:
             _push_inconnue(
                 rapport,
                 "partielles",
-                "B_largeur_m",
-                "Requis pour vérifier la largeur disponible dans la grande tête.",
+                "B_largeur_m (reference)",
+                "Indispensable pour valider l'encombrement axial. Connu uniquement après choix du roulement.",
             )
 
-        # Vérif dynamique C
+        # 8) Vérifs capacités catalogue (si fournies)
         if self.C_dynamique_N is not None and "C_dynamique_min_N" in rapport["exigences"]:
             C = _req_pos("C_dynamique_N", self.C_dynamique_N)
             Cmin = float(rapport["exigences"]["C_dynamique_min_N"])
-            verif["details"]["dynamique"] = {"C_N": C, "C_min_N": Cmin, "ok": C >= Cmin, "marge": (C / Cmin) if Cmin > 0 else None}
-        elif self.C_dynamique_N is None and "C_dynamique_min_N" in rapport["exigences"]:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "verification_C",
-                "Fournir C_dynamique_N du roulement (catalogue) pour vérifier.",
-            )
+            rapport["verification_reference"]["C"] = {"C_N": C, "C_min_N": Cmin, "ok": C >= Cmin, "marge": (C / Cmin) if Cmin > 0 else None}
+        elif "C_dynamique_min_N" in rapport["exigences"]:
+            _push_inconnue(rapport, "partielles", "C_dynamique_N", "Fournir C catalogue pour valider.")
 
-        # Vérif statique C0
         if self.C0_statique_N is not None and "C0_statique_min_N" in rapport["exigences"]:
             C0 = _req_pos("C0_statique_N", self.C0_statique_N)
             C0min = float(rapport["exigences"]["C0_statique_min_N"])
-            verif["details"]["statique"] = {"C0_N": C0, "C0_min_N": C0min, "ok": C0 >= C0min, "marge": (C0 / C0min) if C0min > 0 else None}
-        elif self.C0_statique_N is None and "C0_statique_min_N" in rapport["exigences"]:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "verification_C0",
-                "Fournir C0_statique_N du roulement (catalogue) pour vérifier.",
-            )
+            rapport["verification_reference"]["C0"] = {"C0_N": C0, "C0_min_N": C0min, "ok": C0 >= C0min, "marge": (C0 / C0min) if C0min > 0 else None}
+        elif "C0_statique_min_N" in rapport["exigences"]:
+            _push_inconnue(rapport, "partielles", "C0_statique_N", "Fournir C0 catalogue pour valider.")
 
-        # Vérif vitesse
         if self.vitesse_limite_rpm is not None and rpm is not None:
             vmax = _req_pos("vitesse_limite_rpm", self.vitesse_limite_rpm)
-            verif["details"]["vitesse"] = {"rpm_service": rpm, "rpm_limite": vmax, "ok": rpm <= vmax, "marge": (vmax / rpm) if rpm > 0 else None}
-        elif self.vitesse_limite_rpm is None and rpm is not None:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "vitesse_limite_rpm",
-                "Fournir la vitesse limite fabricant pour valider.",
-            )
+            rapport["verification_reference"]["vitesse"] = {"rpm_service": rpm, "rpm_limite": vmax, "ok": rpm <= vmax, "marge": (vmax / rpm) if rpm > 0 else None}
+        elif rpm is not None:
+            _push_inconnue(rapport, "partielles", "vitesse_limite_rpm", "Fournir vitesse limite fabricant pour valider.")
 
-        # Vérif pression moyenne projetée (si d et B connus)
+        # pression projetée si d et B connus
         if P is not None and self.d_interieur_m is not None and self.B_largeur_m is not None:
             p_proj = _pression_moyenne_proj(float(P), float(_req_pos("d_interieur_m", self.d_interieur_m)), float(_req_pos("B_largeur_m", self.B_largeur_m)))
-            verif["details"]["pression_proj"] = {"pression_moyenne_pa": p_proj, "pression_admissible_pa": self.pression_admissible_pa}
+            rapport["verification_reference"]["pression_proj"] = {"pression_moyenne_pa": p_proj, "pression_admissible_pa": self.pression_admissible_pa}
             if self.pression_admissible_pa is not None:
                 padm = _req_pos("pression_admissible_pa", self.pression_admissible_pa)
-                verif["details"]["pression_proj"]["ok"] = p_proj <= padm
-                verif["details"]["pression_proj"]["marge"] = (padm / p_proj) if p_proj > 0 else None
+                rapport["verification_reference"]["pression_proj"]["ok"] = (p_proj <= padm)
+                rapport["verification_reference"]["pression_proj"]["marge"] = (padm / p_proj) if p_proj > 0 else None
             else:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "pression_admissible_pa",
-                    "Fournir une pression admissible (fabricant / conception) si tu veux conclure sur la pression.",
-                )
+                _push_inconnue(rapport, "partielles", "pression_admissible_pa", "Fournir une pression admissible si tu veux conclure.")
 
-        # Déterminer ok global si assez d'infos
-        # (On ne force pas : si manque des blocs -> ok reste None)
-        oks = []
-        for k in ("dynamique", "statique", "vitesse"):
-            if k in verif["details"] and isinstance(verif["details"][k], dict) and "ok" in verif["details"][k]:
-                oks.append(bool(verif["details"][k]["ok"]))
-        if oks:
-            verif["ok"] = all(oks)
-
-        rapport["verification_reference"] = verif
-
-        # 8) Interface bielle : ce que la bielle doit accepter (adaptation au commerce)
-        # - alésage logement ~ D
-        # - largeur dispo >= B
-        # - maneton nominal ~ d
-        rapport["interface_bielle"] = {
-            "diametre_maneton_m": d_maneton,
-            "largeur_portee_grande_tete_m": L_portee,
-            "si_reference_choisie": {
-                "d_interieur_m": self.d_interieur_m,
-                "D_exterieur_m": self.D_exterieur_m,
-                "B_largeur_m": self.B_largeur_m,
-                "implications": [
-                    "Maneton nominal ≈ d_interieur (ajustements non calculés sans fits/jeux).",
-                    "Alésage grande tête (logement) ≈ D_exterieur (ajustements non calculés sans fits/serrages).",
-                    "Largeur grande tête disponible >= B (sinon, géométrie bielle à revoir).",
-                ],
-            },
-        }
-
-        # 9) Trace entrées
+        # 9) Entrées
         rapport["entrees"] = {
             "rpm_vilebrequin": self.rpm_vilebrequin,
             "vie_cible_heures": self.vie_cible_heures,
@@ -540,40 +420,4 @@ class RoulementAiguilleArbreVilebrequin:
                 f"Impossibles: {rapport['inconnues']['impossibles']}\n"
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
-
         return rapport
-
-
-# =============================================================================
-# Exemple d'usage (à supprimer en prod)
-# =============================================================================
-if __name__ == "__main__":
-    # Exemple : on se branche sur une bielle si disponible
-    try:
-        from backend.pieces.corps_bielle import CorpsBielle  # type: ignore
-        bielle = CorpsBielle(
-            # Si ton CorpsBielle sait déduire Fmax depuis piston, tu peux juste lui passer piston.
-            force_axiale_max_N=12000.0,  # sinon, fournir directement
-            diametre_maneton_m=0.03,
-            longueur_portee_grande_tete_m=0.02,
-        )
-    except Exception:
-        bielle = None
-
-    r = RoulementAiguilleArbreVilebrequin(
-        corps_bielle=bielle,
-        rpm_vilebrequin=3000.0,
-        vie_cible_heures=1000.0,
-        facteur_application_Ka=1.2,
-
-        # Quand tu auras ta pièce du commerce, tu rempliras ça :
-        # d_interieur_m=0.03,
-        # D_exterieur_m=0.037,
-        # B_largeur_m=0.02,
-        # C_dynamique_N=28000.0,
-        # C0_statique_N=45000.0,
-        # vitesse_limite_rpm=9000.0,
-    )
-
-    from pprint import pprint
-    pprint(r.calculer(strict=False))
