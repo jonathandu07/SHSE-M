@@ -1,1 +1,2 @@
 # backend\pieces\piston.py
+# Le piston est la pièce qui translatte dans le cylindre comprimé par l'air coté froid. il ne rentre jamais en contact avec le déplaceur et est conçus pour minimiser les fuites d'air. Mais aussi pour minimiser les pertes par frottement et l'entretrient. Il est étanche et résitant.
