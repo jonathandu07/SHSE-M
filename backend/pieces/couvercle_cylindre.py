@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Literal
+from typing import Any, Dict, Optional, Tuple, Literal, List
 import math
 
 # ============================================================
@@ -17,6 +17,15 @@ except Exception:  # pragma: no cover
 
     def valeur(prop: Any, mode: str = "typique") -> Optional[float]:  # type: ignore
         return float(prop) if prop is not None else None
+
+# --- Pièces associées (optionnel) ---
+try:
+    from backend.pieces.cylindre import Cylindre
+except Exception:  # pragma: no cover
+    try:
+        from pieces.cylindre import Cylindre  # type: ignore
+    except Exception:  # pragma: no cover
+        Cylindre = None  # type: ignore
 
 # --- Fluides (optionnel : calcul h convection si tu veux) ---
 try:
@@ -54,9 +63,9 @@ def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: st
     rapport["inconnues"][categorie].append({"nom": nom, "raison": raison})
 
 def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
-    def dedup(lst: list[dict]) -> list[dict]:
+    def dedup(lst: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         seen: set[Tuple[str, str]] = set()
-        out: list[dict] = []
+        out: List[Dict[str, Any]] = []
         for it in lst:
             key = (str(it.get("nom", "")), str(it.get("raison", "")))
             if key not in seen:
@@ -64,13 +73,12 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
                 out.append(it)
         return out
 
-    rapport["inconnues"]["impossibles"] = dedup(rapport["inconnues"]["impossibles"])
-    rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
+    rapport["inconnues"]["impossibles"] = dedup(list(rapport["inconnues"].get("impossibles", []) or []))
+    rapport["inconnues"]["partielles"] = dedup(list(rapport["inconnues"].get("partielles", []) or []))
 
 
 # ============================================================
 # Convection (optionnelle) : calcul h dans un tube
-# (utile si tu veux estimer h côté couvercle, sinon laisse h_* en input)
 # ============================================================
 
 FluideType = Literal["air", "eau_pure", "eau_salee", "antigel"]
@@ -245,7 +253,7 @@ def _materiau_resoudre(
     alpha = valeur(mat.alpha_dilatation_1_k, mode=mode)
 
     # Re conservateur (min global)
-    Re_candidates: list[float] = []
+    Re_candidates: List[float] = []
     base_Re = mat.limite_elastique_effective_pa(mode="min", section_mm=None)
     if base_Re is not None:
         Re_candidates.append(float(base_Re))
@@ -270,6 +278,138 @@ def _materiau_resoudre(
 
 
 # ============================================================
+# ISO filetages métriques (sélection déterministe)
+# ============================================================
+
+FiletageSerie = Literal["iso_metric_coarse"]
+
+# ISO 261 (pas grossier) — valeurs usuelles (mm)
+_METRIC_COARSE_SERIE_MM: List[Tuple[float, float]] = [
+    (2.0, 0.4),
+    (2.5, 0.45),
+    (3.0, 0.5),
+    (3.5, 0.6),
+    (4.0, 0.7),
+    (5.0, 0.8),
+    (6.0, 1.0),
+    (7.0, 1.0),
+    (8.0, 1.25),
+    (10.0, 1.5),
+    (12.0, 1.75),
+    (14.0, 2.0),
+    (16.0, 2.0),
+    (18.0, 2.5),
+    (20.0, 2.5),
+    (22.0, 2.5),
+    (24.0, 3.0),
+    (27.0, 3.0),
+    (30.0, 3.5),
+    (33.0, 3.5),
+    (36.0, 4.0),
+    (39.0, 4.0),
+    (42.0, 4.5),
+    (45.0, 4.5),
+    (48.0, 5.0),
+    (52.0, 5.0),
+    (56.0, 5.5),
+    (60.0, 5.5),
+    (64.0, 6.0),
+]
+
+def _iso898_yield_strength_pa_from_class(classe_iso: str) -> float:
+    """
+    Classe ISO 898-1 (ex: "8.8", "10.9").
+    Définition :
+      Rm (MPa) = 100 * premier_nombre
+      Re (MPa) = 10 * premier_nombre * second_nombre
+    """
+    s = str(classe_iso).strip()
+    if not s or "." not in s:
+        raise ValueError(f"classe_iso invalide (attendu 'x.y', reçu {classe_iso!r})")
+    a_s, b_s = s.split(".", 1)
+    a = int(a_s)
+    b = int(b_s)
+    if a <= 0 or b <= 0:
+        raise ValueError(f"classe_iso invalide (valeurs <=0): {classe_iso!r}")
+    Re_MPa = 10.0 * float(a) * float(b)
+    return Re_MPa * 1e6
+
+def _tensile_stress_area_iso898_mm2(d_mm: float, p_mm: float) -> float:
+    """
+    Aire résistante traction As (mm²), formule usuelle ISO 898-1 :
+      As = (pi/4) * (d - 0.9382*p)^2
+    """
+    d = _req_pos("d_mm", d_mm)
+    p = _req_pos("p_mm", p_mm)
+    return (math.pi / 4.0) * ((d - 0.9382 * p) ** 2)
+
+def _internal_thread_minor_diameter_mm(d_mm: float, p_mm: float) -> float:
+    """
+    Diamètre au fond de filet (taraudage) D1 (mm) (valeur "basic") :
+      D1 ≈ D - 1.082532 * P
+    """
+    d = _req_pos("d_mm", d_mm)
+    p = _req_pos("p_mm", p_mm)
+    return d - 1.082532 * p
+
+def _pas_coarse_pour_diametre_mm(d_mm: float) -> Optional[float]:
+    for d, p in _METRIC_COARSE_SERIE_MM:
+        if abs(float(d) - float(d_mm)) < 1e-9:
+            return float(p)
+    return None
+
+def _filetage_depuis_nominal(
+    *,
+    d_nominal_mm: float,
+    pas_mm: Optional[float],
+) -> Dict[str, Any]:
+    d = _req_pos("d_nominal_mm", d_nominal_mm)
+    p = pas_mm if pas_mm is not None else _pas_coarse_pour_diametre_mm(d)
+    if p is None:
+        raise ValueError("pas_mm non fourni et pas grossier introuvable pour ce diamètre dans la table.")
+    p = _req_pos("pas_mm", p)
+    As_mm2 = _tensile_stress_area_iso898_mm2(d, p)
+    return {
+        "serie": "iso_metric_coarse",
+        "d_nominal_mm": float(d),
+        "pas_mm": float(p),
+        "taraudage": f"M{d:g}x{p:g}",
+        "As_mm2": float(As_mm2),
+        "As_m2": float(As_mm2) * 1e-6,
+        "D1_taraudage_mm": float(_internal_thread_minor_diameter_mm(d, p)),
+    }
+
+def _choisir_filetage(
+    *,
+    serie: FiletageSerie,
+    As_requise_m2: float,
+    d_max_mm: Optional[float] = None,
+) -> Dict[str, Any]:
+    As_req = _req_pos("As_requise_m2", As_requise_m2)
+    As_req_mm2 = As_req * 1e6
+
+    if serie != "iso_metric_coarse":
+        raise ValueError("Seule la série 'iso_metric_coarse' est implémentée.")
+
+    for d_mm, p_mm in _METRIC_COARSE_SERIE_MM:
+        if d_max_mm is not None and float(d_mm) > float(d_max_mm):
+            continue
+        As_mm2 = _tensile_stress_area_iso898_mm2(d_mm, p_mm)
+        if As_mm2 >= As_req_mm2:
+            return {
+                "serie": serie,
+                "d_nominal_mm": float(d_mm),
+                "pas_mm": float(p_mm),
+                "taraudage": f"M{d_mm:g}x{p_mm:g}",
+                "As_mm2": float(As_mm2),
+                "As_m2": float(As_mm2) * 1e-6,
+                "D1_taraudage_mm": float(_internal_thread_minor_diameter_mm(d_mm, p_mm)),
+            }
+
+    raise ValueError("Aucun filetage trouvé dans la série pour satisfaire As_requise_m2 (ou d_max_mm trop bas).")
+
+
+# ============================================================
 # Modèle plaque circulaire (encastrée) — calculs
 # ============================================================
 
@@ -281,13 +421,6 @@ def _plaque_circulaire_encastree_uniforme(
     E_Pa: float,
     nu: float,
 ) -> Dict[str, float]:
-    """
-    Plaque mince (Kirchhoff–Love), circulaire, encastrée au bord, chargement uniforme q.
-    Résultats principaux :
-    - Moment au centre (par unité de longueur): M0 = q a^2 / 16
-    - Contrainte de flexion max (approx surface): sigma_max ≈ 6*M0/t^2 = 3*q*a^2/(8*t^2)
-    - Flèche au centre: w0 = q a^4 / (64*D), D = E t^3 / (12*(1-nu^2))
-    """
     q = abs(float(q_Pa))
     a = _req_pos("rayon_m", rayon_m)
     t = _req_pos("epaisseur_m", epaisseur_m)
@@ -295,7 +428,7 @@ def _plaque_circulaire_encastree_uniforme(
     nu2 = _req_pos("nu", nu, strictly=False)
 
     M0 = q * a * a / 16.0
-    sigma_max = (6.0 * M0) / (t * t)  # ~ 3*q*a^2/(8*t^2)
+    sigma_max = (6.0 * M0) / (t * t)
 
     Dflex = (E * (t ** 3)) / (12.0 * (1.0 - nu2 ** 2))
     w0 = (q * (a ** 4)) / (64.0 * Dflex) if Dflex > 0 else float("nan")
@@ -308,7 +441,6 @@ def _epaisseur_requise_sigma_plaque_encastree(
     rayon_m: float,
     sigma_admissible_eff_Pa: float,
 ) -> float:
-    # sigma_max = 3*q*a^2/(8*t^2) <= sigma_eff => t >= sqrt(3*q*a^2/(8*sigma_eff))
     q = abs(float(q_Pa))
     a = _req_pos("rayon_m", rayon_m)
     s = _req_pos("sigma_admissible_eff_Pa", sigma_admissible_eff_Pa)
@@ -322,9 +454,6 @@ def _epaisseur_requise_fleche_plaque_encastree(
     nu: float,
     fleche_max_m: float,
 ) -> float:
-    # w0 = q a^4 /(64 D), D = E t^3 /(12(1-nu^2))
-    # => w0 = (12(1-nu^2) q a^4)/(64 E t^3)
-    # => t >= [ (12(1-nu^2) q a^4)/(64 E w0) ]^(1/3)
     q = abs(float(q_Pa))
     a = _req_pos("rayon_m", rayon_m)
     E = _req_pos("E_Pa", E_Pa)
@@ -339,44 +468,45 @@ def _epaisseur_requise_fleche_plaque_encastree(
 # Pièce : Couvercle de cylindre
 # ============================================================
 
-TypeAppui = Literal["encastre"]  # volontairement limité : pas de "simple_appui" sans référentiel explicit
+TypeAppui = Literal["encastre"]
+SourceAppui = Literal["ouverture", "cylindre_sans_brides", "cylindre_avec_brides"]
 
 @dataclass(frozen=True)
 class CouvercleCylindre:
     """
-    Objectif :
-    - Calculer un maximum de grandeurs sans “inventer”.
-    - Réduire les inconnues via materiau_cle + (option) convection h.
-    - Dimensionner l'épaisseur (si non fournie) sur :
-      (A) contrainte de flexion max (plaque encastrée)
-      (B) flèche max (si limite_fleche_centre_m fournie + E/nu dispo)
+    Objectif : dimensionner le couvercle (plaque encastrée) et réduire au maximum
+    les inconnues en s'appuyant sur (1) un matériau, (2) un cylindre si fourni,
+    (3) un dimensionnement vis/taraudage ISO métrique (optionnel).
 
-    Important :
-    - Modèle "plaque mince encastrée" : valable si t << rayon et déformations petites.
-    - Si tu veux un couvercle bombé/épais/avec nervures : c'est un autre modèle.
+    Le code n'invente pas :
+    - si une donnée n'est pas calculable, elle est signalée via 'inconnues'.
     """
 
+    # Référence pièce associée (réduit les inconnues géométriques/pression)
+    cylindre: Optional[Any] = None  # attendu: Cylindre, si importable, ou dict rapport
+
     # Géométrie ouverture / appui
-    diametre_ouverture_m: float                     # diamètre hydraulique (sur lequel agit la pression)
-    rayon_appui_m: Optional[float] = None           # rayon de l'encastrement (si None => D_ouverture/2)
-    rayon_externe_m: Optional[float] = None         # pour masse (si None => rayon_appui_m)
+    diametre_ouverture_m: Optional[float] = None
+    rayon_appui_m: Optional[float] = None
+    source_appui: SourceAppui = "ouverture"  # défaut: D/2 (pas de supposition)
+
+    rayon_externe_m: Optional[float] = None  # masse : si None => rayon_appui_m
 
     # Pressions
-    pression_service_pa: float = 0.0
-    pression_max_pa: float = 0.0
+    pression_service_pa: Optional[float] = None
+    pression_max_pa: Optional[float] = None
     pression_externe_pa: float = 0.0
 
     # Epaisseur
-    epaisseur_m: Optional[float] = None             # si fourni => vérif; sinon => dimensionnement
-    epaisseur_min_fabrication_m: float = 0.0        # si tu veux imposer un mini (0 => aucun)
-    limite_fleche_centre_m: Optional[float] = None  # optionnel
+    epaisseur_m: Optional[float] = None
+    epaisseur_min_fabrication_m: float = 0.0
+    limite_fleche_centre_m: Optional[float] = None
 
-    # Matériau (réduction inconnues)
+    # Matériau
     materiau_cle: Optional[str] = None
     mode_materiau: Literal["min", "typique", "max"] = "min"
 
-    # Overrides manuels (prioritaires)
-    contrainte_admissible_pa: Optional[float] = None  # interprétée comme "limite matériau" avant FS
+    contrainte_admissible_pa: Optional[float] = None
     limite_elastique_pa: Optional[float] = None
     facteur_securite: float = 2.0
 
@@ -395,13 +525,22 @@ class CouvercleCylindre:
     h_interne_w_m2_k: Optional[float] = None
     h_externe_w_m2_k: Optional[float] = None
 
-    # Assemblage par vis (optionnel)
+    # Assemblage / taraudage (optionnel)
     nb_vis: Optional[int] = None
-    aire_resistante_vis_m2: Optional[float] = None  # As (zone résistante traction) si connue
-    limite_elastique_vis_pa: Optional[float] = None
+    facteur_partage_charge: float = 1.0
+    facteur_securite_etancheite: float = 1.0
+
+    # Vis (capacité traction)
+    aire_resistante_vis_m2: Optional[float] = None     # As si connue
+    limite_elastique_vis_pa: Optional[float] = None    # Re vis
+    classe_vis_iso898: Optional[str] = None            # sinon Re vis calculée
     facteur_securite_vis: float = 2.0
-    facteur_partage_charge: float = 1.0             # >=1 si tu veux majorer (non-uniformité)
-    facteur_securite_etancheite: float = 1.0        # >=1 si tu veux exiger plus que F_sep
+
+    # Filetage ISO (si As non fourni)
+    serie_filetage: FiletageSerie = "iso_metric_coarse"
+    d_max_vis_mm: Optional[float] = None
+    vis_d_nominal_mm: Optional[float] = None          # si tu veux imposer un diamètre (ex: 10)
+    vis_pas_mm: Optional[float] = None                # optionnel si pas grossier connu
 
     type_appui: TypeAppui = "encastre"
 
@@ -423,30 +562,84 @@ class CouvercleCylindre:
         }
 
         # ----------------------------
-        # 1) Validation entrées
+        # 0) Auto-déduction depuis cylindre (si fourni)
         # ----------------------------
-        D_ouv = _req_pos("diametre_ouverture_m", self.diametre_ouverture_m)
-        p_serv = _req_pos("pression_service_pa", self.pression_service_pa, strictly=False)
-        p_max = _req_pos("pression_max_pa", self.pression_max_pa, strictly=False)
+        cyl_rep: Optional[Dict[str, Any]] = None
+        cyl = self.cylindre
+        if cyl is not None:
+            try:
+                if hasattr(cyl, "analyser") and callable(getattr(cyl, "analyser")):
+                    cyl_rep = cyl.analyser(strict=False)  # type: ignore[call-arg]
+                elif isinstance(cyl, dict):
+                    cyl_rep = cyl
+                else:
+                    _push_inconnue(rapport, "partielles", "cylindre", "Format non supporté (attendu Cylindre ou dict rapport).")
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "cylindre.analyser", f"Impossible d'exploiter cylindre: {e!r}")
+
+        # Diamètre ouverture : input > cylindre.alesage_m
+        D_ouv: Optional[float] = self.diametre_ouverture_m
+        if D_ouv is None and cyl is not None:
+            try:
+                if hasattr(cyl, "alesage_m"):
+                    D_ouv = float(getattr(cyl, "alesage_m"))
+            except Exception:
+                D_ouv = None
+
+        # Pressions : input > cylindre.*
+        p_serv = self.pression_service_pa
+        p_max = self.pression_max_pa
+        if cyl is not None:
+            try:
+                if p_serv is None and hasattr(cyl, "pression_service_pa"):
+                    p_serv = float(getattr(cyl, "pression_service_pa"))
+                if p_max is None and hasattr(cyl, "pression_max_pa"):
+                    p_max = float(getattr(cyl, "pression_max_pa"))
+            except Exception:
+                pass
+
+        # Validation entrées minimales
+        if D_ouv is None:
+            _push_inconnue(rapport, "impossibles", "diametre_ouverture_m", "Donner diametre_ouverture_m OU fournir un cylindre avec alesage_m.")
+            D_ouv = float("nan")
+        else:
+            D_ouv = _req_pos("diametre_ouverture_m", D_ouv)
+
+        if p_max is None:
+            _push_inconnue(rapport, "impossibles", "pression_max_pa", "Nécessaire pour calculer la force de séparation et dimensionner (ou fournir cylindre/pression).")
+        p_serv_v = 0.0 if p_serv is None else _req_pos("pression_service_pa", p_serv, strictly=False)
+        p_max_v = 0.0 if p_max is None else _req_pos("pression_max_pa", p_max, strictly=False)
+
         p_ext = _req_pos("pression_externe_pa", self.pression_externe_pa, strictly=False)
         FS = _req_pos("facteur_securite", self.facteur_securite)
         e_min = _req_pos("epaisseur_min_fabrication_m", self.epaisseur_min_fabrication_m, strictly=False)
 
-        if p_max < p_serv:
+        if _is_finite(p_serv_v) and _is_finite(p_max_v) and p_max_v < p_serv_v:
             rapport["notes_modele"].append("pression_max_pa < pression_service_pa : dimensionnement fait sur pression_max_pa quand même.")
 
-        a = self.rayon_appui_m if self.rayon_appui_m is not None else 0.5 * D_ouv
-        a = _req_pos("rayon_appui_m (ou D_ouv/2)", a)
+        # Appui (rayon) : input > source_appui
+        a: Optional[float] = self.rayon_appui_m
+        if a is None:
+            if self.source_appui == "ouverture":
+                a = 0.5 * D_ouv
+            elif cyl_rep is not None:
+                geo = cyl_rep.get("geometrie", {}) if isinstance(cyl_rep.get("geometrie", {}), dict) else {}
+                if self.source_appui == "cylindre_sans_brides":
+                    a = geo.get("rayon_externe_m")
+                elif self.source_appui == "cylindre_avec_brides":
+                    a = geo.get("rayon_externe_avec_brides_m")
+        if a is None:
+            _push_inconnue(rapport, "partielles", "rayon_appui_m", "Non déduit (source_appui nécessite un cylindre analysable).")
+            a = 0.5 * D_ouv
+        a = _req_pos("rayon_appui_m", a)
 
         r_ext = self.rayon_externe_m if self.rayon_externe_m is not None else a
         r_ext = _req_pos("rayon_externe_m", r_ext)
 
-        if r_ext < a:
-            rapport["notes_modele"].append("rayon_externe_m < rayon_appui_m : masse calculée sur rayon_externe_m (disque plus petit que l'appui).")
-
         rapport["entrees"].update({
             "diametre_ouverture_m": D_ouv,
             "rayon_appui_m": a,
+            "source_appui": self.source_appui,
             "rayon_externe_m": r_ext,
             "pression_service_pa": p_serv,
             "pression_max_pa": p_max,
@@ -459,10 +652,11 @@ class CouvercleCylindre:
             "mode_materiau": self.mode_materiau,
             "type_appui": self.type_appui,
             "temperature_service_C": self.temperature_service_C,
+            "cylindre_fournit": cyl is not None,
         })
 
         # ----------------------------
-        # 2) Matériau : auto-déduction
+        # 1) Matériau : auto-déduction
         # ----------------------------
         matp: Dict[str, Any] = {}
         if self.materiau_cle:
@@ -488,7 +682,7 @@ class CouvercleCylindre:
         Re = self.limite_elastique_pa if self.limite_elastique_pa is not None else matp.get("limite_elastique_min_pa")
 
         # ----------------------------
-        # 3) Contrainte admissible (pour dimensionner)
+        # 2) Contrainte admissible (pour dimensionner)
         # ----------------------------
         sigma_adm: Optional[float] = None
         if self.contrainte_admissible_pa is not None:
@@ -506,36 +700,31 @@ class CouvercleCylindre:
             )
 
         # ----------------------------
-        # 4) Charges pression (sur ouverture)
+        # 3) Charges pression (sur ouverture)
         # ----------------------------
-        delta_p = max(0.0, p_max - p_ext)
+        delta_p = max(0.0, p_max_v - p_ext)
         A_ouverture = math.pi * (0.5 * D_ouv) ** 2
-        F_sep = delta_p * A_ouverture  # effort qui tend à séparer couvercle/cylindre (ordre 1)
+        F_sep = delta_p * A_ouverture
         rapport["charges"].update({
             "delta_p_dimensionnement_pa": delta_p,
             "aire_ouverture_m2": A_ouverture,
             "force_separation_N": F_sep,
         })
-
-        # Charge surfacique sur plaque: q = delta_p (Pa = N/m²)
         q = delta_p
 
         # ----------------------------
-        # 5) Dimensionnement épaisseur (plaque encastrée)
+        # 4) Dimensionnement épaisseur (plaque encastrée)
         # ----------------------------
+        if self.type_appui != "encastre":
+            _push_inconnue(rapport, "impossibles", "type_appui", "Seul 'encastre' est implémenté ici.")
+
         e_calc: Optional[float] = None
         e_req_sigma: Optional[float] = None
         e_req_fleche: Optional[float] = None
 
-        if self.type_appui != "encastre":
-            _push_inconnue(rapport, "impossibles", "type_appui", "Seul 'encastre' est implémenté ici (pas de formules supportées sans référentiel).")
-
         if self.epaisseur_m is not None:
             e_calc = _req_pos("epaisseur_m", self.epaisseur_m)
-            if e_min > 0 and e_calc < e_min:
-                rapport["notes_modele"].append("epaisseur_m < epaisseur_min_fabrication_m : vérifs faites mais attention au mini fabrication.")
         else:
-            # dimensionnement seulement si sigma_adm connu
             if sigma_adm is None:
                 _push_inconnue(rapport, "impossibles", "epaisseur_m", "Impossible de dimensionner sans sigma_adm.")
             else:
@@ -549,7 +738,6 @@ class CouvercleCylindre:
                         sigma_admissible_eff_Pa=sigma_eff,
                     )
 
-                # flèche : nécessite E et nu et limite_fleche
                 if self.limite_fleche_centre_m is not None:
                     if E is None or nu is None:
                         _push_inconnue(
@@ -586,23 +774,14 @@ class CouvercleCylindre:
         })
 
         # ----------------------------
-        # 6) Contraintes + flèche pour l'épaisseur retenue
+        # 5) Contraintes + flèche pour l'épaisseur retenue
         # ----------------------------
         if e_calc is not None and e_calc > 0:
-            # contraintes flexion calculables sans E/nu
-            # flèche nécessite E/nu
-            sigma_max = (3.0 * q * (a ** 2)) / (8.0 * (e_calc ** 2)) if e_calc > 0 else None
-
+            sigma_max = (3.0 * q * (a ** 2)) / (8.0 * (e_calc ** 2))
             marge_sigma = None
-            if sigma_adm is not None:
-                sigma_eff = sigma_adm / FS
-                if sigma_max and sigma_max > 0:
-                    marge_sigma = sigma_eff / sigma_max
-
-            rapport["contraintes"].update({
-                "sigma_flexion_max_Pa": sigma_max,
-                "marge_sigma_flexion": marge_sigma,
-            })
+            if sigma_adm is not None and sigma_max > 0:
+                marge_sigma = (sigma_adm / FS) / sigma_max
+            rapport["contraintes"].update({"sigma_flexion_max_Pa": sigma_max, "marge_sigma_flexion": marge_sigma})
 
             if E is not None and nu is not None:
                 try:
@@ -623,32 +802,19 @@ class CouvercleCylindre:
                 except Exception as e:
                     _push_inconnue(rapport, "partielles", "flèche plaque", f"Impossible de calculer la flèche: {e!r}")
             else:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "flèche plaque",
-                    "Calculable si module_young_pa et coefficient_poisson sont connus (ou via materiau_cle).",
-                )
+                _push_inconnue(rapport, "partielles", "flèche plaque", "Calculable si module_young_pa et coefficient_poisson sont connus (ou via materiau_cle).")
 
-            # Dilatation thermique (géométrique) si alpha et dT
             if alpha is not None and self.delta_temperature_k is not None:
                 a2 = _req_pos("coefficient_dilatation_1_k", alpha)
                 dT = _req_finite("delta_temperature_k", self.delta_temperature_k)
-                # variation diamètre ouverture (ordre 1)
                 rapport["deformations"]["delta_diametre_ouverture_thermique_m"] = a2 * D_ouv * dT
             else:
-                _push_inconnue(
-                    rapport,
-                    "partielles",
-                    "dilatation thermique",
-                    "Calculable si alpha (ou materiau_cle) et delta_temperature_k sont fournis.",
-                )
-
+                _push_inconnue(rapport, "partielles", "dilatation thermique", "Calculable si alpha (ou materiau_cle) et delta_temperature_k sont fournis.")
         else:
             _push_inconnue(rapport, "impossibles", "contraintes/déformations", "Impossible sans epaisseur_retenue_m > 0.")
 
         # ----------------------------
-        # 7) Thermique : conduction à travers le couvercle + convection (optionnel)
+        # 6) Thermique : conduction + convection (optionnel)
         # ----------------------------
         h_i = self.h_interne_w_m2_k
         h_o = self.h_externe_w_m2_k
@@ -671,7 +837,6 @@ class CouvercleCylindre:
 
         if e_calc is not None and e_calc > 0 and k_mat is not None:
             k2 = _req_pos("conductivite_w_m_k", k_mat)
-            # conduction à travers disque (approx) sur l'aire d'ouverture
             R_cond = e_calc / (k2 * A_ouverture) if A_ouverture > 0 else None
             rapport["thermique"]["R_conduction_K_W"] = R_cond
 
@@ -687,19 +852,18 @@ class CouvercleCylindre:
             else:
                 _push_inconnue(rapport, "partielles", "R convection externe", "Calculable si h_externe_w_m2_k est fourni (ou convection_externe).")
 
-            if "R_convection_interne_K_W" in rapport["thermique"] and "R_convection_externe_K_W" in rapport["thermique"]:
-                if R_cond is not None:
-                    rapport["thermique"]["R_totale_K_W"] = (
-                        rapport["thermique"]["R_convection_interne_K_W"]
-                        + float(R_cond)
-                        + rapport["thermique"]["R_convection_externe_K_W"]
-                    )
+            if ("R_convection_interne_K_W" in rapport["thermique"]) and ("R_convection_externe_K_W" in rapport["thermique"]) and (R_cond is not None):
+                rapport["thermique"]["R_totale_K_W"] = (
+                    float(rapport["thermique"]["R_convection_interne_K_W"])
+                    + float(R_cond)
+                    + float(rapport["thermique"]["R_convection_externe_K_W"])
+                )
         else:
             if k_mat is None:
                 _push_inconnue(rapport, "partielles", "thermique (conduction)", "Calculable si conductivite_w_m_k est fourni (souvent via materiau_cle).")
 
         # ----------------------------
-        # 8) Masse (disque) si densité
+        # 7) Masse (disque) si densité
         # ----------------------------
         if e_calc is not None and e_calc > 0:
             A_ext = math.pi * (r_ext ** 2)
@@ -712,58 +876,99 @@ class CouvercleCylindre:
                 _push_inconnue(rapport, "partielles", "masse", "Calculable si densite_kg_m3 est fournie (souvent via materiau_cle).")
 
         # ----------------------------
-        # 9) Assemblage vis : effort séparation -> effort par vis + check traction (si possible)
+        # 8) Vis/taraudage : deux modes
+        #    - nb_vis connu -> choix/verification filetage
+        #    - nb_vis inconnu mais filetage imposé -> nb_vis requis
         # ----------------------------
+        # Re vis : input > classe ISO 898
+        Re_vis: Optional[float] = self.limite_elastique_vis_pa
+        if Re_vis is None and self.classe_vis_iso898 is not None:
+            try:
+                Re_vis = float(_iso898_yield_strength_pa_from_class(self.classe_vis_iso898))
+                rapport["assemblage"]["limite_elastique_vis_source"] = f"classe_vis_iso898={self.classe_vis_iso898}"
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "limite_elastique_vis_pa", f"Classe vis ISO 898 invalide: {e!r}")
+                Re_vis = None
+
+        sigma_eff_vis: Optional[float] = None
+        if Re_vis is not None:
+            Re_v = _req_pos("limite_elastique_vis_pa", Re_vis)
+            FSv = _req_pos("facteur_securite_vis", self.facteur_securite_vis)
+            sigma_eff_vis = Re_v / FSv
+            rapport["assemblage"]["sigma_admissible_vis_eff_Pa"] = sigma_eff_vis
+        else:
+            _push_inconnue(rapport, "partielles", "sigma_admissible_vis_eff_Pa", "Calculable si limite_elastique_vis_pa (ou classe_vis_iso898) est fournie.")
+
+        F_total_requis = F_sep * _req_pos("facteur_partage_charge", self.facteur_partage_charge) * _req_pos(
+            "facteur_securite_etancheite", self.facteur_securite_etancheite
+        )
+        rapport["assemblage"]["force_totale_requise_N"] = F_total_requis
+
+        # Filetage imposé ?
+        filetage_impose: Optional[Dict[str, Any]] = None
+        if self.vis_d_nominal_mm is not None:
+            try:
+                filetage_impose = _filetage_depuis_nominal(d_nominal_mm=self.vis_d_nominal_mm, pas_mm=self.vis_pas_mm)
+                rapport["assemblage"]["filetage_impose"] = filetage_impose
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "filetage_impose", f"Impossible de construire le filetage imposé: {e!r}")
+                filetage_impose = None
+
+        # As : input > filetage imposé > filetage auto
+        As_m2: Optional[float] = None
+        if self.aire_resistante_vis_m2 is not None:
+            As_m2 = _req_pos("aire_resistante_vis_m2", self.aire_resistante_vis_m2)
+            rapport["assemblage"]["As_source"] = "aire_resistante_vis_m2 (input)"
+        elif filetage_impose is not None:
+            As_m2 = float(filetage_impose["As_m2"])
+            rapport["assemblage"]["As_source"] = "filetage_impose"
+        # filetage_auto uniquement si nb_vis connu
+
         if self.nb_vis is not None:
             n = int(self.nb_vis)
             if n < 1:
                 _push_inconnue(rapport, "impossibles", "nb_vis", "nb_vis doit être >= 1.")
             else:
-                F_total_requis = F_sep * _req_pos("facteur_partage_charge", self.facteur_partage_charge) * _req_pos(
-                    "facteur_securite_etancheite", self.facteur_securite_etancheite
-                )
                 F_par_vis = F_total_requis / n
+                rapport["assemblage"]["nb_vis"] = n
+                rapport["assemblage"]["force_requise_par_vis_N"] = F_par_vis
 
-                rapport["assemblage"].update({
-                    "force_totale_requise_N": F_total_requis,
-                    "force_requise_par_vis_N": F_par_vis,
-                    "nb_vis": n,
-                    "facteur_partage_charge": self.facteur_partage_charge,
-                    "facteur_securite_etancheite": self.facteur_securite_etancheite,
-                })
-
-                if self.aire_resistante_vis_m2 is not None:
-                    As = _req_pos("aire_resistante_vis_m2", self.aire_resistante_vis_m2)
-                    sigma_vis = F_par_vis / As
-                    rapport["assemblage"]["sigma_traction_vis_Pa"] = sigma_vis
-
-                    # check admissible vis
-                    Re_vis = self.limite_elastique_vis_pa
-                    if Re_vis is None:
-                        _push_inconnue(
-                            rapport,
-                            "partielles",
-                            "limite_elastique_vis_pa",
-                            "Vérif traction vis calculable si limite_elastique_vis_pa est fournie.",
-                        )
+                filetage_auto: Optional[Dict[str, Any]] = None
+                if As_m2 is None:
+                    if sigma_eff_vis is not None and sigma_eff_vis > 0:
+                        As_req_m2 = float(F_par_vis) / float(sigma_eff_vis)
+                        rapport["assemblage"]["As_requise_m2"] = As_req_m2
+                        try:
+                            filetage_auto = _choisir_filetage(
+                                serie=self.serie_filetage,
+                                As_requise_m2=As_req_m2,
+                                d_max_mm=self.d_max_vis_mm,
+                            )
+                            rapport["assemblage"]["filetage_recommande"] = filetage_auto
+                            As_m2 = float(filetage_auto["As_m2"])
+                            rapport["assemblage"]["As_source"] = "filetage_recommande (ISO série)"
+                        except Exception as e:
+                            _push_inconnue(rapport, "partielles", "filetage_recommande", f"Impossible de choisir un filetage: {e!r}")
                     else:
-                        Re_v = _req_pos("limite_elastique_vis_pa", Re_vis)
-                        FSv = _req_pos("facteur_securite_vis", self.facteur_securite_vis)
-                        sigma_eff_vis = Re_v / FSv
-                        rapport["assemblage"]["sigma_admissible_vis_eff_Pa"] = sigma_eff_vis
-                        rapport["assemblage"]["marge_traction_vis"] = sigma_eff_vis / sigma_vis if sigma_vis > 0 else None
-                else:
-                    _push_inconnue(
-                        rapport,
-                        "partielles",
-                        "aire_resistante_vis_m2",
-                        "Calcul traction vis possible si aire_resistante_vis_m2 (As) est fournie.",
-                    )
+                        _push_inconnue(rapport, "partielles", "As", "Aire résistante déductible si limite_elastique_vis et FS sont connus.")
+
+                if As_m2 is not None and As_m2 > 0:
+                    sigma_vis = float(F_par_vis) / float(As_m2)
+                    rapport["assemblage"]["sigma_traction_vis_Pa"] = sigma_vis
+                    if sigma_eff_vis is not None and sigma_vis > 0:
+                        rapport["assemblage"]["marge_traction_vis"] = float(sigma_eff_vis) / float(sigma_vis)
         else:
-            _push_inconnue(rapport, "partielles", "assemblage vis", "Non calculé (nb_vis non fourni).")
+            # nb_vis inconnu : on peut le déduire si filetage (=> As) ET sigma_eff_vis connus.
+            if As_m2 is not None and sigma_eff_vis is not None and As_m2 > 0 and sigma_eff_vis > 0:
+                F_cap_par_vis = float(As_m2) * float(sigma_eff_vis)
+                n_req = int(math.ceil(float(F_total_requis) / float(F_cap_par_vis))) if F_cap_par_vis > 0 else None
+                rapport["assemblage"]["nb_vis_requis"] = n_req
+                rapport["assemblage"]["capacite_traction_par_vis_N"] = F_cap_par_vis
+            else:
+                _push_inconnue(rapport, "partielles", "nb_vis", "nb_vis requis calculable si filetage (As) et limite_elastique_vis (ou classe) sont connus.")
 
         # ----------------------------
-        # 10) Mode strict
+        # 9) Mode strict
         # ----------------------------
         _dedup_inconnues(rapport)
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
@@ -773,25 +978,3 @@ class CouvercleCylindre:
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
         return rapport
-
-
-# ============================================================
-# Exemple rapide (à adapter) — aucune valeur “inventée”
-# ============================================================
-if __name__ == "__main__":
-    couv = CouvercleCylindre(
-        diametre_ouverture_m=0.085,      # exemple: 85 mm
-        rayon_appui_m=None,              # => D/2
-        pression_max_pa=15e5,            # 15 bar
-        pression_externe_pa=1e5,         # si tu veux raisonner en absolu, sinon 0
-        materiau_cle="acier_42cd4",      # à adapter à TA base matériaux
-        mode_materiau="min",
-        facteur_securite=2.0,
-        limite_fleche_centre_m=0.0002,   # optionnel: 0.2 mm
-        nb_vis=8,
-        aire_resistante_vis_m2=None,     # si tu veux checker les vis
-    )
-    rep = couv.analyser(strict=False)
-    print("Inconnues impossibles:", len(rep["inconnues"]["impossibles"]))
-    print("Inconnues partielles:", len(rep["inconnues"]["partielles"]))
-    print("Epaisseur retenue (m):", rep["dimensionnement"].get("epaisseur_retenue_m"))
