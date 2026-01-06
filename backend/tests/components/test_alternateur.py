@@ -1,2 +1,2 @@
 # backend\tests\components\test_alternateur.py
-from backend.components.alternateur import Alternateur
+from backend.components.alternateur import *
