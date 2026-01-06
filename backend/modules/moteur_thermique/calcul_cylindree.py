@@ -1,16 +1,13 @@
-# backend\modules\moteur_thermique\calcul_cylindree.py
-# backend/modules/moteur_thermique/calculs_cylindre.py
+# backend/modules/moteur_thermique/calcul_cylindree.py
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union, TypedDict
+from typing import Any, Dict, List, Literal, Optional, TypedDict, Union
 
 Number = Union[int, float]
 
-
 # =============================================================================
-# Validation (robuste, unique) + utilitaires géométriques
+# Validation (unique, robuste) + utilitaires géométriques
 # =============================================================================
 
 def _is_finite_number(x: Any) -> bool:
@@ -56,7 +53,12 @@ def rayon_depuis_diametre(diametre_m: Number, *, allow_zero: bool = False) -> fl
     return 0.5 * D
 
 
-def verifier_hypothese_paroi_mince(epaisseur_m: Number, rayon_interne_m: Number, *, ratio_max: float = 0.1) -> Dict[str, float]:
+def verifier_hypothese_paroi_mince(
+    epaisseur_m: Number,
+    rayon_interne_m: Number,
+    *,
+    ratio_max: float = 0.1,
+) -> Dict[str, float]:
     """
     Vérifie l'hypothèse "paroi mince" via le ratio t / r_i.
     Heuristique usuelle : t/r_i <= 0.1 (modifiable via ratio_max).
@@ -86,9 +88,6 @@ def calcul_cylindree_unitaire(
     """
     Cylindrée unitaire (volume balayé) :
       V_d = (π * B² / 4) * S
-
-    - alesage_m : B (m)
-    - course_m  : S (m)
     """
     B = _req_pos("alesage_m", alesage_m, strictly=not allow_zero)
     S = _req_pos("course_m", course_m, strictly=not allow_zero)
@@ -133,7 +132,7 @@ def calcul_cylindree_totale(
 
 def calcul_volume_mort(cylindree_unitaire_m3: Number, taux_compression: Number) -> float:
     """
-    Volume mort (clearance) à partir du taux de compression CR :
+    Volume mort V_c (chambre au PMH) depuis le taux de compression CR :
       CR = (V_d + V_c)/V_c  =>  V_c = V_d / (CR - 1)
     """
     Vd = _req_pos("cylindree_unitaire_m3", cylindree_unitaire_m3, strictly=True)
@@ -162,11 +161,10 @@ def calcul_ratio_alesage_course(
 ) -> Union[float, Dict[str, float]]:
     """
     Ratio R = B / S
-
-    Interprétation (heuristique, uniquement descriptive) :
-    - ~1  : "Carre"
-    - <1  : "Longue_Course"
-    - >1  : "Super_Carre"
+    Retourne aussi un code d'architecture si return_details=True :
+      0.0  = carré (~1)
+      -1.0 = longue course (<1)
+      1.0  = super-carré (>1)
     """
     B = _req_pos("alesage_m", alesage_m, strictly=True)
     S = _req_pos("course_m", course_m, strictly=True)
@@ -176,11 +174,11 @@ def calcul_ratio_alesage_course(
 
     if return_details:
         if abs(ratio - 1.0) < tol:
-            arch = 0.0  # Carre
+            arch = 0.0
         elif ratio < 1.0:
-            arch = -1.0  # Longue_Course
+            arch = -1.0
         else:
-            arch = 1.0  # Super_Carre
+            arch = 1.0
 
         return {
             "ratio": ratio,
@@ -250,9 +248,8 @@ def calcul_epaisseur_cylindre_mince(
     """
     Paroi mince (contraintes de membrane) :
       σ_θ = p * r_i / t  => t >= p * r_i / σ_eff
-      σ_L = p * r_i / (2t) (optionnel, fermé)
-
-    σ_eff = σ_adm / FS
+      σ_L = p * r_i / (2t) (optionnel)
+    avec σ_eff = σ_adm / FS
     """
     p = _req_pos("pression_pa", pression_pa, strictly=False)
     ri = _req_pos("rayon_interne_m", rayon_interne_m, strictly=True)
@@ -294,10 +291,9 @@ def calcul_epaisseur_cylindre_lame(
     return_details: bool = False,
 ) -> Union[float, Dict[str, float]]:
     """
-    Cylindre épais (Lamé) en limitant σ_θ au rayon interne (hypothèse conservée) :
+    Cylindre épais (Lamé), en limitant σ_θ au rayon interne :
       r_o = r_i * sqrt((σ_eff + p)/(σ_eff - p))
       t = r_o - r_i
-
     Condition : σ_eff > p (avec marge epsilon).
     """
     p = _req_pos("pression_interne_pa", pression_interne_pa, strictly=False)
@@ -339,7 +335,7 @@ def calcul_epaisseur_cylindre_lame(
 
 
 # =============================================================================
-# Helpers "depuis alésage" + auto (sans inventer : on retourne les deux modèles)
+# Helpers "depuis alésage" + auto (sans inventer : on garde les deux modèles)
 # =============================================================================
 
 ModeleParoi = Literal["mince", "lame", "auto", "both"]
@@ -361,54 +357,65 @@ def calcul_epaisseur_paroi_depuis_alesage(
     Dimensionnement paroi depuis l'alésage (r_i = B/2).
 
     - modele="mince" : retourne t_mince
-    - modele="lame"  : retourne t_lame
-    - modele="both"  : retourne un dict avec les deux
-    - modele="auto"  : retourne t_mince si t_mince/r_i <= ratio_mince_max, sinon t_lame
-                       (ratio_mince_max est une heuristique paramétrable)
+    - modele="lame"  : retourne t_lame (sinon erreur si impossible)
+    - modele="both"  : retourne un dict avec les deux (t_lame_m = NaN si impossible)
+    - modele="auto"  : retourne t_mince si (t_mince/r_i <= ratio_mince_max), sinon t_lame
+                       (ratio_mince_max = heuristique paramétrable)
     """
     p = _req_pos("pression_pa", pression_pa, strictly=False)
     B = _req_pos("alesage_m", alesage_m, strictly=True)
     sigma_adm = _req_pos("contrainte_admissible_pa", contrainte_admissible_pa, strictly=True)
+    fs = _req_pos("facteur_securite", facteur_securite, strictly=True)
+    rmax = _req_pos("ratio_mince_max", ratio_mince_max, strictly=True)
 
     ri = 0.5 * B
 
-    t_mince_d = calcul_epaisseur_cylindre_mince(
-        p, ri, sigma_adm,
+    d_mince = calcul_epaisseur_cylindre_mince(
+        p,
+        ri,
+        sigma_adm,
         include_longitudinale=include_longitudinale,
-        facteur_securite=facteur_securite,
+        facteur_securite=fs,
         return_details=True,
     )
-    assert isinstance(t_mince_d, dict)
-    t_mince = float(t_mince_d["t"])
+    assert isinstance(d_mince, dict)
+    t_mince = float(d_mince["t"])
+    t_over_ri = (t_mince / ri) if ri > 0 else float("inf")
 
     out: Dict[str, float] = {
         "alesage_m": B,
         "rayon_interne_m": ri,
         "pression_pa": p,
         "contrainte_admissible_pa": sigma_adm,
-        "facteur_securite": float(_req_pos("facteur_securite", facteur_securite, strictly=True)),
+        "facteur_securite": float(fs),
         "t_mince_m": t_mince,
-        "t_over_ri_mince": (t_mince / ri) if ri > 0 else float("inf"),
-        "ratio_mince_max": float(_req_pos("ratio_mince_max", ratio_mince_max, strictly=True)),
+        "t_over_ri_mince": t_over_ri,
+        "ratio_mince_max": float(rmax),
     }
 
     t_lame: Optional[float] = None
+    d_lame: Optional[Dict[str, float]] = None
     try:
-        t_lame_d = calcul_epaisseur_cylindre_lame(
-            p, ri, sigma_adm,
-            facteur_securite=facteur_securite,
+        tmp = calcul_epaisseur_cylindre_lame(
+            p,
+            ri,
+            sigma_adm,
+            facteur_securite=fs,
             epsilon=epsilon,
             return_details=True,
         )
-        assert isinstance(t_lame_d, dict)
-        t_lame = float(t_lame_d["t"])
-        out.update({
-            "t_lame_m": t_lame,
-            "ro_lame_m": float(t_lame_d["ro"]),
-            "ratio_lame": float(t_lame_d["ratio"]),
-        })
+        assert isinstance(tmp, dict)
+        d_lame = tmp
+        t_lame = float(d_lame["t"])
+        out.update(
+            {
+                "t_lame_m": t_lame,
+                "ro_lame_m": float(d_lame["ro"]),
+                "ratio_lame": float(d_lame["ratio"]),
+            }
+        )
     except ValueError:
-        # si Lamé est impossible (sigma_eff <= p), on ne "devine" rien : on laisse absent
+        # Lamé impossible => on n'invente rien : on laisse t_lame absent (ou NaN en mode "both")
         pass
 
     if modele == "mince":
@@ -425,7 +432,7 @@ def calcul_epaisseur_paroi_depuis_alesage(
         return out
 
     # auto
-    if out["t_over_ri_mince"] <= out["ratio_mince_max"]:
+    if t_over_ri <= rmax:
         out["modele_auto"] = 0.0  # mince
         return out if return_details else t_mince
 
@@ -500,13 +507,12 @@ def calculer_cylindre_complet(
     """
     Agrégateur déterministe :
     - calcule tout ce qui est déductible des entrées
-    - n'invente rien : si une donnée manque, on l'inscrit dans 'inconnues'
+    - n'invente rien : si une donnée manque, elle est listée dans 'inconnues'
     - si CR et Vc sont fournis, vérifie la cohérence (tolérance relative stricte)
     """
     res: ResultatCylindre = {}
     inconnues: List[str] = []
 
-    # --- géométrie minimale
     B: Optional[float] = None
     S: Optional[float] = None
     N: Optional[int] = None
@@ -530,7 +536,7 @@ def calculer_cylindre_complet(
     else:
         inconnues.append("nombre_cylindres")
 
-    # --- aire / cylindrée
+    # aire / cylindrée
     Vd_unit: Optional[float] = None
     if B is not None:
         aire = (math.pi * (B ** 2)) / 4.0
@@ -556,21 +562,16 @@ def calculer_cylindre_complet(
     elif N is None:
         inconnues.append("cylindree_totale_m3 (nombre_cylindres manquant)")
 
-    # --- ratio alésage/course
+    # ratio alésage/course
     if B is not None and S is not None:
-        ratio = B / S
-        res["ratio_alesage_course"] = ratio
-        tol = _req_pos("ratio_mince_max", 0.01, strictly=True)  # tol fixe pour code arch
-        if abs(ratio - 1.0) < tol:
-            res["architecture_code"] = 0.0
-        elif ratio < 1.0:
-            res["architecture_code"] = -1.0
-        else:
-            res["architecture_code"] = 1.0
+        details = calcul_ratio_alesage_course(B, S, return_details=True)
+        assert isinstance(details, dict)
+        res["ratio_alesage_course"] = float(details["ratio"])
+        res["architecture_code"] = float(details["architecture_code"])
     else:
         inconnues.append("ratio_alesage_course / architecture_code")
 
-    # --- compression : CR <-> Vc
+    # compression : CR <-> Vc
     CR: Optional[float] = None
     Vc: Optional[float] = None
 
@@ -585,7 +586,6 @@ def calculer_cylindre_complet(
         res["volume_mort_m3"] = Vc
         res["volume_mort_cm3"] = Vc * 1_000_000.0
 
-    # si on peut déduire l'un de l'autre
     if Vd_unit is not None and CR is not None and Vc is None:
         Vc = Vd_unit / (CR - 1.0)
         res["volume_mort_m3"] = Vc
@@ -596,31 +596,30 @@ def calculer_cylindre_complet(
     elif Vd_unit is None and (CR is not None or Vc is not None):
         inconnues.append("compression (cylindree_unitaire requise)")
 
-    # cohérence si les deux fournis
+    # cohérence stricte si CR et Vc fournis
     if Vd_unit is not None and CR is not None and Vc is not None:
         CR2 = (Vd_unit + Vc) / Vc
-        # tolérance relative stricte (pas d'invention) : si incohérent, on lève
         rel = abs(CR2 - CR) / max(abs(CR), 1e-12)
         if rel > 1e-9:
             raise ValueError(f"Incohérence CR/Vc : CR fourni={CR}, CR recalculé={CR2} (rel={rel}).")
 
-    # --- force gaz
+    # force gaz
     if pression_pa is not None:
         p = _req_finite("pression_pa", pression_pa)
         res["pression_pa"] = p
         if B is not None:
-            aire = res["aire_piston_m2"]
-            res["force_gaz_n"] = p * float(aire)
+            res["force_gaz_n"] = p * float(res["aire_piston_m2"])
         else:
             inconnues.append("force_gaz_n (alesage manquant)")
     else:
         inconnues.append("pression_pa / force_gaz_n")
 
-    # --- paroi : nécessite p, B, sigma_adm
+    # paroi : nécessite p, B, sigma_adm
     if contrainte_admissible_pa is not None:
         sigma_adm = _req_pos("contrainte_admissible_pa", contrainte_admissible_pa, strictly=True)
+        fs = _req_pos("facteur_securite", facteur_securite, strictly=True)
         res["contrainte_admissible_pa"] = sigma_adm
-        res["facteur_securite"] = float(_req_pos("facteur_securite", facteur_securite, strictly=True))
+        res["facteur_securite"] = float(fs)
 
         if pression_pa is not None and B is not None:
             d = calcul_epaisseur_paroi_depuis_alesage(
@@ -628,7 +627,7 @@ def calculer_cylindre_complet(
                 alesage_m=B,
                 contrainte_admissible_pa=sigma_adm,
                 modele="both",
-                facteur_securite=facteur_securite,
+                facteur_securite=fs,
                 include_longitudinale=include_longitudinale,
                 ratio_mince_max=ratio_mince_max,
                 epsilon=epsilon,
@@ -640,21 +639,21 @@ def calculer_cylindre_complet(
             res["ratio_mince_max"] = float(d["ratio_mince_max"])
 
             if "t_lame_m" in d:
+                # peut être NaN si Lamé impossible
                 res["epaisseur_lame_m"] = float(d["t_lame_m"])
 
-            # épaisseur "auto"
-            d_auto = calcul_epaisseur_paroi_depuis_alesage(
+            t_auto = calcul_epaisseur_paroi_depuis_alesage(
                 pression_pa=res["pression_pa"],
                 alesage_m=B,
                 contrainte_admissible_pa=sigma_adm,
                 modele=modele_paroi,
-                facteur_securite=facteur_securite,
+                facteur_securite=fs,
                 include_longitudinale=include_longitudinale,
                 ratio_mince_max=ratio_mince_max,
                 epsilon=epsilon,
                 return_details=False,
             )
-            res["epaisseur_auto_m"] = float(d_auto)
+            res["epaisseur_auto_m"] = float(t_auto)
         else:
             inconnues.append("epaisseur_paroi (pression/alesage requis)")
     else:
@@ -663,31 +662,25 @@ def calculer_cylindre_complet(
     res["inconnues"] = "; ".join(inconnues) if inconnues else ""
     return res
 
-# backend/modules/moteur_thermique/calcul_cylindree.py
-from __future__ import annotations
 
-# Ré-export (compatibilité imports existants)
-from .calculs_cylindre import (  # noqa: F401
-    calcul_cylindree_unitaire,
-    calcul_cylindree_totale,
-    calcul_volume_mort,
-    calcul_taux_compression,
-    calcul_ratio_alesage_course,
-)
-
-# backend/modules/moteur_thermique/calcul_epaisseur_paroi_cylindre.py
-from __future__ import annotations
-
-# Ré-export (compatibilité imports existants)
-from .calculs_cylindre import (  # noqa: F401
-    calcul_epaisseur_cylindre_mince,
-    calcul_epaisseur_cylindre_lame,
-    calcul_epaisseur_paroi_depuis_alesage,
-    verifier_hypothese_paroi_mince,
-)
-
-# backend/modules/moteur_thermique/calcul_force_gaz.py
-from __future__ import annotations
-
-# Ré-export (compatibilité imports existants)
-from .calculs_cylindre import calcul_force_gaz  # noqa: F401
+__all__ = [
+    # utils
+    "aire_disque_depuis_diametre",
+    "rayon_depuis_diametre",
+    "verifier_hypothese_paroi_mince",
+    # cylindrée / compression / ratio
+    "calcul_cylindree_unitaire",
+    "calcul_cylindree_totale",
+    "calcul_volume_mort",
+    "calcul_taux_compression",
+    "calcul_ratio_alesage_course",
+    # gaz
+    "calcul_force_gaz",
+    # paroi
+    "calcul_epaisseur_cylindre_mince",
+    "calcul_epaisseur_cylindre_lame",
+    "calcul_epaisseur_paroi_depuis_alesage",
+    # agrégateur
+    "ResultatCylindre",
+    "calculer_cylindre_complet",
+]
