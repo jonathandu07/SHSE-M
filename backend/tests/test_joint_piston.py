@@ -1,2 +1,2 @@
 # backend\tests\test_joint_piston.py
-from backend.pieces.vilbrequin import *
+from backend.pieces.joint_piston import *
