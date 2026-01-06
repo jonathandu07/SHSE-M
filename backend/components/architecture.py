@@ -2,15 +2,108 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 import math
+
+
+# ============================================================
+# Types / profils d'usage (sélection "meilleur" selon contexte)
+# ============================================================
+
+UsageType = Literal["voiture", "moto", "bateau", "avion", "stationnaire", "autre"]
+ArchitectureType = Literal["L", "V", "W", "Etoile"]
+
+
+@dataclass(frozen=True)
+class ProfilUsageMoteur:
+    """
+    Profil d'usage : n'apporte AUCUNE donnée inventée.
+
+    Tu fournis les contraintes et priorités (gabarit, durabilité, etc.) ;
+    le composant calcule le meilleur (N, architecture) sous ces contraintes.
+
+    - poids_maintenance : pondère l'importance du coût maintenance dans le score.
+    - architectures_autorisees : restreint l'espace de recherche.
+    - architecture_forcee : force une architecture (mais N reste optimisé).
+    """
+    usage: UsageType
+    longueur_dispo_m: float
+    largeur_dispo_m: float
+    horizon_usage_h: float = 20000.0
+    vitesse_piston_max_ms: Optional[float] = None
+
+    poids_maintenance: float = 1.0
+    architectures_autorisees: Optional[Tuple[ArchitectureType, ...]] = None
+    architecture_forcee: Optional[ArchitectureType] = None
+
+    commentaire: str = ""
+
+
+def estimer_pme_depuis_couple_et_cylindree(
+    couple_nm: float,
+    cylindree_totale_m3: float,
+    *,
+    temps_moteur: int = 4,
+) -> float:
+    """
+    Estime la PME (BMEP) à partir du couple et de la cylindrée totale.
+
+    Relations usuelles (cf. cours : Torque and Power) :
+      - 4T : BMEP = 4π T / Vd
+      - 2T : BMEP = 2π T / Vd
+
+    Source équations couple↔BMEP : “Lecture No2 (Operating Characteristic)”
+    (section Torque and Power) :
+    https://www.researchgate.net/.../Lecture%2BNo2.pdf
+    """
+    T = _require_finite("couple_nm", couple_nm)
+    Vd = _require_positive("cylindree_totale_m3", cylindree_totale_m3, strict=True)
+    if temps_moteur == 4:
+        return float((4.0 * math.pi * T) / Vd)
+    if temps_moteur == 2:
+        return float((2.0 * math.pi * T) / Vd)
+    raise ValueError("temps_moteur doit être 2 ou 4.")
+
+
+def estimer_pme_depuis_puissance_et_cylindree(
+    puissance_mecanique_w: float,
+    cylindree_totale_m3: float,
+    regime_tr_min: float,
+    *,
+    temps_moteur: int = 4,
+    rendement_mecanique: float = 1.0,
+) -> float:
+    """
+    Estime la PME (BMEP) à partir de P, Vd, régime et rendement.
+
+    En partant de la relation du module cylindrée totale :
+      Vd = P / (PME * f * eta_m)
+      => PME = P / (Vd * f * eta_m)
+
+    avec f = fréquence des cycles (Hz) :
+      4T : f = n/120 ; 2T : f = n/60
+    """
+    P = _require_positive("puissance_mecanique_w", puissance_mecanique_w, strict=False)
+    Vd = _require_positive("cylindree_totale_m3", cylindree_totale_m3, strict=True)
+    n = _require_positive("regime_tr_min", regime_tr_min, strict=True)
+    eta = _require_positive("rendement_mecanique", rendement_mecanique, strict=True)
+
+    if temps_moteur == 4:
+        f = n / 120.0
+    elif temps_moteur == 2:
+        f = n / 60.0
+    else:
+        raise ValueError("temps_moteur doit être 2 ou 4.")
+
+    if Vd * f * eta <= 0.0:
+        return 0.0
+    return float(P / (Vd * f * eta))
 
 
 # ============================================================
 # Imports des modules architecture (robustes)
 # ============================================================
 
-# coût maintenance (Archard simplifié + option scraping)
 try:
     from backend.modules.architecture.calcul_cout_maintenance_archard import (
         calcul_cout_maintenance_estime,
@@ -22,7 +115,6 @@ except Exception:
         calcul_cout_maintenance_estime_auto_prix,
     )
 
-# cylindrée admissible (vitesse piston + ratio S/B)
 try:
     from backend.modules.architecture.calcul_cylindree_admissible import (
         calcul_bore_max_admissible,
@@ -34,19 +126,16 @@ except Exception:
         calcul_cylindree_unit_max,
     )
 
-# cylindrée totale requise
 try:
     from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise
 except Exception:
     from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise  # type: ignore
 
-# nombre de cylindres minimal
 try:
     from backend.modules.architecture.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min
 except Exception:
     from backend.modules.architecture.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min  # type: ignore
 
-# choix architecture (score packaging + complexité + maintenance)
 try:
     from backend.modules.architecture.choix_architecture_optimale import (
         choix_architecture_optimale,
@@ -58,7 +147,6 @@ except Exception:
         evaluer_architecture,
     )
 
-# résolution globale (déjà existante dans tes modules)
 try:
     from backend.modules.architecture.resolution_globale_architecture import resoudre_architecture_globale
 except Exception:
@@ -118,11 +206,6 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
 
 
 def _hz_cycles(regime_tr_min: float, temps_moteur: int) -> float:
-    """
-    Convertit un régime (tr/min) en fréquence de cycles (Hz = cycles/s).
-    - 4T : f = n/120
-    - 2T : f = n/60
-    """
     n = _require_positive("regime_tr_min", regime_tr_min, strict=True)
     if temps_moteur == 4:
         return n / 120.0
@@ -132,9 +215,6 @@ def _hz_cycles(regime_tr_min: float, temps_moteur: int) -> float:
 
 
 def _course_max_depuis_vitesse_piston(vitesse_piston_max_ms: float, regime_tr_min: float) -> float:
-    """
-    Vitesse moyenne piston : U_p = 2*S*(n/60) => S_max = 30*U_p_max/n
-    """
     U = _require_positive("vitesse_piston_max_ms", vitesse_piston_max_ms, strict=False)
     n = _require_positive("regime_tr_min", regime_tr_min, strict=True)
     if n == 0.0:
@@ -143,12 +223,6 @@ def _course_max_depuis_vitesse_piston(vitesse_piston_max_ms: float, regime_tr_mi
 
 
 def _bore_et_course_depuis_volume_et_ratio(volume_unitaire_m3: float, ratio_s_b: float) -> Tuple[float, float]:
-    """
-    Déduction exacte :
-      V = (pi/4) * B^2 * S, avec S = r*B
-      => V = (pi/4) * r * B^3
-      => B = (4V/(pi r))^(1/3), S = r*B
-    """
     V = _require_positive("volume_unitaire_m3", volume_unitaire_m3, strict=False)
     r = _require_positive("ratio_s_b", ratio_s_b, strict=True)
     if V == 0.0:
@@ -159,12 +233,6 @@ def _bore_et_course_depuis_volume_et_ratio(volume_unitaire_m3: float, ratio_s_b:
 
 
 def _ratio_max_compatible_vitesse_piston(volume_unitaire_m3: float, course_max_m: float) -> float:
-    """
-    Contrainte S <= S_max, avec :
-      S = r*B et B = (4V/(pi r))^(1/3)
-      => S = r^(2/3) * (4V/pi)^(1/3)
-      => r <= (S_max / K)^(3/2), K=(4V/pi)^(1/3)
-    """
     V = _require_positive("volume_unitaire_m3", volume_unitaire_m3, strict=False)
     S_max = _require_positive("course_max_m", course_max_m, strict=False)
     if V == 0.0:
@@ -189,10 +257,6 @@ def _estimer_packaging_simple(
     pas_cylindre_m: float,
     largeur_base_m: float
 ) -> Tuple[float, float]:
-    """
-    Estimation "expliquée" (sans dépendre des internals du module).
-    Sert uniquement à renseigner le rapport (le scoring officiel reste evaluer_architecture()).
-    """
     nb = _require_int_positive("nb_cyl", nb_cyl, strict=True)
     pas = _require_positive("pas_cylindre_m", pas_cylindre_m, strict=True)
     w0 = _require_positive("largeur_base_m", largeur_base_m, strict=True)
@@ -201,13 +265,10 @@ def _estimer_packaging_simple(
     if arch == "L":
         return nb * pas, w0
     if arch == "V":
-        # 2 bancs : longueur ~ (N/2)*pas, largeur +50%
         return (nb / 2.0) * pas, 1.5 * w0
     if arch == "W":
-        # simplification 3 bancs : longueur ~(N/3)*pas, largeur +100%
         return (nb / 3.0) * pas, 2.0 * w0
     if arch == "Etoile":
-        # radial : long plutôt court, mais large
         return 1.5 * pas, 2.5 * w0
 
     return float("nan"), float("nan")
@@ -220,17 +281,12 @@ def _estimer_packaging_simple(
 @dataclass(frozen=True)
 class Architecture:
     """
-    Composant d'analyse et de pré-dimensionnement "architecture moteur" :
+    Analyse et pré-dimensionnement architecture moteur :
     - cylindrée totale requise (P, PME, fréquence cycles, rendement),
     - cylindrée unitaire max admissible (vitesse piston + ratio S/B max),
-    - nombre minimal de cylindres,
-    - exploration N et choix d'architecture via ton module de scoring,
-    - estimation maintenance (Archard simplifié).
-
-    Objectif : réduire les inconnues en déduisant :
-      - f (cycles/s), V_tot, V_u, bore, course, ratio S/B compatible,
-      - charge moyenne par piston (≈ PME*A),
-      - coût maintenance relatif et choix d'architecture.
+    - N_min,
+    - exploration N et architecture via ton module de scoring,
+    - estimation maintenance (Archard).
     """
 
     # cycle moteur : 4T ou 2T
@@ -253,11 +309,11 @@ class Architecture:
     min_exploration: int = 16
     n_max_absolu: int = 24
 
-    # packaging "informatif" (le scoring officiel reste dans evaluer_architecture)
+    # packaging "informatif"
     pas_cylindre_m: float = 0.15
     largeur_base_m: float = 0.40
 
-    # option : estimer cout_intervention_base via scraping (si tu fournis URLs)
+    # option : scraping
     activer_scraping_prix: bool = False
     urls_prix_joints: Optional[List[str]] = None
     urls_main_oeuvre: Optional[List[str]] = None
@@ -269,6 +325,34 @@ class Architecture:
     cout_consommables_eur: float = 0.0
     strict_scraping: bool = False
 
+    # ------------------------------------------------------------
+    # Wrapper : usage/profil -> appel analyser()
+    # ------------------------------------------------------------
+    def recommander_pour_profil(
+        self,
+        profil: ProfilUsageMoteur,
+        *,
+        puissance_cible_w: Optional[float] = None,
+        regime_tr_min: Optional[float] = None,
+        pme_pa: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        if not isinstance(profil, ProfilUsageMoteur):
+            raise ValueError("profil doit être une instance de ProfilUsageMoteur.")
+        return self.analyser(
+            puissance_cible_w=puissance_cible_w,
+            regime_tr_min=regime_tr_min,
+            pme_pa=pme_pa,
+            vitesse_piston_max_ms=profil.vitesse_piston_max_ms,
+            longueur_dispo_m=profil.longueur_dispo_m,
+            largeur_dispo_m=profil.largeur_dispo_m,
+            horizon_usage_h=profil.horizon_usage_h,
+            architectures_autorisees=list(profil.architectures_autorisees) if profil.architectures_autorisees else None,
+            architecture_forcee=profil.architecture_forcee,
+            poids_maintenance=profil.poids_maintenance,
+            usage=profil.usage,
+            commentaire_usage=profil.commentaire,
+        )
+
     def analyser(
         self,
         *,
@@ -279,7 +363,20 @@ class Architecture:
         longueur_dispo_m: Optional[float] = None,
         largeur_dispo_m: Optional[float] = None,
         horizon_usage_h: float = 20000.0,
+
+        # nouveaux paramètres
+        architectures_autorisees: Optional[List[ArchitectureType]] = None,
+        architecture_forcee: Optional[ArchitectureType] = None,
+        poids_maintenance: float = 1.0,
+
+        # métadonnées (n'affecte pas les calculs)
+        usage: Optional[UsageType] = None,
+        commentaire_usage: str = "",
     ) -> Dict[str, Any]:
+
+        if not _is_finite(poids_maintenance) or float(poids_maintenance) < 0.0:
+            raise ValueError("poids_maintenance doit être un nombre fini >= 0.")
+
         rapport: Dict[str, Any] = {
             "entrees": {},
             "cycles": {},
@@ -288,15 +385,15 @@ class Architecture:
             "maintenance": {},
             "exploration": [],
             "meilleur": None,
+            "meilleurs_par_architecture": {},
             "solution_module_globale": None,
             "inconnues": {"impossibles": [], "partielles": []},
             "notes_modele": [],
         }
 
-        # ------------------------------------------------------------
-        # Entrées
-        # ------------------------------------------------------------
         rapport["entrees"] = {
+            "usage": usage,
+            "commentaire_usage": commentaire_usage,
             "puissance_cible_w": puissance_cible_w,
             "regime_tr_min": regime_tr_min,
             "pme_pa": pme_pa,
@@ -310,14 +407,11 @@ class Architecture:
             "joints_par_cyl": self.joints_par_cyl,
             "duree_vie_joint_base_h": self.duree_vie_joint_base_h,
             "cout_intervention_base_eur": self.cout_intervention_base_eur,
-            "exploration_delta": self.delta_exploration,
-            "exploration_min": self.min_exploration,
-            "n_max_absolu": self.n_max_absolu,
+            "poids_maintenance": poids_maintenance,
+            "architectures_autorisees": architectures_autorisees,
+            "architecture_forcee": architecture_forcee,
         }
 
-        # ------------------------------------------------------------
-        # Validations / inconnues de base
-        # ------------------------------------------------------------
         if puissance_cible_w is None:
             _push_inconnue(rapport, "impossibles", "puissance_cible_w", "Nécessaire pour calculer la cylindrée totale requise.")
         if regime_tr_min is None:
@@ -325,25 +419,12 @@ class Architecture:
         if pme_pa is None:
             _push_inconnue(rapport, "impossibles", "pme_pa", "Nécessaire pour relier puissance et cylindrée (PME).")
 
-        # Sans gabarit, on peut calculer N_min, mais pas sélectionner l'architecture packaging.
         if longueur_dispo_m is None or largeur_dispo_m is None:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "gabarit (L/W)",
-                "Nécessaire pour valider le packaging et choisir l'architecture optimale."
-            )
+            _push_inconnue(rapport, "partielles", "gabarit (L/W)", "Nécessaire pour valider le packaging et choisir l'architecture optimale.")
 
-        # Sans Up_max, on ne peut pas borner la cylindrée unitaire max (donc N_min devient partiel).
         if vitesse_piston_max_ms is None:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "vitesse_piston_max_ms",
-                "Nécessaire pour borner l'alésage et la cylindrée unitaire admissible."
-            )
+            _push_inconnue(rapport, "partielles", "vitesse_piston_max_ms", "Nécessaire pour borner l'alésage et la cylindrée unitaire admissible.")
 
-        # Si on n'a pas le triplet (P, PME, rpm) on ne peut pas aller plus loin proprement
         if puissance_cible_w is None or regime_tr_min is None or pme_pa is None:
             _dedup_inconnues(rapport)
             return rapport
@@ -353,35 +434,22 @@ class Architecture:
         PME = _require_positive("pme_pa", pme_pa, strict=True)
         T_usage = _require_positive("horizon_usage_h", horizon_usage_h, strict=False)
 
-        # ------------------------------------------------------------
-        # 1) Fréquence cycles
-        # ------------------------------------------------------------
+        # 1) cycles
         f_hz = _hz_cycles(n_rpm, self.temps_moteur)
         rapport["cycles"] = {"temps_moteur": self.temps_moteur, "frequence_cycles_hz": f_hz}
 
-        # ------------------------------------------------------------
-        # 2) Cylindrée totale requise
-        # ------------------------------------------------------------
+        # 2) cylindrée totale
         eta_m = _require_positive("rendement_mecanique", self.rendement_mecanique, strict=True)
-        V_tot_m3 = float(
-            calcul_cylindree_totale_requise(
-                puissance_mecanique_h=P,
-                pme_pa=PME,
-                frequence_cycles_hz=f_hz,
-                rendement_mecanique=eta_m,
-            )
-        )
+        V_tot_m3 = float(calcul_cylindree_totale_requise(P, PME, f_hz, eta_m))
         rapport["cylindree"]["cylindree_totale_m3"] = V_tot_m3
         rapport["cylindree"]["cylindree_totale_cc"] = V_tot_m3 * 1e6
 
         if V_tot_m3 <= 0.0:
-            rapport["notes_modele"].append("Puissance cible nulle => cylindrée totale nulle (aucune optimisation).")
+            rapport["notes_modele"].append("Puissance cible nulle => cylindrée totale nulle.")
             _dedup_inconnues(rapport)
             return rapport
 
-        # ------------------------------------------------------------
-        # 3) Cylindrée unitaire max admissible (si Up_max connu)
-        # ------------------------------------------------------------
+        # 3) admissible (Up_max)
         bore_max_m: Optional[float] = None
         V_unit_max_m3: Optional[float] = None
         course_max_m: Optional[float] = None
@@ -407,92 +475,60 @@ class Architecture:
         else:
             rapport["contraintes_admissibles"] = {"Up_max_ms": None}
 
-        # ------------------------------------------------------------
-        # 4) Nombre minimal de cylindres (si V_unit_max connu)
-        # ------------------------------------------------------------
+        # 4) N_min
         n_min: Optional[int] = None
         if V_unit_max_m3 is not None:
             n_min_calc = int(calcul_nombre_cylindres_min(V_tot_m3, V_unit_max_m3))
             if n_min_calc >= 999:
-                _push_inconnue(
-                    rapport,
-                    "impossibles",
-                    "N_min",
-                    "Cylindrée unitaire max invalide (paramètres incohérents)."
-                )
+                _push_inconnue(rapport, "impossibles", "N_min", "Cylindrée unitaire max invalide (paramètres incohérents).")
             else:
                 n_min = n_min_calc
         else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "N_min",
-                "Calculable si vitesse_piston_max_ms est fournie (pour obtenir la cylindrée unitaire max)."
-            )
-
+            _push_inconnue(rapport, "partielles", "N_min", "Calculable si vitesse_piston_max_ms est fournie.")
         rapport["cylindree"]["N_min"] = n_min
 
-        # Si N_min inconnu, on ne peut pas explorer correctement
         if n_min is None:
             _dedup_inconnues(rapport)
             return rapport
 
         if n_min > self.n_max_absolu:
-            _push_inconnue(
-                rapport,
-                "impossibles",
-                "N_min",
-                f"N_min={n_min} > n_max_absolu={self.n_max_absolu} (contrainte projet)."
-            )
+            _push_inconnue(rapport, "impossibles", "N_min", f"N_min={n_min} > n_max_absolu={self.n_max_absolu}.")
             _dedup_inconnues(rapport)
             return rapport
 
-        # ------------------------------------------------------------
-        # 5) Maintenance : éventuel recalcul d'un coût d'intervention base via scraping
-        # ------------------------------------------------------------
+        # 5) maintenance base (scraping optionnel)
         cout_inter_base = _require_positive("cout_intervention_base_eur", self.cout_intervention_base_eur, strict=False)
-
         if self.activer_scraping_prix:
             try:
-                # On fabrique un "cout intervention base" pour nb_joints_base = N_min*joints_par_cyl
-                cout_inter_base = float(
-                    calcul_cout_maintenance_estime_auto_prix(
-                        duree_usage_h=1.0,  # neutre ici : on veut seulement reconstruire le cout_inter_base
-                        duree_vie_joint_base_h=self.duree_vie_joint_base_h,
-                        charge_nominale_n=1.0,
-                        charge_actuelle_n=1.0,
-                        nb_joints_base=max(1, n_min * self.joints_par_cyl),
-                        nb_joints_actuel=max(1, n_min * self.joints_par_cyl),
-                        cout_inter_eur=cout_inter_base,
-                        activer_scraping=True,
-                        urls_prix_joints=self.urls_prix_joints,
-                        urls_main_oeuvre=self.urls_main_oeuvre,
-                        cache_path=self.cache_path_prix,
-                        cache_ttl_h=self.cache_ttl_h,
-                        timeout_s=self.timeout_scraping_s,
-                        temps_intervention_h=self.temps_intervention_h,
-                        cout_arret_eur=self.cout_arret_eur,
-                        cout_consommables_eur=self.cout_consommables_eur,
-                        strict_scraping=self.strict_scraping,
-                    )
+                _ = calcul_cout_maintenance_estime_auto_prix(
+                    duree_usage_h=1.0,
+                    duree_vie_joint_base_h=self.duree_vie_joint_base_h,
+                    charge_nominale_n=1.0,
+                    charge_actuelle_n=1.0,
+                    nb_joints_base=max(1, n_min * self.joints_par_cyl),
+                    nb_joints_actuel=max(1, n_min * self.joints_par_cyl),
+                    cout_inter_eur=cout_inter_base,
+                    activer_scraping=True,
+                    urls_prix_joints=self.urls_prix_joints,
+                    urls_main_oeuvre=self.urls_main_oeuvre,
+                    cache_path=self.cache_path_prix,
+                    cache_ttl_h=self.cache_ttl_h,
+                    timeout_s=self.timeout_scraping_s,
+                    temps_intervention_h=self.temps_intervention_h,
+                    cout_arret_eur=self.cout_arret_eur,
+                    cout_consommables_eur=self.cout_consommables_eur,
+                    strict_scraping=self.strict_scraping,
                 )
-                # Note : l'appel ci-dessus renvoie un coût total, pas directement cout_inter_base.
-                # Pour rester simple et ne pas casser ton modèle, on garde le cout_inter_base fourni.
-                rapport["notes_modele"].append(
-                    "Scraping activé : le module sait estimer des prix, mais le coût d'intervention base reste à calibrer."
-                )
+                rapport["notes_modele"].append("Scraping activé : le module sait estimer des prix ; calibrer cout_intervention_base_eur si besoin.")
             except Exception:
-                rapport["notes_modele"].append("Scraping activé mais estimation prix non disponible (fallback sur cout_intervention_base_eur).")
+                rapport["notes_modele"].append("Scraping activé mais estimation prix indisponible (fallback sur cout_intervention_base_eur).")
 
         rapport["maintenance"]["cout_intervention_base_eur"] = cout_inter_base
         rapport["maintenance"]["duree_vie_joint_base_h"] = self.duree_vie_joint_base_h
         rapport["maintenance"]["joints_par_cyl"] = self.joints_par_cyl
 
-        # ------------------------------------------------------------
-        # 6) Exploration N et choix architecture
-        # ------------------------------------------------------------
+        # 6) exploration N + arch
         if longueur_dispo_m is None or largeur_dispo_m is None:
-            # N_min calculable, mais on ne peut pas trancher sur l'architecture
             _dedup_inconnues(rapport)
             return rapport
 
@@ -502,19 +538,20 @@ class Architecture:
         n_max_explore = max(self.min_exploration, n_min + self.delta_exploration)
         n_max_explore = min(self.n_max_absolu, n_max_explore)
 
-        # Référence maintenance : configuration N_min
+        # référence maintenance N_min
         V_u_ref = V_tot_m3 / n_min
-
-        # Pour retirer l'arbitraire sur S/B, on prend le ratio maximal compatible (borne par r_max)
         ratio_ref = self.ratio_course_alesage_max
         if course_max_m is not None:
             r_lim = _ratio_max_compatible_vitesse_piston(V_u_ref, course_max_m)
             if math.isfinite(r_lim):
                 ratio_ref = min(self.ratio_course_alesage_max, r_lim)
         ratio_ref = max(1e-6, ratio_ref)
-
-        bore_ref, _course_ref = _bore_et_course_depuis_volume_et_ratio(V_u_ref, ratio_ref)
+        bore_ref, _ = _bore_et_course_depuis_volume_et_ratio(V_u_ref, ratio_ref)
         charge_ref_n = PME * _surface_piston_m2(bore_ref)
+
+        allowed_set: Optional[set[str]] = None
+        if architectures_autorisees:
+            allowed_set = set(map(str, architectures_autorisees))
 
         best_score = float("inf")
         best_row: Optional[Dict[str, Any]] = None
@@ -522,7 +559,6 @@ class Architecture:
         for N in range(n_min, n_max_explore + 1):
             V_u = V_tot_m3 / N
 
-            # ratio retenu par cylindre
             ratio_ret = self.ratio_course_alesage_max
             if course_max_m is not None:
                 r_lim = _ratio_max_compatible_vitesse_piston(V_u, course_max_m)
@@ -532,7 +568,6 @@ class Architecture:
 
             bore_m, course_m = _bore_et_course_depuis_volume_et_ratio(V_u, ratio_ret)
 
-            # Vérif admissible si bore_max connu
             if bore_max_m is not None and bore_m > bore_max_m + 1e-12:
                 continue
             if course_max_m is not None and course_m > course_max_m + 1e-12:
@@ -540,7 +575,7 @@ class Architecture:
 
             charge_moy_n = PME * _surface_piston_m2(bore_m)
 
-            cout_maint = float(
+            cout_maint_raw = float(
                 calcul_cout_maintenance_estime(
                     duree_usage_h=T_usage,
                     duree_vie_joint_base_h=self.duree_vie_joint_base_h,
@@ -551,26 +586,31 @@ class Architecture:
                     cout_inter_eur=cout_inter_base,
                 )
             )
+            cout_maint_score = float(cout_maint_raw * float(poids_maintenance))
 
-            arch = str(choix_architecture_optimale(N, L_max, W_max, cout_maint))
+            if architecture_forcee is not None:
+                arch = str(architecture_forcee)
+            else:
+                arch = str(choix_architecture_optimale(N, L_max, W_max, cout_maint_score))
+
             if arch == "Inconnue":
                 continue
-
-            score, valide = evaluer_architecture(arch, N, L_max, W_max, cout_maint)
-            if not valide:
+            if allowed_set is not None and arch not in allowed_set:
                 continue
 
-            # Packaging "informatif"
-            L_pkg, W_pkg = _estimer_packaging_simple(
-                arch, N, pas_cylindre_m=self.pas_cylindre_m, largeur_base_m=self.largeur_base_m
-            )
+            score, valide = evaluer_architecture(arch, N, L_max, W_max, cout_maint_score)
+            if not bool(valide):
+                continue
+
+            L_pkg, W_pkg = _estimer_packaging_simple(arch, N, pas_cylindre_m=self.pas_cylindre_m, largeur_base_m=self.largeur_base_m)
 
             row = {
                 "N_cyl": N,
                 "architecture": arch,
                 "score": float(score),
                 "valide": bool(valide),
-                "cout_maintenance_eur": float(cout_maint),
+                "cout_maintenance_eur": float(cout_maint_raw),
+                "cout_maintenance_score_eur": float(cout_maint_score),
                 "cylindree_tot_cc": float(V_tot_m3 * 1e6),
                 "cylindree_unit_cc": float(V_u * 1e6),
                 "bore_mm": float(bore_m * 1000.0),
@@ -582,23 +622,26 @@ class Architecture:
             }
             rapport["exploration"].append(row)
 
-            if score < best_score:
+            if float(score) < best_score:
                 best_score = float(score)
                 best_row = row
 
         rapport["meilleur"] = best_row
 
         if best_row is None:
-            _push_inconnue(
-                rapport,
-                "impossibles",
-                "solution",
-                "Aucune configuration (N, architecture) valide dans le gabarit et sous contraintes admissibles."
-            )
+            _push_inconnue(rapport, "impossibles", "solution", "Aucune configuration (N, architecture) valide dans le gabarit et sous contraintes admissibles.")
+            _dedup_inconnues(rapport)
+            return rapport
 
-        # ------------------------------------------------------------
-        # 7) Sortie "module global" (pour comparaison)
-        # ------------------------------------------------------------
+        # meilleurs par architecture (pour choisir une arch spécifique)
+        best_by_arch: Dict[str, Dict[str, Any]] = {}
+        for row in rapport["exploration"]:
+            a = str(row["architecture"])
+            if a not in best_by_arch or float(row["score"]) < float(best_by_arch[a]["score"]):
+                best_by_arch[a] = row
+        rapport["meilleurs_par_architecture"] = best_by_arch
+
+        # 7) solution module globale (comparaison)
         if vitesse_piston_max_ms is not None:
             try:
                 rapport["solution_module_globale"] = resoudre_architecture_globale(
@@ -614,27 +657,10 @@ class Architecture:
                 rapport["solution_module_globale"] = None
                 rapport["notes_modele"].append("Échec appel resoudre_architecture_globale (paramètres / contraintes).")
 
-        # ------------------------------------------------------------
-        # 8) Inconnues réellement impossibles sans données externes
-        # ------------------------------------------------------------
-        _push_inconnue(
-            rapport,
-            "impossibles",
-            "PME réelle (carte + pertes + transitoires)",
-            "PME est une entrée modèle. Impossible de la déduire sans cycle thermo/mesures et pertes détaillées."
-        )
-        _push_inconnue(
-            rapport,
-            "impossibles",
-            "vibrations / NVH / équilibrage",
-            "Nécessite un modèle dynamique complet (ordre d'allumage, masses, vilebrequin, supports)."
-        )
-        _push_inconnue(
-            rapport,
-            "impossibles",
-            "refroidissement & gradients thermiques",
-            "Nécessite architecture thermique, matériaux, échanges, et conditions d'usage."
-        )
+        # 8) inconnues impossibles sans données externes
+        _push_inconnue(rapport, "impossibles", "PME réelle (carte + pertes + transitoires)", "PME est une entrée modèle. Impossible de la déduire sans cycle thermo/mesures.")
+        _push_inconnue(rapport, "impossibles", "vibrations / NVH / équilibrage", "Nécessite un modèle dynamique complet.")
+        _push_inconnue(rapport, "impossibles", "refroidissement & gradients thermiques", "Nécessite architecture thermique, matériaux, échanges, conditions d'usage.")
 
         _dedup_inconnues(rapport)
         return rapport
