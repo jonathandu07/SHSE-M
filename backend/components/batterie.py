@@ -44,9 +44,29 @@ try:
 except Exception:
     from backend.modules.batterie.calcul_temps_charge import calcul_temps_charge  # type: ignore
 
+# calcul_electrique_pack.py (NOUVEAU)
+try:
+    from backend.modules.batterie.calcul_electrique_pack import (
+        calcul_conso_kwh_km_depuis_puissance_vitesse,
+        calcul_ah_depuis_kwh_tension,
+        calcul_courant_depuis_kw_tension,
+        calcul_c_rate_depuis_kw_kwh,
+        calcul_puissance_effective_stockee,
+        calcul_puissance_charge_requise,
+    )
+except Exception:
+    from backend.modules.batterie.calcul_electrique_pack import (  # type: ignore
+        calcul_conso_kwh_km_depuis_puissance_vitesse,
+        calcul_ah_depuis_kwh_tension,
+        calcul_courant_depuis_kw_tension,
+        calcul_c_rate_depuis_kw_kwh,
+        calcul_puissance_effective_stockee,
+        calcul_puissance_charge_requise,
+    )
+
 
 # ============================================================
-# Helpers (robustesse + inconnues)
+# Helpers (robustesse + inconnues) — sans formules métier
 # ============================================================
 
 def _is_finite(x: Any) -> bool:
@@ -60,12 +80,19 @@ def _require_finite(name: str, x: Any) -> float:
 
 
 def _require_positive(name: str, x: Any, *, strict: bool = True) -> float:
-    x = _require_finite(name, x)
-    ok = x > 0.0 if strict else x >= 0.0
+    v = _require_finite(name, x)
+    ok = v > 0.0 if strict else v >= 0.0
     if not ok:
         op = ">" if strict else ">="
-        raise ValueError(f"{name} doit être {op} 0 (reçu: {x}).")
-    return x
+        raise ValueError(f"{name} doit être {op} 0 (reçu: {v}).")
+    return v
+
+
+def _require_ratio_0_1(name: str, x: Any) -> float:
+    v = _require_positive(name, x, strict=True)
+    if v > 1.0:
+        raise ValueError(f"{name} doit être <= 1.0 (reçu: {v}).")
+    return v
 
 
 def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: str) -> None:
@@ -87,47 +114,6 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
 
 
-def _kwh_from_kw_h(p_kw: float, t_h: float) -> float:
-    # énergie (kWh) = puissance (kW) * temps (h)
-    return float(p_kw) * float(t_h)
-
-
-def _conso_kwh_km_from_p_v(puissance_moyenne_kw: float, vitesse_moyenne_kmh: float) -> float:
-    # conso (kWh/km) = P(kW) / v(km/h)
-    v = _require_positive("vitesse_moyenne_kmh", vitesse_moyenne_kmh, strict=True)
-    p = _require_positive("puissance_moyenne_kw", puissance_moyenne_kw, strict=False)
-    if p == 0.0:
-        return 0.0
-    return p / v
-
-
-def _ah_from_kwh_and_v(capacite_kwh: float, tension_v: float) -> float:
-    # Ah = Wh / V = (kWh*1000) / V
-    E_wh = _require_positive("capacite_kwh", capacite_kwh, strict=False) * 1000.0
-    V = _require_positive("tension_v", tension_v, strict=True)
-    if E_wh == 0.0:
-        return 0.0
-    return E_wh / V
-
-
-def _courant_a_from_kw_and_v(puissance_kw: float, tension_v: float) -> float:
-    # I = P/V ; P(kW)->W
-    P_w = _require_positive("puissance_kw", puissance_kw, strict=False) * 1000.0
-    V = _require_positive("tension_v", tension_v, strict=True)
-    if P_w == 0.0:
-        return 0.0
-    return P_w / V
-
-
-def _crate_from_kw_and_kwh(puissance_kw: float, capacite_kwh: float) -> float:
-    # C-rate approx = P(kW)/E(kWh) (à tension quasi constante)
-    E = _require_positive("capacite_kwh", capacite_kwh, strict=False)
-    P = _require_positive("puissance_kw", puissance_kw, strict=False)
-    if E == 0.0:
-        return 0.0
-    return P / E
-
-
 # ============================================================
 # Composant Batterie
 # ============================================================
@@ -135,14 +121,14 @@ def _crate_from_kw_and_kwh(puissance_kw: float, capacite_kwh: float) -> float:
 @dataclass(frozen=True)
 class Batterie:
     """
-    Dimensionnement "pack batterie" avec un maximum de calculs,
-    et des inconnues uniquement quand elles dépendent de choix techno/données externes.
+    Dimensionnement "pack batterie" basé sur tes modules robustes.
 
-    Les sorties restent du "pré-dimensionnement" : pas de modèle CC/CV complet, pas de thermique pack,
-    pas de vieillissement électrochimique détaillé.
+    Règle :
+        - on ne calcule que si les entrées nécessaires existent.
+        - sinon : inconnue (partielle ou impossible) avec justification.
     """
 
-    # Fenêtre SOC utilisable (ex: 0.6, 0.8)
+    # Fenêtre SOC utilisable (0 < w <= 1)
     fenetre_soc: float = 0.8
 
     # Densité énergétique (kWh/kg) au niveau pack (pas cellule)
@@ -156,8 +142,6 @@ class Batterie:
     tension_nominale_v: Optional[float] = None
     tension_charge_v: Optional[float] = None  # tension approx côté pack pendant charge (si connue)
 
-    clamp_non_negative: bool = True
-
     def analyser_dimensionnement(
         self,
         *,
@@ -165,11 +149,11 @@ class Batterie:
         distance_km: Optional[float] = None,
         conso_kwh_km: Optional[float] = None,
 
-        # 2) Alternative : conso dérivée de puissance+vitesse moyenne
+        # 2) Alternative : conso dérivée de puissance+vitesse moyenne (si dispo)
         puissance_moyenne_kw: Optional[float] = None,
         vitesse_moyenne_kmh: Optional[float] = None,
 
-        # 3) Critère recharge (énergie dimensionnée par temps cible)
+        # 3) Critère recharge (temps cible)
         temps_charge_cible_h: Optional[float] = None,
 
         # 4) Critère pic (tampon)
@@ -179,8 +163,12 @@ class Batterie:
         # 5) Si tu as déjà une énergie utile imposée
         energie_utile_imposee_kwh: Optional[float] = None,
 
-        # 6) Si tu veux une charge "à la demande" : calcul de P requise si non fournie
-        #    (utile si tu donnes temps_charge_cible_h mais pas puissance_charge_kw)
+        # 6) Agrégation des contraintes d'énergie utile :
+        #    - "max" : même logique que choisir_energie_utile_finale (module)
+        #    - "somme" : additionne les contraintes disponibles (utile si tu veux cumuler autonomie + tampon pic)
+        mode_aggregation_energie: str = "max",
+
+        # 7) Si temps cible fourni mais pas puissance_charge_kw : tenter de calculer la puissance requise
         calculer_puissance_charge_requise: bool = True,
     ) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
@@ -189,17 +177,21 @@ class Batterie:
             "dimensionnement": {},
             "charge": {},
             "electrique": {},
+            "hypotheses": [],
+            "unites": {},
             "inconnues": {"impossibles": [], "partielles": []},
-            "notes_modele": [],
         }
 
         # ------------------------------------------------------------
-        # Entrées
+        # Validations "structurelles" (pas de calcul métier ici)
         # ------------------------------------------------------------
+        w = _require_ratio_0_1("fenetre_soc", self.fenetre_soc)
+        eta = _require_ratio_0_1("rendement_charge", self.rendement_charge)
+
         rapport["entrees"] = {
-            "fenetre_soc": self.fenetre_soc,
+            "fenetre_soc": w,
             "densite_energetique_kwh_kg": self.densite_energetique_kwh_kg,
-            "rendement_charge": self.rendement_charge,
+            "rendement_charge": eta,
             "puissance_charge_kw": self.puissance_charge_kw,
             "tension_nominale_v": self.tension_nominale_v,
             "tension_charge_v": self.tension_charge_v,
@@ -211,75 +203,77 @@ class Batterie:
             "puissance_pic_kw": puissance_pic_kw,
             "duree_pic_s": duree_pic_s,
             "energie_utile_imposee_kwh": energie_utile_imposee_kwh,
+            "mode_aggregation_energie": mode_aggregation_energie,
             "calculer_puissance_charge_requise": calculer_puissance_charge_requise,
         }
 
+        rapport["unites"] = {
+            "E_*": "kWh",
+            "capacite_totale": "kWh",
+            "masse_batterie": "kg",
+            "temps_charge": "h",
+            "puissance_*": "kW",
+            "tension_*": "V",
+            "courant_*": "A",
+            "capacite_Ah": "Ah",
+            "C_rate_*": "h^-1",
+        }
+
         # ------------------------------------------------------------
-        # 1) Énergie utile trajets (directe ou dérivée)
+        # 1) Énergie utile trajet (directe ou déduite via module)
         # ------------------------------------------------------------
         E_trajet: Optional[float] = None
         conso_derivee: Optional[float] = None
 
         if distance_km is not None:
             d = _require_positive("distance_km", distance_km, strict=False)
+
             if conso_kwh_km is not None:
                 c = _require_positive("conso_kwh_km", conso_kwh_km, strict=False)
                 E_trajet = float(calcul_energie_utile_trajet(d, c))
             else:
-                # Tentative : déduire conso depuis puissance+vitesse
                 if puissance_moyenne_kw is not None and vitesse_moyenne_kmh is not None:
-                    conso_derivee = _conso_kwh_km_from_p_v(puissance_moyenne_kw, vitesse_moyenne_kmh)
+                    Pm = _require_positive("puissance_moyenne_kw", puissance_moyenne_kw, strict=False)
+                    vm = _require_positive("vitesse_moyenne_kmh", vitesse_moyenne_kmh, strict=True)
+                    conso_derivee = float(calcul_conso_kwh_km_depuis_puissance_vitesse(Pm, vm))
                     E_trajet = float(calcul_energie_utile_trajet(d, conso_derivee))
-                    rapport["notes_modele"].append("conso_kwh_km déduite via P_moy/v_moy (approx).")
+                    rapport["hypotheses"].append(
+                        "conso_kwh_km dérivée via P_moy/v_moy (nécessite que puissance_moyenne_kw soit cohérente avec la phase et la chaîne considérées)."
+                    )
                 else:
                     _push_inconnue(
                         rapport,
                         "partielles",
-                        "énergie utile trajet",
-                        "Calculable si conso_kwh_km est fournie, ou si (puissance_moyenne_kw et vitesse_moyenne_kmh) sont fournis.",
+                        "E_trajet_kwh",
+                        "Calculable si (conso_kwh_km) est fournie, ou si (puissance_moyenne_kw et vitesse_moyenne_kmh) sont fournis.",
                     )
 
         rapport["energies_utiles"]["conso_kwh_km_derivee"] = conso_derivee
         rapport["energies_utiles"]["E_trajet_kwh"] = E_trajet
 
         # ------------------------------------------------------------
-        # 2) Énergie utile contrainte de recharge (si temps cible)
-        #    E_u = eta * P * t
+        # 2) Énergie utile contrainte de recharge (si Pcharge connue)
+        #    (module calcul_energie_utile_cible)
         # ------------------------------------------------------------
         E_charge_cible: Optional[float] = None
-        P_charge_requise: Optional[float] = None
-
         if temps_charge_cible_h is not None:
             t = _require_positive("temps_charge_cible_h", temps_charge_cible_h, strict=False)
-            eta = _require_positive("rendement_charge", self.rendement_charge, strict=True)
-            if eta > 1.0:
-                raise ValueError("rendement_charge doit être <= 1.0")
 
             if self.puissance_charge_kw is not None:
                 Pchg = _require_positive("puissance_charge_kw", self.puissance_charge_kw, strict=False)
                 E_charge_cible = float(calcul_energie_utile_cible(t, Pchg, eta))
             else:
-                # si l'utilisateur impose déjà E_u (trajet ou imposée), on peut inverser et obtenir P requise
-                if calculer_puissance_charge_requise:
-                    # on attend d'avoir E_u_final (plus bas), mais on peut déjà calculer une requête "symbolique"
-                    _push_inconnue(
-                        rapport,
-                        "partielles",
-                        "puissance de charge requise",
-                        "Calculable si une énergie utile à recharger (E_u_final) est déterminée et si temps_charge_cible_h est fourni.",
-                    )
-                else:
-                    _push_inconnue(
-                        rapport,
-                        "partielles",
-                        "énergie utile via contrainte de charge",
-                        "Calculable si puissance_charge_kw est fournie (ou activer calculer_puissance_charge_requise avec E_u_final).",
-                    )
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "E_charge_cible_kwh",
+                    "Calculable si puissance_charge_kw est fournie (ou via puissance requise si E_utile_finale est déterminée).",
+                )
 
         rapport["energies_utiles"]["E_charge_cible_kwh"] = E_charge_cible
 
         # ------------------------------------------------------------
-        # 3) Énergie utile tampon pic
+        # 3) Énergie utile tampon pic (module calcul_energie_utile_pic)
         # ------------------------------------------------------------
         E_pic: Optional[float] = None
         if puissance_pic_kw is not None and duree_pic_s is not None:
@@ -290,7 +284,7 @@ class Batterie:
             _push_inconnue(
                 rapport,
                 "partielles",
-                "énergie utile pic",
+                "E_pic_kwh",
                 "Calculable si puissance_pic_kw ET duree_pic_s sont fournis.",
             )
 
@@ -302,40 +296,45 @@ class Batterie:
         E_imposee: Optional[float] = None
         if energie_utile_imposee_kwh is not None:
             E_imposee = _require_positive("energie_utile_imposee_kwh", energie_utile_imposee_kwh, strict=False)
+
         rapport["energies_utiles"]["E_imposee_kwh"] = E_imposee
 
         # ------------------------------------------------------------
-        # 5) Choix de l’énergie utile finale (max des contraintes)
+        # 5) Agrégation énergie utile finale
         # ------------------------------------------------------------
         energies_candidates: List[float] = []
         for v in (E_trajet, E_charge_cible, E_pic, E_imposee):
             if v is not None:
                 energies_candidates.append(float(v))
 
-        if len(energies_candidates) > 0:
-            E_u_final = float(choisir_energie_utile_finale(*energies_candidates))
+        E_u_final: Optional[float] = None
+        if energies_candidates:
+            if mode_aggregation_energie == "max":
+                E_u_final = float(choisir_energie_utile_finale(*energies_candidates))
+            elif mode_aggregation_energie == "somme":
+                E_u_final = float(sum(energies_candidates))
+                rapport["hypotheses"].append(
+                    "E_utile_finale obtenue par SOMME des contraintes disponibles (choix de dimensionnement)."
+                )
+            else:
+                raise ValueError("mode_aggregation_energie doit être 'max' ou 'somme'.")
         else:
-            E_u_final = None
             _push_inconnue(
                 rapport,
                 "impossibles",
-                "énergie utile finale",
+                "E_utile_finale_kwh",
                 "Impossible sans au moins un critère (trajet, charge cible, pic, ou énergie imposée).",
             )
 
         rapport["dimensionnement"]["E_utile_finale_kwh"] = E_u_final
 
         # ------------------------------------------------------------
-        # 6) Dimensionnement capacité totale + masse pack
+        # 6) Dimensionnement capacité totale + masse pack (module dimensionnement)
         # ------------------------------------------------------------
         E_batt_tot: Optional[float] = None
         m_batt: Optional[float] = None
 
         if E_u_final is not None:
-            w = _require_positive("fenetre_soc", self.fenetre_soc, strict=True)
-            if w > 1.0:
-                raise ValueError("fenetre_soc doit être <= 1.0")
-
             E_batt_tot = float(calcul_capacite_totale_batterie(E_u_final, w))
 
             if self.densite_energetique_kwh_kg is not None:
@@ -345,15 +344,15 @@ class Batterie:
                 _push_inconnue(
                     rapport,
                     "partielles",
-                    "masse batterie",
+                    "masse_batterie_kg",
                     "Calculable si densite_energetique_kwh_kg (au niveau pack) est fournie.",
                 )
         else:
             _push_inconnue(
                 rapport,
                 "partielles",
-                "capacité totale batterie",
-                "Calculable si l'énergie utile finale (E_u_final) est déterminée.",
+                "capacite_totale_kwh",
+                "Calculable si l'énergie utile finale (E_utile_finale_kwh) est déterminée.",
             )
 
         rapport["dimensionnement"]["capacite_totale_kwh"] = E_batt_tot
@@ -364,60 +363,56 @@ class Batterie:
         # ------------------------------------------------------------
         t_charge: Optional[float] = None
         P_eff_kw: Optional[float] = None
+        P_charge_requise_kw: Optional[float] = None
+        I_charge_a: Optional[float] = None
 
         if E_u_final is not None:
-            eta = _require_positive("rendement_charge", self.rendement_charge, strict=True)
-            if eta > 1.0:
-                raise ValueError("rendement_charge doit être <= 1.0")
-
-            # 7.1 Temps de charge si Pcharge connue
+            # Temps de charge si puissance de charge connue
             if self.puissance_charge_kw is not None:
                 Pchg = _require_positive("puissance_charge_kw", self.puissance_charge_kw, strict=True)
                 t_charge = float(calcul_temps_charge(E_u_final, Pchg, eta))
-                P_eff_kw = Pchg * eta
+                P_eff_kw = float(calcul_puissance_effective_stockee(Pchg, eta))
             else:
                 _push_inconnue(
                     rapport,
                     "partielles",
-                    "temps de charge",
+                    "temps_charge_h",
                     "Calculable si puissance_charge_kw est fournie (et rendement_charge).",
                 )
 
-            # 7.2 Puissance de charge requise si temps cible fourni (inversion)
+            # Puissance requise si temps cible fourni
             if temps_charge_cible_h is not None and calculer_puissance_charge_requise:
                 t = _require_positive("temps_charge_cible_h", temps_charge_cible_h, strict=True)
-                # E_u = eta * P * t => P = E_u / (eta * t)
-                if eta * t > 0.0:
-                    P_charge_requise = E_u_final / (eta * t)
+                P_charge_requise_kw = float(calcul_puissance_charge_requise(E_u_final, t, eta))
         else:
             _push_inconnue(
                 rapport,
                 "partielles",
                 "charge",
-                "Calculable si E_u_final est déterminée et si (Pcharge ou temps cible) est fourni.",
+                "Calculable si E_utile_finale_kwh est déterminée et si (puissance_charge_kw ou temps_charge_cible_h) est fourni.",
             )
 
-        rapport["charge"]["temps_charge_h"] = t_charge
-        rapport["charge"]["puissance_charge_requise_kw"] = P_charge_requise
-        rapport["charge"]["puissance_effective_stockee_kw"] = P_eff_kw
-
-        # Courant de charge approximatif si tension charge connue
-        I_charge_a: Optional[float] = None
+        # Courant de charge si tension connue (tension de charge ou nominale)
         if P_eff_kw is not None:
             Vchg = self.tension_charge_v or self.tension_nominale_v
             if Vchg is not None:
-                I_charge_a = _courant_a_from_kw_and_v(P_eff_kw, Vchg)
+                V = _require_positive("tension_charge_v|tension_nominale_v", Vchg, strict=True)
+                I_charge_a = float(calcul_courant_depuis_kw_tension(P_eff_kw, V))
             else:
                 _push_inconnue(
                     rapport,
                     "partielles",
-                    "courant de charge",
+                    "courant_charge_A",
                     "Calculable si tension_charge_v (ou tension_nominale_v) est fournie.",
                 )
+
+        rapport["charge"]["temps_charge_h"] = t_charge
+        rapport["charge"]["puissance_effective_stockee_kw"] = P_eff_kw
+        rapport["charge"]["puissance_charge_requise_kw"] = P_charge_requise_kw
         rapport["charge"]["courant_charge_A"] = I_charge_a
 
         # ------------------------------------------------------------
-        # 8) Électrique pack : Ah, courants, C-rates (si tension dispo)
+        # 8) Électrique pack : Ah, courant décharge, C-rates (si données)
         # ------------------------------------------------------------
         capacite_ah: Optional[float] = None
         I_decharge_a: Optional[float] = None
@@ -425,43 +420,48 @@ class Batterie:
         C_charge: Optional[float] = None
 
         if E_batt_tot is not None and self.tension_nominale_v is not None:
-            capacite_ah = _ah_from_kwh_and_v(E_batt_tot, self.tension_nominale_v)
+            Vn = _require_positive("tension_nominale_v", self.tension_nominale_v, strict=True)
+            capacite_ah = float(calcul_ah_depuis_kwh_tension(E_batt_tot, Vn))
         elif E_batt_tot is not None and self.tension_nominale_v is None:
             _push_inconnue(
                 rapport,
                 "partielles",
-                "capacité Ah",
+                "capacite_Ah_estimee",
                 "Calculable si tension_nominale_v est fournie (Ah = kWh*1000 / V).",
             )
 
         # Décharge : courant et C-rate depuis puissance moyenne
         if puissance_moyenne_kw is not None and E_batt_tot is not None:
+            Pm = _require_positive("puissance_moyenne_kw", puissance_moyenne_kw, strict=False)
+            C_decharge = float(calcul_c_rate_depuis_kw_kwh(Pm, E_batt_tot))
+
             if self.tension_nominale_v is not None:
-                I_decharge_a = _courant_a_from_kw_and_v(_require_positive("puissance_moyenne_kw", puissance_moyenne_kw, strict=False), self.tension_nominale_v)
+                Vn = _require_positive("tension_nominale_v", self.tension_nominale_v, strict=True)
+                I_decharge_a = float(calcul_courant_depuis_kw_tension(Pm, Vn))
             else:
                 _push_inconnue(
                     rapport,
                     "partielles",
-                    "courant de décharge",
+                    "courant_decharge_A_estime",
                     "Calculable si tension_nominale_v est fournie.",
                 )
-            C_decharge = _crate_from_kw_and_kwh(_require_positive("puissance_moyenne_kw", puissance_moyenne_kw, strict=False), E_batt_tot)
         elif puissance_moyenne_kw is not None and E_batt_tot is None:
             _push_inconnue(
                 rapport,
                 "partielles",
-                "C-rate décharge",
+                "C_rate_decharge_estime",
                 "Calculable si capacite_totale_kwh est déterminée.",
             )
 
         # Charge : C-rate charge depuis puissance charge
         if self.puissance_charge_kw is not None and E_batt_tot is not None:
-            C_charge = _crate_from_kw_and_kwh(_require_positive("puissance_charge_kw", self.puissance_charge_kw, strict=False), E_batt_tot)
+            Pchg = _require_positive("puissance_charge_kw", self.puissance_charge_kw, strict=False)
+            C_charge = float(calcul_c_rate_depuis_kw_kwh(Pchg, E_batt_tot))
         elif self.puissance_charge_kw is not None and E_batt_tot is None:
             _push_inconnue(
                 rapport,
                 "partielles",
-                "C-rate charge",
+                "C_rate_charge_estime",
                 "Calculable si capacite_totale_kwh est déterminée.",
             )
 
@@ -471,13 +471,13 @@ class Batterie:
         rapport["electrique"]["C_rate_charge_estime"] = C_charge
 
         # ------------------------------------------------------------
-        # 9) Inconnues réellement impossibles (sans techno/mesures)
+        # 9) Inconnues réellement impossibles sans techno/mesures
         # ------------------------------------------------------------
         _push_inconnue(
             rapport,
             "impossibles",
             "vieillissement / durée de vie",
-            "Impossible sans modèle de vieillissement (cycles, DoD, C-rate, température, chimie) et données fabricant.",
+            "Impossible sans modèle de vieillissement (cycles, DoD, C-rate, température, chimie) + données fabricant.",
         )
         _push_inconnue(
             rapport,
