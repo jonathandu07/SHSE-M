@@ -83,9 +83,11 @@ except Exception:  # pragma: no cover
     etat_eau_pure = etat_eau_salee = etat_antigel = None  # type: ignore
 
 try:
-    from backend.ensemble.air import air_state
+    # IMPORTANT : dans ton air.py actuel, air_state prend altitude_m + temperature_offset_K (pas p_Pa direct)
+    from backend.ensemble.air import air_state, isa_dry_temperature_pressure
 except Exception:  # pragma: no cover
     air_state = None  # type: ignore
+    isa_dry_temperature_pressure = None  # type: ignore
 
 
 # ============================================================
@@ -170,7 +172,6 @@ def _h_tube_interne(
     """
     h [W/m²/K] dans un tube circulaire.
 
-    Important :
     - Aucune valeur inventée : tu dois fournir soit les propriétés fluide, soit une EntreeConvectionTube
       (qui les déduit via backend.ensemble.air/eau).
     - La corrélation (Nu) est un choix d’ingénierie : paramètre 'modele'.
@@ -233,6 +234,11 @@ class EntreeConvectionTube:
     """
     Spécifie un cas d'écoulement interne dans un tube, pour calculer h.
     Utilisé uniquement si h_interne_w_m2_k / h_externe_w_m2_k n'est pas fourni.
+
+    Note air :
+    - Ton backend.ensemble.air.air_state ne prend pas p_Pa directement.
+      Ici, on déduit temperature_offset_K depuis T_K et l'ISA à altitude_m.
+      p_Pa (entrée) est conservé à titre informatif.
     """
     fluide: FluideType
     T_K: float
@@ -264,26 +270,47 @@ def _etat_fluide_pour_convection(ent: EntreeConvectionTube) -> Dict[str, float]:
     if ent.fluide == "air":
         if air_state is None:
             raise RuntimeError("backend.ensemble.air.air_state indisponible.")
+        if isa_dry_temperature_pressure is None:
+            raise RuntimeError("backend.ensemble.air.isa_dry_temperature_pressure indisponible (nécessaire pour déduire temperature_offset_K).")
+
+        altitude = float(ent.altitude_m)
+        T_isa, p_isa = isa_dry_temperature_pressure(altitude_m=altitude)
+        T_ent = float(ent.T_K)
+
+        # air_state(altitude_m, temperature_offset_K, RH, co2_ppm)
+        temperature_offset_K = T_ent - float(T_isa)
+
         st = air_state(
-            altitude_m=float(ent.altitude_m),
-            T_K=float(ent.T_K),
-            p_Pa=float(ent.p_Pa),
+            altitude_m=altitude,
+            temperature_offset_K=temperature_offset_K,
             RH=float(ent.RH),
             co2_ppm=float(ent.co2_ppm),
         )
-        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kgK), "mu": float(st.mu_Pa_s), "k": float(st.k_W_mK)}
+        # ent.p_Pa n'est pas appliqué (air_state ne permet pas l'override pression).
+        return {
+            "rho": float(st.rho_kg_m3),
+            "cp": float(st.cp_J_kgK),
+            "mu": float(st.mu_Pa_s),
+            "k": float(st.k_W_mK),
+            "T_K": float(st.T_K),
+            "p_Pa": float(st.p_Pa),
+            "T_K_entree": T_ent,
+            "p_Pa_entree": float(ent.p_Pa),
+            "p_Pa_ISA": float(p_isa),
+            "temperature_offset_K": float(temperature_offset_K),
+        }
 
     if ent.fluide == "eau_pure":
         if etat_eau_pure is None:
             raise RuntimeError("backend.ensemble.eau.etat_eau_pure indisponible.")
         st = etat_eau_pure(float(ent.T_K), float(ent.p_Pa))
-        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K)}
+        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K), "T_K": float(ent.T_K), "p_Pa": float(ent.p_Pa)}
 
     if ent.fluide == "eau_salee":
         if etat_eau_salee is None:
             raise RuntimeError("backend.ensemble.eau.etat_eau_salee indisponible.")
         st = etat_eau_salee(float(ent.T_K), float(ent.p_Pa), float(ent.salinite_g_kg))
-        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K)}
+        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K), "T_K": float(ent.T_K), "p_Pa": float(ent.p_Pa)}
 
     if ent.fluide == "antigel":
         if etat_antigel is None:
@@ -294,7 +321,7 @@ def _etat_fluide_pour_convection(ent: EntreeConvectionTube) -> Dict[str, float]:
             float(ent.fraction_massique_glycol),
             type_glycol=str(ent.type_glycol),
         )
-        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K)}
+        return {"rho": float(st.rho_kg_m3), "cp": float(st.cp_J_kg_K), "mu": float(st.mu_Pa_s), "k": float(st.k_W_m_K), "T_K": float(ent.T_K), "p_Pa": float(ent.p_Pa)}
 
     raise ValueError("fluide inconnu.")
 
@@ -313,6 +340,13 @@ def calcul_h_depuis_entree_convection(ent: EntreeConvectionTube) -> Dict[str, An
         chauffage_fluide=ent.chauffage_fluide,
     )
     res["fluide"] = ent.fluide
+    # On conserve, si disponibles, T/p effectivement utilisés (utile pour debug, sans “inventer”)
+    if "T_K" in props:
+        res["T_K_utilise"] = float(props["T_K"])
+    if "p_Pa" in props:
+        res["p_Pa_utilise"] = float(props["p_Pa"])
+    if "p_Pa_entree" in props:
+        res["p_Pa_entree"] = float(props["p_Pa_entree"])
     return res
 
 
@@ -329,8 +363,7 @@ def _materiau_resoudre(
     Extrait un paquet de propriétés SI depuis backend.ensemble.materiaux.
     'mode' contrôle la sélection des intervalles.
 
-    Point important :
-    - Pour Re : on retourne une borne conservatrice (min global), indépendante de la section,
+    - Re : borne conservatrice (min global), indépendante de la section,
       si la base matériau a une courbe "par section".
     """
     if get_materiau is None:
@@ -343,7 +376,6 @@ def _materiau_resoudre(
     k = valeur(mat.conductivite_thermique_w_mk, mode=mode)
     alpha = valeur(mat.alpha_dilatation_1_k, mode=mode)
 
-    # Re conservateur (min global)
     Re_candidates: list[float] = []
     base_Re = mat.limite_elastique_effective_pa(mode="min", section_mm=None)
     if base_Re is not None:
@@ -380,13 +412,12 @@ class Cylindre:
     """
     Objectif : produire un maximum de grandeurs calculées, en diminuant les inconnues.
 
-    Réduction d'inconnues intégrée :
-    - Si `materiau_cle` est fourni, on déduit automatiquement (si non fournis) :
-      densité, E, ν, k, α, Re(min) -> épaisseur dimensionnable.
-    - Si `convection_interne` / `convection_externe` sont fournis, on peut calculer h_i/h_o.
-
-    Rien n'est "inventé" :
+    Rien n'est “inventé” :
     - Si une donnée n'est ni fournie ni déductible via modules, elle reste une inconnue.
+
+    Hypothèses mécaniques utilisées :
+    - dimensionnement sous pression interne nette (p_i - p_o) (paroi mince + Lamé).
+    - si p_o > p_i : collapse/flambage non traité ici -> inconnue “impossible”.
     """
 
     # --- Géométrie (obligatoire) ---
@@ -484,7 +515,6 @@ class Cylindre:
                 matp = _materiau_resoudre(materiau_cle=self.materiau_cle, mode=self.mode_materiau)
                 rapport["materiau"].update(matp)
 
-                # vérification plage T matière (si connue)
                 if self.temperature_service_C is not None:
                     tmin = matp.get("T_service_min_C")
                     tmax = matp.get("T_service_max_C")
@@ -556,6 +586,15 @@ class Cylindre:
         p_i = p_max
         p_o = p_ext
         delta_p = max(0.0, p_i - p_o)
+        if p_o > p_i:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "pression externe",
+                "p_o > p_i : dimensionnement sous pression externe (flambage/collapse) non implémenté dans ce module.",
+            )
+        if delta_p == 0.0 and p_i == p_o:
+            rapport["notes_modele"].append("delta_p=0 : aucun effort de pression interne net. Épaisseur minimale de fabrication non traitée.")
 
         if sigma_adm is not None:
             # 6.1 paroi mince (Barlow)
@@ -614,14 +653,14 @@ class Cylindre:
             # 7.2 Lamé exact au rayon interne
             ri2 = ri * ri
             ro2 = ro * ro
-            denom = (ro2 - ri2)
-            if denom <= 0:
+            denom2 = (ro2 - ri2)
+            if denom2 <= 0:
                 _push_inconnue(rapport, "impossibles", "contraintes Lamé", "ro^2 - ri^2 <= 0 (géométrie invalide).")
                 sigma_theta_lame_i = sigma_r_lame_i = sigma_z_lame = sigma_vm_lame_i = None
             else:
-                A = (p_i * ri2 - p_o * ro2) / denom
-                B = (ri2 * ro2 * (p_i - p_o)) / denom
-                sigma_r_lame_i = A - (B / ri2)       # = -p_i
+                A = (p_i * ri2 - p_o * ro2) / denom2
+                B = (ri2 * ro2 * (p_i - p_o)) / denom2
+                sigma_r_lame_i = A - (B / ri2)       # = -p_i si p_o=0
                 sigma_theta_lame_i = A + (B / ri2)   # cerclage max
                 sigma_z_lame = A                     # axial (extrémités fermées)
                 sigma_vm_lame_i = _von_mises_3d(sigma_theta_lame_i, sigma_r_lame_i, sigma_z_lame)
@@ -681,10 +720,10 @@ class Cylindre:
                             include_longitudinale=False, facteur_securite=FS, clamp_non_negative=True, return_details=False
                         ))
                         sigma_eff2 = sigma_adm2 / FS
-                        denom2 = (sigma_eff2 - p_i + 2.0 * p_o)
+                        denom3 = (sigma_eff2 - p_i + 2.0 * p_o)
                         t_lame2 = None
-                        if denom2 > 0:
-                            ro2b = (ri * ri) * (sigma_eff2 + p_i) / denom2
+                        if denom3 > 0:
+                            ro2b = (ri * ri) * (sigma_eff2 + p_i) / denom3
                             t_lame2 = max(0.0, math.sqrt(ro2b) - ri)
                         t_ret2 = max([x for x in (t_mince2, t_lame2) if x is not None])
                         rapport["materiau"]["Re_section_mm"] = section_mm
@@ -813,8 +852,14 @@ class Cylindre:
             _push_inconnue(rapport, "impossibles", "masse/inerties", "Impossible sans epaisseur_retenue_m > 0.")
 
         # ----------------------------
-        # 11) Bride (optionnel)
+        # 11) Bride (optionnel) + dimensions “globales”
         # ----------------------------
+        # Sans hypothèse : on ne peut pas “inventer” les brides. On calcule seulement si données fournies.
+        if t_retenue is not None and t_retenue > 0:
+            ro = ri + t_retenue
+            rapport["geometrie"]["longueur_totale_sans_brides_m"] = L
+            rapport["geometrie"]["diametre_externe_sans_brides_m"] = 2.0 * ro
+
         if self.epaisseur_bride_m is not None and self.largeur_bride_m is not None:
             if t_retenue is None or t_retenue <= 0:
                 _push_inconnue(rapport, "partielles", "bride", "Calculable si epaisseur_retenue_m est déterminée.")
@@ -823,8 +868,15 @@ class Cylindre:
                 w_b = _req_pos("largeur_bride_m", self.largeur_bride_m)
                 ro = ri + t_retenue
                 r_b = ro + w_b
+
+                # Géométrie bride
                 A_anneau = math.pi * (r_b * r_b - ro * ro)
                 V_brides = 2.0 * A_anneau * e_b
+
+                rapport["geometrie"]["rayon_externe_avec_brides_m"] = r_b
+                rapport["geometrie"]["diametre_externe_avec_brides_m"] = 2.0 * r_b
+                rapport["geometrie"]["longueur_totale_avec_brides_m"] = L + 2.0 * e_b
+
                 rapport["masse"]["volume_brides_m3"] = V_brides
                 if densite is not None:
                     rho = _req_pos("densite_kg_m3", densite)
