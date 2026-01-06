@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple, List
 import math
-
 
 # ============================================================
 # Imports des modules "boite_crabots" (robustes à l'arborescence)
@@ -64,6 +63,20 @@ except Exception:
         calcul_duree_vie_heures,
     )
 
+# ============================================================
+# Imports "métier" : moteur + alternateur (pour l'intégration)
+# ============================================================
+
+try:
+    from backend.components.alternateur import Alternateur  # type: ignore
+except Exception:
+    Alternateur = Any  # type: ignore
+
+try:
+    from backend.components.moteur_thermique import MoteurThermique  # type: ignore
+except Exception:
+    MoteurThermique = Any  # type: ignore
+
 
 # ============================================================
 # Helpers
@@ -71,6 +84,12 @@ except Exception:
 
 TypeRoulement = Literal["bille", "rouleau"]
 ConnexionCrabot = Literal["direct", "via_engrenage"]
+StrategieOptimisation = Literal[
+    "max_eta_alternateur",
+    "min_pertes_alternateur",
+    "min_couple_moteur",
+    "pareto",
+]
 
 
 def _is_finite(x: Any) -> bool:
@@ -97,9 +116,9 @@ def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: st
 
 
 def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
-    def dedup(lst: list[dict]) -> list[dict]:
+    def dedup(lst: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         seen: set[Tuple[str, str]] = set()
-        out: list[dict] = []
+        out: List[Dict[str, Any]] = []
         for it in lst:
             key = (str(it.get("nom", "")), str(it.get("raison", "")))
             if key not in seen:
@@ -109,6 +128,28 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
 
     rapport["inconnues"]["impossibles"] = dedup(rapport["inconnues"]["impossibles"])
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
+
+
+def _safe_getattr(obj: Any, name: str, default: Any = None) -> Any:
+    try:
+        return getattr(obj, name)
+    except Exception:
+        return default
+
+
+def _safe_get_float(obj: Any, name: str) -> Optional[float]:
+    v = _safe_getattr(obj, name, None)
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except Exception:
+        return None
+    return f if math.isfinite(f) else None
+
+
+def _omega_from_rpm(rpm: float) -> float:
+    return (2.0 * math.pi) * (rpm / 60.0)
 
 
 # ============================================================
@@ -124,14 +165,13 @@ class BoiteCrabots:
     - des données géométriques non fournies
     - des paramètres de montage/usage (temps d'engagement, inerties, etc.)
 
-    Les modules utilisés couvrent :
-    - choc d'engagement (inertie eq, énergie, couple sync)
-    - forces sur pignon (Ft, Fr, Fa)
-    - contrainte contact (Hertz simplifié)
-    - contrainte flexion dent (Lewis simplifié)
-    - contraintes arbre (torsion, flexion, Von Mises)
-    - crabot (pression contact, couple transmissible)
-    - roulements (charge équivalente, L10, L10h)
+    + Intégration moteur -> boîte -> alternateur :
+      - évalue des rapports de vitesse candidats,
+      - calcule le point alternateur (Pdc demandée, vitesse),
+      - déduit couple et puissance côté boîte (si rendement alternateur calculable),
+      - sinon expose des bornes théoriques minimales (sans les confondre avec une valeur réelle),
+      - passe le couple transmis dans les modules denture/crabot/roulements,
+      - permet de choisir un rapport selon une stratégie (si les métriques existent).
     """
 
     # -------------------------
@@ -176,41 +216,23 @@ class BoiteCrabots:
     # -------------------------
     clamp_non_negative: bool = True
 
+    # ------------------------------------------------------------
+    # Analyse mécanique locale (inchangé)
+    # ------------------------------------------------------------
     def analyser_point(
         self,
         *,
-        # Entrées fonctionnelles
         couple_nm: float,
         vitesse_rotation_tr_min: Optional[float] = None,
-        # Si engrenage
         calcul_forces_engrenage_actif: bool = True,
-        # Si tu as un moment de flexion arbre (sinon partiel)
         moment_flechissant_nm: Optional[float] = None,
-        # Choc d'engagement
         inertie_primaire_kg_m2: Optional[float] = None,
         inertie_secondaire_kg_m2: Optional[float] = None,
         delta_omega_rad_s: Optional[float] = None,
         temps_engagement_s: Optional[float] = None,
-        # Forces roulement (si tu veux vie)
         force_axiale_N: Optional[float] = None,
-        # (Fr peut venir de l'engrenage; sinon tu peux le donner)
         force_radiale_N: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """
-        Produit un rapport complet à partir d'un couple transmis et (optionnellement)
-        d'une vitesse et de paramètres de choc.
-
-        Retour:
-        {
-          "entrees": {...},
-          "resultats": {...},
-          "contraintes": {...},
-          "roulements": {...},
-          "crabot": {...},
-          "choc_engagement": {...},
-          "inconnues": {"impossibles": [...], "partielles": [...]}
-        }
-        """
         rapport: Dict[str, Any] = {
             "entrees": {},
             "resultats": {},
@@ -260,7 +282,6 @@ class BoiteCrabots:
                 Fr = float(forces["F_r"])
                 Fa = float(forces["F_a"])
 
-        # override forces si l'utilisateur les passe explicitement
         if force_radiale_N is not None:
             Fr = _require_finite("force_radiale_N", force_radiale_N)
         if force_axiale_N is not None:
@@ -273,9 +294,13 @@ class BoiteCrabots:
         # ============================================================
         # 2) Contraintes sur denture (Hertz + Lewis)
         # ============================================================
-        # 2.1 Contact Hertz
         sigma_H: Optional[float] = None
-        if Ft is not None and self.largeur_denture_b_m is not None and self.diametre_primitif_m is not None and self.coefficient_zh is not None:
+        if (
+            Ft is not None
+            and self.largeur_denture_b_m is not None
+            and self.diametre_primitif_m is not None
+            and self.coefficient_zh is not None
+        ):
             sigma_H = calcul_contrainte_contact_hertz(
                 force_tangentielle=Ft,
                 largeur_denture_b=self.largeur_denture_b_m,
@@ -293,7 +318,6 @@ class BoiteCrabots:
                 "Calculable si Ft, largeur_denture_b_m, diametre_primitif_m et coefficient_zh sont fournis.",
             )
 
-        # 2.2 Flexion Lewis
         sigma_F: Optional[float] = None
         if (
             Ft is not None
@@ -377,7 +401,6 @@ class BoiteCrabots:
         T_cap_crabot: Optional[float] = None
         p_contact_crabot: Optional[float] = None
 
-        # Capacité
         if (
             self.crabot_nombre_dents is not None
             and self.crabot_pression_admissible_pa is not None
@@ -403,7 +426,6 @@ class BoiteCrabots:
                 "Calculable si (crabot_nombre_dents, crabot_pression_admissible_pa, crabot_hauteur_dent_m, crabot_largeur_dent_m, crabot_rayon_moyen_m) sont fournis.",
             )
 
-        # Pression contact au couple demandé
         if (
             self.crabot_nombre_dents is not None
             and self.crabot_hauteur_dent_m is not None
@@ -432,12 +454,11 @@ class BoiteCrabots:
         rapport["crabot"]["T_cap_Nm"] = T_cap_crabot
         rapport["crabot"]["p_contact_Pa"] = p_contact_crabot
         if T_cap_crabot is not None:
-            rapport["crabot"]["ok_couple"] = bool(abs(T) <= T_cap_crabot)  # magnitude simple
+            rapport["crabot"]["ok_couple"] = bool(abs(T) <= T_cap_crabot)
 
         # ============================================================
         # 5) Roulements : charge équivalente + durée de vie
         # ============================================================
-        # Charge équivalente
         P_eq: Optional[float] = None
         if Fr is not None and Fa is not None and self.roulement_X is not None and self.roulement_Y is not None:
             P_eq = calcul_charge_equivalente_roulement(
@@ -456,7 +477,6 @@ class BoiteCrabots:
                 "Calculable si Fr, Fa et facteurs roulement_X/roulement_Y sont connus.",
             )
 
-        # L10 + L10h
         L10_millions: Optional[float] = None
         L10_heures: Optional[float] = None
         if P_eq is not None and self.roulement_C_N is not None:
@@ -553,7 +573,6 @@ class BoiteCrabots:
         # ============================================================
         # 7) Inconnues vraiment impossibles sans datasheet
         # ============================================================
-        # (On les déclare explicitement pour ton objectif "minimum d'inconnu")
         _push_inconnue(
             rapport,
             "impossibles",
@@ -572,6 +591,342 @@ class BoiteCrabots:
             "données roulement constructeur",
             "C, facteurs X/Y (selon type, montage, Fa/Fr) proviennent des catalogues/abaques.",
         )
+
+        _dedup_inconnues(rapport)
+        return rapport
+
+    # ------------------------------------------------------------
+    # Intégration : moteur -> boîte -> alternateur (sans invention)
+    # ------------------------------------------------------------
+    def analyser_chaine_moteur_alternateur(
+        self,
+        *,
+        alternateur: Alternateur,
+        puissance_bus_dc_w: float,
+        rpm_moteur: float,
+        rapports: List[float],
+        rendement_boite: Optional[float] = None,
+        tension_bus_dc_v: Optional[float] = None,
+        batterie: Optional[Any] = None,
+        moteur: Optional[Any] = None,
+        strategie: StrategieOptimisation = "pareto",
+        inertie_primaire_kg_m2: Optional[float] = None,
+        inertie_secondaire_kg_m2: Optional[float] = None,
+        delta_omega_rad_s: Optional[float] = None,
+        temps_engagement_s: Optional[float] = None,
+        force_radiale_N: Optional[float] = None,
+        force_axiale_N: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        rapport: Dict[str, Any] = {
+            "entrees": {},
+            "candidats": [],
+            "selection": None,
+            "inconnues": {"impossibles": [], "partielles": []},
+            "notes_modele": [],
+        }
+
+        Pdc = _require_positive("puissance_bus_dc_w", puissance_bus_dc_w, strictly=False)
+        rpm_m = _require_positive("rpm_moteur", rpm_moteur, strictly=True)
+
+        if not isinstance(rapports, list) or len(rapports) == 0:
+            raise ValueError("rapports doit être une liste non vide de rapports (float).")
+
+        eta_boite: Optional[float] = None
+        if rendement_boite is not None:
+            eta_boite = _require_positive("rendement_boite", rendement_boite, strictly=True)
+            if eta_boite > 1.0:
+                raise ValueError("rendement_boite doit être <= 1.0")
+
+        Vbus = tension_bus_dc_v
+        if Vbus is None and batterie is not None:
+            Vbus = _safe_get_float(batterie, "tension_nominale_v")
+            if Vbus is None:
+                Vbus = _safe_get_float(batterie, "tension_bus_v")
+            if Vbus is None:
+                Vbus = _safe_get_float(batterie, "tension_v")
+
+        if Vbus is None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "tension_bus_dc_v",
+                "Donne tension_bus_dc_v (ou un objet batterie avec tension_nominale_v/tension_bus_v) pour déduire le courant DC.",
+            )
+
+        rapport["entrees"].update(
+            {
+                "puissance_bus_dc_w": Pdc,
+                "rpm_moteur": rpm_m,
+                "omega_moteur_rad_s": _omega_from_rpm(rpm_m),
+                "rendement_boite": eta_boite,
+                "tension_bus_dc_v": Vbus,
+                "strategie": strategie,
+            }
+        )
+
+        for r in rapports:
+            if not _is_finite(r) or float(r) <= 0.0:
+                rapport["notes_modele"].append(f"Rapport ignoré (invalide): {r!r}")
+                continue
+
+            ratio = float(r)
+            rpm_alt = rpm_m * ratio
+            omega_alt = _omega_from_rpm(rpm_alt)
+
+            cand: Dict[str, Any] = {
+                "rapport": ratio,
+                "rpm_alternateur": rpm_alt,
+                "omega_alternateur_rad_s": omega_alt,
+                "alternateur": None,
+                "boite": None,
+                "exigences": {},
+            }
+
+            alt_report: Optional[Dict[str, Any]] = None
+            if alternateur is None:
+                _push_inconnue(rapport, "impossibles", "alternateur", "Objet alternateur requis.")
+            else:
+                if hasattr(alternateur, "analyser_pour_bus_dc"):
+                    alt_report = alternateur.analyser_pour_bus_dc(  # type: ignore[call-arg]
+                        puissance_bus_dc_w=Pdc,
+                        vitesse_rotation_rpm=rpm_alt,
+                        tension_bus_dc_v=Vbus,
+                        batterie=batterie,
+                        moteur=moteur,
+                    )
+                else:
+                    if Vbus is None:
+                        _push_inconnue(
+                            rapport,
+                            "impossibles",
+                            "analyse alternateur en DC",
+                            "Sans tension DC (Vbus), impossible de déterminer le courant DC et donc P_out via V*I.",
+                        )
+                    else:
+                        Ibus = Pdc / Vbus if abs(Vbus) > 1e-12 else float("inf")
+                        alt_report = alternateur.analyser_point_de_fonctionnement(  # type: ignore[call-arg]
+                            vitesse_rotation_rpm=rpm_alt,
+                            mode_electrique="dc",
+                            tension_v=Vbus,
+                            courant_a=Ibus,
+                        )
+
+            cand["alternateur"] = alt_report
+
+            # Extractions : P_out, eta_total, P_mec, T_mec, pertes
+            # analyser_point_de_fonctionnement() -> clés au niveau racine
+            # analyser_pour_bus_dc() -> sous-dict rep["alternateur"]
+            P_out: Optional[float] = None
+            eta_alt: Optional[float] = None
+            P_mec_alt: Optional[float] = None
+            T_mec_alt: Optional[float] = None
+            P_pertes_alt: Optional[float] = None
+
+            alt_core: Optional[Dict[str, Any]] = None
+            if isinstance(alt_report, dict):
+                if isinstance(alt_report.get("alternateur", None), dict):
+                    alt_core = alt_report.get("alternateur", None)
+                else:
+                    alt_core = alt_report
+
+            if isinstance(alt_core, dict):
+                try:
+                    P_out = alt_core.get("resultats", {}).get("P_out_W", None)
+                    eta_alt = alt_core.get("resultats", {}).get("eta_total", None)
+                    P_mec_alt = alt_core.get("resultats", {}).get("P_mecanique_W", None)
+                    T_mec_alt = alt_core.get("resultats", {}).get("couple_mecanique_Nm", None)
+                    P_pertes_alt = alt_core.get("pertes", {}).get("P_pertes_totales_W", None)
+                except Exception:
+                    pass
+
+            # Bornes minimales théoriques (rendement = 100%)
+            P_mec_min_theorique = Pdc
+            T_alt_min_theorique = (Pdc / omega_alt) if abs(omega_alt) > 1e-12 else None
+
+            cand["exigences"].update(
+                {
+                    "P_out_W": P_out,
+                    "eta_alternateur": eta_alt,
+                    "P_pertes_alternateur_W": P_pertes_alt,
+                    "P_mecanique_alternateur_W": P_mec_alt,
+                    "couple_alternateur_Nm": T_mec_alt,
+                    "P_mec_min_theorique_W": P_mec_min_theorique,
+                    "couple_alt_min_theorique_Nm": T_alt_min_theorique,
+                }
+            )
+
+            def _remonte_couple(T_out: Optional[float]) -> Optional[float]:
+                if T_out is None:
+                    return None
+                if eta_boite is None:
+                    return T_out * ratio
+                return (T_out * ratio) / eta_boite
+
+            def _remonte_puissance(P_out_meca: Optional[float]) -> Optional[float]:
+                if P_out_meca is None:
+                    return None
+                if eta_boite is None:
+                    return P_out_meca
+                return P_out_meca / eta_boite
+
+            T_moteur_requis = _remonte_couple(T_mec_alt)
+            P_moteur_requise = _remonte_puissance(P_mec_alt)
+
+            T_moteur_min_theorique = _remonte_couple(T_alt_min_theorique) if T_alt_min_theorique is not None else None
+            P_moteur_min_theorique = _remonte_puissance(P_mec_min_theorique)
+
+            cand["exigences"].update(
+                {
+                    "couple_moteur_requis_Nm": T_moteur_requis,
+                    "puissance_moteur_requise_W": P_moteur_requise,
+                    "couple_moteur_min_theorique_Nm": T_moteur_min_theorique,
+                    "puissance_moteur_min_theorique_W": P_moteur_min_theorique,
+                }
+            )
+
+            couple_pour_dimensionnement = T_moteur_requis
+            tag_couple = "reel"
+            if couple_pour_dimensionnement is None:
+                couple_pour_dimensionnement = T_moteur_min_theorique
+                tag_couple = "borne_min_theorique"
+
+            if couple_pour_dimensionnement is None:
+                _push_inconnue(
+                    rapport,
+                    "impossibles",
+                    "couple transmis",
+                    "Impossible : ni couple alternateur calculé, ni borne théorique (omega_alt=0 ?).",
+                )
+                boite_report = None
+            else:
+                boite_report = self.analyser_point(
+                    couple_nm=float(couple_pour_dimensionnement),
+                    vitesse_rotation_tr_min=rpm_m,
+                    inertie_primaire_kg_m2=inertie_primaire_kg_m2,
+                    inertie_secondaire_kg_m2=inertie_secondaire_kg_m2,
+                    delta_omega_rad_s=delta_omega_rad_s,
+                    temps_engagement_s=temps_engagement_s,
+                    force_radiale_N=force_radiale_N,
+                    force_axiale_N=force_axiale_N,
+                )
+                boite_report.setdefault("notes_modele", [])
+                boite_report["notes_modele"].append(f"Couple d'entrée utilisé: {tag_couple}")
+
+            cand["boite"] = boite_report
+
+            # Estimation conso : uniquement si le moteur fournit BSFC (g/kWh)
+            bsfc_g_kwh = None
+            if moteur is not None:
+                bsfc_g_kwh = _safe_get_float(moteur, "bsfc_g_kwh")
+                if bsfc_g_kwh is None:
+                    bsfc_g_kwh = _safe_get_float(moteur, "consommation_specifique_g_kwh")
+
+            if bsfc_g_kwh is not None:
+                P_for_fuel = P_moteur_requise if P_moteur_requise is not None else P_moteur_min_theorique
+                if P_for_fuel is not None:
+                    fuel_g_h = bsfc_g_kwh * (float(P_for_fuel) / 1000.0)
+                    cand["exigences"]["bsfc_g_kwh_utilisee"] = bsfc_g_kwh
+                    cand["exigences"]["debit_carburant_g_h_estime"] = fuel_g_h
+                else:
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "débit carburant",
+                        "BSFC fournie, mais puissance moteur requise indéterminable (rendements manquants).",
+                    )
+
+            rapport["candidats"].append(cand)
+
+        if len(rapport["candidats"]) == 0:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "rapports",
+                "Aucun rapport valide (>0) dans la liste fournie.",
+            )
+            _dedup_inconnues(rapport)
+            return rapport
+
+        def _metric(c: Dict[str, Any], key: str) -> Optional[float]:
+            try:
+                v = c.get("exigences", {}).get(key, None)
+                if v is None:
+                    return None
+                f = float(v)
+                return f if math.isfinite(f) else None
+            except Exception:
+                return None
+
+        selection: Optional[Dict[str, Any]] = None
+
+        if strategie in ("max_eta_alternateur", "min_pertes_alternateur", "min_couple_moteur"):
+            scored: List[Tuple[float, Dict[str, Any]]] = []
+            for c in rapport["candidats"]:
+                if strategie == "max_eta_alternateur":
+                    m = _metric(c, "eta_alternateur")
+                    if m is not None:
+                        scored.append((m, c))
+                elif strategie == "min_pertes_alternateur":
+                    m = _metric(c, "P_pertes_alternateur_W")
+                    if m is not None:
+                        scored.append((-m, c))  # minimisation
+                else:
+                    m = _metric(c, "couple_moteur_requis_Nm")
+                    if m is None:
+                        m = _metric(c, "couple_moteur_min_theorique_Nm")
+                    if m is not None:
+                        scored.append((-m, c))  # minimisation
+
+            if len(scored) == 0:
+                _push_inconnue(
+                    rapport,
+                    "impossibles",
+                    "selection",
+                    f"Impossible d'appliquer la stratégie {strategie}: métriques indisponibles (modèles/paramètres manquants).",
+                )
+            else:
+                scored.sort(key=lambda t: t[0], reverse=True)
+                selection = scored[0][1]
+
+        elif strategie == "pareto":
+            pts: List[Tuple[float, float, Dict[str, Any]]] = []
+            for c in rapport["candidats"]:
+                eta = _metric(c, "eta_alternateur")
+                t = _metric(c, "couple_moteur_requis_Nm")
+                if t is None:
+                    t = _metric(c, "couple_moteur_min_theorique_Nm")
+                if eta is not None and t is not None:
+                    pts.append((eta, t, c))
+
+            if len(pts) == 0:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "pareto",
+                    "Impossible de calculer un Pareto (eta_alternateur et couple_moteur manquants).",
+                )
+            else:
+                front: List[Dict[str, Any]] = []
+                for i, (eta_i, t_i, c_i) in enumerate(pts):
+                    dominated = False
+                    for j, (eta_j, t_j, _c_j) in enumerate(pts):
+                        if j == i:
+                            continue
+                        if (eta_j >= eta_i and t_j <= t_i) and (eta_j > eta_i or t_j < t_i):
+                            dominated = True
+                            break
+                    if not dominated:
+                        front.append(c_i)
+                rapport["selection"] = {"pareto_front": front, "count": len(front)}
+        else:
+            raise ValueError("strategie invalide.")
+
+        if selection is not None:
+            rapport["selection"] = {
+                "strategie": strategie,
+                "rapport": selection.get("rapport"),
+                "resume": selection.get("exigences", {}),
+            }
 
         _dedup_inconnues(rapport)
         return rapport
