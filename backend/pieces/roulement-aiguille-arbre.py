@@ -1,1 +1,0 @@
-# backend\pieces\roulement-aiguille-arbre.py
