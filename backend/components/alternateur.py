@@ -1,10 +1,9 @@
 # backend/components/alternateur.py
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 import math
-
 
 # ============================================================
 # Imports des modules alternateur (robustes à l'arborescence)
@@ -32,9 +31,7 @@ try:
     from backend.modules.alternateur.calcul_puissance_mecanique import calcul_puissance_mecanique
     from backend.modules.alternateur.calcul_couple_alternateur import calcul_couple_alternateur
     from backend.modules.alternateur.calcul_echauffement_thermique import calcul_echauffement_thermique
-
 except Exception:
-    # Variante possible: backend\modules\alternateur\... (selon tes conventions)
     from backend.modules.alternateur.calcul_vitesse_angulaire import calcul_vitesse_angulaire
     from backend.modules.alternateur.calcul_frequence_synchrone import calcul_frequence_synchrone
     from backend.modules.alternateur.calcul_fem_induite import (
@@ -57,9 +54,21 @@ except Exception:
     from backend.modules.alternateur.calcul_couple_alternateur import calcul_couple_alternateur
     from backend.modules.alternateur.calcul_echauffement_thermique import calcul_echauffement_thermique
 
+# ============================================================
+# (Optionnel) import module batterie pour temps/énergie de charge
+# ============================================================
+
+try:
+    from backend.modules.batterie.calcul_temps_charge import calcul_temps_charge
+except Exception:
+    try:
+        from backend.modules.batterie.calcul_temps_charge import calcul_temps_charge  # type: ignore
+    except Exception:
+        calcul_temps_charge = None  # type: ignore
+
 
 # ============================================================
-# Helpers (validation + utilitaires)
+# Types & helpers
 # ============================================================
 
 ModeElectrique = Literal["triphase_ac", "monophase_ac", "dc"]
@@ -71,71 +80,94 @@ def _is_finite(x: Any) -> bool:
     return isinstance(x, (int, float)) and math.isfinite(float(x))
 
 
-def _require_finite(name: str, x: Any) -> float:
+def _req_finite(name: str, x: Any) -> float:
     if not _is_finite(x):
         raise ValueError(f"{name} doit être un nombre fini (reçu: {x!r}).")
     return float(x)
 
 
-def _require_positive(name: str, x: Any, *, strictly: bool = True) -> float:
-    x = _require_finite(name, x)
-    ok = x > 0.0 if strictly else x >= 0.0
+def _req_pos(name: str, x: Any, *, strictly: bool = True) -> float:
+    v = _req_finite(name, x)
+    ok = v > 0.0 if strictly else v >= 0.0
     if not ok:
         op = ">" if strictly else ">="
-        raise ValueError(f"{name} doit être {op} 0 (reçu: {x}).")
-    return x
+        raise ValueError(f"{name} doit être {op} 0 (reçu: {v}).")
+    return v
 
 
-def _require_eta(name: str, eta: Any) -> float:
-    eta = _require_finite(name, eta)
-    if not (0.0 < eta <= 1.0):
-        raise ValueError(f"{name} doit être dans (0, 1] (reçu: {eta}).")
-    return eta
+def _req_eta(name: str, eta: Any) -> float:
+    v = _req_finite(name, eta)
+    if not (0.0 < v <= 1.0):
+        raise ValueError(f"{name} doit être dans (0,1] (reçu: {v}).")
+    return v
 
 
-def _safe_get(d: Dict[str, Any], k: str, default: Any = None) -> Any:
-    return d.get(k, default)
+def _push_inconnue(rep: Dict[str, Any], cat: str, nom: str, raison: str) -> None:
+    rep["inconnues"][cat].append({"nom": nom, "raison": raison})
+
+
+def _dedup_inconnues(rep: Dict[str, Any]) -> None:
+    def dedup(lst: list[dict]) -> list[dict]:
+        seen: set[Tuple[str, str]] = set()
+        out: list[dict] = []
+        for it in lst:
+            key = (str(it.get("nom", "")), str(it.get("raison", "")))
+            if key not in seen:
+                seen.add(key)
+                out.append(it)
+        return out
+
+    rep["inconnues"]["impossibles"] = dedup(rep["inconnues"]["impossibles"])
+    rep["inconnues"]["partielles"] = dedup(rep["inconnues"]["partielles"])
+
+
+def _phase_line_from_connexion(connexion: Connexion) -> Tuple[float, float]:
+    """
+    Renvoie (k_Vll_from_Vph, k_Iph_from_Il) pour une machine triphasée:
+      - Y     : V_LL = sqrt(3)*V_ph ; I_ph = I_L
+      - Delta : V_LL = V_ph         ; I_ph = I_L/sqrt(3)
+    """
+    if connexion == "Y":
+        return (math.sqrt(3.0), 1.0)
+    return (1.0, 1.0 / math.sqrt(3.0))
+
+
+def _safe_get_attr(obj: Any, attr: str) -> Any:
+    try:
+        return getattr(obj, attr)
+    except Exception:
+        return None
 
 
 # ============================================================
-# Définition Alternateur (entrées minimales + options)
+# Alternateur
 # ============================================================
 
 @dataclass(frozen=True)
 class Alternateur:
     """
-    Objectif : produire un maximum d'infos par calcul, et ne laisser comme
-    'inconnues' que ce qui est réellement impossible à déduire sans :
-    - datasheet constructeur
-    - mesures
-    - calibration matériau / thermique
-
-    Le script :
-    - calcule fréquence, f.e.m. induite (si données magnétisme/enroulement),
-    - calcule puissance électrique (AC/DC),
-    - estime pertes cuivre/fer (si paramètres connus),
-    - en déduit rendement, puissance méca, couple,
-    - estime échauffement (si résistance thermique connue),
-    - liste explicitement les inconnues restantes (impossibles / partielles).
+    Alternateur "calcul-only" :
+    - calcule tout ce qui est déterminable à partir des entrées fournies,
+    - n'invente jamais (toute donnée techno manquante => inconnue),
+    - peut s'intégrer à des objets 'moteur' et 'batterie' via lecture d'attributs.
     """
 
-    # --- Cinématique / topologie machine ---
+    # --- Cinématique / topologie ---
     nombre_poles: Optional[int] = None
-    mode_poles: ModePoles = "poles"  # "poles" (P) ou "pole_pairs" (p)
-    connexion: Connexion = "Y"       # utile pour quelques conversions
+    mode_poles: ModePoles = "poles"
+    connexion: Connexion = "Y"
 
-    # --- Enroulement / magnétisme (nécessaire pour FEM induite) ---
+    # --- Enroulement / magnétisme (FEM) ---
     nombre_spires_serie: Optional[int] = None
     facteur_enroulement: Optional[float] = None  # k_w
-    flux_max_pole_wb: Optional[float] = None     # Phi_max (Wb)
+    flux_max_pole_wb: Optional[float] = None     # Phi_max
 
-    # Option alternative: flux approx par B_g * A_p
-    induction_gap_t: Optional[float] = None      # B_g (T)
-    aire_pole_m2: Optional[float] = None         # A_p (m²)
+    # Alternative flux ~ B_g * A_p
+    induction_gap_t: Optional[float] = None
+    aire_pole_m2: Optional[float] = None
 
-    # --- Pertes cuivre (résistance enroulement) ---
+    # --- Cuivre (R_phase) ---
     resistance_phase_ohm: Optional[float] = None
-    # ou bien calculable via rho, L, A
     resistivite_ohm_m: Optional[float] = None
     longueur_fil_m: Optional[float] = None
     section_fil_m2: Optional[float] = None
@@ -143,7 +175,7 @@ class Alternateur:
     temperature_ref_c: float = 20.0
     coef_temperature: float = 0.00393
 
-    # --- Pertes fer (modèle Steinmetz) ---
+    # --- Fer (Steinmetz) ---
     k_h: Optional[float] = None
     k_e: Optional[float] = None
     exposant_steinmetz: Optional[float] = None
@@ -153,20 +185,18 @@ class Alternateur:
     masse_fer_kg: Optional[float] = None
     volume_fer_m3: Optional[float] = None
 
-    # --- Pertes fixes (frottements, excitation, ventilation, etc.) ---
+    # --- Pertes fixes ---
     pertes_fixes_w: float = 0.0
 
-    # --- Thermique (pour échauffement) ---
-    resistance_thermique_k_w: Optional[float] = None  # K/W ou °C/W
+    # --- Thermique ---
+    resistance_thermique_k_w: Optional[float] = None
     offset_temperature: float = 0.0
 
-    # --- Options de comportement ---
     clamp_non_negative: bool = True
 
     def __post_init__(self) -> None:
-        # Validations légères, sans bloquer les usages "partiels"
-        _require_finite("pertes_fixes_w", self.pertes_fixes_w)
-        _require_finite("offset_temperature", self.offset_temperature)
+        _req_finite("pertes_fixes_w", self.pertes_fixes_w)
+        _req_finite("offset_temperature", self.offset_temperature)
 
         if self.nombre_poles is not None:
             if not isinstance(self.nombre_poles, int) or self.nombre_poles <= 0:
@@ -177,73 +207,63 @@ class Alternateur:
                 raise ValueError("nombre_spires_serie doit être un entier >= 0 si fourni.")
 
         if self.resistance_phase_ohm is not None:
-            _require_positive("resistance_phase_ohm", self.resistance_phase_ohm, strictly=False)
+            _req_pos("resistance_phase_ohm", self.resistance_phase_ohm, strictly=False)
 
         if self.resistance_thermique_k_w is not None:
-            _require_finite("resistance_thermique_k_w", self.resistance_thermique_k_w)
+            _req_finite("resistance_thermique_k_w", self.resistance_thermique_k_w)
 
-        # Évite double totalisation fer masse+volume (le module refusera aussi)
         if self.masse_fer_kg is not None and self.volume_fer_m3 is not None:
             raise ValueError("Fournis soit masse_fer_kg, soit volume_fer_m3, pas les deux.")
 
     # ------------------------------------------------------------
-    # Analyse principale : un point de fonctionnement
+    # Analyse d'un point (machine seule)
     # ------------------------------------------------------------
     def analyser_point_de_fonctionnement(
         self,
         *,
-        # Vitesse
+        # Vitesse (au choix)
         vitesse_rotation_rpm: Optional[float] = None,
         vitesse_angulaire_rad_s: Optional[float] = None,
-        # Mode électrique + mesures
+        # Mode & grandeurs électriques si mesurées
         mode_electrique: ModeElectrique = "triphase_ac",
-        # Triphasé AC : VLL + IL + pf
         tension_v: Optional[float] = None,
         courant_a: Optional[float] = None,
         facteur_puissance: float = 1.0,
-        # Monophasé AC : V + I + pf (on réutilise tension_v/courant_a)
-        # DC : Vdc + Idc (on réutilise tension_v/courant_a)
-        # Choix d'entrée pour calcul puissance tri (VLL_IL ou Vph_Iph)
         entree_puissance_ac: Literal["VLL_IL", "Vph_Iph"] = "VLL_IL",
-        # Courant interprété comme courant de ligne ?
         courant_est_ligne: bool = True,
-        # P électrique cible (si tu ne donnes pas V/I)
+        # Cible de puissance (prioritaire)
         puissance_electrique_cible_w: Optional[float] = None,
+        # IMPORTANT (anti-invention) :
+        # - pertes cuivre nécessitent I_phase_rms stator.
+        #   En AC tri: on peut le déduire selon connexion/courant_est_ligne.
+        #   En DC: impossible sans modèle de redressement => fournir explicitement si tu veux calculer P_cuivre.
+        courant_phase_rms_stator_a: Optional[float] = None,
+        # Mono/charges partielles: si tu utilises une seule phase (ou 2), ne pas inventer -> fournir nb_phases_chargees
+        nb_phases_chargees: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """
-        Retourne un rapport très détaillé.
-        - Si puissance_electrique_cible_w est fourni : P_out = cette valeur (prioritaire)
-        - Sinon : P_out calculée depuis (tension, courant, pf) selon le mode
-
-        Nota :
-        - sans données cuivre/fer, le rendement ne peut pas être calculé : il restera une inconnue
-        - sans Rth, l'échauffement reste une inconnue
-        """
-        rapport: Dict[str, Any] = {
+        rep: Dict[str, Any] = {
             "entrees": {},
             "resultats": {},
             "pertes": {},
+            "thermique": {},
             "inconnues": {"impossibles": [], "partielles": []},
             "notes_modele": [],
         }
 
-        # -----------------------------
-        # 1) Vitesse (omega) + fréquence synchrone
-        # -----------------------------
+        # 1) Vitesse
         omega: Optional[float] = None
         rpm: Optional[float] = None
 
         if vitesse_angulaire_rad_s is not None:
             omega = calcul_vitesse_angulaire(
-                vitesse_angulaire_rad_s,
+                float(vitesse_angulaire_rad_s),
                 input_unite="rad_s",
                 allow_negative=True,
                 clamp_non_negative=False,
             )
             rpm = (omega * 60.0) / (2.0 * math.pi)
-
         elif vitesse_rotation_rpm is not None:
-            rpm = _require_finite("vitesse_rotation_rpm", vitesse_rotation_rpm)
+            rpm = _req_finite("vitesse_rotation_rpm", vitesse_rotation_rpm)
             omega = calcul_vitesse_angulaire(
                 rpm,
                 input_unite="rpm",
@@ -251,13 +271,11 @@ class Alternateur:
                 clamp_non_negative=False,
             )
         else:
-            rapport["inconnues"]["impossibles"].append(
-                {"nom": "vitesse (rpm ou omega)", "raison": "Impossible de calculer fréquence, couple, puissance méca sans vitesse."}
-            )
+            _push_inconnue(rep, "impossibles", "vitesse (rpm/omega)", "Requise pour fréquence, couple, P_mécanique.")
+        rep["entrees"]["rpm"] = rpm
+        rep["entrees"]["omega_rad_s"] = omega
 
-        rapport["entrees"]["rpm"] = rpm
-        rapport["entrees"]["omega_rad_s"] = omega
-
+        # 2) Fréquence synchrone
         frequence_hz: Optional[float] = None
         if rpm is not None and self.nombre_poles is not None:
             frequence_hz = calcul_frequence_synchrone(
@@ -268,23 +286,19 @@ class Alternateur:
             )
         else:
             if self.nombre_poles is None:
-                rapport["inconnues"]["impossibles"].append(
-                    {"nom": "nombre_poles", "raison": "Nécessaire pour calculer la fréquence synchrone à partir de rpm."}
-                )
+                _push_inconnue(rep, "impossibles", "nombre_poles", "Requis pour calculer f_synchrone depuis rpm.")
             if rpm is None:
-                rapport["inconnues"]["impossibles"].append(
-                    {"nom": "rpm", "raison": "Nécessaire pour calculer la fréquence synchrone."}
-                )
+                _push_inconnue(rep, "impossibles", "rpm", "Requis pour calculer f_synchrone.")
+        rep["resultats"]["frequence_hz"] = frequence_hz
 
-        rapport["resultats"]["frequence_hz"] = frequence_hz
-
-        # -----------------------------
-        # 2) FEM induite (si infos enroulement + flux)
-        # -----------------------------
+        # 3) FEM induite (phase) + conversions (ligne)
         fem_phase_v: Optional[float] = None
         fem_phase_v_via_BA: Optional[float] = None
+        fem_ll_v: Optional[float] = None
+        fem_ll_v_via_BA: Optional[float] = None
 
-        # Cas A : flux directement fourni
+        k_vll, _ = _phase_line_from_connexion(self.connexion)
+
         if (
             frequence_hz is not None
             and self.nombre_spires_serie is not None
@@ -298,25 +312,15 @@ class Alternateur:
                 facteur_enroulement=self.facteur_enroulement,
                 clamp_non_negative=True,
             )
+            fem_ll_v = k_vll * float(fem_phase_v)
         else:
-            # Inconnues : partiellement calculables si on remplace flux par B*A
-            missing = []
-            if frequence_hz is None:
-                missing.append("frequence_hz")
-            if self.nombre_spires_serie is None:
-                missing.append("nombre_spires_serie")
-            if self.facteur_enroulement is None:
-                missing.append("facteur_enroulement")
-            if self.flux_max_pole_wb is None:
-                missing.append("flux_max_pole_wb")
-            rapport["inconnues"]["partielles"].append(
-                {
-                    "nom": "FEM induite (flux direct)",
-                    "raison": "Calculable si on fournit : " + ", ".join(missing),
-                }
+            _push_inconnue(
+                rep,
+                "partielles",
+                "FEM induite (flux direct)",
+                "Calculable si f, N, k_w, Phi_max sont fournis.",
             )
 
-        # Cas B : flux approximé via B_g * A_p
         if (
             frequence_hz is not None
             and self.nombre_spires_serie is not None
@@ -333,50 +337,36 @@ class Alternateur:
                 clamp_non_negative=True,
                 flux_model="abs(B)*A",
             )
+            fem_ll_v_via_BA = k_vll * float(fem_phase_v_via_BA)
         else:
-            missing = []
-            if frequence_hz is None:
-                missing.append("frequence_hz")
-            if self.nombre_spires_serie is None:
-                missing.append("nombre_spires_serie")
-            if self.facteur_enroulement is None:
-                missing.append("facteur_enroulement")
-            if self.induction_gap_t is None:
-                missing.append("induction_gap_t")
-            if self.aire_pole_m2 is None:
-                missing.append("aire_pole_m2")
-            rapport["inconnues"]["partielles"].append(
-                {
-                    "nom": "FEM induite (via B*A)",
-                    "raison": "Calculable si on fournit : " + ", ".join(missing),
-                }
+            _push_inconnue(
+                rep,
+                "partielles",
+                "FEM induite (via B*A)",
+                "Calculable si f, N, k_w, B_g, A_p sont fournis.",
             )
 
-        rapport["resultats"]["fem_phase_v"] = fem_phase_v
-        rapport["resultats"]["fem_phase_v_via_BA"] = fem_phase_v_via_BA
+        rep["resultats"]["fem_phase_v"] = fem_phase_v
+        rep["resultats"]["fem_ligne_ligne_v"] = fem_ll_v
+        rep["resultats"]["fem_phase_v_via_BA"] = fem_phase_v_via_BA
+        rep["resultats"]["fem_ligne_ligne_v_via_BA"] = fem_ll_v_via_BA
 
-        # -----------------------------
-        # 3) Puissance électrique utile P_out
-        # -----------------------------
+        # 4) Puissance électrique utile P_out
         P_out: Optional[float] = None
         details_puissance: Optional[Dict[str, float]] = None
 
         if puissance_electrique_cible_w is not None:
-            P_out = _require_finite("puissance_electrique_cible_w", puissance_electrique_cible_w)
-            rapport["notes_modele"].append(
-                "Puissance électrique utile fixée par cible (prioritaire sur V/I/pf)."
-            )
+            P_out = _req_finite("puissance_electrique_cible_w", puissance_electrique_cible_w)
+            rep["notes_modele"].append("P_out imposée par cible (prioritaire).")
         else:
             if tension_v is None or courant_a is None:
-                rapport["inconnues"]["impossibles"].append(
-                    {"nom": "P_out", "raison": "Donner puissance_electrique_cible_w OU (tension_v et courant_a) pour calculer la puissance."}
-                )
+                _push_inconnue(rep, "impossibles", "P_out", "Fournir puissance_electrique_cible_w OU (tension_v et courant_a).")
             else:
-                V = _require_finite("tension_v", tension_v)
-                I = _require_finite("courant_a", courant_a)
+                V = _req_finite("tension_v", tension_v)
+                I = _req_finite("courant_a", courant_a)
 
                 if mode_electrique == "triphase_ac":
-                    details = calcul_puissance_triphase(
+                    d = calcul_puissance_triphase(
                         tension_composee=V,
                         courant_ligne=I,
                         facteur_puissance=facteur_puissance,
@@ -385,53 +375,46 @@ class Alternateur:
                         return_details=True,
                         clamp_non_negative=self.clamp_non_negative,
                     )
-                    details_puissance = details  # type: ignore[assignment]
-                    P_out = float(details["P"])
-
+                    details_puissance = {k: float(v) for k, v in d.items()}  # type: ignore[union-attr]
+                    P_out = float(details_puissance["P"])
                 elif mode_electrique == "monophase_ac":
-                    details = calcul_puissance_monophase(
+                    d = calcul_puissance_monophase(
                         tension=V,
                         courant=I,
                         facteur_puissance=facteur_puissance,
                         return_details=True,
                         clamp_non_negative=self.clamp_non_negative,
                     )
-                    details_puissance = details  # type: ignore[assignment]
-                    P_out = float(details["P"])
-
+                    details_puissance = {k: float(v) for k, v in d.items()}  # type: ignore[union-attr]
+                    P_out = float(details_puissance["P"])
                 elif mode_electrique == "dc":
-                    details = calcul_puissance_dc(
+                    d = calcul_puissance_dc(
                         tension_dc=V,
                         courant_dc=I,
                         return_details=True,
                         clamp_non_negative=self.clamp_non_negative,
                     )
-                    details_puissance = details  # type: ignore[assignment]
-                    P_out = float(details["P"])
-
+                    details_puissance = {k: float(v) for k, v in d.items()}  # type: ignore[union-attr]
+                    P_out = float(details_puissance["P"])
                 else:
                     raise ValueError("mode_electrique invalide.")
 
-        rapport["entrees"]["mode_electrique"] = mode_electrique
-        rapport["entrees"]["tension_v"] = tension_v
-        rapport["entrees"]["courant_a"] = courant_a
-        rapport["entrees"]["facteur_puissance"] = facteur_puissance
-        rapport["resultats"]["P_out_W"] = P_out
-        rapport["resultats"]["details_puissance"] = details_puissance
+        rep["entrees"]["mode_electrique"] = mode_electrique
+        rep["entrees"]["tension_v"] = tension_v
+        rep["entrees"]["courant_a"] = courant_a
+        rep["entrees"]["facteur_puissance"] = facteur_puissance
+        rep["entrees"]["entree_puissance_ac"] = entree_puissance_ac
+        rep["entrees"]["courant_est_ligne"] = courant_est_ligne
 
-        # -----------------------------
-        # 4) Résistance phase (si besoin) + pertes cuivre
-        # -----------------------------
+        rep["resultats"]["P_out_W"] = P_out
+        rep["resultats"]["details_puissance"] = details_puissance
+
+        # 5) Résistance phase (R_phase)
         R_phase: Optional[float] = None
         if self.resistance_phase_ohm is not None:
             R_phase = float(self.resistance_phase_ohm)
         else:
-            # Tentative de déduction via rho, L, A
-            if (
-                self.resistivite_ohm_m is not None
-                and self.longueur_fil_m is not None
-                and self.section_fil_m2 is not None
-            ):
+            if self.resistivite_ohm_m is not None and self.longueur_fil_m is not None and self.section_fil_m2 is not None:
                 R_phase = calcul_resistance_enroulement(
                     resistivite=self.resistivite_ohm_m,
                     longueur_fil=self.longueur_fil_m,
@@ -441,71 +424,99 @@ class Alternateur:
                     coef_temperature=self.coef_temperature,
                     clamp_non_negative=True,
                 )
-                rapport["notes_modele"].append(
-                    "Résistance phase déduite par R=rho*L/A (avec correction température si fournie)."
-                )
+                rep["notes_modele"].append("R_phase déduite par R=rho*L/A (avec correction température si fournie).")
             else:
-                rapport["inconnues"]["partielles"].append(
-                    {
-                        "nom": "resistance_phase_ohm",
-                        "raison": "Fournir resistance_phase_ohm OU (resistivite_ohm_m, longueur_fil_m, section_fil_m2).",
-                    }
+                _push_inconnue(
+                    rep,
+                    "partielles",
+                    "R_phase",
+                    "Fournir resistance_phase_ohm OU (resistivite_ohm_m, longueur_fil_m, section_fil_m2).",
                 )
+        rep["resultats"]["R_phase_ohm"] = R_phase
 
-        rapport["resultats"]["R_phase_ohm"] = R_phase
-
+        # 6) Pertes cuivre (sans inventer le courant stator)
         P_cu_total: Optional[float] = None
-        P_cu_detail: Dict[str, Any] = {}
+        cuivre_details: Dict[str, Any] = {}
 
-        # Courant utile pour pertes cuivre (en AC : courant de ligne ou de phase selon convention)
-        if R_phase is not None and courant_a is not None:
-            I_in = float(courant_a)
+        I_phase_rms: Optional[float] = None
 
-            # 4.1 pertes cuivre triphasées
-            P_cu_total = calcul_pertes_cuivre_triphase(
-                courant_phase=I_in,
-                resistance_phase=R_phase,
-                courant_type="rms",
-                connexion=self.connexion,
-                courant_est_ligne=courant_est_ligne,
-                clamp_non_negative=True,
-            )
-            P_cu_detail["P_cu_triphase_W"] = P_cu_total
-
-            # 4.2 pertes cuivre par phase (pour visibilité)
-            # On reconstruit I_phase à partir de I_ligne si nécessaire (mêmes conventions que le module)
-            if courant_est_ligne:
-                if self.connexion == "Y":
-                    I_phase = I_in
-                else:  # Delta
-                    I_phase = I_in / math.sqrt(3.0)
-            else:
-                I_phase = I_in
-
-            P_cu_phase = calcul_pertes_cuivre_phase(
-                courant=I_phase,
-                resistance=R_phase,
-                courant_type="rms",
-                clamp_non_negative=True,
-            )
-            P_cu_detail["I_phase_rms_A"] = I_phase
-            P_cu_detail["P_cu_phase_W"] = P_cu_phase
-            P_cu_detail["P_cu_recompose_W"] = 3.0 * P_cu_phase
-
+        if courant_phase_rms_stator_a is not None:
+            I_phase_rms = _req_pos("courant_phase_rms_stator_a", courant_phase_rms_stator_a, strictly=False)
+            rep["notes_modele"].append("I_phase_rms stator fourni explicitement (prioritaire).")
         else:
-            rapport["inconnues"]["partielles"].append(
-                {
-                    "nom": "Pertes cuivre",
-                    "raison": "Calculables si on connaît courant_a (au point) et R_phase_ohm (directe ou déduite).",
-                }
-            )
+            if mode_electrique == "triphase_ac" and courant_a is not None:
+                I_in = _req_pos("courant_a", courant_a, strictly=False)
+                if courant_est_ligne:
+                    _, k_iph_from_il = _phase_line_from_connexion(self.connexion)
+                    I_phase_rms = I_in * k_iph_from_il
+                    cuivre_details["I_ligne_rms_A"] = I_in
+                    cuivre_details["I_phase_rms_A"] = I_phase_rms
+                else:
+                    I_phase_rms = I_in
+                    cuivre_details["I_phase_rms_A"] = I_phase_rms
+            elif mode_electrique == "monophase_ac":
+                # Impossible de déduire combien de phases du stator sont chargées sans info.
+                if courant_a is not None and nb_phases_chargees is not None:
+                    nph = int(nb_phases_chargees)
+                    if nph <= 0 or nph > 3:
+                        raise ValueError("nb_phases_chargees doit être dans {1,2,3}.")
+                    I_phase_rms = _req_pos("courant_a", courant_a, strictly=False)
+                    cuivre_details["nb_phases_chargees"] = nph
+                    cuivre_details["I_phase_rms_A"] = I_phase_rms
+                else:
+                    _push_inconnue(
+                        rep,
+                        "partielles",
+                        "Pertes cuivre (monophasé)",
+                        "Fournir nb_phases_chargees et un courant de phase RMS (courant_a interprété phase).",
+                    )
+            elif mode_electrique == "dc":
+                _push_inconnue(
+                    rep,
+                    "partielles",
+                    "Pertes cuivre (DC)",
+                    "Impossible de déduire I_phase RMS stator depuis I_DC sans modèle de redressement. Fournir courant_phase_rms_stator_a.",
+                )
 
-        rapport["pertes"]["P_cuivre_W"] = P_cu_total
-        rapport["pertes"]["details_cuivre"] = P_cu_detail
+        if R_phase is not None and I_phase_rms is not None:
+            if mode_electrique == "triphase_ac":
+                # Triphasé: on utilise directement le module triphasé
+                P_cu_total = calcul_pertes_cuivre_triphase(
+                    courant_phase=I_phase_rms,
+                    resistance_phase=R_phase,
+                    courant_type="rms",
+                    connexion=self.connexion,
+                    courant_est_ligne=False,  # on passe déjà I_phase
+                    clamp_non_negative=True,
+                )
+                cuivre_details["P_cu_triphase_W"] = float(P_cu_total)
+            elif mode_electrique == "monophase_ac":
+                nph = int(nb_phases_chargees) if nb_phases_chargees is not None else 1
+                P_cu_phase = calcul_pertes_cuivre_phase(
+                    courant=I_phase_rms,
+                    resistance=R_phase,
+                    courant_type="rms",
+                    clamp_non_negative=True,
+                )
+                P_cu_total = float(nph) * float(P_cu_phase)
+                cuivre_details["P_cu_phase_W"] = float(P_cu_phase)
+                cuivre_details["P_cu_total_W"] = float(P_cu_total)
+            else:
+                # DC: si I_phase fourni, on peut calculer pareil que triphasé (stator triphasé)
+                P_cu_total = calcul_pertes_cuivre_triphase(
+                    courant_phase=I_phase_rms,
+                    resistance_phase=R_phase,
+                    courant_type="rms",
+                    connexion=self.connexion,
+                    courant_est_ligne=False,
+                    clamp_non_negative=True,
+                )
+                cuivre_details["P_cu_triphase_equiv_W"] = float(P_cu_total)
 
-        # -----------------------------
-        # 5) Pertes fer (Steinmetz) : nécessite coefficients + B + f
-        # -----------------------------
+        rep["pertes"]["P_cuivre_W"] = P_cu_total
+        rep["pertes"]["details_cuivre"] = cuivre_details
+
+        # 7) Pertes fer (Steinmetz)
         P_fe_total: Optional[float] = None
         P_fe_detail: Optional[Dict[str, float]] = None
 
@@ -516,8 +527,7 @@ class Alternateur:
             and self.exposant_steinmetz is not None
             and self.induction_max_t is not None
         ):
-            # totalisation via masse ou volume si fourni (sinon -> "spécifique")
-            details = calcul_pertes_fer_steinmetz(
+            dfe = calcul_pertes_fer_steinmetz(
                 k_h=self.k_h,
                 frequence=frequence_hz,
                 induction_max=self.induction_max_t,
@@ -530,157 +540,236 @@ class Alternateur:
                 return_details=True,
                 clamp_non_negative=True,
             )
-            # type: ignore[assignment]
-            P_fe_total = float(details["P_total"])
-            P_fe_detail = {k: float(v) for k, v in details.items()}  # copie propre
+            P_fe_total = float(dfe["P_total"])  # type: ignore[index]
+            P_fe_detail = {k: float(v) for k, v in dfe.items()}  # type: ignore[union-attr]
         else:
-            rapport["inconnues"]["impossibles"].append(
-                {
-                    "nom": "Pertes fer (Steinmetz)",
-                    "raison": (
-                        "Impossible sans calibration matériau (k_h, k_e, exposant_steinmetz) "
-                        "et sans Bmax + fréquence."
-                    ),
-                }
+            _push_inconnue(
+                rep,
+                "impossibles",
+                "Pertes fer (Steinmetz)",
+                "Impossible sans calibration matériau (k_h,k_e,alpha) et sans Bmax + fréquence.",
             )
 
-        rapport["pertes"]["P_fer_W"] = P_fe_total
-        rapport["pertes"]["details_fer"] = P_fe_detail
+        rep["pertes"]["P_fer_W"] = P_fe_total
+        rep["pertes"]["details_fer"] = P_fe_detail
 
-        # -----------------------------
-        # 6) Rendement, P méca, couple
-        # -----------------------------
-        P_losses_list: list[float] = []
+        # 8) Rendement (à partir des pertes réellement calculées, pas d'invention)
+        pertes_list: list[float] = []
         if P_cu_total is not None:
-            P_losses_list.append(float(P_cu_total))
+            pertes_list.append(float(P_cu_total))
         if P_fe_total is not None:
-            P_losses_list.append(float(P_fe_total))
-        # pertes fixes : on les traite comme pertes supplémentaires (modèle simple)
-        if _is_finite(self.pertes_fixes_w) and float(self.pertes_fixes_w) != 0.0:
-            P_losses_list.append(float(self.pertes_fixes_w))
+            pertes_list.append(float(P_fe_total))
+        if float(self.pertes_fixes_w) != 0.0:
+            pertes_list.append(float(self.pertes_fixes_w))
 
         eta_total: Optional[float] = None
         eta_detail: Optional[Dict[str, float]] = None
 
-        if P_out is not None and len(P_losses_list) > 0:
-            details_eta = calcul_rendement_alternateur(
+        if P_out is not None and len(pertes_list) > 0:
+            deta = calcul_rendement_alternateur(
                 puissance_utile_out=float(P_out),
-                liste_pertes=P_losses_list,
+                liste_pertes=pertes_list,
                 clamp_0_1=True,
                 return_details=True,
             )
-            eta_detail = {k: float(v) for k, v in details_eta.items()}  # type: ignore[arg-type]
-            eta_total = float(details_eta["eta"])
+            eta_total = float(deta["eta"])  # type: ignore[index]
+            eta_detail = {k: float(v) for k, v in deta.items()}  # type: ignore[union-attr]
         else:
-            # Sans P_out ou sans pertes, pas de rendement calculable (sinon tu inventes)
             if P_out is None:
-                rapport["inconnues"]["impossibles"].append(
-                    {"nom": "rendement", "raison": "Impossible sans puissance utile P_out."}
-                )
+                _push_inconnue(rep, "impossibles", "rendement", "Impossible sans P_out.")
             else:
-                rapport["inconnues"]["partielles"].append(
-                    {"nom": "rendement", "raison": "Fournir au moins un modèle de pertes (cuivre/fer/fixes) pour calculer eta."}
-                )
+                _push_inconnue(rep, "partielles", "rendement", "Calculable si au moins une perte est déterminée (cuivre/fer/fixes).")
 
-        rapport["resultats"]["eta_total"] = eta_total
-        rapport["resultats"]["details_rendement"] = eta_detail
+        rep["resultats"]["eta_total"] = eta_total
+        rep["resultats"]["details_rendement"] = eta_detail
 
+        # 9) Puissance méca & couple
         P_mec: Optional[float] = None
         couple_nm: Optional[float] = None
 
-        if P_out is not None and eta_total is not None and omega is not None and abs(omega) > 1e-12:
-            # Puissance mécanique requise (on considère ici eta_total inclut toutes les pertes listées)
+        if P_out is not None and eta_total is not None:
             P_mec = calcul_puissance_mecanique(
                 puissance_electrique_cible=float(P_out),
                 rendement_alternateur=float(eta_total),
-                pertes_fixes_w=0.0,  # déjà inclus dans eta_total si tu l'as mis dans la liste de pertes
+                pertes_fixes_w=0.0,  # déjà inclus via liste_pertes si ajouté
                 clamp_non_negative=self.clamp_non_negative,
                 mode_signe="abs" if self.clamp_non_negative else "conserver",
             )
 
-            # Couple mécanique requis
-            couple_nm = calcul_couple_alternateur(
-                puissance_electrique_cible=float(P_out),
-                rendement_alternateur=float(eta_total),
-                vitesse_angulaire=float(omega),
-                pertes_fixes_w=0.0,  # même logique : déjà inclus dans eta_total
-                clamp_non_negative=self.clamp_non_negative,
-                mode_signe="abs_omega" if self.clamp_non_negative else "conserver",
-            )
+            if omega is not None and abs(omega) > 1e-12:
+                couple_nm = calcul_couple_alternateur(
+                    puissance_electrique_cible=float(P_out),
+                    rendement_alternateur=float(eta_total),
+                    vitesse_angulaire=float(omega),
+                    pertes_fixes_w=0.0,
+                    clamp_non_negative=self.clamp_non_negative,
+                    mode_signe="abs_omega" if self.clamp_non_negative else "conserver",
+                )
+            else:
+                _push_inconnue(rep, "impossibles", "couple", "Impossible sans omega (rad/s).")
         else:
-            # Diagnostics fins
             if P_out is None:
-                rapport["inconnues"]["impossibles"].append(
-                    {"nom": "P_mec / couple", "raison": "Impossible sans puissance électrique utile P_out."}
-                )
+                _push_inconnue(rep, "impossibles", "P_mec/couple", "Impossible sans P_out.")
             if eta_total is None:
-                rapport["inconnues"]["impossibles"].append(
-                    {"nom": "P_mec / couple", "raison": "Impossible sans rendement (donc sans modèle de pertes ou datasheet)."}
-                )
-            if omega is None:
-                rapport["inconnues"]["impossibles"].append(
-                    {"nom": "couple", "raison": "Impossible sans vitesse angulaire omega."}
-                )
+                _push_inconnue(rep, "impossibles", "P_mec/couple", "Impossible sans rendement (donc sans pertes calculées).")
 
-        rapport["resultats"]["P_mecanique_W"] = P_mec
-        rapport["resultats"]["couple_mecanique_Nm"] = couple_nm
+        rep["resultats"]["P_mecanique_W"] = P_mec
+        rep["resultats"]["couple_mecanique_Nm"] = couple_nm
 
-        # -----------------------------
-        # 7) Échauffement (DeltaT) si Rth connue
-        # -----------------------------
-        P_pertes_totales: Optional[float] = None
-        if len(P_losses_list) > 0:
-            P_pertes_totales = float(sum(P_losses_list))
-
-        rapport["pertes"]["P_pertes_totales_W"] = P_pertes_totales
+        # 10) Thermique (DeltaT)
+        P_pertes_tot: Optional[float] = float(sum(pertes_list)) if len(pertes_list) > 0 else None
+        rep["pertes"]["P_pertes_totales_W"] = P_pertes_tot
 
         delta_t: Optional[float] = None
-        if P_pertes_totales is not None and self.resistance_thermique_k_w is not None:
+        if P_pertes_tot is not None and self.resistance_thermique_k_w is not None:
             delta_t = calcul_echauffement_thermique(
-                puissance_pertes_totale=P_pertes_totales,
+                puissance_pertes_totale=float(P_pertes_tot),
                 resistance_thermique=float(self.resistance_thermique_k_w),
                 offset_temperature=float(self.offset_temperature),
                 clamp_non_negative=True,
             )
         else:
-            rapport["inconnues"]["partielles"].append(
-                {
-                    "nom": "échauffement (DeltaT)",
-                    "raison": "Calculable si on connaît resistance_thermique_k_w et si un modèle de pertes est disponible.",
-                }
-            )
+            _push_inconnue(rep, "partielles", "échauffement (DeltaT)", "Calculable si Rth et pertes totales sont déterminées.")
 
-        rapport["resultats"]["deltaT_K_ou_C"] = delta_t
+        rep["thermique"]["deltaT_K_ou_C"] = delta_t
 
-        # -----------------------------
-        # 8) Résumé des inconnues restantes (nettoyage simple)
-        # -----------------------------
-        # (Évite doublons exacts)
-        def _dedup(lst: list[dict]) -> list[dict]:
-            seen: set[Tuple[str, str]] = set()
-            out: list[dict] = []
-            for item in lst:
-                key = (str(item.get("nom", "")), str(item.get("raison", "")))
-                if key not in seen:
-                    seen.add(key)
-                    out.append(item)
-            return out
+        rep["entrees"]["nb_phases_chargees"] = nb_phases_chargees
+        rep["entrees"]["courant_phase_rms_stator_a"] = courant_phase_rms_stator_a
 
-        rapport["inconnues"]["impossibles"] = _dedup(rapport["inconnues"]["impossibles"])
-        rapport["inconnues"]["partielles"] = _dedup(rapport["inconnues"]["partielles"])
+        _dedup_inconnues(rep)
+        return rep
 
-        # Mémorise les entrées structurées
-        rapport["entrees"].update(
+    # ------------------------------------------------------------
+    # Intégration: utilisateur donne P (W) -> on calcule le bus DC
+    # + on exploite les données moteur/batterie si présentes.
+    # ------------------------------------------------------------
+    def analyser_pour_bus_dc(
+        self,
+        *,
+        puissance_bus_dc_w: float,
+        vitesse_rotation_rpm: Optional[float] = None,
+        vitesse_angulaire_rad_s: Optional[float] = None,
+        # Si non fourni, on tente batterie.tension_charge_v -> batterie.tension_nominale_v -> moteur.tension_bus_v
+        tension_bus_dc_v: Optional[float] = None,
+        # Objets externes (optionnels) : on lit des attributs sans supposer leurs classes
+        batterie: Any = None,
+        moteur: Any = None,
+        # Si tu veux un temps de charge: énergie utile à restaurer (kWh) (à fournir explicitement)
+        energie_a_recharger_kwh: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        rep: Dict[str, Any] = {
+            "entrees": {},
+            "bus_dc": {},
+            "alternateur": {},
+            "integration": {},
+            "inconnues": {"impossibles": [], "partielles": []},
+            "notes_modele": [],
+        }
+
+        Pdc = _req_finite("puissance_bus_dc_w", puissance_bus_dc_w)
+        rep["entrees"]["puissance_bus_dc_w"] = Pdc
+
+        # 1) Détermination tension bus DC depuis batterie/moteur si possible
+        Vdc: Optional[float] = None
+        if tension_bus_dc_v is not None:
+            Vdc = _req_pos("tension_bus_dc_v", tension_bus_dc_v, strictly=True)
+            rep["notes_modele"].append("tension_bus_dc_v fournie explicitement (prioritaire).")
+        else:
+            # Batterie: tension_charge_v puis tension_nominale_v
+            V_batt_chg = _safe_get_attr(batterie, "tension_charge_v")
+            V_batt_nom = _safe_get_attr(batterie, "tension_nominale_v")
+            V_mot = _safe_get_attr(moteur, "tension_bus_v")
+
+            if V_batt_chg is not None and _is_finite(V_batt_chg) and float(V_batt_chg) > 0:
+                Vdc = float(V_batt_chg)
+                rep["notes_modele"].append("tension bus DC déduite de batterie.tension_charge_v.")
+            elif V_batt_nom is not None and _is_finite(V_batt_nom) and float(V_batt_nom) > 0:
+                Vdc = float(V_batt_nom)
+                rep["notes_modele"].append("tension bus DC déduite de batterie.tension_nominale_v.")
+            elif V_mot is not None and _is_finite(V_mot) and float(V_mot) > 0:
+                Vdc = float(V_mot)
+                rep["notes_modele"].append("tension bus DC déduite de moteur.tension_bus_v.")
+            else:
+                _push_inconnue(
+                    rep,
+                    "impossibles",
+                    "tension bus DC",
+                    "Fournir tension_bus_dc_v ou renseigner batterie.(tension_charge_v/tension_nominale_v) ou moteur.tension_bus_v.",
+                )
+
+        rep["bus_dc"]["tension_v"] = Vdc
+
+        # 2) Courant DC requis
+        Idc: Optional[float] = None
+        if Vdc is not None:
+            # P = V*I => I = P/V
+            Idc = Pdc / Vdc if abs(Vdc) > 1e-15 else None
+        else:
+            _push_inconnue(rep, "impossibles", "courant bus DC", "Impossible sans tension bus DC.")
+        rep["bus_dc"]["courant_a"] = Idc
+        rep["bus_dc"]["puissance_w"] = Pdc
+
+        # 3) Vérifs contraintes moteur/batterie (sans hypothèses)
+        # Moteur: courant_max_a, puissance_max_w (si existent)
+        Imax = _safe_get_attr(moteur, "courant_max_a")
+        Pmax_m = _safe_get_attr(moteur, "puissance_max_w")
+        if Idc is not None and Imax is not None and _is_finite(Imax) and float(Imax) > 0:
+            rep["integration"]["moteur_courant_max_a"] = float(Imax)
+            rep["integration"]["moteur_courant_ok"] = bool(abs(Idc) <= float(Imax) + 1e-12)
+        if Pmax_m is not None and _is_finite(Pmax_m) and float(Pmax_m) > 0:
+            rep["integration"]["moteur_puissance_max_w"] = float(Pmax_m)
+            rep["integration"]["moteur_puissance_ok"] = bool(abs(Pdc) <= float(Pmax_m) + 1e-12)
+
+        # Batterie: puissance_charge_kw (si existe) limite côté chargeur (si ton objet Batterie l'a)
+        Pchg_kw = _safe_get_attr(batterie, "puissance_charge_kw")
+        if Pchg_kw is not None and _is_finite(Pchg_kw) and float(Pchg_kw) > 0:
+            Pchg_w = float(Pchg_kw) * 1000.0
+            rep["integration"]["batterie_puissance_charge_max_w"] = Pchg_w
+            # On ne présume pas du signe: si Pdc>0 = charge
+            rep["integration"]["batterie_puissance_charge_ok"] = bool(Pdc <= Pchg_w + 1e-12) if Pdc >= 0 else True
+
+        # 4) Analyse alternateur (mode DC). IMPORTANT: pertes cuivre/fer ne sont calculées
+        #    que si leurs entrées sont disponibles => pas d'invention.
+        #    Ici, on passe Vdc/Idc pour "P_out", mais P_cuivre dépend du courant stator:
+        #    on ne l'invente pas (courant_phase_rms_stator_a absent => P_cuivre restera inconnue).
+        alt = self.analyser_point_de_fonctionnement(
+            vitesse_rotation_rpm=vitesse_rotation_rpm,
+            vitesse_angulaire_rad_s=vitesse_angulaire_rad_s,
+            mode_electrique="dc",
+            tension_v=Vdc,
+            courant_a=Idc,
+            puissance_electrique_cible_w=None,  # on laisse le module calculer P=V*I (si V/I connus)
+            courant_phase_rms_stator_a=None,    # sinon, il faudra fournir explicitement
+        )
+        rep["alternateur"] = alt
+
+        # 5) Temps de charge (si énergie à recharger connue + module dispo)
+        t_h: Optional[float] = None
+        if energie_a_recharger_kwh is not None:
+            E = _req_pos("energie_a_recharger_kwh", energie_a_recharger_kwh, strictly=False)
+            if calcul_temps_charge is None:
+                _push_inconnue(rep, "partielles", "temps de charge", "Module calcul_temps_charge indisponible/import impossible.")
+            else:
+                if Pdc <= 0:
+                    _push_inconnue(rep, "impossibles", "temps de charge", "Puissance DC <= 0 : pas une charge.")
+                else:
+                    # rendement_charge si présent sur l'objet batterie, sinon inconnue
+                    eta_chg = _safe_get_attr(batterie, "rendement_charge")
+                    if eta_chg is None:
+                        _push_inconnue(rep, "partielles", "temps de charge", "Fournir batterie.rendement_charge (0..1).")
+                    else:
+                        eta = _req_eta("batterie.rendement_charge", eta_chg)
+                        t_h = float(calcul_temps_charge(E, Pdc / 1000.0, eta))
+        rep["integration"]["temps_charge_h"] = t_h
+
+        rep["entrees"].update(
             {
                 "vitesse_rotation_rpm": vitesse_rotation_rpm,
                 "vitesse_angulaire_rad_s": vitesse_angulaire_rad_s,
-                "entree_puissance_ac": entree_puissance_ac,
-                "courant_est_ligne": courant_est_ligne,
-                "puissance_electrique_cible_w": puissance_electrique_cible_w,
-                "connexion": self.connexion,
-                "nombre_poles": self.nombre_poles,
-                "mode_poles": self.mode_poles,
+                "tension_bus_dc_v": tension_bus_dc_v,
+                "energie_a_recharger_kwh": energie_a_recharger_kwh,
             }
         )
 
-        return rapport
+        _dedup_inconnues(rep)
+        return rep
