@@ -3,42 +3,53 @@ import os
 import pytest
 from unittest.mock import MagicMock
 from backend.ensemble.systeme_complet import SystemeComplet
+from backend.components.moteur_electrique import MoteurElectrique
+from backend.components.batterie import Batterie
+from backend.components.alternateur import Alternateur
+from backend.components.moteur_thermique import MoteurThermique
 
 # Configuration du logging
 LOG_FILE = os.path.join(os.path.dirname(__file__), "test_systeme_complet.log")
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    filemode="w",
-    encoding="utf-8"
-)
 logger = logging.getLogger("test_systeme_complet")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(handler)
 
 def log_test_result(test_name, status, details=""):
     logger.info(f"RESULT - {test_name}: {status} {details}")
 
 @pytest.fixture
 def mock_system():
-    # Création de mocks pour les composants
-    moteur_elec = MagicMock()
-    moteur_elec.rendement_moteur = 0.9
-    moteur_elec.pertes_fixes_w = 100.0
-    moteur_elec.tension_bus_v = 400.0
+    # Création d'instances réelles pour passer les checks isinstance
+    moteur_elec = MoteurElectrique(
+        puissance_max_w=100000.0,
+        regime_max_rpm=6000.0,
+        couple_max_nm=300.0,
+        tension_bus_v=400.0,
+        rendement_moteur=0.9,
+        pertes_fixes_w=100.0
+    )
     
-    batterie = MagicMock()
-    batterie.tension_nominale_v = 400.0
-    batterie.analyser_dimensionnement.return_value = {"dimensionnement": {"E_utile_finale_kwh": 50.0}}
+    batterie = Batterie(
+        tension_nominale_v=400.0,
+        densite_energetique_kwh_kg=0.2, # 200 Wh/kg
+        rendement_charge=0.95,
+        tension_charge_v=420.0
+    )
     
-    alternateur = MagicMock()
-    alternateur.analyser_pour_bus_dc.return_value = {"resultats": {"couple_mecanique_Nm": 50.0, "P_mecanique_W": 15000.0}}
+    alternateur = Alternateur(
+        connexion="Y",
+        nombre_poles=12
+    )
     
-    moteur_th = MagicMock()
-    moteur_th.alesage_m = 0.08
-    moteur_th.course_m = 0.08
-    moteur_th.nombre_cylindres = 1
-    moteur_th.temps_moteur = 4
-    moteur_th.analyser_point_de_fonctionnement.return_value = {"resultat": "OK"}
+    moteur_th = MoteurThermique(
+        nombre_cylindres=4,
+        temps_moteur=4,
+        alesage_m=0.08,
+        course_m=0.08
+    )
     
     return SystemeComplet(
         moteur_electrique=moteur_elec,

@@ -1,0 +1,64 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\Documents\GitHub\SHSE-M
+plugins: anyio-4.8.0, Faker-37.4.0, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 21 items
+
+backend\tests\ensemble\test_air.py .......                               [ 33%]
+backend\tests\ensemble\test_eau.py ......                                [ 61%]
+backend\tests\ensemble\test_materiaux.py .....                           [ 85%]
+backend\tests\ensemble\test_optimisation.py .                            [ 90%]
+backend\tests\ensemble\test_systeme_complet.py EE                        [100%]
+
+=================================== ERRORS ====================================
+________________ ERROR at setup of test_systeme_analyser_full _________________
+
+    @pytest.fixture
+    def mock_system():
+        # CrÚation d'instances rÚelles pour passer les checks isinstance
+        moteur_elec = MoteurElectrique(
+            puissance_max_w=100000.0,
+            regime_max_rpm=6000.0,
+            couple_max_nm=300.0,
+            tension_bus_v=400.0,
+            rendement_moteur=0.9,
+            pertes_fixes_w=100.0
+        )
+    
+>       batterie = Batterie(
+            tension_nominale_v=400.0,
+            capacite_nominale_ah=100.0,
+            rendement_charge=0.95,
+            tension_charge_v=420.0
+        )
+E       TypeError: Batterie.__init__() got an unexpected keyword argument 'capacite_nominale_ah'
+
+backend\tests\ensemble\test_systeme_complet.py:37: TypeError
+________________ ERROR at setup of test_systeme_missing_inputs ________________
+
+    @pytest.fixture
+    def mock_system():
+        # CrÚation d'instances rÚelles pour passer les checks isinstance
+        moteur_elec = MoteurElectrique(
+            puissance_max_w=100000.0,
+            regime_max_rpm=6000.0,
+            couple_max_nm=300.0,
+            tension_bus_v=400.0,
+            rendement_moteur=0.9,
+            pertes_fixes_w=100.0
+        )
+    
+>       batterie = Batterie(
+            tension_nominale_v=400.0,
+            capacite_nominale_ah=100.0,
+            rendement_charge=0.95,
+            tension_charge_v=420.0
+        )
+E       TypeError: Batterie.__init__() got an unexpected keyword argument 'capacite_nominale_ah'
+
+backend\tests\ensemble\test_systeme_complet.py:37: TypeError
+=========================== short test summary info ===========================
+ERROR backend/tests/ensemble/test_systeme_complet.py::test_systeme_analyser_full
+ERROR backend/tests/ensemble/test_systeme_complet.py::test_systeme_missing_inputs
+======================== 19 passed, 2 errors in 0.94s =========================

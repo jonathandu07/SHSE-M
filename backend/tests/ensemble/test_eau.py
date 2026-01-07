@@ -17,14 +17,12 @@ from backend.ensemble.eau import (
 
 # Configuration du logging
 LOG_FILE = os.path.join(os.path.dirname(__file__), "test_eau.log")
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    filemode="w",
-    encoding="utf-8"
-)
 logger = logging.getLogger("test_eau")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(handler)
 
 def log_test_result(test_name, status, details=""):
     logger.info(f"RESULT - {test_name}: {status} {details}")
