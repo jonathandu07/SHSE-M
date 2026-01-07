@@ -2,612 +2,623 @@
 # =============================================================================
 # PISTON (côté froid) — SHSE-M
 # =============================================================================
-# Rôle : pièce qui translate dans le cylindre, comprimée par l'air côté froid.
-# Objectifs : étanchéité (fuites minimales), pertes par frottement minimales,
-# robustesse mécanique, maintenance réduite.
+# Objectif (SolidWorks) : sortir des COTES GEOMETRIQUES exploitables
+# (diamètres min/max, jeux min/max, longueurs mini si contraintes fournies),
+# en utilisant les autres pièces/modules quand disponibles, SANS VALEUR CACHÉE.
 #
-# IMPORTANT (conformément à ta demande "rien inventer") :
-# - Ce module NE "devine" aucune dimension : il calcule tout ce qui est calculable
-#   à partir des entrées disponibles (ou récupérées du Cylindre si fourni).
-# - Tout résultat dépend d'entrées. Si une entrée manque, la valeur reste None
-#   et l'inconnue est listée dans le rapport.
+# IMPORTANT "zéro invention" :
+# - Aucune tolérance "au pif" : si on applique un ajustement ISO 286, il est
+#   explicitement demandé via fit_hole / fit_shaft + grade (ex: H7 / h6).
+# - Si tu ne donnes pas l’ajustement, on ne “devine” pas : on calcule uniquement
+#   ce qui est déductible du cylindre et des contraintes fournies.
+# - Minimisation masse : uniquement quand une contrainte donne une borne (ex:
+#   longueur de jupe mini via pression de palier admissible, épaisseur mini via
+#   contrainte admissible). Sinon -> inconnue.
 # =============================================================================
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Literal, Tuple
 import math
 
+# =============================================================================
+# Imports projet (optionnels, robustes)
+# =============================================================================
+
+try:
+    from backend.ensemble.materiaux import get_materiau, valeur
+except Exception:  # pragma: no cover
+    get_materiau = None  # type: ignore
+
+    def valeur(prop: Any, mode: str = "typique") -> Optional[float]:  # type: ignore
+        return float(prop) if prop is not None else None
+
+
+try:
+    from backend.pieces.cylindre import Cylindre  # type: ignore
+except Exception:  # pragma: no cover
+    Cylindre = None  # type: ignore
+
 
 # =============================================================================
-# Petites utilitaires (validation + inconnues)
+# Helpers robustes
 # =============================================================================
 
-def _is_finite(x: float) -> bool:
+def _is_finite(x: Any) -> bool:
     return isinstance(x, (int, float)) and math.isfinite(float(x))
 
-
-def _require_finite(name: str, x: Any) -> float:
-    if x is None or not _is_finite(x):
-        raise ValueError(f"{name} doit être un nombre fini.")
+def _req_finite(name: str, x: Any) -> float:
+    if not _is_finite(x):
+        raise ValueError(f"{name} doit être un nombre fini (reçu: {x!r}).")
     return float(x)
 
-
-def _require_positive(name: str, x: Any, strictly: bool = True) -> float:
-    v = _require_finite(name, x)
-    if strictly:
-        if v <= 0:
-            raise ValueError(f"{name} doit être > 0.")
-    else:
-        if v < 0:
-            raise ValueError(f"{name} doit être >= 0.")
+def _req_pos(name: str, x: Any, *, strict: bool = True) -> float:
+    v = _req_finite(name, x)
+    if strict and v <= 0:
+        raise ValueError(f"{name} doit être > 0 (reçu: {v}).")
+    if (not strict) and v < 0:
+        raise ValueError(f"{name} doit être >= 0 (reçu: {v}).")
     return v
 
+def _push_inc(rap: Dict[str, Any], cat: str, nom: str, raison: str) -> None:
+    rap["inconnues"][cat].append({"nom": nom, "raison": raison})
 
-def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: str) -> None:
-    rapport.setdefault("inconnues", {}).setdefault(categorie, []).append({"nom": nom, "raison": raison})
+def _dedup_inconnues(rap: Dict[str, Any]) -> None:
+    def dedup(lst: list[dict]) -> list[dict]:
+        seen: set[tuple[str, str]] = set()
+        out: list[dict] = []
+        for it in lst:
+            key = (str(it.get("nom", "")), str(it.get("raison", "")))
+            if key not in seen:
+                seen.add(key)
+                out.append(it)
+        return out
+    rap["inconnues"]["impossibles"] = dedup(rap["inconnues"]["impossibles"])
+    rap["inconnues"]["partielles"] = dedup(rap["inconnues"]["partielles"])
 
 
 def _aire_disque(diametre_m: float) -> float:
-    r = 0.5 * diametre_m
+    D = _req_pos("diametre_m", diametre_m)
+    r = 0.5 * D
     return math.pi * r * r
 
+def _perimetre(diametre_m: float) -> float:
+    D = _req_pos("diametre_m", diametre_m)
+    return math.pi * D
 
-def _volume_cylindre(diametre_m: float, hauteur_m: float) -> float:
-    return _aire_disque(diametre_m) * hauteur_m
+def _vol_cylindre(diametre_m: float, hauteur_m: float) -> float:
+    return _aire_disque(diametre_m) * _req_pos("hauteur_m", hauteur_m)
 
 
 # =============================================================================
-# Résolution matériaux (utilise materiaux.py si présent)
+# ISO 286 (IT grades) — calcul explicite, pas de table cachée
+# =============================================================================
+# On calcule la tolérance IT via l’unité "i" (µm) :
+#   i = 0.45 * D^(1/3) + 0.001 * D   (D en mm)
+# puis IT = k * i (k dépend du grade : IT5..IT16)
+# (Si tu veux une table ISO officielle complète par paliers de dimensions, il
+# faut l’implémenter explicitement : ici, on reste sur la formule standard i.)
+#
+# LIMITATION assumée :
+# - Cette approche utilise D nominal en mm (pas la moyenne géométrique d’un palier).
+# - Pour un dimensionnement ultra strict ISO par intervalle, ajoute une fonction
+#   "D_moy_paliers" dans ton projet. Ici : zéro invention => pas de paliers cachés.
+
+_IT_MULT: Dict[int, int] = {
+    5: 7,
+    6: 10,
+    7: 16,
+    8: 25,
+    9: 40,
+    10: 64,
+    11: 100,
+    12: 160,
+    13: 250,
+    14: 400,
+    15: 640,
+    16: 1000,
+}
+
+def iso286_i_um(D_mm: float) -> float:
+    D = _req_pos("D_mm", D_mm)
+    return 0.45 * (D ** (1.0 / 3.0)) + 0.001 * D
+
+def iso286_IT_um(D_mm: float, grade: int) -> float:
+    if grade not in _IT_MULT:
+        raise ValueError(f"Grade IT non supporté: {grade}. Supportés: {sorted(_IT_MULT)}")
+    i = iso286_i_um(D_mm)
+    return float(_IT_MULT[grade]) * i
+
+def iso286_hole_H(D_mm: float, grade: int) -> Tuple[float, float]:
+    """
+    Trou H : EI = 0 µm, ES = IT
+    Retourne (EI_um, ES_um)
+    """
+    IT = iso286_IT_um(D_mm, grade)
+    return (0.0, IT)
+
+def iso286_shaft_h(D_mm: float, grade: int) -> Tuple[float, float]:
+    """
+    Arbre h : es = 0 µm, ei = -IT
+    Retourne (ei_um, es_um)
+    """
+    IT = iso286_IT_um(D_mm, grade)
+    return (-IT, 0.0)
+
+
+# =============================================================================
+# Matériaux : récupération cohérente depuis materiaux.py
 # =============================================================================
 
-def _resoudre_materiau(
-    materiau_cle: Optional[str],
-    densite_kg_m3: Optional[float],
-    limite_elastique_pa: Optional[float],
-    module_young_pa: Optional[float],
-    conductivite_w_mk: Optional[float],
+def _materiau_props(
+    cle: Optional[str],
+    *,
+    mode: Literal["min", "typique", "max"] = "typique",
 ) -> Dict[str, Optional[float]]:
     """
-    Tente de compléter les propriétés matériau via backend/materiaux.py (ou materiaux.py),
-    sinon retourne ce qui est fourni.
+    Attend que backend.ensemble.materiaux.get_materiau(cle) renvoie un objet
+    (dataclass) avec attributs potentiels.
+    On lit via valeur() pour min/typique/max si dispo.
     """
-    rho = densite_kg_m3
-    Re = limite_elastique_pa
-    E = module_young_pa
-    k = conductivite_w_mk
-
-    if materiau_cle:
-        # On tente plusieurs chemins d'import (selon l'arborescence projet)
-        for modname in (
-            "backend.materiaux",
-            "materiaux",
-            "backend.components.materiaux",
-            "backend.modules.materiaux",
-        ):
-            try:
-                mod = __import__(modname, fromlist=["*"])
-                # Convention la plus probable : get_materiau(cle) -> dict
-                if hasattr(mod, "get_materiau"):
-                    m = mod.get_materiau(materiau_cle)  # type: ignore[attr-defined]
-                    if isinstance(m, dict):
-                        rho = rho if rho is not None else m.get("densite_kg_m3")
-                        Re = Re if Re is not None else m.get("limite_elastique_pa")
-                        E = E if E is not None else m.get("module_young_pa")
-                        k = k if k is not None else m.get("conductivite_w_mk")
-                # Autre convention possible : MATERIAUX dict
-                elif hasattr(mod, "MATERIAUX"):
-                    m = getattr(mod, "MATERIAUX", {}).get(materiau_cle)
-                    if isinstance(m, dict):
-                        rho = rho if rho is not None else m.get("densite_kg_m3")
-                        Re = Re if Re is not None else m.get("limite_elastique_pa")
-                        E = E if E is not None else m.get("module_young_pa")
-                        k = k if k is not None else m.get("conductivite_w_mk")
-                break
-            except Exception:
-                continue
-
-    return {
-        "densite_kg_m3": rho,
-        "limite_elastique_pa": Re,
-        "module_young_pa": E,
-        "conductivite_w_mk": k,
+    out: Dict[str, Optional[float]] = {
+        "densite_kg_m3": None,
+        "limite_elastique_pa": None,
+        "module_young_pa": None,
+        "poisson": None,
+        "alpha_dilatation_1_k": None,
+        "conductivite_w_mk": None,
     }
+    if not cle or get_materiau is None:
+        return out
+    m = get_materiau(cle)
+    if m is None:
+        return out
+
+    out["densite_kg_m3"] = valeur(getattr(m, "densite_kg_m3", None), mode=mode)
+    out["limite_elastique_pa"] = valeur(getattr(m, "limite_elastique_pa", None), mode=mode)
+    out["module_young_pa"] = valeur(getattr(m, "module_young_pa", None), mode=mode)
+    out["poisson"] = valeur(getattr(m, "poisson", None), mode=mode)
+    out["alpha_dilatation_1_k"] = valeur(getattr(m, "alpha_dilatation_1_k", None), mode=mode)
+    out["conductivite_w_mk"] = valeur(getattr(m, "conductivite_w_mk", None), mode=mode)
+    return out
 
 
 # =============================================================================
-# Air (viscosité/densité) — utilise air.py si présent
-# =============================================================================
-
-def _air_props_si_disponible(temperature_k: Optional[float], pression_pa: Optional[float]) -> Dict[str, Optional[float]]:
-    """
-    Tente de récupérer rho et mu (viscosité dynamique) via air.py si dispo.
-    Si indisponible, retourne None.
-    """
-    rho = None
-    mu = None
-
-    if temperature_k is None or pression_pa is None:
-        return {"rho_kg_m3": None, "mu_pa_s": None}
-
-    for modname in (
-        "backend.air",
-        "air",
-        "backend.components.air",
-        "backend.modules.air",
-    ):
-        try:
-            mod = __import__(modname, fromlist=["*"])
-            if hasattr(mod, "air_state"):
-                st = mod.air_state(temperature_k=temperature_k, pression_pa=pression_pa)  # type: ignore[attr-defined]
-                # On accepte plusieurs conventions de retour (dataclass/dict)
-                if isinstance(st, dict):
-                    rho = st.get("rho_kg_m3") or st.get("densite_kg_m3")
-                    mu = st.get("mu_pa_s") or st.get("viscosite_pa_s")
-                else:
-                    rho = getattr(st, "rho_kg_m3", None)
-                    if rho is None:
-                        rho = getattr(st, "densite_kg_m3", None)
-                    mu = getattr(st, "mu_pa_s", None)
-                    if mu is None:
-                        mu = getattr(st, "viscosite_pa_s", None)
-                break
-        except Exception:
-            continue
-
-    return {"rho_kg_m3": rho, "mu_pa_s": mu}
-
-
-# =============================================================================
-# Cinématique (utilise un module si dispo, sinon formule standard)
-# =============================================================================
-
-def _vitesse_moyenne_piston(course_m: float, rpm: float) -> float:
-    """
-    Vitesse moyenne piston (m/s) : v_moy = 2 * course * rpm / 60
-    """
-    return 2.0 * course_m * (rpm / 60.0)
-
-
-def _try_vitesse_moyenne_piston_module(course_m: float, rpm: float) -> Tuple[float, List[str]]:
-    notes: List[str] = []
-    for modname in (
-        "backend.modules.bielle_manivelle.calcul_vitesse_piston",
-        "backend.modules.cinematique.calcul_vitesse_piston",
-        "backend.modules.cinematique",
-    ):
-        try:
-            mod = __import__(modname, fromlist=["*"])
-            if hasattr(mod, "calcul_vitesse_moyenne_piston"):
-                v = mod.calcul_vitesse_moyenne_piston(course_m=course_m, vitesse_rotation_tr_min=rpm)  # type: ignore
-                return float(v), notes
-        except Exception:
-            continue
-    # fallback
-    notes.append("Module cinématique introuvable : v_moy = 2*course*rpm/60.")
-    return _vitesse_moyenne_piston(course_m, rpm), notes
-
-
-# =============================================================================
-# Interface "pièces liées" (types souples pour éviter les imports circulaires)
-# =============================================================================
-
-class _CylindreLike:
-    # noms possibles selon ton cylindre.py (on lit via getattr)
-    diametre_interieur_m: float
-    alesage_m: float
-    course_m: float
-
-
-class _DeplaceurLike:
-    # on ne suppose rien : uniquement pour checks si l'utilisateur donne des dims
-    pass
-
-
-# =============================================================================
-# Modèle de Piston
+# Piston
 # =============================================================================
 
 @dataclass
 class Piston:
-    # ----- Lien vers les autres pièces (optionnel mais recommandé)
-    cylindre: Optional[Any] = None         # idéalement backend.pieces.cylindre.Cylindre
-    deplaceur: Optional[Any] = None        # idéalement backend.pieces.deplaceur.Deplaceur (pas obligatoire ici)
+    # Liaisons
+    cylindre: Optional[Any] = None  # idéalement backend.pieces.cylindre.Cylindre
 
-    # ----- Géométrie (si cylindre fourni, on peut déduire le diamètre nominal)
-    diametre_piston_m: Optional[float] = None      # typiquement ~ diamètre intérieur cylindre - 2*jeu
-    hauteur_piston_m: Optional[float] = None       # hauteur totale (jupe + tête)
-    longueur_jupe_m: Optional[float] = None        # longueur de guidage en contact (jupe)
-    epaisseur_tete_m: Optional[float] = None       # épaisseur "couronne" côté pression
+    # Matériaux (clés) : piston et cylindre (pour dilatation différentielle)
+    materiau_piston_cle: Optional[str] = None
+    materiau_cylindre_cle: Optional[str] = None
+    mode_materiau: Literal["min", "typique", "max"] = "typique"
 
-    # ----- Jeux / étanchéité
-    jeu_radial_m: Optional[float] = None           # (rayon) : (D_cyl - D_piston)/2
-    longueur_portee_etanche_m: Optional[float] = None  # longueur caractéristique des fuites (si modélisées)
+    # Référence température (fabrication / métrologie)
+    temperature_ref_k: float = 293.15  # 20°C (convention explicite)
 
-    # ----- Conditions de fonctionnement (côté froid)
-    pression_cote_froid_pa: Optional[float] = None
-    temperature_cote_froid_k: Optional[float] = None
+    # Conditions (si absentes, on tente de les lire sur cylindre)
+    pression_max_pa: Optional[float] = None
+    temperature_fonctionnement_k: Optional[float] = None
 
-    # ----- Cinématique (pour frottement/usure)
-    course_m: Optional[float] = None               # si cylindre fourni, déductible
-    rpm: Optional[float] = None
+    # Géométrie de base : si non fournie, on tente de lire sur cylindre
+    alesage_nominal_m: Optional[float] = None
 
-    # ----- Efforts (si on veut aller plus loin que F = P*A)
-    force_axiale_externe_n: Optional[float] = None  # si tu l'imposes (ex. effort transmis par bielle)
-    angle_bielle_deg: Optional[float] = None        # pour estimer effort latéral (side-load)
-    force_bielle_n: Optional[float] = None          # si connue (sinon calculable ailleurs)
+    # Ajustement ISO 286 (si tu veux calculer D piston min/max automatiquement)
+    # Exemple trou/arbre : H7/h6 (trou sur base + arbre)
+    fit_hole: Optional[str] = None   # ex: "H7"
+    fit_shaft: Optional[str] = None  # ex: "h6"
 
-    # ----- Frottements (modèle simple)
-    coefficient_frottement: Optional[float] = None  # mu Coulomb (nécessite effort normal)
-    # effort normal sur jupe : si angle_bielle + force_bielle, calculable, sinon inconnue
-    force_normale_jupe_n: Optional[float] = None
+    # Longueurs et épaisseurs : calculables seulement si contraintes fournies
+    hauteur_totale_m: Optional[float] = None  # si tu l’imposes (sinon inconnue)
+    # longueur jupe : peut être dimensionnée si effort latéral + p_adm fournis
+    effort_lateral_N: Optional[float] = None
+    pression_palier_admissible_pa: Optional[float] = None  # contrainte de contact admissible (explicite)
+    longueur_jupe_m: Optional[float] = None  # override direct
 
-    # ----- Matériau (soit cle, soit propriétés directes)
-    materiau_cle: Optional[str] = None
-    densite_kg_m3: Optional[float] = None
-    limite_elastique_pa: Optional[float] = None
-    module_young_pa: Optional[float] = None
-    conductivite_w_mk: Optional[float] = None
-
-    # ----- Options de calcul
+    # Couronne (tête) : dimensionnable si modèle + contrainte admissible fournis
+    # Ici on ne choisit PAS un modèle de plaque à ta place.
+    # On te laisse fournir un coefficient explicite k_sigma tel que :
+    #   sigma = k_sigma * p * (a^2 / t^2)  =>  t_min = a * sqrt(k_sigma * p / sigma_adm)
+    # où a = rayon, p = pression, t = épaisseur.
+    k_sigma_plaque: Optional[float] = None
+    contrainte_admissible_pa: Optional[float] = None  # ex: Re / FS (à fournir ou déduire)
     facteur_securite: float = 2.0
+    epaisseur_tete_m: Optional[float] = None  # override direct
 
-    def calculer(self) -> Dict[str, Any]:
-        """
-        Retourne un rapport complet :
-        - géométrie dérivée
-        - masse, inertie simplifiée
-        - efforts gaz, contraintes moyennes
-        - frottements + pertes (si calculables)
-        - fuites (si modélisables via jeu + mu air)
-        - liste des inconnues (impossibles/partielles)
-        """
-        rapport: Dict[str, Any] = {"piece": "piston", "notes_modele": [], "entrees": {}, "resultats": {}}
+    # Étanchéité / fuite : si tu veux calculer débit par jeu, il faut L_portée et ΔP (explicites)
+    longueur_portee_etanche_m: Optional[float] = None
+    pression_aval_pa: Optional[float] = None  # pression vers laquelle ça fuit (explicite)
+
+    def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
+        rap: Dict[str, Any] = {
+            "piece": "piston",
+            "entrees": {},
+            "liaisons": {},
+            "iso286": {},
+            "dimensions": {},
+            "jeux": {},
+            "thermique": {},
+            "contraintes": {},
+            "masses": {},
+            "fuites": {},
+            "notes_modele": [],
+            "inconnues": {"impossibles": [], "partielles": []},
+        }
 
         # ---------------------------------------------------------------------
-        # 1) Compléter depuis le cylindre si possible
+        # 1) Récup depuis cylindre si fourni
         # ---------------------------------------------------------------------
-        d_cyl = None
-        course = self.course_m
+        Dcyl = self.alesage_nominal_m
+        Pmax = self.pression_max_pa
+        Tfn = self.temperature_fonctionnement_k
+
         if self.cylindre is not None:
-            # On tente plusieurs attributs probables
-            for attr in ("diametre_interieur_m", "alesage_m", "diametre_alesage_m"):
-                if hasattr(self.cylindre, attr):
+            # alesage
+            for attr in ("alesage_m", "diametre_interieur_m", "diametre_alesage_m"):
+                if Dcyl is None and hasattr(self.cylindre, attr):
                     v = getattr(self.cylindre, attr)
                     if v is not None:
-                        d_cyl = float(v)
+                        Dcyl = float(v)
                         break
-            if course is None:
-                for attr in ("course_m", "course_piston_m"):
+
+            # pression max
+            for attr in ("pression_max_pa", "pression_interne_pa", "pression_cote_froid_pa"):
+                if Pmax is None and hasattr(self.cylindre, attr):
+                    v = getattr(self.cylindre, attr)
+                    if v is not None:
+                        Pmax = float(v)
+                        break
+
+            # température de fonctionnement côté froid
+            for attr in ("temperature_froide_k", "temperature_cote_froid_k", "temperature_fonctionnement_k"):
+                if Tfn is None and hasattr(self.cylindre, attr):
+                    v = getattr(self.cylindre, attr)
+                    if v is not None:
+                        Tfn = float(v)
+                        break
+
+            # matériau cylindre si présent
+            if self.materiau_cylindre_cle is None:
+                for attr in ("materiau_cle", "materiau", "materiau_cylindre_cle"):
                     if hasattr(self.cylindre, attr):
                         v = getattr(self.cylindre, attr)
-                        if v is not None:
-                            course = float(v)
+                        if v:
+                            self.materiau_cylindre_cle = str(v)
                             break
 
-        # ---------------------------------------------------------------------
-        # 2) Géométrie cohérente (sans rien inventer)
-        # ---------------------------------------------------------------------
-        Dp = self.diametre_piston_m
-        if Dp is None and d_cyl is not None and self.jeu_radial_m is not None:
-            # Dp = Dcyl - 2*jeu_radial*2 ? attention : jeu_radial = (Dcyl - Dp)/2  => Dp = Dcyl - 2*jeu_radial
-            Dp = d_cyl - 2.0 * float(self.jeu_radial_m)
-            rapport["notes_modele"].append("diametre_piston déduit : Dp = Dcyl - 2*jeu_radial.")
-        elif Dp is None and d_cyl is not None and self.jeu_radial_m is None:
-            _push_inconnue(rapport, "partielles", "diametre_piston_m", "Calculable si jeu_radial_m est fourni (avec cylindre).")
-        elif Dp is None and d_cyl is None:
-            _push_inconnue(rapport, "impossibles", "diametre_piston_m", "Ni cylindre ni diametre_piston_m fourni.")
+            rap["liaisons"]["cylindre"] = {
+                "source": "objet",
+                "alesage_nominal_m": Dcyl,
+                "pression_max_pa": Pmax,
+                "temperature_fonctionnement_k": Tfn,
+                "materiau_cle": self.materiau_cylindre_cle,
+            }
 
-        # surface de piston (face pression)
-        A = None
-        if Dp is not None:
-            if Dp <= 0:
-                raise ValueError("diametre_piston_m doit être > 0.")
-            A = _aire_disque(Dp)
+        # validations
+        if Dcyl is None:
+            _push_inc(rap, "impossibles", "alesage_nominal_m", "Requis (ou fournir un Cylindre avec alesage_m).")
         else:
-            _push_inconnue(rapport, "partielles", "surface_piston_m2", "Calculable si diametre_piston_m est connu.")
+            Dcyl = _req_pos("alesage_nominal_m", Dcyl)
 
-        # volume / masse (si hauteur connue + densité)
-        props_mat = _resoudre_materiau(
-            self.materiau_cle,
-            self.densite_kg_m3,
-            self.limite_elastique_pa,
-            self.module_young_pa,
-            self.conductivite_w_mk,
-        )
-        rho = props_mat["densite_kg_m3"]
-        Re = props_mat["limite_elastique_pa"]
+        if Pmax is None:
+            _push_inc(rap, "partielles", "pression_max_pa", "Utile pour dimensionner la tête (sinon inconnue).")
+        else:
+            Pmax = _req_pos("pression_max_pa", Pmax)
 
-        V = None
-        m = None
-        if Dp is not None and self.hauteur_piston_m is not None:
-            h = _require_positive("hauteur_piston_m", self.hauteur_piston_m, strictly=True)
-            V = _volume_cylindre(Dp, h)
-            if rho is not None:
-                m = V * float(rho)
+        if Tfn is None:
+            _push_inc(rap, "partielles", "temperature_fonctionnement_k", "Utile pour dilatations/jeu à chaud.")
+        else:
+            Tfn = _req_pos("temperature_fonctionnement_k", Tfn)
+
+        # ---------------------------------------------------------------------
+        # 2) ISO 286 : tolérances trou + piston si fit_* fournis
+        # ---------------------------------------------------------------------
+        # Pour rester "zéro invention", on ne choisit pas l’ajustement à ta place.
+        # Si tu veux une auto-sélection, elle doit être codée avec une règle explicite.
+        if Dcyl is not None and self.fit_hole and self.fit_shaft:
+            # parse ex: H7 / h6 (on ne supporte que H et h ici, car déviation fondamentale explicite)
+            def parse_fit(s: str) -> Tuple[str, int]:
+                s = s.strip()
+                if len(s) < 2:
+                    raise ValueError(f"Fit invalide: {s!r}")
+                letter = s[0]
+                grade = int(s[1:])
+                return letter, grade
+
+            hole_L, hole_g = parse_fit(self.fit_hole)
+            shaft_L, shaft_g = parse_fit(self.fit_shaft)
+
+            if hole_L != "H":
+                _push_inc(rap, "impossibles", "fit_hole", "Seul 'H' est supporté ici (EI=0).")
+            if shaft_L != "h":
+                _push_inc(rap, "impossibles", "fit_shaft", "Seul 'h' est supporté ici (es=0).")
+
+            if hole_L == "H" and shaft_L == "h":
+                D_mm = Dcyl * 1e3
+                EI_h_um, ES_h_um = iso286_hole_H(D_mm, hole_g)
+                ei_s_um, es_s_um = iso286_shaft_h(D_mm, shaft_g)
+
+                # limites absolues
+                D_hole_min = Dcyl + (EI_h_um * 1e-6)
+                D_hole_max = Dcyl + (ES_h_um * 1e-6)
+                D_piston_min = Dcyl + (ei_s_um * 1e-6)
+                D_piston_max = Dcyl + (es_s_um * 1e-6)
+
+                # jeux diamétraux
+                jeu_diam_min = D_hole_min - D_piston_max
+                jeu_diam_max = D_hole_max - D_piston_min
+                jeu_rad_min = 0.5 * jeu_diam_min
+                jeu_rad_max = 0.5 * jeu_diam_max
+
+                rap["iso286"] = {
+                    "D_mm": D_mm,
+                    "hole": {"fit": self.fit_hole, "EI_um": EI_h_um, "ES_um": ES_h_um},
+                    "shaft": {"fit": self.fit_shaft, "ei_um": ei_s_um, "es_um": es_s_um},
+                }
+                rap["dimensions"]["alesage_min_m"] = D_hole_min
+                rap["dimensions"]["alesage_max_m"] = D_hole_max
+                rap["dimensions"]["diametre_piston_min_m"] = D_piston_min
+                rap["dimensions"]["diametre_piston_max_m"] = D_piston_max
+                rap["jeux"]["jeu_diametral_min_m"] = jeu_diam_min
+                rap["jeux"]["jeu_diametral_max_m"] = jeu_diam_max
+                rap["jeux"]["jeu_radial_min_m"] = jeu_rad_min
+                rap["jeux"]["jeu_radial_max_m"] = jeu_rad_max
+
+                # Pour CAO : diamètre “nominal” conseillé = milieu de zone piston
+                rap["dimensions"]["diametre_piston_cao_centre_m"] = 0.5 * (D_piston_min + D_piston_max)
+                rap["notes_modele"].append(
+                    "ISO 286 appliqué avec H/h uniquement : trou EI=0, arbre es=0. "
+                    "Pour d’autres lettres (g6, f7, …), il faut implémenter les déviations fondamentales."
+                )
+        else:
+            _push_inc(
+                rap,
+                "partielles",
+                "diametre_piston_min_max_iso",
+                "Calculable si alesage_nominal_m + fit_hole (ex H7) + fit_shaft (ex h6) sont fournis.",
+            )
+
+        # ---------------------------------------------------------------------
+        # 3) Thermique : jeu à chaud (dilatation différentielle)
+        # ---------------------------------------------------------------------
+        # Si on a diamètres min/max + alpha piston/cyl + ΔT, on calcule le pire cas :
+        # - Jeu minimal à chaud = (D_cyl_min_hot - D_piston_max_hot)
+        # On utilise un modèle linéaire : D(T)=D_ref*(1+alpha*(T-Tref))
+        if Dcyl is not None and Tfn is not None:
+            alpha_p = None
+            alpha_c = None
+
+            props_p = _materiau_props(self.materiau_piston_cle, mode=self.mode_materiau)
+            props_c = _materiau_props(self.materiau_cylindre_cle, mode=self.mode_materiau)
+            alpha_p = props_p["alpha_dilatation_1_k"]
+            alpha_c = props_c["alpha_dilatation_1_k"]
+
+            rap["thermique"]["alpha_piston_1_k"] = alpha_p
+            rap["thermique"]["alpha_cylindre_1_k"] = alpha_c
+            rap["thermique"]["T_ref_k"] = self.temperature_ref_k
+            rap["thermique"]["T_fonctionnement_k"] = Tfn
+
+            if alpha_p is None:
+                _push_inc(rap, "partielles", "alpha_piston_1_k", "Requis pour calculer le jeu à chaud.")
+            if alpha_c is None:
+                _push_inc(rap, "partielles", "alpha_cylindre_1_k", "Requis pour calculer le jeu à chaud.")
+
+            # si on a déjà des bornes iso
+            D_cyl_min = rap["dimensions"].get("alesage_min_m")
+            D_cyl_max = rap["dimensions"].get("alesage_max_m")
+            D_pis_min = rap["dimensions"].get("diametre_piston_min_m")
+            D_pis_max = rap["dimensions"].get("diametre_piston_max_m")
+
+            if (alpha_p is not None and alpha_c is not None and
+                D_cyl_min is not None and D_cyl_max is not None and
+                D_pis_min is not None and D_pis_max is not None):
+                dT = Tfn - float(self.temperature_ref_k)
+
+                def dil(D_ref: float, a: float) -> float:
+                    return D_ref * (1.0 + a * dT)
+
+                D_cyl_min_hot = dil(float(D_cyl_min), float(alpha_c))
+                D_cyl_max_hot = dil(float(D_cyl_max), float(alpha_c))
+                D_pis_min_hot = dil(float(D_pis_min), float(alpha_p))
+                D_pis_max_hot = dil(float(D_pis_max), float(alpha_p))
+
+                jeu_diam_min_hot = D_cyl_min_hot - D_pis_max_hot
+                jeu_diam_max_hot = D_cyl_max_hot - D_pis_min_hot
+
+                rap["thermique"]["alesage_min_hot_m"] = D_cyl_min_hot
+                rap["thermique"]["alesage_max_hot_m"] = D_cyl_max_hot
+                rap["thermique"]["piston_min_hot_m"] = D_pis_min_hot
+                rap["thermique"]["piston_max_hot_m"] = D_pis_max_hot
+                rap["thermique"]["jeu_diam_min_hot_m"] = jeu_diam_min_hot
+                rap["thermique"]["jeu_diam_max_hot_m"] = jeu_diam_max_hot
+                rap["thermique"]["jeu_rad_min_hot_m"] = 0.5 * jeu_diam_min_hot
+                rap["thermique"]["jeu_rad_max_hot_m"] = 0.5 * jeu_diam_max_hot
+
+                rap["contraintes"]["non_grippage_hot_ok"] = (jeu_diam_min_hot > 0.0)
             else:
-                _push_inconnue(rapport, "partielles", "masse_piston_kg", "Calculable si densite_kg_m3 est fournie (ou materiau_cle résoluble).")
-        else:
-            if Dp is None:
-                _push_inconnue(rapport, "partielles", "volume_piston_m3", "Calculable si diametre_piston_m est connu et hauteur_piston_m fournie.")
-            if self.hauteur_piston_m is None:
-                _push_inconnue(rapport, "impossibles", "volume_piston_m3", "hauteur_piston_m non fournie.")
-
-        # inertie translationnelle (énergie cinétique alternative) : E = 1/2 m v^2
-        v_moy = None
-        if course is not None and self.rpm is not None:
-            course_val = _require_positive("course_m", course, strictly=True)
-            rpm_val = _require_positive("rpm", self.rpm, strictly=False)
-            v_moy, notes_v = _try_vitesse_moyenne_piston_module(course_val, rpm_val)
-            rapport["notes_modele"].extend(notes_v)
-        else:
-            _push_inconnue(rapport, "partielles", "vitesse_moyenne_piston_ms", "Calculable si course_m et rpm sont fournis (ou déductibles du cylindre).")
-
-        Ecin = None
-        if m is not None and v_moy is not None:
-            Ecin = 0.5 * m * v_moy * v_moy
-        else:
-            _push_inconnue(rapport, "partielles", "energie_cinetique_alternative_J", "Calculable si masse_piston_kg et vitesse_moyenne_piston_ms sont calculées.")
+                _push_inc(
+                    rap,
+                    "partielles",
+                    "jeu_chaud",
+                    "Calculable si (tolérances ISO -> bornes) + alpha piston/cylindre + T_fonctionnement_k sont connus.",
+                )
 
         # ---------------------------------------------------------------------
-        # 3) Efforts gaz (P * A) + contraintes "moyennes"
+        # 4) Couronne (épaisseur tête) : seulement si modèle explicite donné
         # ---------------------------------------------------------------------
-        F_gaz = None
-        if self.pression_cote_froid_pa is not None and A is not None:
-            P = _require_positive("pression_cote_froid_pa", self.pression_cote_froid_pa, strictly=True)
-            F_gaz = P * A
+        # sigma = k_sigma * p * (a^2 / t^2) => t_min = a * sqrt(k_sigma * p / sigma_adm)
+        # a = rayon ~ D/2
+        if self.epaisseur_tete_m is not None:
+            rap["dimensions"]["epaisseur_tete_m"] = _req_pos("epaisseur_tete_m", self.epaisseur_tete_m)
         else:
-            _push_inconnue(rapport, "partielles", "force_gaz_N", "Calculable si pression_cote_froid_pa et surface_piston_m2 sont connues.")
-
-        # contrainte moyenne dans la tête (approx) : sigma = F / A_eff
-        # Ici A_eff = A (simple). Pour un vrai dimensionnement, il faut géométrie détaillée.
-        sigma_moy = None
-        if F_gaz is not None and A is not None:
-            sigma_moy = F_gaz / A  # = pression (si A_eff = A)
-        else:
-            _push_inconnue(rapport, "partielles", "contrainte_moyenne_pa", "Déductible si force_gaz_N et surface_piston_m2.")
-
-        # check matériau (si Re connu)
-        marge_Re = None
-        if sigma_moy is not None and Re is not None:
-            marge_Re = float(Re) / (sigma_moy * float(self.facteur_securite)) if sigma_moy > 0 else None
-        else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "marge_limite_elastique",
-                "Calculable si limite_elastique_pa (matériau) est connue et contrainte_moyenne_pa calculée.",
-            )
-
-        # ---------------------------------------------------------------------
-        # 4) Effort latéral (side-load) sur la jupe + pression de contact
-        # ---------------------------------------------------------------------
-        F_side = None
-        if self.force_normale_jupe_n is not None:
-            F_side = _require_positive("force_normale_jupe_n", self.force_normale_jupe_n, strictly=False)
-        elif self.force_bielle_n is not None and self.angle_bielle_deg is not None:
-            Fb = _require_finite("force_bielle_n", self.force_bielle_n)
-            ang = math.radians(_require_finite("angle_bielle_deg", self.angle_bielle_deg))
-            F_side = abs(Fb * math.tan(ang))
-            rapport["notes_modele"].append("Effort latéral estimé : F_side = |F_bielle * tan(angle_bielle)|.")
-        else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "force_laterale_jupe_N",
-                "Calculable si force_normale_jupe_n est fournie, ou (force_bielle_n + angle_bielle_deg).",
-            )
-
-        # pression de contact jupe/cylindre (moyenne) : p_contact = F_side / (pi*D*L)
-        p_contact = None
-        if F_side is not None and Dp is not None and self.longueur_jupe_m is not None:
-            Ljupe = _require_positive("longueur_jupe_m", self.longueur_jupe_m, strictly=True)
-            surface_contact = math.pi * Dp * Ljupe
-            if surface_contact > 0:
-                p_contact = F_side / surface_contact
-        else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "pression_contact_jupe_pa",
-                "Calculable si (force_laterale_jupe_N, diametre_piston_m, longueur_jupe_m) sont connus.",
-            )
-
-        # ---------------------------------------------------------------------
-        # 5) Frottement + puissance perdue (modèle Coulomb)
-        # ---------------------------------------------------------------------
-        F_frott = None
-        P_frott = None
-        if self.coefficient_frottement is not None and F_side is not None:
-            mu = _require_positive("coefficient_frottement", self.coefficient_frottement, strictly=False)
-            F_frott = mu * abs(F_side)
-            if v_moy is not None:
-                P_frott = F_frott * v_moy
+            if Dcyl is None:
+                _push_inc(rap, "partielles", "epaisseur_tete_m", "Nécessite au moins alesage_nominal_m.")
+            elif Pmax is None:
+                _push_inc(rap, "partielles", "epaisseur_tete_m", "Nécessite pression_max_pa (ou source cylindre).")
+            elif self.k_sigma_plaque is None:
+                _push_inc(
+                    rap,
+                    "partielles",
+                    "epaisseur_tete_m",
+                    "Impossible sans modèle explicite : fournir k_sigma_plaque (relation sigma=k*p*(a^2/t^2)).",
+                )
             else:
-                _push_inconnue(rapport, "partielles", "puissance_perdue_frottement_W", "Calculable si vitesse_moyenne_piston_ms est connue.")
-        else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "force_frottement_N",
-                "Calculable si (coefficient_frottement, force_laterale_jupe_N) sont connus.",
-            )
+                # sigma_adm
+                sigma_adm = self.contrainte_admissible_pa
+                if sigma_adm is None:
+                    props_p = _materiau_props(self.materiau_piston_cle, mode=self.mode_materiau)
+                    Re = props_p["limite_elastique_pa"]
+                    if Re is not None:
+                        sigma_adm = float(Re) / float(self.facteur_securite)
+                        rap["notes_modele"].append("contrainte_admissible déduite de Re/facteur_securite.")
+                    else:
+                        _push_inc(
+                            rap,
+                            "partielles",
+                            "contrainte_admissible_pa",
+                            "Fournir contrainte_admissible_pa ou un matériau piston avec limite_elastique_pa.",
+                        )
 
-        # PV (usure) : PV = p_contact * v_moy
-        PV = None
-        if p_contact is not None and v_moy is not None:
-            PV = p_contact * v_moy
-        else:
-            _push_inconnue(rapport, "partielles", "PV_usure", "Calculable si pression_contact_jupe_pa et vitesse_moyenne_piston_ms.")
+                if sigma_adm is not None:
+                    a = 0.5 * Dcyl
+                    ksig = _req_pos("k_sigma_plaque", self.k_sigma_plaque, strict=True)
+                    tmin = a * math.sqrt(ksig * Pmax / float(sigma_adm))
+                    rap["dimensions"]["epaisseur_tete_min_m"] = tmin
+                    rap["notes_modele"].append(
+                        "Épaisseur tête minimisée via modèle sigma=k*p*(a^2/t^2) (k_sigma_plaque fourni explicitement)."
+                    )
 
         # ---------------------------------------------------------------------
-        # 6) Fuites par jeu annulaire (modèle laminaire simplifié)
+        # 5) Jupe : longueur mini si effort latéral + pression palier adm fournis
         # ---------------------------------------------------------------------
-        # Modèle utilisé (si calculable) :
-        # Q ≈ (pi * D * c^3 / (12 * mu * L)) * ΔP
-        # avec c = jeu_radial, L = longueur_portee_etanche
-        # => nécessite mu (viscosité), D, c, L, ΔP.
-        #
-        # Remarque : si tu veux un modèle compressible plus réaliste, il faut définir
-        # explicitement lequel (et ses paramètres) — ici on reste dans ce qui est
-        # calculable simplement à partir des entrées.
-        Q_fuite_m3_s = None
-        mdot_fuite_kg_s = None
-
-        if (
-            Dp is not None
-            and self.jeu_radial_m is not None
-            and self.longueur_portee_etanche_m is not None
-            and self.pression_cote_froid_pa is not None
-            and self.temperature_cote_froid_k is not None
-        ):
-            c = _require_positive("jeu_radial_m", self.jeu_radial_m, strictly=True)
-            L = _require_positive("longueur_portee_etanche_m", self.longueur_portee_etanche_m, strictly=True)
-            P1 = _require_positive("pression_cote_froid_pa", self.pression_cote_froid_pa, strictly=True)
-            # ΔP : il faut une pression de référence "fuite vers où ?"
-            # -> on ne l'invente pas : l'utilisateur doit fournir pression_exterieure_pa.
-            _push_inconnue(
-                rapport,
-                "impossibles",
-                "debit_fuite_m3_s",
-                "Modèle par jeu annulaire nécessite ΔP : fournir pression_exterieure_pa (ou pression_cote_chaud_pa selon chemin de fuite).",
-            )
+        # p_contact = F_side / (pi * D * L) => L_min = F_side / (pi * D * p_adm)
+        if self.longueur_jupe_m is not None:
+            rap["dimensions"]["longueur_jupe_m"] = _req_pos("longueur_jupe_m", self.longueur_jupe_m)
         else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "debit_fuite_m3_s",
-                "Calculable si (Dp, jeu_radial_m, longueur_portee_etanche_m, temperature_cote_froid_k, pression_cote_froid_pa, ΔP) sont fournis.",
-            )
-
-        # Variante : si pression_exterieure_pa est injectée via champ dynamique dans calculer()
-        # (sans changer la dataclass) :
-        # -> on accepte un override dans self.__dict__ pour rester compatible.
-        pression_exterieure_pa = getattr(self, "pression_exterieure_pa", None)
-        if (
-            Dp is not None
-            and self.jeu_radial_m is not None
-            and self.longueur_portee_etanche_m is not None
-            and self.pression_cote_froid_pa is not None
-            and self.temperature_cote_froid_k is not None
-            and pression_exterieure_pa is not None
-        ):
-            c = _require_positive("jeu_radial_m", self.jeu_radial_m, strictly=True)
-            L = _require_positive("longueur_portee_etanche_m", self.longueur_portee_etanche_m, strictly=True)
-            P1 = _require_positive("pression_cote_froid_pa", self.pression_cote_froid_pa, strictly=True)
-            P2 = _require_positive("pression_exterieure_pa", pression_exterieure_pa, strictly=False)
-            dP = max(P1 - P2, 0.0)
-
-            air = _air_props_si_disponible(self.temperature_cote_froid_k, P1)
-            mu_air = air["mu_pa_s"]
-            rho_air = air["rho_kg_m3"]
-
-            if mu_air is None:
-                _push_inconnue(rapport, "partielles", "debit_fuite_m3_s", "Viscosité air indisponible : fournir mu_pa_s ou compléter air.py.")
+            if Dcyl is None:
+                _push_inc(rap, "partielles", "longueur_jupe_m", "Nécessite alesage_nominal_m.")
+            elif self.effort_lateral_N is None:
+                _push_inc(rap, "partielles", "longueur_jupe_m", "Nécessite effort_lateral_N (ou une loi bielle-manivelle ailleurs).")
+            elif self.pression_palier_admissible_pa is None:
+                _push_inc(rap, "partielles", "longueur_jupe_m", "Nécessite pression_palier_admissible_pa (contrainte explicite).")
             else:
-                muv = _require_positive("mu_air_pa_s", mu_air, strictly=True)
-                Q_fuite_m3_s = (math.pi * Dp * (c ** 3) / (12.0 * muv * L)) * dP
-                if rho_air is not None:
-                    mdot_fuite_kg_s = Q_fuite_m3_s * float(rho_air)
-                else:
-                    _push_inconnue(rapport, "partielles", "debit_fuite_kg_s", "Calculable si densité air (rho) est disponible via air_state().")
-
-                rapport["notes_modele"].append("Fuite (jeu annulaire) : Q = (π*D*c^3/(12*μ*L))*ΔP (laminaire, simplifié).")
+                F = _req_pos("effort_lateral_N", self.effort_lateral_N, strict=False)
+                p_adm = _req_pos("pression_palier_admissible_pa", self.pression_palier_admissible_pa)
+                Lmin = F / (_perimetre(Dcyl) * p_adm)
+                rap["dimensions"]["longueur_jupe_min_m"] = Lmin
+                rap["notes_modele"].append("Longueur jupe minimisée via p_contact = F/(pi*D*L).")
 
         # ---------------------------------------------------------------------
-        # 7) Checks géométriques liés au déplaceur (sans inventer)
+        # 6) Hauteur totale : pas déductible sans architecture (segments, axe, etc.)
         # ---------------------------------------------------------------------
-        # On ne peut pas vérifier "ne touche jamais le déplaceur" sans :
-        # - positions relatives
-        # - longueurs utiles
-        # - course déplaceur / piston
-        # On expose juste un check si l'utilisateur fournit distance_min_avec_deplaceur_m.
-        distance_min_avec_deplaceur_m = getattr(self, "distance_min_avec_deplaceur_m", None)
-        ok_non_contact = None
-        if distance_min_avec_deplaceur_m is not None:
-            dist = _require_finite("distance_min_avec_deplaceur_m", distance_min_avec_deplaceur_m)
-            ok_non_contact = dist > 0
+        if self.hauteur_totale_m is not None:
+            rap["dimensions"]["hauteur_totale_m"] = _req_pos("hauteur_totale_m", self.hauteur_totale_m)
         else:
-            _push_inconnue(
-                rapport,
-                "impossibles",
-                "verification_non_contact_deplaceur",
-                "Fournir distance_min_avec_deplaceur_m (ou géométrie complète + lois de course) pour conclure.",
+            _push_inc(
+                rap,
+                "partielles",
+                "hauteur_totale_m",
+                "Non déductible ici sans architecture piston (segments, axe, épaulements). Fournir ou créer un module d’architecture.",
             )
 
         # ---------------------------------------------------------------------
-        # Entrées / Résultats
+        # 7) Masse : si on a une géométrie minimale et densité
         # ---------------------------------------------------------------------
-        rapport["entrees"] = {
-            "diametre_piston_m": Dp,
-            "hauteur_piston_m": self.hauteur_piston_m,
-            "longueur_jupe_m": self.longueur_jupe_m,
-            "epaisseur_tete_m": self.epaisseur_tete_m,
-            "jeu_radial_m": self.jeu_radial_m,
-            "longueur_portee_etanche_m": self.longueur_portee_etanche_m,
-            "pression_cote_froid_pa": self.pression_cote_froid_pa,
-            "temperature_cote_froid_k": self.temperature_cote_froid_k,
-            "course_m": course,
-            "rpm": self.rpm,
-            "force_bielle_n": self.force_bielle_n,
-            "angle_bielle_deg": self.angle_bielle_deg,
-            "coefficient_frottement": self.coefficient_frottement,
-            "materiau_cle": self.materiau_cle,
-            "densite_kg_m3": props_mat["densite_kg_m3"],
-            "limite_elastique_pa": props_mat["limite_elastique_pa"],
-            "module_young_pa": props_mat["module_young_pa"],
-            "conductivite_w_mk": props_mat["conductivite_w_mk"],
+        props_p = _materiau_props(self.materiau_piston_cle, mode=self.mode_materiau)
+        rho = props_p["densite_kg_m3"]
+        if rho is None:
+            _push_inc(rap, "partielles", "masse_kg", "Calculable si matériau piston (densite_kg_m3) est connu.")
+        else:
+            # Volume très simplifié : cylindre plein de D_piston_cao et h_totale.
+            D_cao = rap["dimensions"].get("diametre_piston_cao_centre_m")
+            h = rap["dimensions"].get("hauteur_totale_m")
+            if D_cao is not None and h is not None:
+                V = _vol_cylindre(float(D_cao), float(h))
+                rap["masses"]["volume_simplifie_m3"] = V
+                rap["masses"]["masse_simplifiee_kg"] = V * float(rho)
+                rap["notes_modele"].append("Masse simplifiée (piston plein) : à remplacer par CAO/volume réel.")
+            else:
+                _push_inc(rap, "partielles", "masse_kg", "Nécessite (diametre_piston_cao_centre_m, hauteur_totale_m).")
+
+        # ---------------------------------------------------------------------
+        # 8) Fuites par jeu annulaire : seulement si ΔP et L_portée explicites
+        # ---------------------------------------------------------------------
+        # (Le modèle compressible complet dépend de choix explicites -> pas ici.)
+        if (self.longueur_portee_etanche_m is not None and
+            self.pression_aval_pa is not None and
+            rap["jeux"].get("jeu_radial_max_m") is not None and
+            Pmax is not None):
+            # on ne calcule pas mu ici : ce module doit appeler ton air.py si tu veux.
+            _push_inc(
+                rap,
+                "partielles",
+                "debit_fuite",
+                "Modèle de fuite non calculé ici sans viscosité μ (à récupérer via air.py) et choix de modèle (laminaire, compressible, etc.).",
+            )
+        else:
+            _push_inc(
+                rap,
+                "partielles",
+                "debit_fuite",
+                "Calculable seulement si tu fournis (longueur_portee_etanche_m, pression_aval_pa) + μ (via air.py) + un modèle explicite.",
+            )
+
+        # ---------------------------------------------------------------------
+        # Entrées récap
+        # ---------------------------------------------------------------------
+        rap["entrees"] = {
+            "alesage_nominal_m": self.alesage_nominal_m,
+            "fit_hole": self.fit_hole,
+            "fit_shaft": self.fit_shaft,
+            "pression_max_pa": self.pression_max_pa,
+            "temperature_fonctionnement_k": self.temperature_fonctionnement_k,
+            "materiau_piston_cle": self.materiau_piston_cle,
+            "materiau_cylindre_cle": self.materiau_cylindre_cle,
+            "mode_materiau": self.mode_materiau,
+            "temperature_ref_k": self.temperature_ref_k,
+            "effort_lateral_N": self.effort_lateral_N,
+            "pression_palier_admissible_pa": self.pression_palier_admissible_pa,
+            "k_sigma_plaque": self.k_sigma_plaque,
+            "contrainte_admissible_pa": self.contrainte_admissible_pa,
             "facteur_securite": self.facteur_securite,
-            "pression_exterieure_pa": pression_exterieure_pa,
-            "distance_min_avec_deplaceur_m": distance_min_avec_deplaceur_m,
+            "hauteur_totale_m": self.hauteur_totale_m,
         }
 
-        rapport["resultats"] = {
-            "surface_piston_m2": A,
-            "volume_piston_m3": V,
-            "masse_piston_kg": m,
-            "vitesse_moyenne_piston_ms": v_moy,
-            "energie_cinetique_alternative_J": Ecin,
-            "force_gaz_N": F_gaz,
-            "contrainte_moyenne_pa": sigma_moy,
-            "marge_limite_elastique": marge_Re,
-            "force_laterale_jupe_N": F_side,
-            "pression_contact_jupe_pa": p_contact,
-            "force_frottement_N": F_frott,
-            "puissance_perdue_frottement_W": P_frott,
-            "PV_usure": PV,
-            "debit_fuite_m3_s": Q_fuite_m3_s,
-            "debit_fuite_kg_s": mdot_fuite_kg_s,
-            "ok_non_contact_deplaceur": ok_non_contact,
-        }
-
-        return rapport
+        _dedup_inconnues(rap)
+        if strict and (rap["inconnues"]["impossibles"] or rap["inconnues"]["partielles"]):
+            raise ValueError(
+                "Piston(strict=True) : des inconnues restent.\n"
+                f"Impossibles: {rap['inconnues']['impossibles']}\n"
+                f"Partielles: {rap['inconnues']['partielles']}"
+            )
+        return rap
 
 
 # =============================================================================
-# Exemple d'usage (à supprimer en prod)
+# Exemple minimal (aucune valeur cachée)
 # =============================================================================
 if __name__ == "__main__":
-    # Exemple minimal : ne calcule que ce qui est possible avec les entrées.
+    # Cas typique : on a un cylindre qui fournit alesage/pression/temp.
+    # Et on fixe explicitement un ajustement ISO de type H7/h6.
     p = Piston(
-        diametre_piston_m=0.085,
-        hauteur_piston_m=0.05,
-        pression_cote_froid_pa=6e5,
-        temperature_cote_froid_k=300.0,
-        course_m=0.085,
-        rpm=3000.0,
-        materiau_cle=None,
-        densite_kg_m3=2700.0,
-        limite_elastique_pa=250e6,
-        coefficient_frottement=0.15,
-        force_bielle_n=10000.0,
-        angle_bielle_deg=10.0,
-        longueur_jupe_m=0.03,
+        cylindre=None,              # mets un Cylindre(...) réel ici
+        alesage_nominal_m=0.080,    # si pas de cylindre objet
+        fit_hole="H7",
+        fit_shaft="h6",
+        materiau_piston_cle="alu_7075_t6",   # dépend de ta base materiaux.py
+        materiau_cylindre_cle="acier_42cd4", # idem
+        pression_max_pa=15e5,
+        temperature_fonctionnement_k=350.0,
+        # Pour dimensionner la jupe, il faut une contrainte explicite :
+        effort_lateral_N=800.0,
+        pression_palier_admissible_pa=5e6,
+        # Pour dimensionner la tête, il faut un modèle explicite :
+        k_sigma_plaque=0.5,  # exemple : à JUSTIFIER par ton modèle choisi
     )
-    # Optionnel (si tu veux calculer les fuites) :
-    # setattr(p, "pression_exterieure_pa", 1e5)
-    # setattr(p, "distance_min_avec_deplaceur_m", 0.002)
-
     from pprint import pprint
-    pprint(p.calculer())
+    pprint(p.analyser(strict=False))
