@@ -1,0 +1,10 @@
+2026-01-07 20:03:32,568 - test_sketches_2d - INFO - Test de dessin : Bielle
+2026-01-07 20:03:32,823 - test_sketches_2d - INFO - Bielle validée avec succès.
+2026-01-07 20:03:32,878 - test_sketches_2d - INFO - Test de dessin : Couvercle Cylindre
+2026-01-07 20:03:33,102 - test_sketches_2d - INFO - Couvercle Cylindre validé avec succès.
+2026-01-07 20:03:33,118 - test_sketches_2d - INFO - Test de dessin : Cylindre
+2026-01-07 20:03:33,268 - test_sketches_2d - INFO - Cylindre validé avec succès.
+2026-01-07 20:03:33,287 - test_sketches_2d - INFO - Test de dessin : Piston
+2026-01-07 20:03:33,428 - test_sketches_2d - INFO - Piston validé avec succès.
+2026-01-07 20:03:33,451 - test_sketches_2d - INFO - Test de dessin : Vilbrequin
+2026-01-07 20:03:33,604 - test_sketches_2d - INFO - Vilbrequin validé avec succès.

@@ -12,16 +12,26 @@ def get_latest_system_analysis(log_path):
     with open(log_path, "r", encoding="utf-8") as f:
         content = f.read()
         
-    # On cherche les blocs JSON entre les marqueurs ou via regex
-    # Dans le log on voit : "REPONSE DETAILLEE DU SYSTEME CLASSIQUE:\n{"
-    matches = re.findall(r"REPONSE DETAILLEE DU SYSTEME CLASSIQUE:\s*(\{.*?\})\s*(?=\d{4}-\d{2}-\d{2}|$)", content, re.DOTALL)
-    
-    if not matches:
+    marker = "REPONSE DETAILLEE DU SYSTEME CLASSIQUE:"
+    idx = content.rfind(marker)
+    if idx == -1:
         return None
         
+    # On cherche le premier '{' après le marqueur
+    start_idx = content.find("{", idx + len(marker))
+    if start_idx == -1:
+        return None
+        
+    # On cherche la fin du bloc (le dernier '}' avant un nouveau timestamp ou EOF)
+    # Pour simplifier, on prend tout jusqu'au prochain timestamp potentiel
+    next_ts = re.search(r"\n\d{4}-\d{2}-\d{2}", content[start_idx:])
+    if next_ts:
+        json_str = content[start_idx : start_idx + next_ts.start()]
+    else:
+        json_str = content[start_idx:]
+        
     try:
-        # On prend le dernier bloc trouvé
-        return json.loads(matches[-1])
+        return json.loads(json_str.strip())
     except Exception:
         return None
 
