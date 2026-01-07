@@ -3,6 +3,7 @@ import pytest
 import os
 import logging
 import math
+import json
 from backend.modules.boite_crabots.calcul_dimensionnement_arbre import (
     calcul_contrainte_cisaillement_torsion,
     calcul_contrainte_flexion_arbre,
@@ -98,6 +99,22 @@ def test_estimer_diametre_minimal_von_mises():
         # T=1000, M=500, Re=300MPa, S=2.0
         res = estimer_diametre_minimal_von_mises(1000.0, 500.0, 300e6, 2.0)
         assert res > 0.01 and res < 0.1
+        log_test_result(test_name, "SUCCESS")
+    except Exception as e:
+        log_test_result(test_name, "FAILED", str(e))
+        raise e
+
+def test_calcul_details_arbre():
+    test_name = "test_calcul_details_arbre"
+    logger.info(f"Starting {test_name}")
+    try:
+        # Synthèse manuelle pour le log détaillé
+        synthese = {
+            "diametre_mini": estimer_diametre_minimal_von_mises(1000.0, 500.0, 300e6, 2.0),
+            "unite": "m"
+        }
+        logger.info("RESULTATS DETAILLES SYNTHESE ARBRE:")
+        logger.info(json.dumps(synthese, indent=2, ensure_ascii=False))
         log_test_result(test_name, "SUCCESS")
     except Exception as e:
         log_test_result(test_name, "FAILED", str(e))

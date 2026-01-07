@@ -65,3 +65,20 @@ def test_calcul_debit_fuite_annulaire():
     except Exception as e:
         log_test_result(test_name, "FAILED", str(e))
         raise e
+
+def test_calculer_gaz_complet():
+    test_name = "test_calculer_gaz_complet"
+    logger.info(f"Starting {test_name}")
+    try:
+        # P=1bar, T=300K, V=0.001m3 => m = 1e5 * 0.001 / (287.05 * 300) = 0.00116 kg
+        res = calculer_gaz_complet(1e5, 0.001, 300.0)
+        assert res["masse_kg"] > 0.0011 and res["masse_kg"] < 0.0012
+        
+        # Log détaillé en JSON
+        logger.info("RESULTATS DETAILLES GAZ:")
+        logger.info(json.dumps(res, indent=2, ensure_ascii=False))
+        
+        log_test_result(test_name, "SUCCESS")
+    except Exception as e:
+        log_test_result(test_name, "FAILED", str(e))
+        raise e

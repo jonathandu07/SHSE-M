@@ -2,6 +2,7 @@
 import pytest
 import os
 import logging
+import json
 from backend.modules.boite_crabots.calcul_dimensionnement_crabot import (
     calcul_couple_transmissible_crabot,
     calcul_pression_contact_crabot
@@ -36,6 +37,14 @@ def test_calcul_couple_transmissible_crabot():
         # Avec facteur repartition
         res_k = calcul_couple_transmissible_crabot(4, 100e6, 0.01, 0.015, 0.04, facteur_repartition=0.5)
         assert res_k == pytest.approx(1200.0)
+        
+        # Avec détails
+        res_det = calcul_couple_transmissible_crabot(4, 100e6, 0.01, 0.015, 0.04, return_details=True)
+        assert res_det["T_cap"] == pytest.approx(2400.0)
+        
+        # Log détaillé en JSON
+        logger.info("RESULTATS DETAILLES COUPLE CRABOT:")
+        logger.info(json.dumps(res_det, indent=2, ensure_ascii=False))
         
         log_test_result(test_name, "SUCCESS")
     except Exception as e:

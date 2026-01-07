@@ -2,6 +2,7 @@
 import pytest
 import os
 import logging
+import json
 from backend.modules.moteur_electrique.calcul_multi_domaine import (
     calcul_densite_air_sec,
     calcul_demande_nautique,
@@ -72,6 +73,11 @@ def test_generer_rapport_mission():
         res = generer_rapport_mission("aerien", params, tension_systeme_v=400.0)
         assert "courant_estime_A" in res
         assert res["courant_estime_A"] > 0
+        
+        # Log détaillé en JSON
+        logger.info("RESULTATS DETAILLES RAPPORT MISSION:")
+        logger.info(json.dumps(res, indent=2, ensure_ascii=False))
+        
         log_test_result(test_name, "SUCCESS")
     except Exception as e:
         log_test_result(test_name, "FAILED", str(e))

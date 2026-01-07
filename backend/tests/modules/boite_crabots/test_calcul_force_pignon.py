@@ -3,6 +3,7 @@ import pytest
 import os
 import logging
 import math
+import json
 from backend.modules.boite_crabots.calcul_force_pignon import (
     calcul_force_tangentielle,
     calcul_forces_engrenage
@@ -53,6 +54,10 @@ def test_calcul_forces_engrenage():
         res_h = calcul_forces_engrenage(2000.0, 20.0, 30.0)
         assert abs(res_h["F_r"] - 840.57) < 0.02
         assert abs(res_h["F_a"] - 1154.7) < 1e-1
+        
+        # Log détaillé en JSON
+        logger.info("RESULTATS DETAILLES FORCES ENGRENAGE:")
+        logger.info(json.dumps(res_h, indent=2, ensure_ascii=False))
         
         log_test_result(test_name, "SUCCESS")
     except Exception as e:

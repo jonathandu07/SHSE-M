@@ -1,6 +1,6 @@
-2026-01-07 19:01:33,952 - INFO - Starting test_systeme_analyser_full
-2026-01-07 19:01:33,953 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
-2026-01-07 19:01:33,953 - INFO - {
+2026-01-07 19:09:33,563 - INFO - Starting test_systeme_analyser_full
+2026-01-07 19:09:33,564 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-01-07 19:09:33,564 - INFO - {
   "entrees": {},
   "sous_systemes": {
     "traction": {
@@ -461,6 +461,6 @@
     "puissance_pic_kw déduite du point traction (P_bus_dc_traction_w) car absente en entrée."
   ]
 }
-2026-01-07 19:01:33,954 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
-2026-01-07 19:01:33,956 - INFO - Starting test_systeme_missing_inputs
-2026-01-07 19:01:33,956 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
+2026-01-07 19:09:33,565 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-01-07 19:09:33,617 - INFO - Starting test_systeme_missing_inputs
+2026-01-07 19:09:33,618 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
