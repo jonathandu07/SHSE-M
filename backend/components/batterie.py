@@ -64,7 +64,7 @@ except Exception:
         calcul_puissance_charge_requise,
     )
 
-# electrolyte_solide.py (NOUVEAU)
+# electrolyte_solide.py
 try:
     from backend.modules.batterie.electrolyte_solide import (
         ElectrolyteSolide,
@@ -140,10 +140,6 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
 
 @dataclass(frozen=True)
 class ConfigElectrolyteSolide:
-    """
-    Configuration minimale pour l'analyse "électrolyte solide" sans invention :
-    - si un champ manque -> le module renvoie des inconnues.
-    """
     # Électrolyte
     conductivite_ionique_s_m: Optional[float] = None
     epaisseur_m: Optional[float] = None
@@ -159,7 +155,7 @@ class ConfigElectrolyteSolide:
     nb_series: Optional[int] = None
     nb_parallele: Optional[int] = None
 
-    # Optionnel : rendement chaîne (si la puissance passée n’est pas déjà "électrique pack")
+    # Optionnel : rendement chaîne
     rendement_chaine: Optional[float] = None
 
 
@@ -177,50 +173,34 @@ class Batterie:
         - sinon : inconnue (partielle ou impossible) avec justification.
     """
 
-    # Fenêtre SOC utilisable (0 < w <= 1)
     fenetre_soc: float = 0.8
-
-    # Densité énergétique (kWh/kg) au niveau pack (pas cellule)
     densite_energetique_kwh_kg: Optional[float] = None
 
-    # Charge (si tu connais ton chargeur / alternateur)
     rendement_charge: float = 0.90
     puissance_charge_kw: Optional[float] = None
 
-    # Électrique pack (optionnel, utile pour I, Ah, C-rate)
     tension_nominale_v: Optional[float] = None
-    tension_charge_v: Optional[float] = None  # tension approx côté pack pendant charge (si connue)
+    tension_charge_v: Optional[float] = None
 
     def analyser_dimensionnement(
         self,
         *,
-        # 1) Critère autonomie (trajet)
         distance_km: Optional[float] = None,
         conso_kwh_km: Optional[float] = None,
 
-        # 2) Alternative : conso dérivée de puissance+vitesse moyenne (si dispo)
         puissance_moyenne_kw: Optional[float] = None,
         vitesse_moyenne_kmh: Optional[float] = None,
 
-        # 3) Critère recharge (temps cible)
         temps_charge_cible_h: Optional[float] = None,
 
-        # 4) Critère pic (tampon)
         puissance_pic_kw: Optional[float] = None,
         duree_pic_s: Optional[float] = None,
 
-        # 5) Si tu as déjà une énergie utile imposée
         energie_utile_imposee_kwh: Optional[float] = None,
 
-        # 6) Agrégation des contraintes d'énergie utile :
-        #    - "max" : même logique que choisir_energie_utile_finale (module)
-        #    - "somme" : additionne les contraintes disponibles (utile si tu veux cumuler autonomie + tampon pic)
         mode_aggregation_energie: str = "max",
-
-        # 7) Si temps cible fourni mais pas puissance_charge_kw : tenter de calculer la puissance requise
         calculer_puissance_charge_requise: bool = True,
 
-        # 8bis) Électrolyte solide (SSB)
         ssb: Optional[ConfigElectrolyteSolide] = None,
     ) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
@@ -236,7 +216,7 @@ class Batterie:
         }
 
         # ------------------------------------------------------------
-        # Validations "structurelles" (pas de calcul métier ici)
+        # Validations "structurelles"
         # ------------------------------------------------------------
         w = _require_ratio_0_1("fenetre_soc", self.fenetre_soc)
         eta = _require_ratio_0_1("rendement_charge", self.rendement_charge)
@@ -249,7 +229,7 @@ class Batterie:
             "tension_nominale_v": self.tension_nominale_v,
             "tension_charge_v": self.tension_charge_v,
             "distance_km": distance_km,
-            "conso_kwh_km": conso_kwh_k_toggle := conso_kwh_km,  # kept for debug; value identical
+            "conso_kwh_km": conso_kwh_km,
             "puissance_moyenne_kw": puissance_moyenne_kw,
             "vitesse_moyenne_kmh": vitesse_moyenne_kmh,
             "temps_charge_cible_h": temps_charge_cible_h,
@@ -260,7 +240,6 @@ class Batterie:
             "calculer_puissance_charge_requise": calculer_puissance_charge_requise,
             "ssb": ssb,
         }
-        # NOTE: the walrus above is safe but unnecessary; if you prefer, delete it and keep only conso_kwh_km.
 
         rapport["unites"] = {
             "E_*": "kWh",
@@ -278,7 +257,7 @@ class Batterie:
         }
 
         # ------------------------------------------------------------
-        # 1) Énergie utile trajet (directe ou déduite via module)
+        # 1) Énergie utile trajet
         # ------------------------------------------------------------
         E_trajet: Optional[float] = None
         conso_derivee: Optional[float] = None
@@ -310,7 +289,7 @@ class Batterie:
         rapport["energies_utiles"]["E_trajet_kwh"] = E_trajet
 
         # ------------------------------------------------------------
-        # 2) Énergie utile contrainte de recharge (si Pcharge connue)
+        # 2) Énergie utile contrainte de recharge
         # ------------------------------------------------------------
         E_charge_cible: Optional[float] = None
         if temps_charge_cible_h is not None:
@@ -386,7 +365,7 @@ class Batterie:
         rapport["dimensionnement"]["E_utile_finale_kwh"] = E_u_final
 
         # ------------------------------------------------------------
-        # 6) Dimensionnement capacité totale + masse pack
+        # 6) Capacité totale + masse pack
         # ------------------------------------------------------------
         E_batt_tot: Optional[float] = None
         m_batt: Optional[float] = None
@@ -416,7 +395,7 @@ class Batterie:
         rapport["dimensionnement"]["masse_batterie_kg"] = m_batt
 
         # ------------------------------------------------------------
-        # 7) Charge : temps de charge, puissance requise, courant estimé
+        # 7) Charge
         # ------------------------------------------------------------
         t_charge: Optional[float] = None
         P_eff_kw: Optional[float] = None
@@ -424,7 +403,6 @@ class Batterie:
         I_charge_a: Optional[float] = None
 
         if E_u_final is not None:
-            # Temps de charge si puissance de charge connue
             if self.puissance_charge_kw is not None:
                 Pchg = _require_positive("puissance_charge_kw", self.puissance_charge_kw, strict=True)
                 t_charge = float(calcul_temps_charge(E_u_final, Pchg, eta))
@@ -437,7 +415,6 @@ class Batterie:
                     "Calculable si puissance_charge_kw est fournie (et rendement_charge).",
                 )
 
-            # Puissance requise si temps cible fourni
             if temps_charge_cible_h is not None and calculer_puissance_charge_requise:
                 t = _require_positive("temps_charge_cible_h", temps_charge_cible_h, strict=True)
                 P_charge_requise_kw = float(calcul_puissance_charge_requise(E_u_final, t, eta))
@@ -449,7 +426,6 @@ class Batterie:
                 "Calculable si E_utile_finale_kwh est déterminée et si (puissance_charge_kw ou temps_charge_cible_h) est fourni.",
             )
 
-        # Courant de charge si tension connue (tension de charge ou nominale)
         if P_eff_kw is not None:
             Vchg = self.tension_charge_v or self.tension_nominale_v
             if Vchg is not None:
@@ -469,7 +445,7 @@ class Batterie:
         rapport["charge"]["courant_charge_A"] = I_charge_a
 
         # ------------------------------------------------------------
-        # 8) Électrique pack : Ah, courant décharge, C-rates
+        # 8) Électrique pack
         # ------------------------------------------------------------
         capacite_ah: Optional[float] = None
         I_decharge_a: Optional[float] = None
@@ -487,7 +463,6 @@ class Batterie:
                 "Calculable si tension_nominale_v est fournie (Ah = kWh*1000 / V).",
             )
 
-        # Décharge : courant et C-rate depuis puissance moyenne
         if puissance_moyenne_kw is not None and E_batt_tot is not None:
             Pm = _require_positive("puissance_moyenne_kw", puissance_moyenne_kw, strict=False)
             C_decharge = float(calcul_c_rate_depuis_kw_kwh(Pm, E_batt_tot))
@@ -510,7 +485,6 @@ class Batterie:
                 "Calculable si capacite_totale_kwh est déterminée.",
             )
 
-        # Charge : C-rate charge depuis puissance charge
         if self.puissance_charge_kw is not None and E_batt_tot is not None:
             Pchg = _require_positive("puissance_charge_kw", self.puissance_charge_kw, strict=False)
             C_charge = float(calcul_c_rate_depuis_kw_kwh(Pchg, E_batt_tot))
@@ -528,7 +502,7 @@ class Batterie:
         rapport["electrique"]["C_rate_charge_estime"] = C_charge
 
         # ------------------------------------------------------------
-        # 8bis) Électrolyte solide (SSB) : calculs ohmiques si données disponibles
+        # 8bis) Électrolyte solide (SSB)
         # ------------------------------------------------------------
         rapport["electrolyte_solide"] = {
             "entrees_ssb": None,
@@ -550,8 +524,6 @@ class Batterie:
                 "rendement_chaine": ssb.rendement_chaine,
             }
 
-            # Puissance continue "pour laquelle on évalue les pertes".
-            # On n'invente pas : il faut une source.
             P_cont_kw: Optional[float] = None
             if puissance_moyenne_kw is not None:
                 P_cont_kw = _require_positive("puissance_moyenne_kw", puissance_moyenne_kw, strict=False)
@@ -599,7 +571,7 @@ class Batterie:
             rapport["electrolyte_solide"]["inconnues_ssb"] = rep_ssb.inconnues
 
         # ------------------------------------------------------------
-        # 9) Inconnues réellement impossibles sans techno/mesures
+        # 9) Inconnues réellement impossibles
         # ------------------------------------------------------------
         _push_inconnue(
             rapport,
