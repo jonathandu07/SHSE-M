@@ -2,6 +2,7 @@
 import pytest
 import os
 import logging
+import json
 from backend.modules.architecture.resolution_globale_architecture import (
     resoudre_architecture_globale
 )
@@ -36,6 +37,10 @@ def test_resoudre_architecture_globale():
             assert "Architecture" in res
             assert "Score" in res
             assert res["N_cyl"] >= 1
+            
+            # Log détaillé en JSON
+            logger.info("RESULTATS DETAILLES ARCHITECTURE OPTIMALE:")
+            logger.info(json.dumps(res, indent=2, ensure_ascii=False))
             
         # Cas puissance nulle
         assert resoudre_architecture_globale(0.0, 4500.0, 12e5, 25.0, 1.2, 0.8) == {}

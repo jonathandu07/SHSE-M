@@ -1,6 +1,7 @@
 import logging
 import os
 import pytest
+import json
 from unittest.mock import MagicMock
 from backend.ensemble.systeme_complet import SystemeComplet
 from backend.components.moteur_electrique import MoteurElectrique
@@ -78,6 +79,10 @@ def test_systeme_analyser_full(mock_system):
         assert "sous_systemes" in rep
         assert "traction" in rep["sous_systemes"]
         assert rep["sous_systemes"]["traction"] is not None
+        
+        # Log de l'ensemble des données en JSON
+        logger.info("REPONSE DETAILLEE DU SYSTEME CLASSIQUE:")
+        logger.info(json.dumps(rep, indent=2, ensure_ascii=False))
         
         log_test_result("test_systeme_analyser_full", "SUCCESS")
     except Exception as e:

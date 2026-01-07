@@ -3,6 +3,7 @@ import pytest
 import os
 import logging
 import math
+import json
 from backend.modules.moteur_thermique.calcul_cylindree import (
     calcul_cylindree_unitaire,
     calcul_cylindree_totale,
@@ -85,6 +86,11 @@ def test_calculer_cylindre_complet():
         res = calculer_cylindre_complet(alesage_m=0.08, course_m=0.08, nombre_cylindres=4, taux_compression=11.0)
         assert res["cylindree_totale_l"] > 1.6 and res["cylindree_totale_l"] < 1.61
         assert "volume_mort_m3" in res
+        
+        # Log détaillé en JSON
+        logger.info("RESULTATS DETAILLES CYLINDREE:")
+        logger.info(json.dumps(res, indent=2, ensure_ascii=False))
+        
         log_test_result(test_name, "SUCCESS")
     except Exception as e:
         log_test_result(test_name, "FAILED", str(e))
