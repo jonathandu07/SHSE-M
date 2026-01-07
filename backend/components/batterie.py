@@ -44,7 +44,7 @@ try:
 except Exception:
     from backend.modules.batterie.calcul_temps_charge import calcul_temps_charge  # type: ignore
 
-# calcul_electrique_pack.py (NOUVEAU)
+# calcul_electrique_pack.py
 try:
     from backend.modules.batterie.calcul_electrique_pack import (
         calcul_conso_kwh_km_depuis_puissance_vitesse,
@@ -62,6 +62,26 @@ except Exception:
         calcul_c_rate_depuis_kw_kwh,
         calcul_puissance_effective_stockee,
         calcul_puissance_charge_requise,
+    )
+
+# electrolyte_solide.py (NOUVEAU)
+try:
+    from backend.modules.batterie.electrolyte_solide import (
+        ElectrolyteSolide,
+        CelluleSolide,
+        PackSolide,
+        Options as OptionsElectrolyte,
+        evaluer_electrolyte_solide,
+        RapportElectrolyteSolide,
+    )
+except Exception:
+    from backend.modules.batterie.electrolyte_solide import (  # type: ignore
+        ElectrolyteSolide,
+        CelluleSolide,
+        PackSolide,
+        Options as OptionsElectrolyte,
+        evaluer_electrolyte_solide,
+        RapportElectrolyteSolide,
     )
 
 
@@ -112,6 +132,35 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
 
     rapport["inconnues"]["impossibles"] = dedup(rapport["inconnues"]["impossibles"])
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
+
+
+# ============================================================
+# Config : Électrolyte solide (SSB)
+# ============================================================
+
+@dataclass(frozen=True)
+class ConfigElectrolyteSolide:
+    """
+    Configuration minimale pour l'analyse "électrolyte solide" sans invention :
+    - si un champ manque -> le module renvoie des inconnues.
+    """
+    # Électrolyte
+    conductivite_ionique_s_m: Optional[float] = None
+    epaisseur_m: Optional[float] = None
+    resistance_interface_ohm: Optional[float] = None  # optionnel
+
+    # Cellule
+    surface_active_m2: Optional[float] = None
+    tension_cell_v: Optional[float] = None
+    capacite_cell_ah: Optional[float] = None
+    courant_cell_max_a: Optional[float] = None  # optionnel
+
+    # Pack
+    nb_series: Optional[int] = None
+    nb_parallele: Optional[int] = None
+
+    # Optionnel : rendement chaîne (si la puissance passée n’est pas déjà "électrique pack")
+    rendement_chaine: Optional[float] = None
 
 
 # ============================================================
@@ -170,6 +219,9 @@ class Batterie:
 
         # 7) Si temps cible fourni mais pas puissance_charge_kw : tenter de calculer la puissance requise
         calculer_puissance_charge_requise: bool = True,
+
+        # 8bis) Électrolyte solide (SSB)
+        ssb: Optional[ConfigElectrolyteSolide] = None,
     ) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "entrees": {},
@@ -177,6 +229,7 @@ class Batterie:
             "dimensionnement": {},
             "charge": {},
             "electrique": {},
+            "electrolyte_solide": {},
             "hypotheses": [],
             "unites": {},
             "inconnues": {"impossibles": [], "partielles": []},
@@ -196,7 +249,7 @@ class Batterie:
             "tension_nominale_v": self.tension_nominale_v,
             "tension_charge_v": self.tension_charge_v,
             "distance_km": distance_km,
-            "conso_kwh_km": conso_kwh_km,
+            "conso_kwh_km": conso_kwh_k_toggle := conso_kwh_km,  # kept for debug; value identical
             "puissance_moyenne_kw": puissance_moyenne_kw,
             "vitesse_moyenne_kmh": vitesse_moyenne_kmh,
             "temps_charge_cible_h": temps_charge_cible_h,
@@ -205,7 +258,9 @@ class Batterie:
             "energie_utile_imposee_kwh": energie_utile_imposee_kwh,
             "mode_aggregation_energie": mode_aggregation_energie,
             "calculer_puissance_charge_requise": calculer_puissance_charge_requise,
+            "ssb": ssb,
         }
+        # NOTE: the walrus above is safe but unnecessary; if you prefer, delete it and keep only conso_kwh_km.
 
         rapport["unites"] = {
             "E_*": "kWh",
@@ -217,6 +272,9 @@ class Batterie:
             "courant_*": "A",
             "capacite_Ah": "Ah",
             "C_rate_*": "h^-1",
+            "R_*": "ohm",
+            "ASR_*": "ohm·m²",
+            "pertes_joule_*": "W",
         }
 
         # ------------------------------------------------------------
@@ -253,7 +311,6 @@ class Batterie:
 
         # ------------------------------------------------------------
         # 2) Énergie utile contrainte de recharge (si Pcharge connue)
-        #    (module calcul_energie_utile_cible)
         # ------------------------------------------------------------
         E_charge_cible: Optional[float] = None
         if temps_charge_cible_h is not None:
@@ -273,7 +330,7 @@ class Batterie:
         rapport["energies_utiles"]["E_charge_cible_kwh"] = E_charge_cible
 
         # ------------------------------------------------------------
-        # 3) Énergie utile tampon pic (module calcul_energie_utile_pic)
+        # 3) Énergie utile tampon pic
         # ------------------------------------------------------------
         E_pic: Optional[float] = None
         if puissance_pic_kw is not None and duree_pic_s is not None:
@@ -329,7 +386,7 @@ class Batterie:
         rapport["dimensionnement"]["E_utile_finale_kwh"] = E_u_final
 
         # ------------------------------------------------------------
-        # 6) Dimensionnement capacité totale + masse pack (module dimensionnement)
+        # 6) Dimensionnement capacité totale + masse pack
         # ------------------------------------------------------------
         E_batt_tot: Optional[float] = None
         m_batt: Optional[float] = None
@@ -412,7 +469,7 @@ class Batterie:
         rapport["charge"]["courant_charge_A"] = I_charge_a
 
         # ------------------------------------------------------------
-        # 8) Électrique pack : Ah, courant décharge, C-rates (si données)
+        # 8) Électrique pack : Ah, courant décharge, C-rates
         # ------------------------------------------------------------
         capacite_ah: Optional[float] = None
         I_decharge_a: Optional[float] = None
@@ -469,6 +526,77 @@ class Batterie:
         rapport["electrique"]["courant_decharge_A_estime"] = I_decharge_a
         rapport["electrique"]["C_rate_decharge_estime"] = C_decharge
         rapport["electrique"]["C_rate_charge_estime"] = C_charge
+
+        # ------------------------------------------------------------
+        # 8bis) Électrolyte solide (SSB) : calculs ohmiques si données disponibles
+        # ------------------------------------------------------------
+        rapport["electrolyte_solide"] = {
+            "entrees_ssb": None,
+            "rapport_ssb": None,
+            "inconnues_ssb": None,
+        }
+
+        if ssb is not None:
+            rapport["electrolyte_solide"]["entrees_ssb"] = {
+                "conductivite_ionique_s_m": ssb.conductivite_ionique_s_m,
+                "epaisseur_m": ssb.epaisseur_m,
+                "resistance_interface_ohm": ssb.resistance_interface_ohm,
+                "surface_active_m2": ssb.surface_active_m2,
+                "tension_cell_v": ssb.tension_cell_v,
+                "capacite_cell_ah": ssb.capacite_cell_ah,
+                "courant_cell_max_a": ssb.courant_cell_max_a,
+                "nb_series": ssb.nb_series,
+                "nb_parallele": ssb.nb_parallele,
+                "rendement_chaine": ssb.rendement_chaine,
+            }
+
+            # Puissance continue "pour laquelle on évalue les pertes".
+            # On n'invente pas : il faut une source.
+            P_cont_kw: Optional[float] = None
+            if puissance_moyenne_kw is not None:
+                P_cont_kw = _require_positive("puissance_moyenne_kw", puissance_moyenne_kw, strict=False)
+            elif self.puissance_charge_kw is not None:
+                P_cont_kw = _require_positive("puissance_charge_kw", self.puissance_charge_kw, strict=False)
+                rapport["hypotheses"].append(
+                    "SSB: puissance_continue_kw prise = puissance_charge_kw (puissance chargeur), "
+                    "ce qui ne correspond pas nécessairement à la puissance réellement stockée."
+                )
+            else:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "SSB.puissance_continue_kw",
+                    "Calculable si puissance_moyenne_kw (décharge) ou puissance_charge_kw (charge) est fournie.",
+                )
+
+            P_pic_kw: Optional[float] = None
+            if puissance_pic_kw is not None:
+                P_pic_kw = _require_positive("puissance_pic_kw", puissance_pic_kw, strict=False)
+
+            elec = ElectrolyteSolide(
+                conductivite_ionique_s_m=ssb.conductivite_ionique_s_m,
+                epaisseur_m=ssb.epaisseur_m,
+                resistance_interface_ohm=ssb.resistance_interface_ohm,
+            )
+            cell = CelluleSolide(
+                surface_active_m2=ssb.surface_active_m2,
+                tension_nominale_v=ssb.tension_cell_v,
+                capacite_ah=ssb.capacite_cell_ah,
+                courant_max_a=ssb.courant_cell_max_a,
+            )
+            pack_ssb = PackSolide(
+                nb_series=ssb.nb_series,
+                nb_parallele=ssb.nb_parallele,
+                puissance_continue_kw=P_cont_kw,
+                puissance_pic_kw=P_pic_kw,
+                rendement_chaine=ssb.rendement_chaine,
+            )
+
+            rep_ssb: RapportElectrolyteSolide = evaluer_electrolyte_solide(
+                elec, cell, pack_ssb, OptionsElectrolyte(strict=False)
+            )
+            rapport["electrolyte_solide"]["rapport_ssb"] = rep_ssb
+            rapport["electrolyte_solide"]["inconnues_ssb"] = rep_ssb.inconnues
 
         # ------------------------------------------------------------
         # 9) Inconnues réellement impossibles sans techno/mesures
