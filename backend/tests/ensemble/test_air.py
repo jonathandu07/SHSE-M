@@ -26,7 +26,8 @@ from backend.ensemble.air import (
 )
 
 # Configuration du logging
-LOG_FILE = os.path.join(os.path.dirname(__file__), "test_air.log")
+LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "logs"))
+LOG_FILE = os.path.join(LOG_DIR, "test_air.log")
 logger = logging.getLogger("test_air")
 logger.setLevel(logging.INFO)
 # On s'assure de ne pas ajouter plusieurs fois le handler si le module est rechargé

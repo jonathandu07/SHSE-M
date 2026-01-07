@@ -16,7 +16,8 @@ from backend.ensemble.eau import (
 )
 
 # Configuration du logging
-LOG_FILE = os.path.join(os.path.dirname(__file__), "test_eau.log")
+LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "logs"))
+LOG_FILE = os.path.join(LOG_DIR, "test_eau.log")
 logger = logging.getLogger("test_eau")
 logger.setLevel(logging.INFO)
 if not logger.handlers:

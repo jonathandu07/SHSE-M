@@ -1,0 +1,4 @@
+2026-01-07 18:37:09,805 - INFO - Starting test_systeme_analyser_full
+2026-01-07 18:37:09,806 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-01-07 18:37:09,855 - INFO - Starting test_systeme_missing_inputs
+2026-01-07 18:37:09,855 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 

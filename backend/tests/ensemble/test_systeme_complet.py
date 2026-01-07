@@ -9,7 +9,8 @@ from backend.components.alternateur import Alternateur
 from backend.components.moteur_thermique import MoteurThermique
 
 # Configuration du logging
-LOG_FILE = os.path.join(os.path.dirname(__file__), "test_systeme_complet.log")
+LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "logs"))
+LOG_FILE = os.path.join(LOG_DIR, "test_systeme_complet.log")
 logger = logging.getLogger("test_systeme_complet")
 logger.setLevel(logging.INFO)
 if not logger.handlers:
