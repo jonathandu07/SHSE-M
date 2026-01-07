@@ -1,0 +1,76 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\Documents\GitHub\SHSE-M
+plugins: anyio-4.8.0, Faker-37.4.0, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 21 items
+
+backend\tests\ensemble\test_air.py ..F....                               [ 33%]
+backend\tests\ensemble\test_eau.py ......                                [ 61%]
+backend\tests\ensemble\test_materiaux.py .....                           [ 85%]
+backend\tests\ensemble\test_optimisation.py .                            [ 90%]
+backend\tests\ensemble\test_systeme_complet.py F.                        [100%]
+
+================================== FAILURES ===================================
+_______________________________ test_isa_model ________________________________
+
+    def test_isa_model():
+        logger.info("Starting test_isa_model")
+        try:
+            # Niveau mer
+            T, p = isa_dry_temperature_pressure(0.0)
+            assert abs(T - T0) < 1e-3
+            assert abs(p - P0) < 1e-3
+    
+            # 11km (tropopause)
+            T11, p11 = isa_dry_temperature_pressure(11000.0)
+>           assert abs(T11 - 216.65) < 0.1
+E           assert 0.12351270445552132 < 0.1
+E            +  where 0.12351270445552132 = abs((216.77351270445553 - 216.65))
+
+backend\tests\ensemble\test_air.py:89: AssertionError
+_________________________ test_systeme_analyser_full __________________________
+
+mock_system = SystemeComplet(moteur_electrique=<MagicMock id='2532970412896'>, batterie=<MagicMock id='2532970413232'>, alternateur=<MagicMock id='2532971872336'>, moteur_thermique=<MagicMock id='2532971873008'>, boite_crabots=None, architecture=None)
+
+    def test_systeme_analyser_full(mock_system):
+        logger.info("Starting test_systeme_analyser_full")
+        try:
+>           rep = mock_system.analyser(
+                masse_kg=1200.0,
+                vitesse_ms=20.0,
+                acceleration_ms2=0.5,
+                coef_roulement=0.015,
+                coef_trainee_aero_cda=0.65,
+                rayon_roue_m=0.32,
+                rapport_reduction_global=9.0,
+                rendement_transmission=0.95,
+                vitesse_moteur_thermique_rpm=3000.0,
+                pme_pa=10e5 # 10 bar
+            )
+
+backend\tests\ensemble\test_systeme_complet.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\ensemble\systeme_complet.py:279: in analyser
+    "check_par_moteur": verifie_moteur_sur_demande(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+moteur = <MagicMock id='2532970412896'>
+demande = {'F_inertie_N': 600.0, 'F_requise_N': 932.5197000000001, 'F_res_totale_N': 332.5197, 'P_moteur_W': 19631.993684210527, ...}
+
+    def verifie_moteur_sur_demande(
+        moteur: MoteurElectrique,
+        demande: Dict[str, float],
+        *,
+        marge_puissance: float = 0.0,
+        marge_couple: float = 0.0,
+    ) -> Dict[str, float]:
+        if not isinstance(moteur, MoteurElectrique):
+>           raise ValueError("moteur doit Ûtre une instance de MoteurElectrique.")
+E           ValueError: moteur doit Ûtre une instance de MoteurElectrique.
+
+backend\components\moteur_electrique.py:473: ValueError
+=========================== short test summary info ===========================
+FAILED backend/tests/ensemble/test_air.py::test_isa_model - assert 0.12351270...
+FAILED backend/tests/ensemble/test_systeme_complet.py::test_systeme_analyser_full
+======================== 2 failed, 19 passed in 1.86s =========================

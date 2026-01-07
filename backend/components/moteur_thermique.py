@@ -19,18 +19,18 @@ try:
         calcul_travail_indique_pme,
         calcul_puissance_indiquee,
     )
-    from backend.modules.moteur_thermique.calcul_force_gaz import calcul_force_gaz
+    from backend.modules.moteur_thermique.calcul_gaz import calcul_force_gaz
     from backend.modules.moteur_thermique.calcul_force_inertie import calcul_force_inertie_alternative
     from backend.modules.moteur_thermique.calcul_couple_vilebrequin import calcul_couple_instantane
-    from backend.modules.moteur_thermique.calcul_epaisseur_paroi_cylindre import (
+    from backend.modules.moteur_thermique.calcul_cylindree import (
         calcul_epaisseur_cylindre_mince,
         calcul_epaisseur_cylindre_lame,
     )
-    from backend.modules.moteur_thermique.calcul_loi_gaz_parfait import (
+    from backend.modules.moteur_thermique.calcul_gaz import (
         calcul_pression_gaz_parfait,
         calcul_temperature_compression_adiabatique,
     )
-    from backend.modules.moteur_thermique.calcul_fuite_segment import (
+    from backend.modules.moteur_thermique.calcul_gaz import (
         calcul_debit_fuite_annulaire,
         calcul_masse_fuite,
     )
@@ -58,18 +58,18 @@ except Exception:
         calcul_travail_indique_pme,
         calcul_puissance_indiquee,
     )
-    from backend.modules.moteur_thermique.calcul_force_gaz import calcul_force_gaz
+    from backend.modules.moteur_thermique.calcul_gaz import calcul_force_gaz
     from backend.modules.moteur_thermique.calcul_force_inertie import calcul_force_inertie_alternative
     from backend.modules.moteur_thermique.calcul_couple_vilebrequin import calcul_couple_instantane
-    from backend.modules.moteur_thermique.calcul_epaisseur_paroi_cylindre import (
+    from backend.modules.moteur_thermique.calcul_cylindree import (
         calcul_epaisseur_cylindre_mince,
         calcul_epaisseur_cylindre_lame,
     )
-    from backend.modules.moteur_thermique.calcul_loi_gaz_parfait import (
+    from backend.modules.moteur_thermique.calcul_gaz import (
         calcul_pression_gaz_parfait,
         calcul_temperature_compression_adiabatique,
     )
-    from backend.modules.moteur_thermique.calcul_fuite_segment import (
+    from backend.modules.moteur_thermique.calcul_gaz import (
         calcul_debit_fuite_annulaire,
         calcul_masse_fuite,
     )
