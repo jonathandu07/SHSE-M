@@ -71,7 +71,8 @@ def test_calculer_gaz_complet():
     logger.info(f"Starting {test_name}")
     try:
         # P=1bar, T=300K, V=0.001m3 => m = 1e5 * 0.001 / (287.05 * 300) = 0.00116 kg
-        res = calculer_gaz_complet(1e5, 0.001, 300.0)
+        # APPEL AVEC MOTS-CLES car le module est strict (*)
+        res = calculer_gaz_complet(pression_pa=1e5, volume_m3=0.001, temperature_k=300.0)
         assert res["masse_kg"] > 0.0011 and res["masse_kg"] < 0.0012
         
         # Log détaillé en JSON

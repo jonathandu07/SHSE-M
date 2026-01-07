@@ -316,3 +316,38 @@
   "Up_max_ms": 25.0
 }
 2026-01-07 19:09:48,960 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
+2026-01-07 19:11:14,020 - test_architecture - INFO - Starting test_calcul_cout_maintenance_estime
+2026-01-07 19:11:14,021 - test_architecture - INFO - RESULT - test_calcul_cout_maintenance_estime: SUCCESS 
+2026-01-07 19:11:14,024 - test_architecture - INFO - Starting test_normalisation_prix
+2026-01-07 19:11:14,024 - test_architecture - INFO - RESULT - test_normalisation_prix: SUCCESS 
+2026-01-07 19:11:14,026 - test_architecture - INFO - Starting test_extraction_prix
+2026-01-07 19:11:14,027 - test_architecture - INFO - RESULT - test_extraction_prix: SUCCESS 
+2026-01-07 19:11:14,029 - test_architecture - INFO - Starting test_calcul_bore_max_admissible
+2026-01-07 19:11:14,029 - test_architecture - INFO - RESULT - test_calcul_bore_max_admissible: SUCCESS 
+2026-01-07 19:11:14,036 - test_architecture - INFO - Starting test_calcul_cylindree_unit_max
+2026-01-07 19:11:14,036 - test_architecture - INFO - RESULT - test_calcul_cylindree_unit_max: SUCCESS 
+2026-01-07 19:11:14,040 - test_architecture - INFO - Starting test_calcul_cylindree_totale_requise
+2026-01-07 19:11:14,040 - test_architecture - INFO - RESULT - test_calcul_cylindree_totale_requise: SUCCESS 
+2026-01-07 19:11:14,043 - test_architecture - INFO - Starting test_calcul_nombre_cylindres_min
+2026-01-07 19:11:14,043 - test_architecture - INFO - RESULT - test_calcul_nombre_cylindres_min: SUCCESS 
+2026-01-07 19:11:14,051 - test_architecture - INFO - Starting test_evaluer_architecture
+2026-01-07 19:11:14,051 - test_architecture - INFO - RESULT - test_evaluer_architecture: SUCCESS 
+2026-01-07 19:11:14,054 - test_architecture - INFO - Starting test_choix_architecture_optimale
+2026-01-07 19:11:14,055 - test_architecture - INFO - RESULT - test_choix_architecture_optimale: SUCCESS 
+2026-01-07 19:11:14,057 - test_architecture - INFO - Starting test_resoudre_architecture_globale
+2026-01-07 19:11:14,067 - test_architecture - INFO - RESULTATS DETAILLES ARCHITECTURE OPTIMALE:
+2026-01-07 19:11:14,067 - test_architecture - INFO - {
+  "N_cyl": 2,
+  "Architecture": "L",
+  "Score": 9.25,
+  "Cout_Maint_Estime": 8000.0,
+  "Bore_mm": 127.65942937047289,
+  "RPM": 4500.0,
+  "PME": 1200000.0,
+  "Course_mm": 153.19131524456748,
+  "Ratio_Sur_B": 1.2,
+  "Cylindree_tot_cc": 3921.5686274509803,
+  "Cylindree_unit_cc": 1960.7843137254902,
+  "Up_max_ms": 25.0
+}
+2026-01-07 19:11:14,067 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
