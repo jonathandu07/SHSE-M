@@ -1,0 +1,60 @@
+2026-01-07 18:49:55,603 - test_architecture - INFO - Starting test_calcul_cout_maintenance_estime
+2026-01-07 18:49:55,603 - test_architecture - INFO - RESULT - test_calcul_cout_maintenance_estime: SUCCESS 
+2026-01-07 18:49:56,064 - test_architecture - INFO - Starting test_normalisation_prix
+2026-01-07 18:49:56,065 - test_architecture - INFO - RESULT - test_normalisation_prix: SUCCESS 
+2026-01-07 18:49:56,098 - test_architecture - INFO - Starting test_extraction_prix
+2026-01-07 18:49:56,098 - test_architecture - INFO - RESULT - test_extraction_prix: FAILED assert 12.5 in [100.0]
+2026-01-07 18:49:56,467 - test_architecture - INFO - Starting test_calcul_bore_max_admissible
+2026-01-07 18:49:56,468 - test_architecture - INFO - RESULT - test_calcul_bore_max_admissible: SUCCESS 
+2026-01-07 18:49:56,482 - test_architecture - INFO - Starting test_calcul_cylindree_unit_max
+2026-01-07 18:49:56,483 - test_architecture - INFO - RESULT - test_calcul_cylindree_unit_max: SUCCESS 
+2026-01-07 18:49:56,521 - test_architecture - INFO - Starting test_calcul_cylindree_totale_requise
+2026-01-07 18:49:56,521 - test_architecture - INFO - RESULT - test_calcul_cylindree_totale_requise: SUCCESS 
+2026-01-07 18:49:56,558 - test_architecture - INFO - Starting test_calcul_nombre_cylindres_min
+2026-01-07 18:49:56,563 - test_architecture - INFO - RESULT - test_calcul_nombre_cylindres_min: SUCCESS 
+2026-01-07 18:49:56,617 - test_architecture - INFO - Starting test_evaluer_architecture
+2026-01-07 18:49:56,617 - test_architecture - INFO - RESULT - test_evaluer_architecture: SUCCESS 
+2026-01-07 18:49:56,631 - test_architecture - INFO - Starting test_choix_architecture_optimale
+2026-01-07 18:49:56,633 - test_architecture - INFO - RESULT - test_choix_architecture_optimale: SUCCESS 
+2026-01-07 18:49:56,657 - test_architecture - INFO - Starting test_resoudre_architecture_globale
+2026-01-07 18:49:56,663 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
+2026-01-07 18:50:17,253 - test_architecture - INFO - Starting test_calcul_cout_maintenance_estime
+2026-01-07 18:50:17,253 - test_architecture - INFO - RESULT - test_calcul_cout_maintenance_estime: SUCCESS 
+2026-01-07 18:50:17,290 - test_architecture - INFO - Starting test_normalisation_prix
+2026-01-07 18:50:17,290 - test_architecture - INFO - RESULT - test_normalisation_prix: SUCCESS 
+2026-01-07 18:50:17,300 - test_architecture - INFO - Starting test_extraction_prix
+2026-01-07 18:50:17,302 - test_architecture - INFO - RESULT - test_extraction_prix: FAILED assert 12.5 in [100.0]
+2026-01-07 18:50:17,629 - test_architecture - INFO - Starting test_calcul_bore_max_admissible
+2026-01-07 18:50:17,629 - test_architecture - INFO - RESULT - test_calcul_bore_max_admissible: SUCCESS 
+2026-01-07 18:50:17,644 - test_architecture - INFO - Starting test_calcul_cylindree_unit_max
+2026-01-07 18:50:17,644 - test_architecture - INFO - RESULT - test_calcul_cylindree_unit_max: SUCCESS 
+2026-01-07 18:50:17,687 - test_architecture - INFO - Starting test_calcul_cylindree_totale_requise
+2026-01-07 18:50:17,687 - test_architecture - INFO - RESULT - test_calcul_cylindree_totale_requise: SUCCESS 
+2026-01-07 18:50:17,780 - test_architecture - INFO - Starting test_calcul_nombre_cylindres_min
+2026-01-07 18:50:17,780 - test_architecture - INFO - RESULT - test_calcul_nombre_cylindres_min: SUCCESS 
+2026-01-07 18:50:17,854 - test_architecture - INFO - Starting test_evaluer_architecture
+2026-01-07 18:50:17,854 - test_architecture - INFO - RESULT - test_evaluer_architecture: SUCCESS 
+2026-01-07 18:50:17,894 - test_architecture - INFO - Starting test_choix_architecture_optimale
+2026-01-07 18:50:17,895 - test_architecture - INFO - RESULT - test_choix_architecture_optimale: SUCCESS 
+2026-01-07 18:50:17,968 - test_architecture - INFO - Starting test_resoudre_architecture_globale
+2026-01-07 18:50:17,983 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
+2026-01-07 18:50:48,517 - test_architecture - INFO - Starting test_calcul_cout_maintenance_estime
+2026-01-07 18:50:48,517 - test_architecture - INFO - RESULT - test_calcul_cout_maintenance_estime: SUCCESS 
+2026-01-07 18:50:48,522 - test_architecture - INFO - Starting test_normalisation_prix
+2026-01-07 18:50:48,522 - test_architecture - INFO - RESULT - test_normalisation_prix: SUCCESS 
+2026-01-07 18:50:48,531 - test_architecture - INFO - Starting test_extraction_prix
+2026-01-07 18:50:48,531 - test_architecture - INFO - RESULT - test_extraction_prix: FAILED assert 12.5 in [100.0]
+2026-01-07 18:50:48,778 - test_architecture - INFO - Starting test_calcul_bore_max_admissible
+2026-01-07 18:50:48,778 - test_architecture - INFO - RESULT - test_calcul_bore_max_admissible: SUCCESS 
+2026-01-07 18:50:48,782 - test_architecture - INFO - Starting test_calcul_cylindree_unit_max
+2026-01-07 18:50:48,782 - test_architecture - INFO - RESULT - test_calcul_cylindree_unit_max: SUCCESS 
+2026-01-07 18:50:48,787 - test_architecture - INFO - Starting test_calcul_cylindree_totale_requise
+2026-01-07 18:50:48,788 - test_architecture - INFO - RESULT - test_calcul_cylindree_totale_requise: SUCCESS 
+2026-01-07 18:50:48,794 - test_architecture - INFO - Starting test_calcul_nombre_cylindres_min
+2026-01-07 18:50:48,794 - test_architecture - INFO - RESULT - test_calcul_nombre_cylindres_min: SUCCESS 
+2026-01-07 18:50:48,800 - test_architecture - INFO - Starting test_evaluer_architecture
+2026-01-07 18:50:48,800 - test_architecture - INFO - RESULT - test_evaluer_architecture: SUCCESS 
+2026-01-07 18:50:48,805 - test_architecture - INFO - Starting test_choix_architecture_optimale
+2026-01-07 18:50:48,805 - test_architecture - INFO - RESULT - test_choix_architecture_optimale: SUCCESS 
+2026-01-07 18:50:48,827 - test_architecture - INFO - Starting test_resoudre_architecture_globale
+2026-01-07 18:50:48,846 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 

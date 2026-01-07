@@ -1,55 +1,36 @@
-# backend\modules\moteur_thermique\calcul_vitesse_piston.py
-from __future__ import annotations
+# backend/tests/modules/moteur_thermique/test_calcul_vitesse_piston.py
+import pytest
+import os
+import logging
+from backend.modules.moteur_thermique.calcul_vitesse_piston import (
+    calcul_vitesse_moyenne_piston
+)
 
-import math
+# Configuration du logging
+LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "logs"))
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
 
+LOG_FILE = os.path.join(LOG_DIR, "test_moteur_thermique.log")
+logger = logging.getLogger("test_moteur_thermique")
+logger.setLevel(logging.INFO)
 
-def _est_fini(x: float) -> bool:
-    """Vérifie qu'une valeur est un nombre réel fini (pas NaN, pas inf)."""
-    return isinstance(x, (int, float)) and math.isfinite(float(x))
+if not logger.handlers:
+    handler = logging.FileHandler(LOG_FILE, mode="a", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    logger.addHandler(handler)
 
+def log_test_result(test_name, status, details=""):
+    logger.info(f"RESULT - {test_name}: {status} {details}")
 
-def _exiger_fini(nom: str, x: float) -> float:
-    """Convertit en float et lève une erreur si NaN/inf."""
-    if not _est_fini(x):
-        raise ValueError(f"{nom} doit être un nombre fini (reçu: {x!r}).")
-    return float(x)
-
-
-def _exiger_positif(nom: str, x: float, *, strict: bool = True) -> float:
-    """
-    Exige x > 0 (ou x >= 0 si strict=False).
-    Utile pour imposer des contraintes physiques (longueurs, vitesses...).
-    """
-    x = _exiger_fini(nom, x)
-    ok = x > 0.0 if strict else x >= 0.0
-    if not ok:
-        op = ">" if strict else ">="
-        raise ValueError(f"{nom} doit être {op} 0 (reçu: {x}).")
-    return x
-
-
-def calcul_vitesse_moyenne_piston(course_m: float, vitesse_rotation_tr_min: float) -> float:
-    """
-    Calcule la vitesse moyenne du piston (vitesse moyenne de translation sur un cycle).
-
-    Formule (inchangée) :
-      U_p = 2 * S * (n / 60)
-
-    Où :
-    - U_p : vitesse moyenne du piston (m/s)
-    - S : course (m) (>= 0)
-    - n : régime (tr/min) (>= 0)
-
-    Justification :
-    - Sur un tour, le piston parcourt 2*S (aller + retour).
-    - Le nombre de tours par seconde vaut n/60.
-
-    Robustesse :
-    - Refuse NaN/inf.
-    - Accepte course=0 ou n=0 (=> vitesse moyenne nulle).
-    """
-    S = _exiger_positif("course_m", course_m, strict=False)
-    n = _exiger_positif("vitesse_rotation_tr_min", vitesse_rotation_tr_min, strict=False)
-
-    return 2.0 * S * (n / 60.0)
+def test_calcul_vitesse_moyenne_piston():
+    test_name = "test_calcul_vitesse_moyenne_piston"
+    logger.info(f"Starting {test_name}")
+    try:
+        # S=0.08m, n=3000rpm
+        # Up = 2 * 0.08 * (3000/60) = 0.16 * 50 = 8 m/s
+        assert calcul_vitesse_moyenne_piston(0.08, 3000.0) == 8.0
+        log_test_result(test_name, "SUCCESS")
+    except Exception as e:
+        log_test_result(test_name, "FAILED", str(e))
+        raise e

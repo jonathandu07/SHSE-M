@@ -1,0 +1,48 @@
+2026-01-07 18:49:57,469 - test_moteur_electrique - INFO - Starting test_calcul_acceleration_max
+2026-01-07 18:49:57,469 - test_moteur_electrique - INFO - RESULT - test_calcul_acceleration_max: SUCCESS 
+2026-01-07 18:49:57,472 - test_moteur_electrique - INFO - Starting test_calcul_acceleration_max_analytique
+2026-01-07 18:49:57,472 - test_moteur_electrique - INFO - RESULT - test_calcul_acceleration_max_analytique: SUCCESS 
+2026-01-07 18:49:57,481 - test_moteur_electrique - INFO - Starting test_calcul_charges_essieux
+2026-01-07 18:49:57,481 - test_moteur_electrique - INFO - RESULT - test_calcul_charges_essieux: SUCCESS 
+2026-01-07 18:49:57,487 - test_moteur_electrique - INFO - Starting test_calcul_force_resistance_totale
+2026-01-07 18:49:57,488 - test_moteur_electrique - INFO - RESULT - test_calcul_force_resistance_totale: SUCCESS 
+2026-01-07 18:49:57,493 - test_moteur_electrique - INFO - Starting test_calcul_densite_air_sec
+2026-01-07 18:49:57,494 - test_moteur_electrique - INFO - RESULT - test_calcul_densite_air_sec: SUCCESS 
+2026-01-07 18:49:57,501 - test_moteur_electrique - INFO - Starting test_calcul_demande_nautique
+2026-01-07 18:49:57,502 - test_moteur_electrique - INFO - RESULT - test_calcul_demande_nautique: SUCCESS 
+2026-01-07 18:49:57,505 - test_moteur_electrique - INFO - Starting test_generer_rapport_mission
+2026-01-07 18:49:57,506 - test_moteur_electrique - INFO - RESULT - test_generer_rapport_mission: SUCCESS 
+2026-01-07 18:49:57,531 - test_moteur_electrique - INFO - Starting test_calcul_puissance_moteur_electrique
+2026-01-07 18:49:57,532 - test_moteur_electrique - INFO - RESULT - test_calcul_puissance_moteur_electrique: SUCCESS 
+2026-01-07 18:49:57,544 - test_moteur_electrique - INFO - Starting test_calcul_couple_moteur
+2026-01-07 18:49:57,545 - test_moteur_electrique - INFO - RESULT - test_calcul_couple_moteur: SUCCESS 
+2026-01-07 18:49:57,554 - test_moteur_electrique - INFO - Starting test_calcul_puissance_roue
+2026-01-07 18:49:57,554 - test_moteur_electrique - INFO - RESULT - test_calcul_puissance_roue: SUCCESS 
+2026-01-07 18:49:57,557 - test_moteur_electrique - INFO - Starting test_calcul_couple_roue_total
+2026-01-07 18:49:57,557 - test_moteur_electrique - INFO - RESULT - test_calcul_couple_roue_total: SUCCESS 
+2026-01-07 18:49:57,566 - test_moteur_electrique - INFO - Starting test_calcul_couple_par_roue
+2026-01-07 18:49:57,566 - test_moteur_electrique - INFO - RESULT - test_calcul_couple_par_roue: SUCCESS 
+2026-01-07 18:50:33,036 - test_moteur_electrique - INFO - Starting test_calcul_acceleration_max
+2026-01-07 18:50:33,036 - test_moteur_electrique - INFO - RESULT - test_calcul_acceleration_max: SUCCESS 
+2026-01-07 18:50:33,040 - test_moteur_electrique - INFO - Starting test_calcul_acceleration_max_analytique
+2026-01-07 18:50:33,040 - test_moteur_electrique - INFO - RESULT - test_calcul_acceleration_max_analytique: SUCCESS 
+2026-01-07 18:50:33,052 - test_moteur_electrique - INFO - Starting test_calcul_charges_essieux
+2026-01-07 18:50:33,052 - test_moteur_electrique - INFO - RESULT - test_calcul_charges_essieux: SUCCESS 
+2026-01-07 18:50:33,060 - test_moteur_electrique - INFO - Starting test_calcul_force_resistance_totale
+2026-01-07 18:50:33,060 - test_moteur_electrique - INFO - RESULT - test_calcul_force_resistance_totale: SUCCESS 
+2026-01-07 18:50:33,067 - test_moteur_electrique - INFO - Starting test_calcul_densite_air_sec
+2026-01-07 18:50:33,067 - test_moteur_electrique - INFO - RESULT - test_calcul_densite_air_sec: SUCCESS 
+2026-01-07 18:50:33,072 - test_moteur_electrique - INFO - Starting test_calcul_demande_nautique
+2026-01-07 18:50:33,073 - test_moteur_electrique - INFO - RESULT - test_calcul_demande_nautique: SUCCESS 
+2026-01-07 18:50:33,084 - test_moteur_electrique - INFO - Starting test_generer_rapport_mission
+2026-01-07 18:50:33,084 - test_moteur_electrique - INFO - RESULT - test_generer_rapport_mission: SUCCESS 
+2026-01-07 18:50:33,096 - test_moteur_electrique - INFO - Starting test_calcul_puissance_moteur_electrique
+2026-01-07 18:50:33,096 - test_moteur_electrique - INFO - RESULT - test_calcul_puissance_moteur_electrique: SUCCESS 
+2026-01-07 18:50:33,113 - test_moteur_electrique - INFO - Starting test_calcul_couple_moteur
+2026-01-07 18:50:33,113 - test_moteur_electrique - INFO - RESULT - test_calcul_couple_moteur: SUCCESS 
+2026-01-07 18:50:33,127 - test_moteur_electrique - INFO - Starting test_calcul_puissance_roue
+2026-01-07 18:50:33,127 - test_moteur_electrique - INFO - RESULT - test_calcul_puissance_roue: SUCCESS 
+2026-01-07 18:50:33,132 - test_moteur_electrique - INFO - Starting test_calcul_couple_roue_total
+2026-01-07 18:50:33,133 - test_moteur_electrique - INFO - RESULT - test_calcul_couple_roue_total: SUCCESS 
+2026-01-07 18:50:33,136 - test_moteur_electrique - INFO - Starting test_calcul_couple_par_roue
+2026-01-07 18:50:33,137 - test_moteur_electrique - INFO - RESULT - test_calcul_couple_par_roue: SUCCESS 
