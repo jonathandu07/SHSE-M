@@ -24,10 +24,15 @@ _LOG_PATH: Optional[Path] = None
 
 
 def _trouver_backend_dir() -> Path:
+    """
+    Remonte jusqu'au dossier 'backend' en partant de ce fichier.
+    (Robuste même si le test est exécuté depuis une autre cwd.)
+    """
     here = Path(__file__).resolve()
     for parent in here.parents:
         if parent.name == "backend":
             return parent
+    # fallback : structure attendue backend/tests/modules/...
     return here.parents[3]
 
 
@@ -129,7 +134,7 @@ class TestCalculRendementAlternateur(unittest.TestCase):
     def test_nominal_sans_pertes(self) -> None:
         P_out = 1000.0
         pertes = 0.0
-        attendu = 1.0  # P_out / (P_out+0)
+        attendu = 1.0
         eta = calcul_rendement_alternateur(P_out, somme_pertes=pertes)
         _log_info("nominal sans pertes | P_out=%g pertes=%g -> eta=%g", P_out, pertes, eta)
         self.assertIsInstance(eta, float)
@@ -144,9 +149,8 @@ class TestCalculRendementAlternateur(unittest.TestCase):
         self.assertIsClose(eta, attendu, rel=1e-12)
 
     def test_clamp_0_1_par_defaut(self) -> None:
-        # cas atypique: pertes négatives => eta > 1 si non clamp
         P_out = 1000.0
-        pertes = -100.0  # P_in = 900 => eta = 1.111...
+        pertes = -100.0  # eta > 1 sans clamp
         eta = calcul_rendement_alternateur(P_out, somme_pertes=pertes, clamp_0_1=True)
         _log_info("clamp defaut | P_out=%g pertes=%g -> eta=%g (attendu clamp=1)", P_out, pertes, eta)
         self.assertIsClose(eta, 1.0, rel=0.0, abs_=0.0)
@@ -154,7 +158,7 @@ class TestCalculRendementAlternateur(unittest.TestCase):
     def test_sans_clamp_peut_depasse_un(self) -> None:
         P_out = 1000.0
         pertes = -100.0
-        attendu = P_out / (P_out + pertes)  # 1.111...
+        attendu = P_out / (P_out + pertes)
         eta = calcul_rendement_alternateur(P_out, somme_pertes=pertes, clamp_0_1=False)
         _log_info("sans clamp | eta=%g attendu=%g", eta, attendu)
         self.assertIsClose(eta, attendu, rel=1e-12)
@@ -172,12 +176,18 @@ class TestCalculRendementAlternateur(unittest.TestCase):
 
         eta = calcul_rendement_alternateur(P_out, somme_pertes=somme_pertes, liste_pertes=liste)
 
-        _log_info("liste prioritaire | liste=%r somme_pertes=%g -> eta=%g attendu=%g", liste, somme_pertes, eta, attendu)
+        _log_info(
+            "liste prioritaire | liste=%r somme_pertes=%g -> eta=%g attendu=%g",
+            liste,
+            somme_pertes,
+            eta,
+            attendu,
+        )
         self.assertIsClose(eta, attendu, rel=1e-12)
 
     def test_liste_pertes_vide_donne_pertes_zero(self) -> None:
         P_out = 1000.0
-        somme_pertes = 250.0  # doit être ignorée puisque liste fournie (même vide)
+        somme_pertes = 250.0  # doit être ignorée
         eta = calcul_rendement_alternateur(P_out, somme_pertes=somme_pertes, liste_pertes=[])
         _log_info("liste vide | eta=%g attendu=1", eta)
         self.assertIsClose(eta, 1.0, rel=0.0, abs_=0.0)
@@ -223,9 +233,13 @@ class TestCalculRendementAlternateur(unittest.TestCase):
     def test_negative_losses_acceptes_si_reject_false(self) -> None:
         P_out = 1000.0
         losses = [100.0, -10.0]
-        # P_in = 1090 -> eta ~ 0.917431...
         attendu = P_out / (P_out + sum(losses))
-        eta = calcul_rendement_alternateur(P_out, liste_pertes=losses, reject_negative_losses=False, clamp_0_1=False)
+        eta = calcul_rendement_alternateur(
+            P_out,
+            liste_pertes=losses,
+            reject_negative_losses=False,
+            clamp_0_1=False,
+        )
         _log_info("losses neg ok | losses=%r -> eta=%g attendu=%g", losses, eta, attendu)
         self.assertIsClose(eta, attendu, rel=1e-12)
 
@@ -234,21 +248,26 @@ class TestCalculRendementAlternateur(unittest.TestCase):
     # -------------------------------------------------------------------------
 
     def test_pin_zero_renvoie_zero(self) -> None:
-        # P_in = P_out + pertes = 0
         eta = calcul_rendement_alternateur(0.0, somme_pertes=0.0, epsilon=1e-12)
         _log_info("P_in=0 | eta=%g attendu=0", eta)
         self.assertIsClose(eta, 0.0, rel=0.0, abs_=0.0)
 
-    def test_pin_tres_petit_<=epsilon_renvoie_zero(self) -> None:
-        # P_in=1e-13 <= 1e-12 => 0
-        eta = calcul_rendement_alternateur(1e-13, somme_pertes=0.0, epsilon=1e-12)
+    def test_pin_tres_petit_inf_ou_egal_epsilon_renvoie_zero(self) -> None:
+        eta = calcul_rendement_alternateur(
+            1e-13,
+            somme_pertes=0.0,
+            epsilon=1e-12,
+        )
         _log_info("P_in<=epsilon | eta=%g attendu=0", eta)
         self.assertIsClose(eta, 0.0, rel=0.0, abs_=0.0)
 
     def test_pin_juste_au_dessus_epsilon_calcule(self) -> None:
-        # P_in = 2e-12 > 1e-12 => calc
         P_out = 2e-12
-        eta = calcul_rendement_alternateur(P_out, somme_pertes=0.0, epsilon=1e-12)
+        eta = calcul_rendement_alternateur(
+            P_out,
+            somme_pertes=0.0,
+            epsilon=1e-12,
+        )
         _log_info("P_in>epsilon | eta=%g attendu=1", eta)
         self.assertIsClose(eta, 1.0, rel=0.0, abs_=0.0)
 
@@ -270,7 +289,12 @@ class TestCalculRendementAlternateur(unittest.TestCase):
         P_in = 1150.0
         eta_att = P_out / P_in
 
-        out = calcul_rendement_alternateur(P_out, liste_pertes=liste, return_details=True, clamp_0_1=False)
+        out = calcul_rendement_alternateur(
+            P_out,
+            liste_pertes=liste,
+            return_details=True,
+            clamp_0_1=False,
+        )
         self.assertIsInstance(out, dict)
 
         _log_info("details | out=%r", out)

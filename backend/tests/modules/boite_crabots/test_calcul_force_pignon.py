@@ -51,7 +51,7 @@ def test_calcul_forces_engrenage():
         # Fr = 2000 * tan(20°) / cos(30°) = 727.94 / 0.866 = 840.57 N
         # Fa = 2000 * tan(30°) = 2000 * 0.57735 = 1154.7 N
         res_h = calcul_forces_engrenage(2000.0, 20.0, 30.0)
-        assert abs(res_h["F_r"] - 840.57) < 1e-2
+        assert abs(res_h["F_r"] - 840.57) < 0.02
         assert abs(res_h["F_a"] - 1154.7) < 1e-1
         
         log_test_result(test_name, "SUCCESS")

@@ -42,7 +42,7 @@ def test_calcul_perte_epaisseur():
     logger.info(f"Starting {test_name}")
     try:
         # Vw=5e-8m3, A=0.01m2 => dh = 5e-6 m = 5 µm
-        assert calcul_perte_epaisseur(5e-8, 0.01) == 5e-6
+        assert calcul_perte_epaisseur(5e-8, 0.01) == pytest.approx(5e-6)
         log_test_result(test_name, "SUCCESS")
     except Exception as e:
         log_test_result(test_name, "FAILED", str(e))

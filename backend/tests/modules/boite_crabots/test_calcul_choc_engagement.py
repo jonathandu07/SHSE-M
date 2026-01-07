@@ -30,7 +30,7 @@ def test_calcul_inertie_equivalente():
     logger.info(f"Starting {test_name}")
     try:
         # Cas nominal: J1=0.1, J2=0.1 => Jeq = 0.01 / 0.2 = 0.05
-        assert calcul_inertie_equivalente(0.1, 0.1) == 0.05
+        assert calcul_inertie_equivalente(0.1, 0.1) == pytest.approx(0.05)
         # Cas asymétrique: J1=10, J2=0.1 => Jeq = 1 / 10.1 = 0.099...
         res = calcul_inertie_equivalente(10.0, 0.1)
         assert abs(res - (1.0/10.1)) < 1e-10

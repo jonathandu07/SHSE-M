@@ -32,8 +32,8 @@ def test_calcul_pression_gaz_parfait():
     test_name = "test_calcul_pression_gaz_parfait"
     logger.info(f"Starting {test_name}")
     try:
-        # m=0.001kg, V=0.001m3, T=300K, R=287 => P = 0.001 * 287 * 300 / 0.001 = 86100 Pa
-        assert calcul_pression_gaz_parfait(0.001, 0.001, 300.0) == 86100.0
+        # m=0.001kg, V=0.001m3, T=300K, R=287.05 (default) => P = 0.001 * 287.05 * 300 / 0.001 = 86115.0 Pa
+        assert calcul_pression_gaz_parfait(0.001, 0.001, 300.0) == pytest.approx(86115.0)
         log_test_result(test_name, "SUCCESS")
     except Exception as e:
         log_test_result(test_name, "FAILED", str(e))

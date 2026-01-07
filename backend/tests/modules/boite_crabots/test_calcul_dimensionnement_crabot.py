@@ -35,7 +35,7 @@ def test_calcul_couple_transmissible_crabot():
         
         # Avec facteur repartition
         res_k = calcul_couple_transmissible_crabot(4, 100e6, 0.01, 0.015, 0.04, facteur_repartition=0.5)
-        assert res_k == 1200.0
+        assert res_k == pytest.approx(1200.0)
         
         log_test_result(test_name, "SUCCESS")
     except Exception as e:

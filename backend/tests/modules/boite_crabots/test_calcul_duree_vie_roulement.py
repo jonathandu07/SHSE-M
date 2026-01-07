@@ -57,8 +57,9 @@ def test_calcul_duree_vie_heures():
     try:
         # L10=60 millions, n=1000 tr/min => L10h = (10^6 * 60) / (60 * 1000) = 60,000,000 / 60,000 = 1000 h
         assert calcul_duree_vie_heures(60.0, 1000.0) == 1000.0
-        # L10=inf => L10h=inf
-        assert calcul_duree_vie_heures(float("inf"), 1000.0) == float("inf")
+        # L10=inf (non-fini) -> non supporté par la validation par défaut
+        with pytest.raises(ValueError):
+             calcul_duree_vie_heures(float("inf"), 1000.0)
         log_test_result(test_name, "SUCCESS")
     except Exception as e:
         log_test_result(test_name, "FAILED", str(e))

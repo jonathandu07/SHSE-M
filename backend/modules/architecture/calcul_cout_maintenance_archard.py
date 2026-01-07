@@ -114,9 +114,9 @@ def calcul_cout_maintenance_estime(
 # =========================
 
 _PRIX_EUR_RE = re.compile(
-    r"(?<!\d)"              # pas collé à un chiffre avant
-    r"(\d{1,4}(?:[ \u00A0]?\d{3})*(?:[.,]\d{1,2})?)"  # 1 234,56 ou 1234.56
-    r"\s*(?:€|EUR)\b",
+    r"(?<![\d,])"            # Pas de chiffre ou virgule juste avant
+    r"(\d{1,4}(?:[ \u00A0]?\d{3})*(?:[.,]\d{1,2})?)" 
+    r"\s*(?:€|EUR\b)",       # \b seulement pour EUR
     flags=re.IGNORECASE
 )
 
