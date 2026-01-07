@@ -7,7 +7,9 @@ from frontend.tests.utils.data_extractor import get_latest_system_analysis, get_
 class FrontendBaseTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.logger = setup_test_logging(cls.__name__)
+        # Utilise le nom du module (fichier) pour le log au lieu du nom de la classe
+        test_file_name = cls.__module__.split('.')[-1]
+        cls.logger = setup_test_logging(test_file_name)
         cls.backend_log = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "backend", "logs", "test_systeme_complet.log"))
         cls.full_data = get_latest_system_analysis(cls.backend_log)
         if not cls.full_data:
