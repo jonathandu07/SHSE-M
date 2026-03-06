@@ -213,6 +213,13 @@ class ReglesFabricationDeplaceur:
     tolerance_position_m: float = 0.00010
 
 
+@dataclass(frozen=True)
+class ReglesRainuresJointsDeplaceur:
+    marge_extremite_m: float = 0.004
+    entraxe_min_m: float = 0.006
+    coefficient_rayon_fond: float = 0.15
+
+
 # ============================================================
 # Résolution depuis cylindre
 # ============================================================
@@ -265,6 +272,44 @@ def _resoudre_cylindre_associe(cylindre: Optional[Any]) -> Dict[str, Any]:
         out["diametre_interieur_m"] = out["alesage_m"]
 
     return out
+
+
+# ============================================================
+# Placement axial des rainures
+# ============================================================
+
+def _calcul_positions_rainures(
+    *,
+    longueur_deplaceur_m: float,
+    nb_joints: int,
+    largeur_rainure_m: float,
+    marge_extremite_m: float,
+    entraxe_min_m: float,
+) -> List[float]:
+    L = _req_pos("longueur_deplaceur_m", longueur_deplaceur_m)
+    n = _req_int_pos("nb_joints", nb_joints)
+    w = _req_pos("largeur_rainure_m", largeur_rainure_m)
+    m = _req_pos("marge_extremite_m", marge_extremite_m, strictly=False)
+    e = _req_pos("entraxe_min_m", entraxe_min_m, strictly=False)
+
+    if (2.0 * m + n * w) > L:
+        raise ValueError("Longueur insuffisante pour placer les rainures avec les marges imposées.")
+
+    if n == 1:
+        return [0.5 * L]
+
+    x1 = m + 0.5 * w
+    x2 = L - m - 0.5 * w
+
+    if n == 2:
+        if (x2 - x1) < max(e, w):
+            raise ValueError("Longueur insuffisante pour placer 2 rainures avec la marge/entraxe imposés.")
+        return [x1, x2]
+
+    pas = (x2 - x1) / (n - 1)
+    if pas < max(e, w):
+        raise ValueError("Entraxe insuffisant entre rainures.")
+    return [x1 + i * pas for i in range(n)]
 
 
 # ============================================================
@@ -333,6 +378,7 @@ class Deplaceur:
 
     # --- Règles CAO / fabrication ---
     regles_fabrication: ReglesFabricationDeplaceur = ReglesFabricationDeplaceur()
+    regles_rainures: ReglesRainuresJointsDeplaceur = ReglesRainuresJointsDeplaceur()
 
     # ========================================================
     # Analyse complète
@@ -440,6 +486,7 @@ class Deplaceur:
         A_face = aire_disque(D_dep)
         A_section_matiere = aire_annulaire(D_dep, D_int_dep) if D_int_dep > 0 else A_face
         perimetre = math.pi * D_dep
+        ep_paroi_finale = 0.5 * (D_dep - D_int_dep)
 
         rapport["entrees"].update({
             "diametre_exterieur_m": self.diametre_exterieur_m,
@@ -463,7 +510,7 @@ class Deplaceur:
             "perimetre_m": perimetre,
             "volume_matiere_m3": A_section_matiere * L_dep,
             "volume_enveloppe_m3": A_face * L_dep,
-            "epaisseur_paroi_m": 0.5 * (D_dep - D_int_dep),
+            "epaisseur_paroi_m": ep_paroi_finale,
         })
 
         # ----------------------------------------------------
@@ -518,8 +565,6 @@ class Deplaceur:
         T_froid = self.temperature_froid_C
 
         if T_chaud is None and cyl["temperature_service_C"] is not None:
-            # on ne prétend pas que la T_service du cylindre est la vraie T chaude,
-            # mais on la conserve comme valeur de repli documentée
             T_chaud = float(cyl["temperature_service_C"])
 
         rapport["pressions"].update({
@@ -549,15 +594,8 @@ class Deplaceur:
 
         if L_cyl is not None:
             L_cyl_v = _req_pos("longueur_utile_m(cylindre)", L_cyl)
-            x_min_centre = (
-                self.regles_fabrication.marge_butee_froid_m
-                + 0.5 * L_dep
-            )
-            x_max_centre = (
-                L_cyl_v
-                - self.regles_fabrication.marge_butee_chaud_m
-                - 0.5 * L_dep
-            )
+            x_min_centre = self.regles_fabrication.marge_butee_froid_m + 0.5 * L_dep
+            x_max_centre = L_cyl_v - self.regles_fabrication.marge_butee_chaud_m - 0.5 * L_dep
 
             if x_max_centre < x_min_centre:
                 _push_inconnue(
@@ -585,7 +623,6 @@ class Deplaceur:
                         x_centre = _req_pos("position_axiale_centre_m", x_centre, strictly=False)
                 else:
                     _push_inconnue(rapport, "impossibles", "mode_position", f"mode_position inconnu: {self.mode_position!r}")
-
         else:
             _push_inconnue(
                 rapport,
@@ -664,8 +701,10 @@ class Deplaceur:
             _push_inconnue(rapport, "impossibles", "force_axiale_N", "Impossible sans Δp.")
 
         # ----------------------------------------------------
-        # 7) Joints toriques ISO 3601
+        # 7) Joints toriques ISO 3601 + rainures complètes
         # ----------------------------------------------------
+        rainures_cao: Dict[str, Any] = {}
+
         if self.standard_joint == "ISO_3601" and self.section_joint_mm:
             jt = JointToriqueISO3601(self.section_joint_mm)
             largeur = jt.largeur_rainure_m()
@@ -679,12 +718,45 @@ class Deplaceur:
 
             if self.taux_compression_joint is not None:
                 profondeur = jt.profondeur_rainure_m(self.taux_compression_joint)
+                rayon_fond = self.regles_rainures.coefficient_rayon_fond * profondeur
+                diam_fond = D_dep - 2.0 * profondeur
+
+                try:
+                    positions_rainures = _calcul_positions_rainures(
+                        longueur_deplaceur_m=L_dep,
+                        nb_joints=self.nb_joints,
+                        largeur_rainure_m=largeur,
+                        marge_extremite_m=self.regles_rainures.marge_extremite_m,
+                        entraxe_min_m=self.regles_rainures.entraxe_min_m,
+                    )
+                except Exception as e:
+                    positions_rainures = None
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "positions_axiales_rainures_m",
+                        f"Impossible de placer les rainures: {e!r}",
+                    )
+
                 rapport["etancheite"].update({
                     "taux_compression": self.taux_compression_joint,
                     "profondeur_rainure_m": profondeur,
-                    "diametre_fond_rainure_m": D_dep - 2.0 * profondeur,
+                    "diametre_fond_rainure_m": diam_fond,
+                    "rayon_fond_rainure_m": rayon_fond,
+                    "positions_axiales_rainures_m": positions_rainures,
                     "taux_remplissage_max": jt.taux_remplissage_max(),
                 })
+
+                rainures_cao = {
+                    "nb_joints": self.nb_joints,
+                    "largeur_rainure_m": largeur,
+                    "profondeur_rainure_m": profondeur,
+                    "diametre_fond_rainure_m": diam_fond,
+                    "rayon_fond_rainure_m": rayon_fond,
+                    "positions_axiales_rainures_m": positions_rainures,
+                    "marge_extremite_m": self.regles_rainures.marge_extremite_m,
+                    "entraxe_min_m": self.regles_rainures.entraxe_min_m,
+                }
             else:
                 _push_inconnue(
                     rapport,
@@ -755,7 +827,6 @@ class Deplaceur:
         ):
             rho_gaz = self.rho_gaz_kg_m3
 
-            # tentative de déduction via air_state si manquant
             if rho_gaz is None and self.temperature_gaz_C is not None and self.pression_gaz_ref_pa is not None:
                 if air_state is not None and isa_dry_temperature_pressure is not None:
                     try:
@@ -797,7 +868,7 @@ class Deplaceur:
             self.regles_fabrication.chanfrein_max_m,
         )
         conge = _borne(
-            self.regles_fabrication.ratio_conge_sur_paroi * max(0.5 * (D_dep - D_int_dep), 1e-6),
+            self.regles_fabrication.ratio_conge_sur_paroi * max(ep_paroi_finale, 1e-6),
             self.regles_fabrication.conge_min_m,
             self.regles_fabrication.conge_max_m,
         )
@@ -824,13 +895,16 @@ class Deplaceur:
             "position_face_chaud_m": rapport["positions"].get("position_face_chaud_m"),
             "section_matiere_m2": A_section_matiere,
             "volume_matiere_m3": A_section_matiere * L_dep,
+            "rainures_joints": rainures_cao if rainures_cao else None,
         }
 
         # ----------------------------------------------------
         # 12) Vérifications de cohérence avec cylindre
         # ----------------------------------------------------
         if D_cyl_int is not None:
-            rapport["verifications"]["diametre_deplaceur_compatible_alésage"] = (D_dep + 2.0 * jeu <= float(D_cyl_int) + 1e-12)
+            rapport["verifications"]["diametre_deplaceur_compatible_alésage"] = (
+                D_dep + 2.0 * jeu <= float(D_cyl_int) + 1e-12
+            )
 
         if L_cyl is not None:
             rapport["verifications"]["longueur_deplaceur_compatible_cylindre"] = (
@@ -851,6 +925,9 @@ class Deplaceur:
         )
         rapport["notes_modele"].append(
             "La force axiale est calculée sur la face pleine externe du déplaceur ; les pertes par fuite et échanges dynamiques ne sont pas encore couplés au cycle complet."
+        )
+        rapport["notes_modele"].append(
+            "Les rainures de joints toriques incluent largeur, profondeur, diamètre de fond et positions axiales quand les données ISO 3601 sont fournies."
         )
 
         # ----------------------------------------------------
