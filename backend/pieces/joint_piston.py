@@ -6,29 +6,30 @@
 # - Ne choisit PAS un standard, un ratio recommandé, ni un type de joint.
 # - Calcule tout ce qui est déductible si :
 #   * on a un Piston (objet backend.pieces.piston.Piston) et son rapport calculé
-#     (piston.analyser()) incluant : diametre_piston_cao_centre_m, diametre_fond_rainure_m,
-#     profondeur_radiale_rainure_m, largeur_rainure_m, alesage_nominal_m, etc.
+#     (piston.analyser()) incluant la géométrie de gorge / CAO
 #   * et/ou un Cylindre (alesage_m)
 #   * et/ou un joint (ID/CS) explicitement fourni
 #
 # Ce module sait :
-# - reprendre automatiquement la géométrie de gorge calculée dans piston.py (si dispo)
+# - reprendre automatiquement la géométrie de gorge calculée dans piston.py
+# - reprendre automatiquement les rainures multiples si présentes
 # - calculer volume/surface du tore si ID+CS
-# - calculer volume de gorge si (Df, w, d)
-# - calculer stretch si ID + D_montage (fond gorge ou piston)
+# - calculer volume de gorge si (Df, w, profondeur)
+# - calculer stretch si ID + D_montage
 # - calculer squeeze radial si CS + D_cyl + D_fond_gorge
 # - calculer aire de contact et frottement si (bande_contact, p_contact, mu)
 # - estimer p_contact si module élastomère explicite (ou résoluble via materiaux.py) + squeeze
 #
 # IMPORTANT :
-# - Toute "norme" (ISO 3601, recommandations squeeze/stretch) doit être entrée comme contrainte
-#   explicite par l'utilisateur ; sinon ce module ne fait que calculer la géométrie.
+# - Toute "norme" (ISO 3601, recommandations squeeze/stretch) doit être entrée comme
+#   contrainte explicite par l'utilisateur ; sinon ce module ne fait que calculer
+#   la géométrie et les grandeurs dérivées.
 # =============================================================================
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Literal
+from typing import Any, Dict, Optional, Tuple, Literal, List
 import math
 
 # =============================================================================
@@ -49,12 +50,14 @@ except Exception:  # pragma: no cover
 # =============================================================================
 
 def _is_finite(x: Any) -> bool:
-    return isinstance(x, (int, float)) and math.isfinite(float(x))
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(float(x))
+
 
 def _req_finite(name: str, x: Any) -> float:
     if not _is_finite(x):
         raise ValueError(f"{name} doit être un nombre fini (reçu: {x!r}).")
     return float(x)
+
 
 def _req_pos(name: str, x: Any, *, strictly: bool = True) -> float:
     v = _req_finite(name, x)
@@ -64,8 +67,10 @@ def _req_pos(name: str, x: Any, *, strictly: bool = True) -> float:
         raise ValueError(f"{name} doit être {op} 0 (reçu: {v}).")
     return v
 
+
 def _push_inc(rapport: Dict[str, Any], categorie: str, nom: str, raison: str) -> None:
     rapport["inconnues"][categorie].append({"nom": nom, "raison": raison})
+
 
 def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
     def dedup(lst: list[dict]) -> list[dict]:
@@ -77,6 +82,7 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
                 seen.add(key)
                 out.append(it)
         return out
+
     rapport["inconnues"]["impossibles"] = dedup(rapport["inconnues"]["impossibles"])
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
 
@@ -84,9 +90,15 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
 def _perimetre(D_m: float) -> float:
     return math.pi * _req_pos("D_m", D_m)
 
+
 def _aire_disque(D_m: float) -> float:
     D = _req_pos("D_m", D_m)
     return math.pi * (0.5 * D) ** 2
+
+
+def _safe_get_dict(d: Any, key: str) -> Dict[str, Any]:
+    v = d.get(key, {}) if isinstance(d, dict) else {}
+    return v if isinstance(v, dict) else {}
 
 
 # =============================================================================
@@ -100,20 +112,22 @@ def _materiau_props(
 ) -> Dict[str, Optional[float]]:
     out: Dict[str, Optional[float]] = {
         "densite_kg_m3": None,
-        # élastomère
         "module_elastomere_pa": None,
     }
     if not cle or get_materiau is None:
         return out
+
     m = get_materiau(cle)
     if m is None:
         return out
 
     out["densite_kg_m3"] = valeur(getattr(m, "densite_kg_m3", None), mode=mode)
+
     # certains jeux de données mettent "module_elastomere_pa", sinon fallback young
     out["module_elastomere_pa"] = valeur(getattr(m, "module_elastomere_pa", None), mode=mode)
     if out["module_elastomere_pa"] is None:
         out["module_elastomere_pa"] = valeur(getattr(m, "module_young_pa", None), mode=mode)
+
     return out
 
 
@@ -126,19 +140,168 @@ def tore_volume_m3(ID_m: float, CS_m: float) -> float:
     CSv = _req_pos("CS_m", CS_m)
     r = 0.5 * CSv
     R = 0.5 * IDv + r
-    return 2.0 * (math.pi**2) * R * (r**2)
+    return 2.0 * (math.pi ** 2) * R * (r ** 2)
+
 
 def tore_surface_m2(ID_m: float, CS_m: float) -> float:
     IDv = _req_pos("ID_m", ID_m)
     CSv = _req_pos("CS_m", CS_m)
     r = 0.5 * CSv
     R = 0.5 * IDv + r
-    return 4.0 * (math.pi**2) * R * r
+    return 4.0 * (math.pi ** 2) * R * r
+
 
 def tore_diametre_moyen_m(ID_m: float, CS_m: float) -> float:
     IDv = _req_pos("ID_m", ID_m)
     CSv = _req_pos("CS_m", CS_m)
     return IDv + CSv
+
+
+# =============================================================================
+# Résolution depuis piston / cylindre
+# =============================================================================
+
+def _resoudre_rapport_piston(
+    piston: Optional[Any],
+    rapport_piston: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if isinstance(rapport_piston, dict):
+        return rapport_piston
+
+    if piston is None:
+        return None
+
+    try:
+        if hasattr(piston, "analyser") and callable(getattr(piston, "analyser")):
+            rep = piston.analyser(strict=False)  # type: ignore[misc]
+            return rep if isinstance(rep, dict) else None
+    except Exception:
+        return None
+
+    return None
+
+
+def _resoudre_diametre_cylindre(
+    cylindre: Optional[Any],
+    rapport_piston: Optional[Dict[str, Any]],
+    entree_directe: Optional[float],
+) -> Tuple[Optional[float], Optional[str]]:
+    D_cyl = entree_directe
+    source = "entree_directe" if D_cyl is not None else None
+
+    if D_cyl is None and cylindre is not None:
+        for attr in ("alesage_m", "diametre_interieur_m", "diametre_alesage_m"):
+            if hasattr(cylindre, attr):
+                v = getattr(cylindre, attr)
+                if v is not None and _is_finite(v):
+                    D_cyl = float(v)
+                    source = f"cylindre.{attr}"
+                    break
+
+    if D_cyl is None and isinstance(rapport_piston, dict):
+        dims = _safe_get_dict(rapport_piston, "dimensions")
+        liaisons = _safe_get_dict(rapport_piston, "liaisons")
+        cyl_l = _safe_get_dict(liaisons, "cylindre")
+        cao = _safe_get_dict(dims, "cao")
+
+        for path, v in (
+            ("dimensions.cao.diametre_interieur_cylindre_m", cao.get("diametre_interieur_cylindre_m")),
+            ("liaisons.cylindre.alesage_nominal_m", cyl_l.get("alesage_nominal_m")),
+            ("dimensions.alesage_min_m", dims.get("alesage_min_m")),
+        ):
+            if v is not None and _is_finite(v):
+                D_cyl = float(v)
+                source = f"rapport_piston.{path}"
+                break
+
+    return D_cyl, source
+
+
+def _resoudre_geometrie_gorge_depuis_rapport_piston(
+    rapport_piston: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    out: Dict[str, Any] = {
+        "section_joint_m": None,
+        "diametre_fond_gorge_m": None,
+        "profondeur_gorge_m": None,
+        "largeur_gorge_m": None,
+        "diametre_montage_joint_m": None,
+        "diametre_moyen_joint_monte_m": None,
+        "hauteur_radiale_disponible_m": None,
+        "pression_contact_estimee_pa": None,
+        "bande_contact_m": None,
+        "nb_joints": None,
+        "rainures": [],
+        "sources": {},
+    }
+
+    if not isinstance(rapport_piston, dict):
+        return out
+
+    joints = _safe_get_dict(rapport_piston, "joints")
+    dims = _safe_get_dict(rapport_piston, "dimensions")
+    cao = _safe_get_dict(dims, "cao")
+    cao_joints = _safe_get_dict(cao, "joints")
+
+    mapping = (
+        ("section_joint_m", "section_joint_m"),
+        ("diametre_fond_gorge_m", "diametre_fond_rainure_m"),
+        ("profondeur_gorge_m", "profondeur_radiale_rainure_m"),
+        ("largeur_gorge_m", "largeur_rainure_m"),
+        ("diametre_montage_joint_m", "diametre_montage_joint_m"),
+        ("diametre_moyen_joint_monte_m", "diametre_moyen_joint_monte_m"),
+        ("hauteur_radiale_disponible_m", "hauteur_radiale_disponible_m"),
+        ("pression_contact_estimee_pa", "pression_contact_estimee_pa"),
+        ("nb_joints", "nb_joints"),
+    )
+
+    for out_key, src_key in mapping:
+        if joints.get(src_key) is not None:
+            out[out_key] = joints.get(src_key)
+            out["sources"][out_key] = f"rapport_piston.joints.{src_key}"
+        elif cao_joints.get(src_key) is not None:
+            out[out_key] = cao_joints.get(src_key)
+            out["sources"][out_key] = f"rapport_piston.dimensions.cao.joints.{src_key}"
+
+    rainures = joints.get("rainures")
+    if isinstance(rainures, list) and rainures:
+        out["rainures"] = rainures
+        out["sources"]["rainures"] = "rapport_piston.joints.rainures"
+    else:
+        rainures = cao.get("rainures")
+        if isinstance(rainures, list) and rainures:
+            out["rainures"] = rainures
+            out["sources"]["rainures"] = "rapport_piston.dimensions.cao.rainures"
+
+    if out["rainures"]:
+        r0 = out["rainures"][0]
+        if isinstance(r0, dict):
+            if out["largeur_gorge_m"] is None and r0.get("largeur_m") is not None:
+                out["largeur_gorge_m"] = r0.get("largeur_m")
+                out["sources"]["largeur_gorge_m"] = "rapport_piston.rainures[0].largeur_m"
+            if out["profondeur_gorge_m"] is None and r0.get("profondeur_radiale_m") is not None:
+                out["profondeur_gorge_m"] = r0.get("profondeur_radiale_m")
+                out["sources"]["profondeur_gorge_m"] = "rapport_piston.rainures[0].profondeur_radiale_m"
+            if out["diametre_fond_gorge_m"] is None and r0.get("diametre_fond_rainure_m") is not None:
+                out["diametre_fond_gorge_m"] = r0.get("diametre_fond_rainure_m")
+                out["sources"]["diametre_fond_gorge_m"] = "rapport_piston.rainures[0].diametre_fond_rainure_m"
+            if out["section_joint_m"] is None and r0.get("section_joint_m") is not None:
+                out["section_joint_m"] = r0.get("section_joint_m")
+                out["sources"]["section_joint_m"] = "rapport_piston.rainures[0].section_joint_m"
+            if out["diametre_montage_joint_m"] is None and r0.get("diametre_montage_joint_m") is not None:
+                out["diametre_montage_joint_m"] = r0.get("diametre_montage_joint_m")
+                out["sources"]["diametre_montage_joint_m"] = "rapport_piston.rainures[0].diametre_montage_joint_m"
+            if out["diametre_moyen_joint_monte_m"] is None and r0.get("diametre_moyen_joint_monte_m") is not None:
+                out["diametre_moyen_joint_monte_m"] = r0.get("diametre_moyen_joint_monte_m")
+                out["sources"]["diametre_moyen_joint_monte_m"] = "rapport_piston.rainures[0].diametre_moyen_joint_monte_m"
+            if out["hauteur_radiale_disponible_m"] is None and r0.get("hauteur_radiale_disponible_m") is not None:
+                out["hauteur_radiale_disponible_m"] = r0.get("hauteur_radiale_disponible_m")
+                out["sources"]["hauteur_radiale_disponible_m"] = "rapport_piston.rainures[0].hauteur_radiale_disponible_m"
+            if out["bande_contact_m"] is None and r0.get("largeur_bande_contact_joint_m") is not None:
+                out["bande_contact_m"] = r0.get("largeur_bande_contact_joint_m")
+                out["sources"]["bande_contact_m"] = "rapport_piston.rainures[0].largeur_bande_contact_joint_m"
+
+    return out
 
 
 # =============================================================================
@@ -149,40 +312,32 @@ def tore_diametre_moyen_m(ID_m: float, CS_m: float) -> float:
 class JointPiston:
     """
     Joint piston <-> cylindre.
+
     Par défaut, si ID/CS sont fournis => joint torique (modèle géométrique).
     Sinon, on ne "devine" pas ID/CS.
     """
 
-    # Pièces liées (optionnel, mais permet de récupérer la gorge calculée par piston.py)
-    piston: Optional[Any] = None    # backend.pieces.piston.Piston
-    cylindre: Optional[Any] = None  # backend.pieces.cylindre.Cylindre
-
-    # Rapport calculé du piston (sortie piston.analyser()).
-    # Si fourni, c'est la meilleure source "sans hypothèse".
+    piston: Optional[Any] = None
+    cylindre: Optional[Any] = None
     rapport_piston: Optional[Dict[str, Any]] = None
 
-    # Joint torique (si connu)
     diametre_interieur_joint_m: Optional[float] = None  # ID
     diametre_section_joint_m: Optional[float] = None    # CS
 
-    # Gorge (si connue) — sinon peut être reprise depuis rapport_piston["joints"]
     diametre_fond_gorge_m: Optional[float] = None
-    profondeur_gorge_m: Optional[float] = None          # profondeur radiale (fond->extérieur piston)
-    largeur_gorge_m: Optional[float] = None             # largeur axiale
+    profondeur_gorge_m: Optional[float] = None
+    largeur_gorge_m: Optional[float] = None
 
-    # Cylindre (si non disponible via cylindre)
     diametre_interieur_cylindre_m: Optional[float] = None
 
-    # Frottement / contact (si tu veux forces)
-    pression_diff_pa: Optional[float] = None            # Δp global (ordre de grandeur)
-    pression_contact_pa: Optional[float] = None         # si connue
+    pression_diff_pa: Optional[float] = None
+    pression_contact_pa: Optional[float] = None
     coeff_frottement_mu: Optional[float] = None
     largeur_bande_contact_m: Optional[float] = None
 
-    # Matière joint (non devinable)
     materiau_joint_cle: Optional[str] = None
     densite_kg_m3: Optional[float] = None
-    module_elastomere_pa: Optional[float] = None        # override direct
+    module_elastomere_pa: Optional[float] = None
     mode_materiau: Literal["min", "typique", "max"] = "typique"
 
     def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
@@ -196,48 +351,40 @@ class JointPiston:
             "frottements": {},
             "matiere": {},
             "coherences": {},
+            "rainures": {},
             "inconnues": {"impossibles": [], "partielles": []},
             "notes_modele": [],
         }
 
         # ---------------------------------------------------------------------
-        # 1) Récupérer D_cyl depuis cylindre / entrée
+        # 1) Résolution des sources
         # ---------------------------------------------------------------------
-        D_cyl = self.diametre_interieur_cylindre_m
-        if D_cyl is None and self.cylindre is not None:
-            for attr in ("alesage_m", "diametre_interieur_m", "diametre_alesage_m"):
-                if hasattr(self.cylindre, attr):
-                    v = getattr(self.cylindre, attr)
-                    if v is not None:
-                        D_cyl = float(v)
-                        rapport["sources"]["diametre_interieur_cylindre_m"] = f"cylindre.{attr}"
-                        break
+        rp = _resoudre_rapport_piston(self.piston, self.rapport_piston)
+        gorge_piston = _resoudre_geometrie_gorge_depuis_rapport_piston(rp)
+        D_cyl, D_cyl_source = _resoudre_diametre_cylindre(self.cylindre, rp, self.diametre_interieur_cylindre_m)
+
+        if D_cyl_source:
+            rapport["sources"]["diametre_interieur_cylindre_m"] = D_cyl_source
 
         # ---------------------------------------------------------------------
-        # 2) Récupérer géométrie gorge depuis rapport piston si dispo
+        # 2) Géométrie gorge / rainures
         # ---------------------------------------------------------------------
         D_fond = self.diametre_fond_gorge_m
         prof = self.profondeur_gorge_m
         larg = self.largeur_gorge_m
+        rainures = gorge_piston["rainures"]
 
-        if self.rapport_piston is not None:
-            j = (self.rapport_piston.get("joints") or {})
-            if D_fond is None and j.get("diametre_fond_rainure_m") is not None:
-                D_fond = float(j["diametre_fond_rainure_m"])
-                rapport["sources"]["diametre_fond_gorge_m"] = "rapport_piston.joints.diametre_fond_rainure_m"
-            if prof is None and j.get("profondeur_radiale_rainure_m") is not None:
-                prof = float(j["profondeur_radiale_rainure_m"])
-                rapport["sources"]["profondeur_gorge_m"] = "rapport_piston.joints.profondeur_radiale_rainure_m"
-            if larg is None and j.get("largeur_rainure_m") is not None:
-                larg = float(j["largeur_rainure_m"])
-                rapport["sources"]["largeur_gorge_m"] = "rapport_piston.joints.largeur_rainure_m"
+        if D_fond is None and gorge_piston["diametre_fond_gorge_m"] is not None:
+            D_fond = float(gorge_piston["diametre_fond_gorge_m"])
+            rapport["sources"]["diametre_fond_gorge_m"] = gorge_piston["sources"].get("diametre_fond_gorge_m", "rapport_piston")
 
-            # si le piston avait un alésages_nominal (utile pour fallback D_cyl)
-            if D_cyl is None:
-                D_cyl2 = self.rapport_piston.get("dimensions", {}).get("alesage_min_m") or self.rapport_piston.get("liaisons", {}).get("cylindre", {}).get("alesage_nominal_m")
-                if D_cyl2 is not None:
-                    D_cyl = float(D_cyl2)
-                    rapport["sources"]["diametre_interieur_cylindre_m"] = "rapport_piston (fallback)"
+        if prof is None and gorge_piston["profondeur_gorge_m"] is not None:
+            prof = float(gorge_piston["profondeur_gorge_m"])
+            rapport["sources"]["profondeur_gorge_m"] = gorge_piston["sources"].get("profondeur_gorge_m", "rapport_piston")
+
+        if larg is None and gorge_piston["largeur_gorge_m"] is not None:
+            larg = float(gorge_piston["largeur_gorge_m"])
+            rapport["sources"]["largeur_gorge_m"] = gorge_piston["sources"].get("largeur_gorge_m", "rapport_piston")
 
         # ---------------------------------------------------------------------
         # 3) Entrées joint (ID/CS)
@@ -245,15 +392,9 @@ class JointPiston:
         ID = self.diametre_interieur_joint_m
         CS = self.diametre_section_joint_m
 
-        # Possibilité : reprendre CS/ID depuis des entrées piston si ton piston les stocke.
-        # (sans rien inventer : on lit seulement si présent)
-        if self.rapport_piston is not None:
-            pj = (self.rapport_piston.get("joints") or {})
-            # section_joint_m éventuelle
-            if CS is None and pj.get("section_joint_m") is not None:
-                CS = float(pj["section_joint_m"])
-                rapport["sources"]["diametre_section_joint_m"] = "rapport_piston.joints.section_joint_m"
-            # ID n'est en général pas donné par piston.py (il calcule la gorge), donc on ne le devine pas.
+        if CS is None and gorge_piston["section_joint_m"] is not None:
+            CS = float(gorge_piston["section_joint_m"])
+            rapport["sources"]["diametre_section_joint_m"] = gorge_piston["sources"].get("section_joint_m", "rapport_piston")
 
         # ---------------------------------------------------------------------
         # 4) Récap entrées
@@ -282,6 +423,7 @@ class JointPiston:
         S_joint = None
         D_moy = None
         perim_moy = None
+
         if ID is not None and CS is not None:
             IDv = _req_pos("diametre_interieur_joint_m", ID)
             CSv = _req_pos("diametre_section_joint_m", CS)
@@ -313,7 +455,7 @@ class JointPiston:
             pr = _req_pos("profondeur_gorge_m", prof)
             w = _req_pos("largeur_gorge_m", larg)
             perim_fond = _perimetre(Df)
-            A_sec = pr * w  # modèle rectangulaire explicite
+            A_sec = pr * w
             V_gorge = perim_fond * A_sec
             rapport["gorge"].update({
                 "perimetre_fond_gorge_m": perim_fond,
@@ -333,37 +475,45 @@ class JointPiston:
         # ---------------------------------------------------------------------
         # 7) Stretch (étirement)
         # ---------------------------------------------------------------------
-        # stretch = (D_montage - ID)/ID
-        # D_montage : diamètre autour duquel l'ID s'étire. Sans norme, on prend explicitement :
-        # - D_montage = diametre_fond_gorge_m (si gorge connue), sinon impossible.
+        stretch = None
+        D_montage = gorge_piston["diametre_montage_joint_m"]
+        if D_montage is None:
+            D_montage = D_fond
+
         if ID is not None:
             IDv = _req_pos("diametre_interieur_joint_m", ID)
-            if D_fond is not None:
-                Dm = _req_pos("diametre_fond_gorge_m", D_fond)
+            if D_montage is not None:
+                Dm = _req_pos("diametre_montage_joint_m", D_montage)
                 stretch = (Dm - IDv) / IDv
                 rapport["squeeze_stretch"]["diametre_montage_stretch_m"] = Dm
                 rapport["squeeze_stretch"]["stretch_fraction"] = stretch
+                if gorge_piston["sources"].get("diametre_montage_joint_m"):
+                    rapport["sources"]["diametre_montage_stretch_m"] = gorge_piston["sources"]["diametre_montage_joint_m"]
             else:
                 _push_inc(
                     rapport,
                     "partielles",
                     "stretch_fraction",
-                    "Calculable si diametre_fond_gorge_m est connu (diamètre de montage).",
+                    "Calculable si diametre_montage_joint_m ou diametre_fond_gorge_m est connu.",
                 )
 
         # ---------------------------------------------------------------------
         # 8) Squeeze (écrasement radial)
         # ---------------------------------------------------------------------
-        # Hypothèse géométrique EXPLICITE : joint torique en gorge sur piston, comprimé par cylindre.
-        # h_dispo = (D_cyl - D_fond)/2
-        # squeeze = (CS - h_dispo)/CS
         squeeze = None
-        if CS is not None and D_cyl is not None and D_fond is not None:
+        h_dispo = gorge_piston["hauteur_radiale_disponible_m"]
+        if h_dispo is None and CS is not None and D_cyl is not None and D_fond is not None:
             CSv = _req_pos("diametre_section_joint_m", CS)
             Dc = _req_pos("diametre_interieur_cylindre_m", D_cyl)
             Df = _req_pos("diametre_fond_gorge_m", D_fond)
             h_dispo = (Dc - Df) / 2.0
             squeeze = (CSv - h_dispo) / CSv
+        elif h_dispo is not None and CS is not None:
+            CSv = _req_pos("diametre_section_joint_m", CS)
+            h_dispo = _req_pos("hauteur_radiale_disponible_m", h_dispo, strictly=False)
+            squeeze = (CSv - h_dispo) / CSv
+
+        if squeeze is not None:
             rapport["squeeze_stretch"].update({
                 "hauteur_radiale_disponible_m": h_dispo,
                 "squeeze_radial_fraction": squeeze,
@@ -379,7 +529,6 @@ class JointPiston:
         # ---------------------------------------------------------------------
         # 9) Estimation pression de contact (optionnelle) : p_contact ~= E * squeeze
         # ---------------------------------------------------------------------
-        # Modèle simplifié explicite. Aucun choix de E si non fourni/résolu.
         p_contact_est = None
         Eel = self.module_elastomere_pa
         if Eel is None and self.materiau_joint_cle:
@@ -404,13 +553,17 @@ class JointPiston:
         # ---------------------------------------------------------------------
         # 10) Aire de contact + frottement
         # ---------------------------------------------------------------------
-        # Aire ≈ périmètre moyen * largeur_bande_contact
-        # Force frottement ≈ mu * (p_contact * Aire)
         A_contact = None
-        if perim_moy is not None and self.largeur_bande_contact_m is not None:
-            b = _req_pos("largeur_bande_contact_m", self.largeur_bande_contact_m)
+        bande_contact = self.largeur_bande_contact_m
+        if bande_contact is None and gorge_piston["bande_contact_m"] is not None:
+            bande_contact = float(gorge_piston["bande_contact_m"])
+            rapport["sources"]["largeur_bande_contact_m"] = gorge_piston["sources"].get("bande_contact_m", "rapport_piston")
+
+        if perim_moy is not None and bande_contact is not None:
+            b = _req_pos("largeur_bande_contact_m", bande_contact)
             A_contact = perim_moy * b
             rapport["frottements"]["aire_contact_m2"] = A_contact
+            rapport["frottements"]["largeur_bande_contact_m"] = b
         else:
             _push_inc(
                 rapport,
@@ -419,7 +572,6 @@ class JointPiston:
                 "Calculable si largeur_bande_contact_m est fournie ET si le joint (ID/CS) est défini.",
             )
 
-        # Choix pression contact : priorité à pression_contact_pa explicite, sinon estimation
         p_use = None
         if self.pression_contact_pa is not None:
             p_use = _req_pos("pression_contact_pa", self.pression_contact_pa, strictly=False)
@@ -429,6 +581,10 @@ class JointPiston:
             p_use = float(p_contact_est)
             rapport["efforts"]["pression_contact_utilisee_pa"] = p_use
             rapport["sources"]["pression_contact_utilisee_pa"] = "estimation E*squeeze"
+        elif gorge_piston["pression_contact_estimee_pa"] is not None:
+            p_use = _req_pos("pression_contact_pa", gorge_piston["pression_contact_estimee_pa"], strictly=False)
+            rapport["efforts"]["pression_contact_utilisee_pa"] = p_use
+            rapport["sources"]["pression_contact_utilisee_pa"] = gorge_piston["sources"].get("pression_contact_estimee_pa", "rapport_piston")
 
         if self.coeff_frottement_mu is not None and p_use is not None and A_contact is not None:
             mu = _req_pos("coeff_frottement_mu", self.coeff_frottement_mu, strictly=False)
@@ -495,8 +651,6 @@ class JointPiston:
         # ---------------------------------------------------------------------
         # 13) Cohérences géométriques simples (sans norme)
         # ---------------------------------------------------------------------
-        # - squeeze <= 0 : pas d'écrasement
-        # - squeeze >= 1 : impossible
         if squeeze is not None:
             rapport["coherences"]["squeeze_positive"] = (squeeze > 0.0)
             rapport["coherences"]["squeeze_moins_100pct"] = (squeeze < 1.0)
@@ -505,12 +659,72 @@ class JointPiston:
             if squeeze >= 1.0:
                 rapport["notes_modele"].append("SQUEEZE >= 1 : montage impossible (écrasement >= 100%).")
 
-        # - taux remplissage gorge (si dispo)
         tr = rapport.get("gorge", {}).get("taux_remplissage_volume_joint_sur_gorge")
         if tr is not None:
             rapport["coherences"]["taux_remplissage_le_1"] = (float(tr) <= 1.0)
             if float(tr) > 1.0:
-                rapport["notes_modele"].append("Taux remplissage volume > 1 : joint ne rentre pas dans gorge (modèle gorge rectangulaire).")
+                rapport["notes_modele"].append(
+                    "Taux remplissage volume > 1 : joint ne rentre pas dans gorge (modèle gorge rectangulaire)."
+                )
+
+        if stretch is not None:
+            rapport["coherences"]["stretch_non_negatif"] = (stretch >= 0.0)
+
+        # ---------------------------------------------------------------------
+        # 14) Détail des rainures reprises du piston
+        # ---------------------------------------------------------------------
+        if isinstance(rainures, list) and rainures:
+            rapport["rainures"]["nombre_rainures"] = len(rainures)
+            rapport["rainures"]["details"] = []
+
+            for i, r in enumerate(rainures, start=1):
+                if not isinstance(r, dict):
+                    continue
+
+                rr: Dict[str, Any] = {"index": i}
+                for key in (
+                    "position_centre_depuis_face_tete_m",
+                    "position_debut_depuis_face_tete_m",
+                    "position_fin_depuis_face_tete_m",
+                    "largeur_m",
+                    "profondeur_radiale_m",
+                    "diametre_fond_rainure_m",
+                    "rayon_fond_rainure_m",
+                    "diametre_zone_hors_rainure_m",
+                    "diametre_interieur_cylindre_m",
+                    "hauteur_radiale_disponible_m",
+                    "section_joint_m",
+                    "squeeze_cible",
+                    "squeeze_reconstruit",
+                    "diametre_montage_joint_m",
+                    "diametre_moyen_joint_monte_m",
+                    "largeur_bande_contact_joint_m",
+                    "volume_gorge_m3",
+                ):
+                    if key in r:
+                        rr[key] = r[key]
+
+                # stretch local si ID connu
+                if ID is not None and r.get("diametre_montage_joint_m") is not None:
+                    IDv = _req_pos("diametre_interieur_joint_m", ID)
+                    Dm_loc = _req_pos("diametre_montage_joint_m", r["diametre_montage_joint_m"])
+                    rr["stretch_fraction"] = (Dm_loc - IDv) / IDv
+
+                # squeeze local si CS connu
+                if CS is not None:
+                    CSv = _req_pos("diametre_section_joint_m", CS)
+                    if r.get("hauteur_radiale_disponible_m") is not None:
+                        h_loc = _req_pos("hauteur_radiale_disponible_m", r["hauteur_radiale_disponible_m"], strictly=False)
+                        rr["squeeze_radial_fraction"] = (CSv - h_loc) / CSv
+
+                rapport["rainures"]["details"].append(rr)
+        else:
+            _push_inc(
+                rapport,
+                "partielles",
+                "rainures",
+                "Le détail de chaque rainure est disponible si le rapport du piston contient joints.rainures.",
+            )
 
         _dedup_inconnues(rapport)
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
@@ -526,14 +740,11 @@ class JointPiston:
 # Exemple minimal
 # =============================================================================
 if __name__ == "__main__":
-    # Exemple sans invention :
-    # - on suppose que tu as déjà un rapport piston (issu de Piston(...).analyser()).
-    # - tu fournis ID/CS si tu connais le joint exact.
     jp = JointPiston(
         rapport_piston=None,  # mets ici le dict retourné par piston.analyser()
         diametre_interieur_cylindre_m=0.080,
-        diametre_interieur_joint_m=0.074,   # ID (exemple)
-        diametre_section_joint_m=0.003,     # CS (exemple)
+        diametre_interieur_joint_m=0.074,
+        diametre_section_joint_m=0.003,
         diametre_fond_gorge_m=0.077,
         profondeur_gorge_m=0.0012,
         largeur_gorge_m=0.0045,

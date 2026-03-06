@@ -38,6 +38,7 @@ except Exception:  # pragma: no cover
     def valeur(prop: Any, mode: str = "typique") -> Optional[float]:  # type: ignore
         return float(prop) if prop is not None else None
 
+
 # --- Cylindre ---
 try:
     from backend.pieces.cylindre import Cylindre  # type: ignore
@@ -47,12 +48,14 @@ except Exception:  # pragma: no cover
     except Exception:  # pragma: no cover
         Cylindre = None  # type: ignore
 
+
 # --- Modules moteur thermique ---
 try:
     from backend.modules.moteur_thermique.calcul_vitesse_piston import calcul_vitesse_moyenne_piston
 except Exception:  # pragma: no cover
     def calcul_vitesse_moyenne_piston(course_m: float, vitesse_rotation_tr_min: float) -> float:
         return 2.0 * float(course_m) * (float(vitesse_rotation_tr_min) / 60.0)
+
 
 try:
     from backend.modules.moteur_thermique.calcul_gaz import (
@@ -116,6 +119,7 @@ except Exception:  # pragma: no cover
             return {"debit_massique_kg_s": mdot}
         return mdot
 
+
 try:
     from backend.modules.moteur_thermique.calcul_pertes_frottement import (
         calcul_puissance_frottement_segment,
@@ -127,6 +131,7 @@ except Exception:  # pragma: no cover
         coef_frottement: float,
     ) -> float:
         return float(force_normale_n) * float(vitesse_moyenne_ms) * float(coef_frottement)
+
 
 try:
     from backend.modules.moteur_thermique.calcul_force_inertie import calcul_force_inertie_alternative
@@ -148,6 +153,7 @@ except Exception:  # pragma: no cover
             omega = (2.0 * math.pi * float(vitesse_rotation_tr_min)) / 60.0
         else:
             omega = float(vitesse_rotation_tr_min)
+
         th = math.radians(float(angle_vilebrequin_deg)) if angle_unite == "deg" else float(angle_vilebrequin_deg)
         r = float(rayon_manivelle_m)
         l = float(longueur_bielle_m)
@@ -156,6 +162,7 @@ except Exception:  # pragma: no cover
         if return_details:
             return {"F_i": Fi}
         return Fi
+
 
 try:
     from backend.modules.moteur_thermique.calcul_usure_archard import (
@@ -174,11 +181,13 @@ except Exception:  # pragma: no cover
     def calcul_perte_epaisseur(volume_use_m3: float, aire_contact_m2: float) -> float:
         return float(volume_use_m3) / float(aire_contact_m2)
 
+
 # --- Air (pour viscosité) ---
 try:
     from backend.ensemble.air import dynamic_viscosity_air_Pa_s
 except Exception:  # pragma: no cover
     dynamic_viscosity_air_Pa_s = None  # type: ignore
+
 
 R_AIR_J_KG_K = 287.058
 
@@ -190,10 +199,12 @@ R_AIR_J_KG_K = 287.058
 def _is_finite(x: Any) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(float(x))
 
+
 def _req_finite(name: str, x: Any) -> float:
     if not _is_finite(x):
         raise ValueError(f"{name} doit être un nombre fini (reçu: {x!r}).")
     return float(x)
+
 
 def _req_pos(name: str, x: Any, *, strict: bool = True) -> float:
     v = _req_finite(name, x)
@@ -203,6 +214,7 @@ def _req_pos(name: str, x: Any, *, strict: bool = True) -> float:
         raise ValueError(f"{name} doit être >= 0 (reçu: {v}).")
     return v
 
+
 def _req_int_ge(name: str, x: Any, min_value: int = 0) -> int:
     if not isinstance(x, int) or isinstance(x, bool):
         raise ValueError(f"{name} doit être un entier (reçu: {x!r}).")
@@ -210,8 +222,10 @@ def _req_int_ge(name: str, x: Any, min_value: int = 0) -> int:
         raise ValueError(f"{name} doit être >= {min_value} (reçu: {x}).")
     return int(x)
 
+
 def _push_inc(rap: Dict[str, Any], cat: str, nom: str, raison: str) -> None:
     rap["inconnues"][cat].append({"nom": nom, "raison": raison})
+
 
 def _dedup_inconnues(rap: Dict[str, Any]) -> None:
     def dedup(lst: List[dict]) -> List[dict]:
@@ -227,19 +241,24 @@ def _dedup_inconnues(rap: Dict[str, Any]) -> None:
     rap["inconnues"]["impossibles"] = dedup(list(rap["inconnues"].get("impossibles", []) or []))
     rap["inconnues"]["partielles"] = dedup(list(rap["inconnues"].get("partielles", []) or []))
 
+
 def _borne(x: float, xmin: float, xmax: float) -> float:
     return max(float(xmin), min(float(xmax), float(x)))
+
 
 def _aire_disque(diametre_m: float) -> float:
     D = _req_pos("diametre_m", diametre_m)
     return math.pi * (0.5 * D) ** 2
 
+
 def _perimetre(diametre_m: float) -> float:
     D = _req_pos("diametre_m", diametre_m)
     return math.pi * D
 
+
 def _vol_cylindre(diametre_m: float, hauteur_m: float) -> float:
     return _aire_disque(diametre_m) * _req_pos("hauteur_m", hauteur_m)
+
 
 def _moment_inertie_disque_plein_axe(diametre_m: float, masse_kg: float) -> float:
     D = _req_pos("diametre_m", diametre_m)
@@ -256,18 +275,22 @@ _IT_MULT: Dict[int, int] = {
     5: 7, 6: 10, 7: 16, 8: 25, 9: 40, 10: 64, 11: 100, 12: 160, 13: 250, 14: 400, 15: 640, 16: 1000,
 }
 
+
 def iso286_i_um(D_mm: float) -> float:
     D = _req_pos("D_mm", D_mm)
     return 0.45 * (D ** (1.0 / 3.0)) + 0.001 * D
+
 
 def iso286_IT_um(D_mm: float, grade: int) -> float:
     if grade not in _IT_MULT:
         raise ValueError(f"Grade IT non supporté: {grade}. Supportés: {sorted(_IT_MULT)}")
     return float(_IT_MULT[grade]) * iso286_i_um(D_mm)
 
+
 def iso286_hole_H(D_mm: float, grade: int) -> Tuple[float, float]:
     IT = iso286_IT_um(D_mm, grade)
     return (0.0, IT)
+
 
 def iso286_shaft_h(D_mm: float, grade: int) -> Tuple[float, float]:
     IT = iso286_IT_um(D_mm, grade)
@@ -299,7 +322,6 @@ def _materiau_props(
     if m is None:
         return out
 
-    # Compatibilité avec ton backend materiaux.py
     lim_el = None
     try:
         if hasattr(m, "limite_elastique_effective_pa"):
@@ -344,8 +366,10 @@ def rainure_profondeur_radiale_m(section_joint_m: float, squeeze: float, jeu_rad
     c = _req_pos("jeu_radial_m", jeu_radial_m, strict=False)
     return d * (1.0 - s) - c
 
+
 def rainure_largeur_m(section_joint_m: float, facteur_largeur: float) -> float:
     return _req_pos("facteur_largeur", facteur_largeur) * _req_pos("section_joint_m", section_joint_m)
+
 
 def volume_gorge_annulaire_m3(D_fond_gorge_m: float, largeur_m: float, profondeur_radiale_m: float) -> float:
     return _perimetre(_req_pos("D_fond_gorge_m", D_fond_gorge_m)) * _req_pos("largeur_m", largeur_m) * _req_pos("profondeur_radiale_m", profondeur_radiale_m)
@@ -357,22 +381,20 @@ def volume_gorge_annulaire_m3(D_fond_gorge_m: float, largeur_m: float, profondeu
 
 PositionPremierJoint = Literal["proche_tete", "centre_jupe"]
 
+
 @dataclass(frozen=True)
 class ReglesFabricationPiston:
-    # tête / jupe / hauteur
     coefficient_hauteur_mini_sur_diametre: float = 0.70
     surlongueur_mini_apres_derniere_rainure_m: float = 0.004
     marge_tete_avant_premiere_rainure_m: float = 0.004
     marge_fond_jupe_m: float = 0.004
 
-    # rainures
     position_premier_joint: PositionPremierJoint = "proche_tete"
     entraxe_joints_min_m: float = 0.004
     entraxe_joints_multiple_largeur: float = 1.50
     marge_axiale_rainure_min_m: float = 0.002
     coefficient_largeur_bande_contact_joint: float = 1.00
 
-    # détails CAO
     chanfrein_min_m: float = 0.0005
     chanfrein_max_m: float = 0.0020
     ratio_chanfrein_sur_jeu: float = 8.0
@@ -462,50 +484,83 @@ def _resoudre_depuis_cylindre(cylindre: Optional[Any]) -> Dict[str, Any]:
 
 
 # =============================================================================
+# Positions de rainures
+# =============================================================================
+
+def _calcul_positions_rainures_piston(
+    *,
+    hauteur_totale_m: float,
+    epaisseur_tete_m: float,
+    longueur_jupe_m: float,
+    nb_joints: int,
+    largeur_rainure_m: float,
+    marge_tete_avant_premiere_rainure_m: float,
+    marge_fond_jupe_m: float,
+    entraxe_rainures_m: float,
+    position_premier_joint: PositionPremierJoint,
+) -> List[float]:
+    H = _req_pos("hauteur_totale_m", hauteur_totale_m)
+    et = _req_pos("epaisseur_tete_m", epaisseur_tete_m, strict=False)
+    Lj = _req_pos("longueur_jupe_m", longueur_jupe_m, strict=False)
+    n = _req_int_ge("nb_joints", nb_joints, min_value=1)
+    w = _req_pos("largeur_rainure_m", largeur_rainure_m)
+    mt = _req_pos("marge_tete_avant_premiere_rainure_m", marge_tete_avant_premiere_rainure_m, strict=False)
+    mf = _req_pos("marge_fond_jupe_m", marge_fond_jupe_m, strict=False)
+    e = _req_pos("entraxe_rainures_m", entraxe_rainures_m)
+
+    if position_premier_joint == "proche_tete":
+        x0 = et + mt + 0.5 * w
+    else:
+        x0 = H - mf - Lj + 0.5 * w
+
+    xs = [x0 + i * e for i in range(n)]
+
+    for xc in xs:
+        x_min = xc - 0.5 * w
+        x_max = xc + 0.5 * w
+        if x_min < 0.0 or x_max > H:
+            raise ValueError(
+                "Position de rainure hors hauteur totale du piston "
+                f"(xc={xc}, w={w}, H={H})."
+            )
+    return xs
+
+
+# =============================================================================
 # Piston
 # =============================================================================
 
 @dataclass
 class Piston:
-    # Liaison principale
     cylindre: Optional[Any] = None
 
-    # Matériaux
     materiau_piston_cle: Optional[str] = None
     materiau_cylindre_cle: Optional[str] = None
     mode_materiau: Literal["min", "typique", "max"] = "typique"
 
-    # Référence thermique
     temperature_ref_k: float = 293.15
 
-    # Conditions
     pression_max_pa: Optional[float] = None
     temperature_fonctionnement_k: Optional[float] = None
 
-    # Géométrie
     alesage_nominal_m: Optional[float] = None
     course_m: Optional[float] = None
     rpm: Optional[float] = None
 
-    # Ajustement
     fit_hole: Optional[str] = None
     fit_shaft: Optional[str] = None
 
-    # Tête
     k_sigma_plaque: Optional[float] = None
     contrainte_admissible_pa: Optional[float] = None
     facteur_securite: float = 2.0
     epaisseur_tete_m: Optional[float] = None
 
-    # Jupe
     effort_lateral_N: Optional[float] = None
     pression_palier_admissible_pa: Optional[float] = None
     longueur_jupe_m: Optional[float] = None
 
-    # Hauteur totale
     hauteur_totale_m: Optional[float] = None
 
-    # Joint torique sur Ø ext
     nb_joints: Optional[int] = None
     section_joint_mm: Optional[float] = None
     squeeze: Optional[float] = None
@@ -520,17 +575,14 @@ class Piston:
     longueur_portee_etanche_m: Optional[float] = None
     pression_aval_pa: Optional[float] = None
 
-    # Cinématique instantanée optionnelle
     masse_alternative_kg: Optional[float] = None
     longueur_bielle_m: Optional[float] = None
     angle_vilebrequin_deg: Optional[float] = None
 
-    # Usure optionnelle
     coefficient_usure_joint_k: Optional[float] = None
     durete_contact_joint_pa: Optional[float] = None
     duree_fonctionnement_s: Optional[float] = None
 
-    # Règles CAO / fabrication
     regles_fabrication: ReglesFabricationPiston = field(default_factory=ReglesFabricationPiston)
 
     def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
@@ -559,13 +611,14 @@ class Piston:
         # ---------------------------------------------------------------------
         cyl = _resoudre_depuis_cylindre(self.cylindre)
 
-        Dcyl = self.alesage_nominal_m if self.alesage_nominal_m is not None else cyl["diametre_interieur_nominal_m"] or cyl["alesage_m"]
+        Dcyl = self.alesage_nominal_m if self.alesage_nominal_m is not None else (cyl["diametre_interieur_nominal_m"] or cyl["alesage_m"])
         Pmax = self.pression_max_pa if self.pression_max_pa is not None else cyl["pression_max_pa"]
         Tfn = self.temperature_fonctionnement_k if self.temperature_fonctionnement_k is not None else cyl["temperature_fonctionnement_k"]
         course = self.course_m if self.course_m is not None else cyl["course_m"]
 
-        if self.materiau_cylindre_cle is None and cyl["materiau_cle"]:
-            self.materiau_cylindre_cle = str(cyl["materiau_cle"])
+        materiau_cylindre_cle_effectif = self.materiau_cylindre_cle
+        if materiau_cylindre_cle_effectif is None and cyl["materiau_cle"]:
+            materiau_cylindre_cle_effectif = str(cyl["materiau_cle"])
 
         rap["liaisons"]["cylindre"] = {
             "cylindre_fournit": self.cylindre is not None,
@@ -573,7 +626,7 @@ class Piston:
             "pression_max_pa": Pmax,
             "temperature_fonctionnement_k": Tfn,
             "course_m": course,
-            "materiau_cylindre_cle": self.materiau_cylindre_cle,
+            "materiau_cylindre_cle": materiau_cylindre_cle_effectif,
             "geo_cao_disponible": cyl["geo_cao"] is not None,
             "jeu_piston_cylindre_m": cyl["jeu_piston_cylindre_m"],
             "chanfrein_entree_piston_m": cyl["chanfrein_entree_piston_m"],
@@ -582,7 +635,6 @@ class Piston:
             "tolerance_alesage_m": cyl["tolerance_alesage_m"],
         }
 
-        # validations
         if Dcyl is None:
             _push_inc(rap, "impossibles", "alesage_nominal_m", "Requis ou déductible depuis un cylindre analysable.")
         else:
@@ -655,7 +707,6 @@ class Piston:
                 rap["jeux"]["jeu_radial_min_m"] = 0.5 * jeu_diam_min
                 rap["jeux"]["jeu_radial_max_m"] = 0.5 * jeu_diam_max
         else:
-            # si le cylindre fournit déjà un jeu nominal, on peut déduire un diamètre CAO nominal
             jeu_cyl = cyl["jeu_piston_cylindre_m"]
             if Dcyl is not None and _is_finite(jeu_cyl):
                 jeu_nom = _req_pos("jeu_piston_cylindre_m", jeu_cyl, strict=False)
@@ -675,7 +726,7 @@ class Piston:
         # 3) Matériaux piston / cylindre / joint
         # ---------------------------------------------------------------------
         props_p = _materiau_props(self.materiau_piston_cle, mode=self.mode_materiau)
-        props_c = _materiau_props(self.materiau_cylindre_cle, mode=self.mode_materiau)
+        props_c = _materiau_props(materiau_cylindre_cle_effectif, mode=self.mode_materiau)
         props_j = _materiau_props(self.materiau_joint_cle, mode=self.mode_materiau)
 
         rap["materiaux"]["piston"] = {
@@ -683,7 +734,7 @@ class Piston:
             **props_p,
         }
         rap["materiaux"]["cylindre"] = {
-            "materiau_cylindre_cle": self.materiau_cylindre_cle,
+            "materiau_cylindre_cle": materiau_cylindre_cle_effectif,
             **props_c,
         }
         rap["materiaux"]["joint"] = {
@@ -796,42 +847,70 @@ class Piston:
 
         if nbj is not None and nbj > 0:
             if self.section_joint_mm is None or self.squeeze is None or self.facteur_largeur_rainure is None:
-                _push_inc(rap, "impossibles", "rainures_joint", "Impossible sans section_joint_mm, squeeze et facteur_largeur_rainure.")
+                _push_inc(
+                    rap,
+                    "impossibles",
+                    "rainures_joint",
+                    "Impossible sans section_joint_mm, squeeze et facteur_largeur_rainure."
+                )
             elif D_piston_cao is None or Dcyl is None or jeu_radial_ref is None:
-                _push_inc(rap, "impossibles", "rainures_joint", "Impossible sans diamètre piston CAO, diamètre cylindre et jeu radial.")
+                _push_inc(
+                    rap,
+                    "impossibles",
+                    "rainures_joint",
+                    "Impossible sans diamètre piston CAO, diamètre cylindre et jeu radial."
+                )
             else:
                 d = _req_pos("section_joint_mm", self.section_joint_mm) * 1e-3
                 s = _req_pos("squeeze", self.squeeze, strict=False)
                 if not (0.0 < s < 1.0):
                     raise ValueError("squeeze doit être dans (0,1).")
+
                 fw = _req_pos("facteur_largeur_rainure", self.facteur_largeur_rainure)
                 c = _req_pos("jeu_radial_ref", jeu_radial_ref, strict=False)
 
                 pr = rainure_profondeur_radiale_m(d, s, c)
                 w = rainure_largeur_m(d, fw)
+
                 if pr <= 0.0:
-                    _push_inc(rap, "impossibles", "profondeur_rainure", "Profondeur <= 0 : couple section_joint/squeeze/jeu incohérent.")
+                    _push_inc(
+                        rap,
+                        "impossibles",
+                        "profondeur_rainure",
+                        "Profondeur <= 0 : couple section_joint/squeeze/jeu incohérent."
+                    )
                 else:
-                    D_fond = _req_pos("D_piston_cao", D_piston_cao) - 2.0 * pr
+                    D_pis = _req_pos("D_piston_cao", D_piston_cao)
+                    D_fond = D_pis - 2.0 * pr
+                    if D_fond <= 0.0:
+                        _push_inc(
+                            rap,
+                            "impossibles",
+                            "diametre_fond_rainure_m",
+                            "Diamètre fond de rainure <= 0."
+                        )
+
                     r_fond = _borne(
                         self.regles_fabrication.ratio_rayon_fond_rainure_sur_profondeur * pr,
                         self.regles_fabrication.rayon_fond_rainure_min_m,
                         self.regles_fabrication.rayon_fond_rainure_max_m,
                     )
+
                     bande_contact = self.largeur_bande_contact_joint_m
                     if bande_contact is None:
                         bande_contact = self.regles_fabrication.coefficient_largeur_bande_contact_joint * d
 
-                    # déduction hauteur mini si absente
+                    entraxe = max(
+                        self.regles_fabrication.entraxe_joints_min_m,
+                        self.regles_fabrication.entraxe_joints_multiple_largeur * w,
+                    )
+
                     H_min_geom = max(
-                        self.regles_fabrication.coefficient_hauteur_mini_sur_diametre * _req_pos("D_piston_cao", D_piston_cao),
+                        self.regles_fabrication.coefficient_hauteur_mini_sur_diametre * D_pis,
                         (ep_tete or 0.0)
                         + self.regles_fabrication.marge_tete_avant_premiere_rainure_m
                         + nbj * w
-                        + max(0, nbj - 1) * max(
-                            self.regles_fabrication.entraxe_joints_min_m,
-                            self.regles_fabrication.entraxe_joints_multiple_largeur * w,
-                        )
+                        + max(0, nbj - 1) * entraxe
                         + (L_jupe or 0.0)
                         + self.regles_fabrication.marge_fond_jupe_m,
                     )
@@ -839,94 +918,133 @@ class Piston:
                     H_tot = self.hauteur_totale_m
                     if H_tot is None:
                         H_tot = H_min_geom
-                        rap["notes_modele"].append("Hauteur totale piston déduite des règles explicites tête + rainures + jupe.")
+                        rap["notes_modele"].append(
+                            "Hauteur totale piston déduite des règles explicites tête + rainures + jupe."
+                        )
                     H_tot = _req_pos("hauteur_totale_m", H_tot)
                     rap["dimensions"]["hauteur_totale_m"] = H_tot
                     rap["dimensions"]["hauteur_totale_min_geometrique_m"] = H_min_geom
 
-                    # si L_jupe absente, on la déduit de H_tot après tête et rainures
                     if L_jupe is None:
-                        entraxe = max(
-                            self.regles_fabrication.entraxe_joints_min_m,
-                            self.regles_fabrication.entraxe_joints_multiple_largeur * w,
-                        )
                         zone_rainures = nbj * w + max(0, nbj - 1) * entraxe
-                        L_jupe_calc = H_tot - (ep_tete or 0.0) - self.regles_fabrication.marge_tete_avant_premiere_rainure_m - zone_rainures - self.regles_fabrication.marge_fond_jupe_m
+                        L_jupe_calc = (
+                            H_tot
+                            - (ep_tete or 0.0)
+                            - self.regles_fabrication.marge_tete_avant_premiere_rainure_m
+                            - zone_rainures
+                            - self.regles_fabrication.marge_fond_jupe_m
+                        )
                         if L_jupe_calc > 0.0:
                             L_jupe = L_jupe_calc
                             rap["dimensions"]["longueur_jupe_calculee_depuis_hauteur_m"] = L_jupe
                         else:
-                            _push_inc(rap, "impossibles", "longueur_jupe_calculee", "Hauteur totale insuffisante pour loger tête + rainures.")
+                            _push_inc(
+                                rap,
+                                "impossibles",
+                                "longueur_jupe_calculee",
+                                "Hauteur totale insuffisante pour loger tête + rainures."
+                            )
 
-                    # positions axiales
-                    entraxe = max(
-                        self.regles_fabrication.entraxe_joints_min_m,
-                        self.regles_fabrication.entraxe_joints_multiple_largeur * w,
-                    )
-
-                    if self.regles_fabrication.position_premier_joint == "proche_tete":
-                        x0 = (ep_tete or 0.0) + self.regles_fabrication.marge_tete_avant_premiere_rainure_m + 0.5 * w
+                    if L_jupe is None:
+                        _push_inc(
+                            rap,
+                            "impossibles",
+                            "positions_rainures",
+                            "Impossible de positionner correctement les rainures sans longueur_jupe."
+                        )
                     else:
-                        if L_jupe is None:
-                            x0 = (ep_tete or 0.0) + self.regles_fabrication.marge_tete_avant_premiere_rainure_m + 0.5 * w
-                        else:
-                            x0 = H_tot - self.regles_fabrication.marge_fond_jupe_m - L_jupe + 0.5 * w
+                        positions_centres = _calcul_positions_rainures_piston(
+                            hauteur_totale_m=H_tot,
+                            epaisseur_tete_m=(ep_tete or 0.0),
+                            longueur_jupe_m=L_jupe,
+                            nb_joints=nbj,
+                            largeur_rainure_m=w,
+                            marge_tete_avant_premiere_rainure_m=self.regles_fabrication.marge_tete_avant_premiere_rainure_m,
+                            marge_fond_jupe_m=self.regles_fabrication.marge_fond_jupe_m,
+                            entraxe_rainures_m=entraxe,
+                            position_premier_joint=self.regles_fabrication.position_premier_joint,
+                        )
 
-                    for i in range(nbj):
-                        x_c = x0 + i * entraxe
-                        rainure_i = {
-                            "index": i + 1,
-                            "position_centre_depuis_face_tete_m": x_c,
-                            "largeur_m": w,
-                            "profondeur_radiale_m": pr,
-                            "diametre_fond_rainure_m": D_fond,
-                            "rayon_fond_rainure_m": r_fond,
-                            "diametre_zone_hors_rainure_m": D_piston_cao,
-                            "section_joint_m": d,
-                            "squeeze": s,
-                            "jeu_radial_ref_m": c,
-                            "largeur_bande_contact_joint_m": bande_contact,
-                            "volume_gorge_m3": volume_gorge_annulaire_m3(D_fond, w, pr),
+                        h_dispo = 0.5 * (Dcyl - D_fond)
+                        squeeze_reconstruit = ((d - h_dispo) / d) if d > 0.0 else None
+                        D_moy_monte = D_fond + d
+                        D_montage = D_fond
+
+                        for i, x_c in enumerate(positions_centres):
+                            x_min = x_c - 0.5 * w
+                            x_max = x_c + 0.5 * w
+
+                            rainure_i = {
+                                "index": i + 1,
+                                "orientation": "gorge_externe_sur_piston",
+                                "position_centre_depuis_face_tete_m": x_c,
+                                "position_debut_depuis_face_tete_m": x_min,
+                                "position_fin_depuis_face_tete_m": x_max,
+                                "largeur_m": w,
+                                "profondeur_radiale_m": pr,
+                                "diametre_fond_rainure_m": D_fond,
+                                "rayon_fond_rainure_m": r_fond,
+                                "diametre_zone_hors_rainure_m": D_pis,
+                                "diametre_interieur_cylindre_m": Dcyl,
+                                "hauteur_radiale_disponible_m": h_dispo,
+                                "section_joint_m": d,
+                                "squeeze_cible": s,
+                                "squeeze_reconstruit": squeeze_reconstruit,
+                                "jeu_radial_ref_m": c,
+                                "diametre_montage_joint_m": D_montage,
+                                "diametre_moyen_joint_monte_m": D_moy_monte,
+                                "largeur_bande_contact_joint_m": bande_contact,
+                                "volume_gorge_m3": volume_gorge_annulaire_m3(D_fond, w, pr),
+                            }
+                            rainures.append(rainure_i)
+
+                        rap["joints"]["nb_joints"] = nbj
+                        rap["joints"]["section_joint_m"] = d
+                        rap["joints"]["squeeze"] = s
+                        rap["joints"]["facteur_largeur_rainure"] = fw
+                        rap["joints"]["jeu_radial_ref_m"] = c
+                        rap["joints"]["profondeur_radiale_rainure_m"] = pr
+                        rap["joints"]["largeur_rainure_m"] = w
+                        rap["joints"]["diametre_piston_zone_hors_rainure_m"] = D_pis
+                        rap["joints"]["diametre_fond_rainure_m"] = D_fond
+                        rap["joints"]["rayon_fond_rainure_m"] = r_fond
+                        rap["joints"]["diametre_interieur_cylindre_m"] = Dcyl
+                        rap["joints"]["hauteur_radiale_disponible_m"] = h_dispo
+                        rap["joints"]["diametre_montage_joint_m"] = D_montage
+                        rap["joints"]["diametre_moyen_joint_monte_m"] = D_moy_monte
+                        rap["joints"]["entraxe_rainures_m"] = entraxe
+                        rap["joints"]["positions_centres_depuis_face_tete_m"] = positions_centres
+                        rap["joints"]["rainures"] = rainures
+                        rap["joints"]["volume_gorge_unitaire_m3"] = volume_gorge_annulaire_m3(D_fond, w, pr)
+                        rap["joints"]["volume_gorges_total_m3"] = rap["joints"]["volume_gorge_unitaire_m3"] * nbj
+
+                        rap["joints"]["verif"] = {
+                            "profondeur_radiale_positive": (pr > 0.0),
+                            "diametre_fond_rainure_positif": (D_fond > 0.0),
+                            "squeeze_reconstruit": squeeze_reconstruit,
+                            "rainures_dans_hauteur": all(
+                                (ri["position_debut_depuis_face_tete_m"] >= 0.0) and
+                                (ri["position_fin_depuis_face_tete_m"] <= H_tot)
+                                for ri in rainures
+                            ),
+                            "hauteur_radiale_disponible_positive": (h_dispo > 0.0),
                         }
-                        rainures.append(rainure_i)
 
-                    rap["joints"]["nb_joints"] = nbj
-                    rap["joints"]["section_joint_m"] = d
-                    rap["joints"]["squeeze"] = s
-                    rap["joints"]["facteur_largeur_rainure"] = fw
-                    rap["joints"]["jeu_radial_ref_m"] = c
-                    rap["joints"]["profondeur_radiale_rainure_m"] = pr
-                    rap["joints"]["largeur_rainure_m"] = w
-                    rap["joints"]["diametre_piston_zone_hors_rainure_m"] = D_piston_cao
-                    rap["joints"]["diametre_fond_rainure_m"] = D_fond
-                    rap["joints"]["rayon_fond_rainure_m"] = r_fond
-                    rap["joints"]["entraxe_rainures_m"] = entraxe
-                    rap["joints"]["rainures"] = rainures
-                    rap["joints"]["volume_gorge_unitaire_m3"] = volume_gorge_annulaire_m3(D_fond, w, pr)
-                    rap["joints"]["volume_gorges_total_m3"] = rap["joints"]["volume_gorge_unitaire_m3"] * nbj
-
-                    rap["joints"]["verif"] = {
-                        "profondeur_radiale_positive": (pr > 0.0),
-                        "diametre_fond_rainure_positif": (D_fond > 0.0),
-                        "squeeze_reconstruit": ((d - pr - c) / d) if d > 0 else None,
-                        "rainures_dans_hauteur": all(
-                            (ri["position_centre_depuis_face_tete_m"] - 0.5 * w) >= 0.0 and
-                            (ri["position_centre_depuis_face_tete_m"] + 0.5 * w) <= H_tot
-                            for ri in rainures
-                        ),
-                    }
-
-                    # pression de contact simplifiée
-                    Eel = self.module_elastomere_pa if self.module_elastomere_pa is not None else props_j.get("module_elastomere_pa")
-                    if Eel is not None:
-                        Eel = _req_pos("module_elastomere_pa", Eel)
-                        p_contact = Eel * s
-                        rap["joints"]["module_elastomere_pa"] = Eel
-                        rap["joints"]["pression_contact_estimee_pa"] = p_contact
-                        if Pmax is not None:
-                            rap["joints"]["etancheite_contact_ok_si_p_contact_sup_pmax"] = (p_contact > float(Pmax))
-                    else:
-                        _push_inc(rap, "partielles", "pression_contact_joint", "Estimable si module_elastomere_pa ou matériau joint avec module.")
+                        Eel = self.module_elastomere_pa if self.module_elastomere_pa is not None else props_j.get("module_elastomere_pa")
+                        if Eel is not None:
+                            Eel = _req_pos("module_elastomere_pa", Eel)
+                            p_contact = Eel * s
+                            rap["joints"]["module_elastomere_pa"] = Eel
+                            rap["joints"]["pression_contact_estimee_pa"] = p_contact
+                            if Pmax is not None:
+                                rap["joints"]["etancheite_contact_ok_si_p_contact_sup_pmax"] = (p_contact > float(Pmax))
+                        else:
+                            _push_inc(
+                                rap,
+                                "partielles",
+                                "pression_contact_joint",
+                                "Estimable si module_elastomere_pa ou matériau joint avec module."
+                            )
 
         elif nbj == 0:
             rap["notes_modele"].append("nb_joints=0 : aucune rainure de joint torique.")
@@ -1021,6 +1139,7 @@ class Piston:
             bande = self.largeur_bande_contact_joint_m
             if bande is None and rainures:
                 bande = float(rainures[0]["largeur_bande_contact_joint_m"])
+
             if bande is None:
                 _push_inc(rap, "partielles", "frottement_joint", "Largeur bande contact manquante.")
             else:
@@ -1057,15 +1176,14 @@ class Piston:
                 else:
                     _push_inc(rap, "partielles", "PV_joint", "Calculable si course_m et rpm sont connus.")
 
-                # usure Archard
                 if (
                     self.coefficient_usure_joint_k is not None and
                     self.durete_contact_joint_pa is not None and
                     course is not None and self.rpm is not None and
                     self.duree_fonctionnement_s is not None
                 ):
-                    v_moy = float(calcul_vitesse_moyenne_piston(float(course), float(self.rpm)))
-                    distance = v_moy * _req_pos("duree_fonctionnement_s", self.duree_fonctionnement_s, strict=False)
+                    v_moy_usure = float(calcul_vitesse_moyenne_piston(float(course), float(self.rpm)))
+                    distance = v_moy_usure * _req_pos("duree_fonctionnement_s", self.duree_fonctionnement_s, strict=False)
                     Vw = calcul_volume_usure_archard(
                         coefficient_usure_k=self.coefficient_usure_joint_k,
                         charge_normale_w=F_normal_tot,
@@ -1080,7 +1198,6 @@ class Piston:
                         "volume_use_m3": Vw,
                         "perte_epaisseur_m": dh,
                     }
-
         else:
             _push_inc(rap, "partielles", "frottements_joints", "Calculables si p_contact joint, mu, diamètre piston et nb_joints sont connus.")
 
@@ -1138,6 +1255,7 @@ class Piston:
         # ---------------------------------------------------------------------
         if D_piston_cao is not None:
             jeu_ref = rap["jeux"].get("jeu_radial_min_m", rap["jeux"].get("jeu_radial_nominal_m", 0.0))
+
             chanfrein = cyl["chanfrein_entree_piston_m"]
             if not _is_finite(chanfrein):
                 chanfrein = _borne(
@@ -1180,6 +1298,19 @@ class Piston:
                 "tolerance_position_rainure_m": self.regles_fabrication.tolerance_position_rainure_m,
                 "tolerance_largeur_rainure_m": self.regles_fabrication.tolerance_largeur_rainure_m,
                 "tolerance_profondeur_rainure_m": self.regles_fabrication.tolerance_profondeur_rainure_m,
+                "joints": {
+                    "nb_joints": rap["joints"].get("nb_joints"),
+                    "section_joint_m": rap["joints"].get("section_joint_m"),
+                    "squeeze": rap["joints"].get("squeeze"),
+                    "diametre_fond_rainure_m": rap["joints"].get("diametre_fond_rainure_m"),
+                    "largeur_rainure_m": rap["joints"].get("largeur_rainure_m"),
+                    "profondeur_radiale_rainure_m": rap["joints"].get("profondeur_radiale_rainure_m"),
+                    "diametre_montage_joint_m": rap["joints"].get("diametre_montage_joint_m"),
+                    "diametre_moyen_joint_monte_m": rap["joints"].get("diametre_moyen_joint_monte_m"),
+                    "hauteur_radiale_disponible_m": rap["joints"].get("hauteur_radiale_disponible_m"),
+                    "positions_centres_depuis_face_tete_m": rap["joints"].get("positions_centres_depuis_face_tete_m"),
+                    "rainures": rainures,
+                },
                 "rainures": rainures,
             }
 
@@ -1247,10 +1378,8 @@ if __name__ == "__main__":
         temperature_fonctionnement_k=350.0,
         course_m=0.060,
         rpm=1200.0,
-
         materiau_piston_cle="alu_7075_t6",
         materiau_cylindre_cle="acier_42crmo4_qt",
-
         nb_joints=2,
         section_joint_mm=3.0,
         squeeze=0.20,
@@ -1258,7 +1387,6 @@ if __name__ == "__main__":
         materiau_joint_cle="nbr_70",
         coeff_frottement_joint=0.15,
         PV_admissible_pa_ms=2.0e6,
-
         longueur_portee_etanche_m=0.010,
         pression_aval_pa=1e5,
     )
