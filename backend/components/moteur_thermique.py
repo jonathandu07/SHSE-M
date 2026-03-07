@@ -14,25 +14,25 @@ try:
     from backend.modules.moteur_thermique.calcul_cylindree import (
         calcul_cylindree_unitaire,
         calcul_cylindree_totale,
+        calcul_epaisseur_cylindre_mince,
+        calcul_epaisseur_cylindre_lame,
     )
     from backend.modules.moteur_thermique.calcul_travail_indique import (
         calcul_travail_indique_pme,
         calcul_puissance_indiquee,
     )
-    from backend.modules.moteur_thermique.calcul_gaz import calcul_force_gaz
-    from backend.modules.moteur_thermique.calcul_force_inertie import calcul_force_inertie_alternative
-    from backend.modules.moteur_thermique.calcul_couple_vilebrequin import calcul_couple_instantane
-    from backend.modules.moteur_thermique.calcul_cylindree import (
-        calcul_epaisseur_cylindre_mince,
-        calcul_epaisseur_cylindre_lame,
-    )
     from backend.modules.moteur_thermique.calcul_gaz import (
+        calcul_force_gaz,
         calcul_pression_gaz_parfait,
         calcul_temperature_compression_adiabatique,
-    )
-    from backend.modules.moteur_thermique.calcul_gaz import (
         calcul_debit_fuite_annulaire,
         calcul_masse_fuite,
+    )
+    from backend.modules.moteur_thermique.calcul_force_inertie import (
+        calcul_force_inertie_alternative,
+    )
+    from backend.modules.moteur_thermique.calcul_couple_vilebrequin import (
+        calcul_couple_instantane,
     )
     from backend.modules.moteur_thermique.calcul_pertes_frottement import (
         calcul_puissance_frottement_segment,
@@ -43,35 +43,36 @@ try:
         calcul_precharge_vis_totale,
         calcul_couple_serrage,
     )
-    from backend.modules.moteur_thermique.calcul_vitesse_piston import calcul_vitesse_moyenne_piston
+    from backend.modules.moteur_thermique.calcul_vitesse_piston import (
+        calcul_vitesse_moyenne_piston,
+    )
     from backend.modules.moteur_thermique.calcul_usure_archard import (
         calcul_volume_usure_archard,
         calcul_perte_epaisseur,
     )
 except Exception:
-    # Si ton projet a une autre structure de packages, adapte uniquement ces imports.
     from backend.modules.moteur_thermique.calcul_cylindree import (
         calcul_cylindree_unitaire,
         calcul_cylindree_totale,
+        calcul_epaisseur_cylindre_mince,
+        calcul_epaisseur_cylindre_lame,
     )
     from backend.modules.moteur_thermique.calcul_travail_indique import (
         calcul_travail_indique_pme,
         calcul_puissance_indiquee,
     )
-    from backend.modules.moteur_thermique.calcul_gaz import calcul_force_gaz
-    from backend.modules.moteur_thermique.calcul_force_inertie import calcul_force_inertie_alternative
-    from backend.modules.moteur_thermique.calcul_couple_vilebrequin import calcul_couple_instantane
-    from backend.modules.moteur_thermique.calcul_cylindree import (
-        calcul_epaisseur_cylindre_mince,
-        calcul_epaisseur_cylindre_lame,
-    )
     from backend.modules.moteur_thermique.calcul_gaz import (
+        calcul_force_gaz,
         calcul_pression_gaz_parfait,
         calcul_temperature_compression_adiabatique,
-    )
-    from backend.modules.moteur_thermique.calcul_gaz import (
         calcul_debit_fuite_annulaire,
         calcul_masse_fuite,
+    )
+    from backend.modules.moteur_thermique.calcul_force_inertie import (
+        calcul_force_inertie_alternative,
+    )
+    from backend.modules.moteur_thermique.calcul_couple_vilebrequin import (
+        calcul_couple_instantane,
     )
     from backend.modules.moteur_thermique.calcul_pertes_frottement import (
         calcul_puissance_frottement_segment,
@@ -82,7 +83,9 @@ except Exception:
         calcul_precharge_vis_totale,
         calcul_couple_serrage,
     )
-    from backend.modules.moteur_thermique.calcul_vitesse_piston import calcul_vitesse_moyenne_piston
+    from backend.modules.moteur_thermique.calcul_vitesse_piston import (
+        calcul_vitesse_moyenne_piston,
+    )
     from backend.modules.moteur_thermique.calcul_usure_archard import (
         calcul_volume_usure_archard,
         calcul_perte_epaisseur,
@@ -91,17 +94,20 @@ except Exception:
 
 # ============================================================
 # Imports des modules "architecture" (pour DÉFINIR le moteur)
-# (si absents dans ton repo, le dimensionnement global restera "inconnu")
 # ============================================================
 
 _ARCHI_OK = True
 try:
-    from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise
+    from backend.modules.architecture.calcul_cylindree_totale import (
+        calcul_cylindree_totale_requise,
+    )
     from backend.modules.architecture.calcul_cylindree_admissible import (
         calcul_bore_max_admissible,
         calcul_cylindree_unit_max,
     )
-    from backend.modules.architecture.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min
+    from backend.modules.architecture.calcul_nombre_cylindres_min import (
+        calcul_nombre_cylindres_min,
+    )
     from backend.modules.architecture.choix_architecture_optimale import (
         choix_architecture_optimale,
         evaluer_architecture,
@@ -116,6 +122,7 @@ except Exception:
 
 TempsMoteur = Literal[2, 4]
 TypePuissance = Literal["indiquee", "frein"]
+ArchitectureType = Literal["L", "V", "W", "Etoile"]
 
 
 def _is_finite(x: Any) -> bool:
@@ -159,8 +166,6 @@ def _omega_from_rpm(rpm: float) -> float:
 
 
 def _cycles_par_seconde(rpm: float, temps_moteur: int) -> float:
-    # 2T : 1 cycle / tour => n/60
-    # 4T : 1 cycle / 2 tours => (n/60)/2
     cps = rpm / 60.0
     if temps_moteur == 4:
         cps /= 2.0
@@ -168,10 +173,6 @@ def _cycles_par_seconde(rpm: float, temps_moteur: int) -> float:
 
 
 def _rpm_from_power_torque(power_w: float, torque_nm: float) -> float:
-    """
-    n = (P / T) * (60 / 2π)
-    (pur calcul physique, aucune hypothèse moteur)
-    """
     P = _require_finite("power_w", power_w)
     T = _require_finite("torque_nm", torque_nm)
     if T == 0.0:
@@ -206,13 +207,6 @@ def _archard_depuis_vitesse(
     H_pa: Optional[float],
     aire_contact_m2: Optional[float],
 ) -> Dict[str, Optional[float]]:
-    """
-    Donne :
-    - dV/dt (m³/s) estimé
-    - dh/dt (m/s) si aire connue
-
-    On force l'utilisation des fonctions du module Archard via une distance sur 1 seconde.
-    """
     out: Dict[str, Optional[float]] = {
         "dV_dt_m3_s": None,
         "dh_dt_m_s": None,
@@ -240,17 +234,144 @@ def _archard_depuis_vitesse(
 
 
 def _bore_stroke_from_Vd_ratio(Vd_m3: float, ratio_course_alesage: float) -> Tuple[float, float]:
-    """
-    Résolution exacte :
-        Vd = (π/4)*B²*S  et  r = S/B
-        => Vd = (π/4)*B³*r
-        => B = (4*Vd/(π*r))^(1/3),  S = r*B
-    """
     Vd = _require_positive("Vd_m3", Vd_m3, strictly=True)
     r = _require_positive("ratio_course_alesage", ratio_course_alesage, strictly=True)
     B = (4.0 * Vd / (math.pi * r)) ** (1.0 / 3.0)
     S = r * B
     return float(B), float(S)
+
+
+def _safe_div(a: Optional[float], b: Optional[float]) -> Optional[float]:
+    if a is None or b is None:
+        return None
+    if not _is_finite(a) or not _is_finite(b):
+        return None
+    if float(b) == 0.0:
+        return None
+    return float(a) / float(b)
+
+
+def _clamp01(x: Optional[float]) -> Optional[float]:
+    if x is None:
+        return None
+    return max(0.0, min(1.0, float(x)))
+
+
+def _facteur_complexite_architecture(architecture: Optional[str]) -> Optional[float]:
+    if architecture is None:
+        return None
+    a = str(architecture)
+    mapping = {
+        "L": 1.00,
+        "V": 1.10,
+        "W": 1.25,
+        "Etoile": 1.35,
+    }
+    return mapping.get(a)
+
+
+def _estimer_indice_maintenance(
+    *,
+    nombre_cylindres: Optional[int],
+    architecture: Optional[str],
+) -> Optional[float]:
+    """
+    Proxy déterministe et EXPLICITE :
+    - plus il y a de cylindres, plus l'entretien est lourd ;
+    - certaines architectures sont plus complexes d'accès/assemblage.
+
+    Cet indice n'est PAS une vérité industrielle universelle.
+    Il sert uniquement d'indice de complexité de maintenance relatif.
+    Plus l'indice est faible, mieux c'est.
+    """
+    if nombre_cylindres is None or nombre_cylindres <= 0:
+        return None
+    f_arch = _facteur_complexite_architecture(architecture)
+    if f_arch is None:
+        return None
+    return float(nombre_cylindres) * f_arch
+
+
+def _estimer_masse_cylindres(
+    *,
+    alesage_m: Optional[float],
+    course_m: Optional[float],
+    nombre_cylindres: Optional[int],
+    epaisseur_paroi_m: Optional[float],
+    densite_materiau_kg_m3: Optional[float],
+    facteur_longueur_masse: float = 1.15,
+) -> Dict[str, Optional[float]]:
+    """
+    Estimation volontairement bornée et expliquée :
+    - masse de virole de cylindre seule,
+    - longueur prise = course * facteur_longueur_masse,
+    - n'inclut pas culasse, carter, ailettes, renforts, goujons, paliers, vilebrequin.
+
+    Le but est d'obtenir une estimation de matière minimale pour arbitrage.
+    """
+    out = {
+        "volume_matiere_total_m3": None,
+        "masse_estimee_kg": None,
+        "notes": None,
+    }
+    if (
+        alesage_m is None
+        or course_m is None
+        or nombre_cylindres is None
+        or epaisseur_paroi_m is None
+        or densite_materiau_kg_m3 is None
+    ):
+        return out
+    if alesage_m <= 0.0 or course_m <= 0.0 or nombre_cylindres <= 0 or epaisseur_paroi_m < 0.0 or densite_materiau_kg_m3 < 0.0:
+        return out
+
+    ri = 0.5 * alesage_m
+    re = ri + epaisseur_paroi_m
+    longueur = course_m * facteur_longueur_masse
+
+    volume_unitaire = math.pi * (re * re - ri * ri) * longueur
+    volume_total = volume_unitaire * float(nombre_cylindres)
+    masse = volume_total * densite_materiau_kg_m3
+
+    out["volume_matiere_total_m3"] = float(volume_total)
+    out["masse_estimee_kg"] = float(masse)
+    out["notes"] = (
+        "Estimation de masse limitée aux viroles de cylindres. "
+        "Ne comprend ni culasse, ni carter, ni vilebrequin, ni bielles, ni fixations."
+    )
+    return out
+
+
+def _estimer_cout_matiere(
+    *,
+    masse_kg: Optional[float],
+    cout_matiere_eur_kg: Optional[float],
+) -> Optional[float]:
+    if masse_kg is None or cout_matiere_eur_kg is None:
+        return None
+    if masse_kg < 0.0 or cout_matiere_eur_kg < 0.0:
+        return None
+    return float(masse_kg) * float(cout_matiere_eur_kg)
+
+
+def _booleen_contrainte_max(
+    *,
+    valeur: Optional[float],
+    limite_max: Optional[float],
+) -> Optional[bool]:
+    if valeur is None or limite_max is None:
+        return None
+    return float(valeur) <= float(limite_max)
+
+
+def _booleen_contrainte_min(
+    *,
+    valeur: Optional[float],
+    limite_min: Optional[float],
+) -> Optional[bool]:
+    if valeur is None or limite_min is None:
+        return None
+    return float(valeur) >= float(limite_min)
 
 
 # ============================================================
@@ -263,32 +384,56 @@ class MoteurThermique:
     - analyser_point_de_fonctionnement(): calcule un point (forces, couple, pertes, usure, etc.)
     - definir_depuis_exigences(): définit un moteur (B, S, N, archi) UNIQUEMENT si calculable.
       Si une info manque, elle est listée comme inconnue et AUCUNE valeur n'est inventée.
+
+    Ajout important :
+    - le moteur peut désormais être défini aussi par des critères de conception explicites :
+      fiabilité / rendement / masse / maintenance / coût.
+    - lorsque ces critères ne sont pas entièrement calculables, le rapport le dit explicitement.
     """
 
     # --- Géométrie de base ---
     alesage_m: Optional[float] = None
     course_m: Optional[float] = None
     nombre_cylindres: int = 1
-    temps_moteur: TempsMoteur = 4  # 2 ou 4 (si tu veux éviter tout défaut, passe-le explicitement)
+    temps_moteur: TempsMoteur = 4
+    architecture: Optional[str] = None
+
+    # --- Point nominal / définition ---
+    rpm_nominal: Optional[float] = None
+    pme_nominale_pa: Optional[float] = None
+    puissance_nominale_visee_w: Optional[float] = None
+    type_puissance_nominale: Optional[TypePuissance] = None
+    rendement_mecanique_nominal: Optional[float] = None
+    pression_max_pa: Optional[float] = None
 
     # --- Cinématique bielle-manivelle (pour inertie) ---
     longueur_bielle_m: Optional[float] = None
-    rayon_manivelle_m: Optional[float] = None  # si None, approx = course/2 (partiel)
-    masse_alternative_kg: Optional[float] = None  # piston + axe + part de bielle
+    rayon_manivelle_m: Optional[float] = None
+    masse_alternative_kg: Optional[float] = None
 
-    # --- Dimensionnement cylindre (pression/contrainte admissible) ---
+    # --- Dimensionnement cylindre / matériau ---
     contrainte_admissible_pa: Optional[float] = None
     facteur_securite_cylindre: float = 1.5
+    densite_materiau_kg_m3: Optional[float] = None
+    cout_matiere_eur_kg: Optional[float] = None
 
-    # --- Fuite (si tu veux estimer leakage) ---
+    # --- Critères de projet / cahier des charges ---
+    rendement_indique_cible_min: Optional[float] = None
+    rendement_mecanique_cible_min: Optional[float] = None
+    masse_estimee_max_kg: Optional[float] = None
+    cout_matiere_max_eur: Optional[float] = None
+    indice_maintenance_max: Optional[float] = None
+    duree_vie_cible_h: Optional[float] = None
+
+    # --- Fuite ---
     viscosite_pa_s: Optional[float] = None
     densite_kg_m3: Optional[float] = None
 
-    # --- Frottements (modèle Coulomb simplifié) ---
+    # --- Frottements ---
     coef_frottement_segment: Optional[float] = None
     coef_frottement_palier: Optional[float] = None
 
-    # --- Usure Archard (coeffs tribologie) ---
+    # --- Usure Archard ---
     coefficient_usure_segment_k: Optional[float] = None
     durete_contact_segment_pa: Optional[float] = None
     aire_contact_segment_m2: Optional[float] = None
@@ -299,7 +444,7 @@ class MoteurThermique:
 
     # --- Précharge vis (couvercle) ---
     facteur_securite_vis: float = 1.5
-    facteur_frottement_vis_k: float = 0.2  # modèle K (si tu ne veux rien "par défaut", passe-le explicitement)
+    facteur_frottement_vis_k: float = 0.2
 
     clamp_non_negative: bool = True
 
@@ -325,26 +470,43 @@ class MoteurThermique:
         vitesse_piston_max_ms: Optional[float] = None,
         ratio_course_alesage_max: Optional[float] = None,
 
-        # Si tu veux une géométrie unique (sinon on ne peut pas choisir B,S)
+        # Si tu veux une géométrie unique
         ratio_course_alesage_cible: Optional[float] = None,
 
-        # Packaging (si tu veux choisir L/V/W/Étoile par calcul)
+        # Packaging / architecture
         L_max_m: Optional[float] = None,
         W_max_m: Optional[float] = None,
         architectures_autorisees: Optional[Tuple[str, ...]] = None,
         architecture_forcee: Optional[str] = None,
+
+        # Critères de fiabilité / efficience / masse / coût / maintenance
+        pression_max_pa: Optional[float] = None,
+        contrainte_admissible_pa: Optional[float] = None,
+        facteur_securite_cylindre: float = 1.5,
+        densite_materiau_kg_m3: Optional[float] = None,
+        cout_matiere_eur_kg: Optional[float] = None,
+        rendement_indique_cible_min: Optional[float] = None,
+        rendement_mecanique_cible_min: Optional[float] = None,
+        masse_estimee_max_kg: Optional[float] = None,
+        cout_matiere_max_eur: Optional[float] = None,
+        indice_maintenance_max: Optional[float] = None,
+        duree_vie_cible_h: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Retourne un rapport complet :
         - moteur_defini: instance cls(...) si et seulement si B,S,N sont calculables
-        - sinon: moteur_defini = None + liste d'inconnues (impossibles/partielles)
+        - sinon: moteur_defini = None + liste d'inconnues
 
         Aucune valeur n'est supposée si non fournie.
+        Les critères de conception sont portés ici et vérifiés quand ils sont calculables.
         """
         rapport: Dict[str, Any] = {
             "entrees": {},
             "dimensionnement": {},
             "architecture": {},
+            "criteres_conception": {},
+            "evaluation_conception": {},
+            "estimations": {},
             "moteur_defini": None,
             "inconnues": {"impossibles": [], "partielles": []},
             "notes_modele": [],
@@ -365,7 +527,47 @@ class MoteurThermique:
                 "W_max_m": W_max_m,
                 "architectures_autorisees": architectures_autorisees,
                 "architecture_forcee": architecture_forcee,
+                "pression_max_pa": pression_max_pa,
+                "contrainte_admissible_pa": contrainte_admissible_pa,
+                "facteur_securite_cylindre": facteur_securite_cylindre,
+                "densite_materiau_kg_m3": densite_materiau_kg_m3,
+                "cout_matiere_eur_kg": cout_matiere_eur_kg,
+                "rendement_indique_cible_min": rendement_indique_cible_min,
+                "rendement_mecanique_cible_min": rendement_mecanique_cible_min,
+                "masse_estimee_max_kg": masse_estimee_max_kg,
+                "cout_matiere_max_eur": cout_matiere_max_eur,
+                "indice_maintenance_max": indice_maintenance_max,
+                "duree_vie_cible_h": duree_vie_cible_h,
                 "modules_architecture_disponibles": _ARCHI_OK,
+            }
+        )
+
+        rapport["criteres_conception"].update(
+            {
+                "objectif_fiabilite": {
+                    "pression_max_pa": pression_max_pa,
+                    "contrainte_admissible_pa": contrainte_admissible_pa,
+                    "facteur_securite_cylindre": facteur_securite_cylindre,
+                    "vitesse_piston_max_ms": vitesse_piston_max_ms,
+                    "duree_vie_cible_h": duree_vie_cible_h,
+                },
+                "objectif_efficience": {
+                    "type_puissance": type_puissance,
+                    "rendement_mecanique_entree": rendement_mecanique,
+                    "rendement_indique_cible_min": rendement_indique_cible_min,
+                    "rendement_mecanique_cible_min": rendement_mecanique_cible_min,
+                },
+                "objectif_masse": {
+                    "densite_materiau_kg_m3": densite_materiau_kg_m3,
+                    "masse_estimee_max_kg": masse_estimee_max_kg,
+                },
+                "objectif_cout": {
+                    "cout_matiere_eur_kg": cout_matiere_eur_kg,
+                    "cout_matiere_max_eur": cout_matiere_max_eur,
+                },
+                "objectif_maintenance": {
+                    "indice_maintenance_max": indice_maintenance_max,
+                },
             }
         )
 
@@ -379,7 +581,7 @@ class MoteurThermique:
             _dedup_inconnues(rapport)
             return rapport
 
-        # --- validations minimales (sans inventer) ---
+        # --- validations minimales ---
         if puissance_visee_w is None:
             _push_inconnue(rapport, "impossibles", "puissance_visee_w", "Obligatoire pour dimensionner la cylindrée requise.")
         if rpm is None:
@@ -395,7 +597,32 @@ class MoteurThermique:
             _dedup_inconnues(rapport)
             return rapport
 
-        # --- conversion puissance frein -> indiquée (si demandé) ---
+        # --- validations des objectifs si fournis ---
+        if rendement_mecanique is not None:
+            _require_between_0_1("rendement_mecanique", rendement_mecanique, allow_1=True)
+        if rendement_indique_cible_min is not None:
+            _require_between_0_1("rendement_indique_cible_min", rendement_indique_cible_min, allow_1=True)
+        if rendement_mecanique_cible_min is not None:
+            _require_between_0_1("rendement_mecanique_cible_min", rendement_mecanique_cible_min, allow_1=True)
+        if densite_materiau_kg_m3 is not None:
+            _require_positive("densite_materiau_kg_m3", densite_materiau_kg_m3, strictly=False)
+        if cout_matiere_eur_kg is not None:
+            _require_positive("cout_matiere_eur_kg", cout_matiere_eur_kg, strictly=False)
+        if masse_estimee_max_kg is not None:
+            _require_positive("masse_estimee_max_kg", masse_estimee_max_kg, strictly=False)
+        if cout_matiere_max_eur is not None:
+            _require_positive("cout_matiere_max_eur", cout_matiere_max_eur, strictly=False)
+        if indice_maintenance_max is not None:
+            _require_positive("indice_maintenance_max", indice_maintenance_max, strictly=False)
+        if duree_vie_cible_h is not None:
+            _require_positive("duree_vie_cible_h", duree_vie_cible_h, strictly=False)
+        if contrainte_admissible_pa is not None:
+            _require_positive("contrainte_admissible_pa", contrainte_admissible_pa, strictly=True)
+        if pression_max_pa is not None:
+            _require_positive("pression_max_pa", pression_max_pa, strictly=False)
+        _require_positive("facteur_securite_cylindre", facteur_securite_cylindre, strictly=True)
+
+        # --- conversion puissance frein -> indiquée ---
         P_visee = _require_positive("puissance_visee_w", puissance_visee_w, strictly=True)
         if type_puissance == "frein":
             if rendement_mecanique is None:
@@ -407,27 +634,28 @@ class MoteurThermique:
                 )
                 _dedup_inconnues(rapport)
                 return rapport
-            eta = _require_between_0_1("rendement_mecanique", rendement_mecanique, allow_1=True)
-            P_indiquee = P_visee / eta
+            eta_m = _require_between_0_1("rendement_mecanique", rendement_mecanique, allow_1=True)
+            P_indiquee = P_visee / eta_m
         else:
             P_indiquee = P_visee
+            eta_m = rendement_mecanique
 
         # --- fréquence de cycles ---
         rpm_val = _require_positive("rpm", rpm, strictly=True)
         freq_cycle_hz = _cycles_par_seconde(rpm_val, int(temps_moteur))
 
-        # --- cylindrée totale requise (module) ---
+        # --- cylindrée totale requise ---
         pme = _require_positive("pression_moyenne_effective_pa", pression_moyenne_effective_pa, strictly=True)
         Vd_tot_req = float(
             calcul_cylindree_totale_requise(
                 puissance_w=P_indiquee,
                 pression_moyenne_effective_pa=pme,
                 frequence_cycle_hz=freq_cycle_hz,
-                rendement_mecanique=1.0,  # ici P_indiquee est déjà "avant pertes mécaniques"
+                rendement_mecanique=1.0,
             )
         )
 
-        # --- cylindrée unitaire max admissible (modules) ---
+        # --- cylindrée unitaire max admissible ---
         Umax = _require_positive("vitesse_piston_max_ms", vitesse_piston_max_ms, strictly=False)
         r_max = _require_positive("ratio_course_alesage_max", ratio_course_alesage_max, strictly=True)
 
@@ -446,15 +674,9 @@ class MoteurThermique:
 
         # --- nombre de cylindres minimal ---
         n_min = int(calcul_nombre_cylindres_min(Vd_tot_req, Vd_unit_max))
-
-        # --- choix d'une cylindrée unitaire "par cylindre" : ici on propose 2 modes ---
-        # 1) mode "limites" (compact en N) : Vd_unit = Vd_unit_max -> N = n_min
         Vd_unit_limite = Vd_tot_req / float(n_min)
 
-        # bore/stroke (mode limites) :
-        # - si ratio_course_alesage_cible fourni : géométrie exacte et vérifications
-        # - sinon : on NE CHOISIT PAS un ratio "au hasard" -> on ne peut pas donner (B,S) uniques
-        #   sauf si tu acceptes explicitement le mode "limites" à r_max (ce qui est un calcul déterministe).
+        # --- géométrie unitaire ---
         bore_m: Optional[float] = None
         stroke_m: Optional[float] = None
         ratio_utilise: Optional[float] = None
@@ -462,22 +684,21 @@ class MoteurThermique:
         if ratio_course_alesage_cible is not None:
             r_cible = _require_positive("ratio_course_alesage_cible", ratio_course_alesage_cible, strictly=True)
             if r_cible > r_max:
-                raise ValueError(f"ratio_course_alesage_cible ({r_cible}) > ratio_course_alesage_max ({r_max}) : incohérent.")
+                raise ValueError(
+                    f"ratio_course_alesage_cible ({r_cible}) > ratio_course_alesage_max ({r_max}) : incohérent."
+                )
             bore_m, stroke_m = _bore_stroke_from_Vd_ratio(Vd_unit_limite, r_cible)
             ratio_utilise = r_cible
         else:
-            # On ne peut pas "inventer" un ratio, MAIS on peut produire une solution déterministe
-            # si on accepte explicitement le dimensionnement "aux limites géométriques" :
-            # on prend r = r_max (comme les modules admissibles le font pour Vd_unit_max).
             bore_m, stroke_m = _bore_stroke_from_Vd_ratio(Vd_unit_limite, r_max)
             ratio_utilise = r_max
             rapport["notes_modele"].append(
-                "Géométrie définie avec ratio_course_alesage = ratio_course_alesage_max (dimensionnement aux limites, déterministe). "
+                "Géométrie définie avec ratio_course_alesage = ratio_course_alesage_max "
+                "(dimensionnement aux limites, déterministe). "
                 "Si tu veux une autre géométrie, fournis ratio_course_alesage_cible."
             )
 
-        # --- vérification piston speed (pure vérification, pas invention) ---
-        # vitesse moyenne piston = 2*S*n/60
+        # --- vérification vitesse moyenne piston ---
         v_piston_moy = 2.0 * float(stroke_m) * (rpm_val / 60.0)
         if v_piston_moy > Umax + 1e-12:
             raise ValueError(
@@ -485,12 +706,19 @@ class MoteurThermique:
                 f"(stroke={stroke_m}, rpm={rpm_val})."
             )
 
-        # --- architecture (si contraintes L/W connues) ---
+        reserve_vitesse_piston = None
+        if Umax > 0.0:
+            reserve_vitesse_piston = 1.0 - (v_piston_moy / Umax)
+
+        # --- architecture ---
         archi_choisie: Optional[str] = None
         details_archis: Dict[str, Any] = {}
 
         if architecture_forcee is not None:
             archi_choisie = str(architecture_forcee)
+            rapport["notes_modele"].append(
+                "Architecture imposée par l'entrée utilisateur ; aucun arbitrage automatique n'a été réalisé."
+            )
         else:
             if L_max_m is None or W_max_m is None:
                 _push_inconnue(
@@ -520,6 +748,108 @@ class MoteurThermique:
                         f"Échec du module de choix d'architecture: {e}",
                     )
 
+        # --- fiabilité / masse / coût : ce qui est réellement calculable ici ---
+        epaisseur_cylindre_mince = None
+        epaisseur_cylindre_lame = None
+        epaisseur_cylindre_retenue = None
+
+        if (
+            pression_max_pa is not None
+            and contrainte_admissible_pa is not None
+            and bore_m is not None
+        ):
+            ri = 0.5 * bore_m
+            epaisseur_cylindre_mince = float(
+                calcul_epaisseur_cylindre_mince(
+                    pression_pa=_require_positive("pression_max_pa", pression_max_pa, strictly=False),
+                    rayon_interne_m=ri,
+                    contrainte_admissible_pa=_require_positive("contrainte_admissible_pa", contrainte_admissible_pa, strictly=True),
+                    include_longitudinale=False,
+                    facteur_securite=_require_positive("facteur_securite_cylindre", facteur_securite_cylindre, strictly=True),
+                    clamp_non_negative=True,
+                    return_details=False,
+                )
+            )
+            epaisseur_cylindre_lame = float(
+                calcul_epaisseur_cylindre_lame(
+                    pression_interne_pa=_require_positive("pression_max_pa", pression_max_pa, strictly=False),
+                    rayon_interne_m=ri,
+                    contrainte_admissible_pa=_require_positive("contrainte_admissible_pa", contrainte_admissible_pa, strictly=True),
+                    facteur_securite=_require_positive("facteur_securite_cylindre", facteur_securite_cylindre, strictly=True),
+                    clamp_non_negative=True,
+                    return_details=False,
+                )
+            )
+            epaisseur_cylindre_retenue = max(epaisseur_cylindre_mince, epaisseur_cylindre_lame)
+        else:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "épaisseur cylindre de définition",
+                "Calculable si pression_max_pa et contrainte_admissible_pa sont fournis.",
+            )
+
+        estimation_masse = _estimer_masse_cylindres(
+            alesage_m=bore_m,
+            course_m=stroke_m,
+            nombre_cylindres=n_min,
+            epaisseur_paroi_m=epaisseur_cylindre_retenue,
+            densite_materiau_kg_m3=densite_materiau_kg_m3,
+        )
+        masse_estimee_kg = estimation_masse["masse_estimee_kg"]
+        cout_matiere_estime_eur = _estimer_cout_matiere(
+            masse_kg=masse_estimee_kg,
+            cout_matiere_eur_kg=cout_matiere_eur_kg,
+        )
+        indice_maintenance = _estimer_indice_maintenance(
+            nombre_cylindres=n_min,
+            architecture=archi_choisie,
+        )
+
+        if densite_materiau_kg_m3 is None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "masse estimée",
+                "Calculable si densite_materiau_kg_m3 est fournie, en plus de la pression max et de la contrainte admissible.",
+            )
+        if cout_matiere_eur_kg is None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "coût matière estimé",
+                "Calculable si cout_matiere_eur_kg est fourni, en plus de la masse estimée.",
+            )
+        if archi_choisie is None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "indice de maintenance",
+                "Calculable si l'architecture du moteur est connue.",
+            )
+
+        # --- évaluations de conformité aux objectifs ---
+        ok_masse = _booleen_contrainte_max(valeur=masse_estimee_kg, limite_max=masse_estimee_max_kg)
+        ok_cout = _booleen_contrainte_max(valeur=cout_matiere_estime_eur, limite_max=cout_matiere_max_eur)
+        ok_maintenance = _booleen_contrainte_max(valeur=indice_maintenance, limite_max=indice_maintenance_max)
+        ok_rendement_meca = _booleen_contrainte_min(valeur=eta_m, limite_min=rendement_mecanique_cible_min)
+
+        if rendement_indique_cible_min is not None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "validation rendement indiqué cible",
+                "Ce script ne peut pas conclure sur un rendement indiqué réel sans cycle thermodynamique complet ou données indicatrices.",
+            )
+
+        if duree_vie_cible_h is not None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "validation durée de vie cible",
+                "La durée de vie cible exige ensuite les calculs d'usure, fatigue, matériaux, états de surface et historique de charge.",
+            )
+
         rapport["dimensionnement"].update(
             {
                 "P_indiquee_calculee_W": float(P_indiquee),
@@ -533,6 +863,10 @@ class MoteurThermique:
                 "alesage_defini_m": float(bore_m) if bore_m is not None else None,
                 "course_definie_m": float(stroke_m) if stroke_m is not None else None,
                 "vitesse_moyenne_piston_ms": float(v_piston_moy),
+                "reserve_vitesse_piston_fraction": float(reserve_vitesse_piston) if reserve_vitesse_piston is not None else None,
+                "epaisseur_cylindre_mince_m": float(epaisseur_cylindre_mince) if epaisseur_cylindre_mince is not None else None,
+                "epaisseur_cylindre_lame_m": float(epaisseur_cylindre_lame) if epaisseur_cylindre_lame is not None else None,
+                "epaisseur_cylindre_retenue_m": float(epaisseur_cylindre_retenue) if epaisseur_cylindre_retenue is not None else None,
             }
         )
 
@@ -543,12 +877,52 @@ class MoteurThermique:
             }
         )
 
+        rapport["estimations"].update(
+            {
+                "masse": estimation_masse,
+                "cout_matiere_estime_eur": float(cout_matiere_estime_eur) if cout_matiere_estime_eur is not None else None,
+                "indice_maintenance": float(indice_maintenance) if indice_maintenance is not None else None,
+            }
+        )
+
+        rapport["evaluation_conception"].update(
+            {
+                "respecte_masse_max": ok_masse,
+                "respecte_cout_matiere_max": ok_cout,
+                "respecte_indice_maintenance_max": ok_maintenance,
+                "respecte_rendement_mecanique_min": ok_rendement_meca,
+                "rendement_indique_reel_verifiable": None,
+                "duree_vie_cible_verifiable": None,
+                "commentaires": [
+                    "Les conformités rendements/masse/coût/maintenance sont évaluées uniquement quand les données nécessaires existent.",
+                    "La fiabilité complète ne peut pas être validée ici sans la suite des pièces et des lois de fatigue/usure détaillées.",
+                ],
+            }
+        )
+
         # --- moteur défini ---
         moteur = cls(
             alesage_m=float(bore_m),
             course_m=float(stroke_m),
             nombre_cylindres=int(n_min),
             temps_moteur=temps_moteur,
+            architecture=archi_choisie,
+            rpm_nominal=float(rpm_val),
+            pme_nominale_pa=float(pme),
+            puissance_nominale_visee_w=float(P_visee),
+            type_puissance_nominale=type_puissance,
+            rendement_mecanique_nominal=float(eta_m) if eta_m is not None else None,
+            pression_max_pa=float(pression_max_pa) if pression_max_pa is not None else None,
+            contrainte_admissible_pa=float(contrainte_admissible_pa) if contrainte_admissible_pa is not None else None,
+            facteur_securite_cylindre=float(facteur_securite_cylindre),
+            densite_materiau_kg_m3=float(densite_materiau_kg_m3) if densite_materiau_kg_m3 is not None else None,
+            cout_matiere_eur_kg=float(cout_matiere_eur_kg) if cout_matiere_eur_kg is not None else None,
+            rendement_indique_cible_min=float(rendement_indique_cible_min) if rendement_indique_cible_min is not None else None,
+            rendement_mecanique_cible_min=float(rendement_mecanique_cible_min) if rendement_mecanique_cible_min is not None else None,
+            masse_estimee_max_kg=float(masse_estimee_max_kg) if masse_estimee_max_kg is not None else None,
+            cout_matiere_max_eur=float(cout_matiere_max_eur) if cout_matiere_max_eur is not None else None,
+            indice_maintenance_max=float(indice_maintenance_max) if indice_maintenance_max is not None else None,
+            duree_vie_cible_h=float(duree_vie_cible_h) if duree_vie_cible_h is not None else None,
         )
         rapport["moteur_defini"] = moteur
 
@@ -556,7 +930,7 @@ class MoteurThermique:
         return rapport
 
     # ============================================================
-    # ANALYSE POINT DE FONCTIONNEMENT (déjà calculatoire)
+    # ANALYSE POINT DE FONCTIONNEMENT
     # ============================================================
 
     def analyser_point_de_fonctionnement(
@@ -564,37 +938,37 @@ class MoteurThermique:
         *,
         rpm: Optional[float] = None,
 
-        # Travail indiqué (si tu connais la PME)
+        # Travail indiqué
         pression_moyenne_effective_pa: Optional[float] = None,
 
-        # Instantané (si tu connais la pression cylindre à un angle)
+        # Instantané
         pression_cylindre_pa: Optional[float] = None,
         angle_vilebrequin_deg: Optional[float] = None,
 
-        # Thermo gaz parfait (si tu as m, V, T)
+        # Thermo gaz parfait
         masse_gaz_kg: Optional[float] = None,
         volume_gaz_m3: Optional[float] = None,
         temperature_gaz_k: Optional[float] = None,
         constante_gaz_r: float = 287.05,
 
-        # Adiabatique (si tu as T1, P1, P2)
+        # Adiabatique
         t1_k: Optional[float] = None,
         p1_pa: Optional[float] = None,
         p2_pa: Optional[float] = None,
         gamma: float = 1.4,
 
-        # Fuite annulaire (segments / joints)
+        # Fuite annulaire
         delta_p_fuite_pa: Optional[float] = None,
         jeu_radial_h_m: Optional[float] = None,
         rayon_fuite_m: Optional[float] = None,
         longueur_fuite_m: Optional[float] = None,
 
-        # Frottements (si tu as N, W, v)
+        # Frottements
         force_normale_segment_n: Optional[float] = None,
         vitesse_glissement_palier_ms: Optional[float] = None,
         charge_palier_n: Optional[float] = None,
 
-        # Usure : si tu veux une valeur cumulée sur une durée (sinon on sort les taux)
+        # Usure cumulée
         duree_fonctionnement_s: Optional[float] = None,
 
         # Couvercle / vis
@@ -604,10 +978,6 @@ class MoteurThermique:
         nombre_vis: Optional[int] = None,
         diametre_nominal_vis_m: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """
-        Rapport détaillé, en calculant tout ce qui est calculable et en listant explicitement
-        les inconnues restantes (impossibles vs partielles).
-        """
         rapport: Dict[str, Any] = {
             "entrees": {},
             "cylindree": {},
@@ -620,6 +990,7 @@ class MoteurThermique:
             "usure": {},
             "dimensionnement": {},
             "assemblage": {},
+            "conception": {},
             "inconnues": {"impossibles": [], "partielles": []},
             "notes_modele": [],
         }
@@ -627,10 +998,14 @@ class MoteurThermique:
         # ============================================================
         # 1) Entrées de base
         # ============================================================
+        rpm_effectif = rpm if rpm is not None else self.rpm_nominal
+        pme_effective = pression_moyenne_effective_pa if pression_moyenne_effective_pa is not None else self.pme_nominale_pa
+        pression_max_effective = pression_max_pa if pression_max_pa is not None else self.pression_max_pa
+
         rapport["entrees"].update(
             {
-                "rpm": rpm,
-                "pression_moyenne_effective_pa": pression_moyenne_effective_pa,
+                "rpm": rpm_effectif,
+                "pression_moyenne_effective_pa": pme_effective,
                 "pression_cylindre_pa": pression_cylindre_pa,
                 "angle_vilebrequin_deg": angle_vilebrequin_deg,
                 "duree_fonctionnement_s": duree_fonctionnement_s,
@@ -638,11 +1013,15 @@ class MoteurThermique:
                 "nombre_cylindres": int(self.nombre_cylindres),
                 "alesage_m": self.alesage_m,
                 "course_m": self.course_m,
+                "architecture": self.architecture,
+                "rpm_nominal": self.rpm_nominal,
+                "pme_nominale_pa": self.pme_nominale_pa,
+                "pression_max_nominale_pa": self.pression_max_pa,
             }
         )
 
         # ============================================================
-        # 2) Cylindrée (unitaire + totale)
+        # 2) Cylindrée
         # ============================================================
         Vd_unit: Optional[float] = None
         Vd_tot: Optional[float] = None
@@ -671,19 +1050,24 @@ class MoteurThermique:
         rapport["cylindree"]["Vd_totale_m3"] = Vd_tot
 
         # ============================================================
-        # 3) Cinématique : ω, cycles/s, vitesse moyenne piston (module dédié)
+        # 3) Cinématique
         # ============================================================
         omega: Optional[float] = None
         cps: Optional[float] = None
         v_piston_moy: Optional[float] = None
 
-        if rpm is not None:
-            rpm_val = _require_positive("rpm", rpm, strictly=False)
+        if rpm_effectif is not None:
+            rpm_val = _require_positive("rpm", rpm_effectif, strictly=False)
             omega = _omega_from_rpm(rpm_val)
             cps = _cycles_par_seconde(rpm_val, int(self.temps_moteur))
 
             if self.course_m is not None:
-                v_piston_moy = float(calcul_vitesse_moyenne_piston(course_m=self.course_m, vitesse_rotation_tr_min=rpm_val))
+                v_piston_moy = float(
+                    calcul_vitesse_moyenne_piston(
+                        course_m=self.course_m,
+                        vitesse_rotation_tr_min=rpm_val,
+                    )
+                )
             else:
                 _push_inconnue(rapport, "partielles", "vitesse moyenne piston", "Calculable si course_m est fournie.")
         else:
@@ -696,16 +1080,25 @@ class MoteurThermique:
             rapport["cinematique"]["distance_glissement_piston_par_heure_m"] = v_piston_moy * 3600.0
 
         # ============================================================
-        # 4) Travail indiqué / Puissance indiquée (si PME + rpm)
+        # 4) Travail indiqué / Puissance indiquée
         # ============================================================
         W_i: Optional[float] = None
         P_i: Optional[float] = None
+        P_frein_estimee: Optional[float] = None
 
-        if pression_moyenne_effective_pa is not None and Vd_tot is not None:
-            W_i = float(calcul_travail_indique_pme(pression_moyenne_effective_pa, Vd_tot))
+        if pme_effective is not None and Vd_tot is not None:
+            W_i = float(calcul_travail_indique_pme(pme_effective, Vd_tot))
 
-            if rpm is not None:
-                P_i = float(calcul_puissance_indiquee(W_i, _require_positive("rpm", rpm, strictly=False), temps_moteur=int(self.temps_moteur)))
+            if rpm_effectif is not None:
+                P_i = float(
+                    calcul_puissance_indiquee(
+                        W_i,
+                        _require_positive("rpm", rpm_effectif, strictly=False),
+                        temps_moteur=int(self.temps_moteur),
+                    )
+                )
+                if self.rendement_mecanique_nominal is not None:
+                    P_frein_estimee = P_i * self.rendement_mecanique_nominal
             else:
                 _push_inconnue(rapport, "partielles", "puissance indiquée", "Calculable si rpm est fourni.")
         else:
@@ -713,16 +1106,16 @@ class MoteurThermique:
 
         rapport["resultats"]["travail_indique_par_cycle_J"] = W_i
         rapport["resultats"]["puissance_indiquee_W"] = P_i
+        rapport["resultats"]["puissance_frein_estimee_W"] = P_frein_estimee
 
         # ============================================================
-        # 5) Force gaz / force inertie / couple instantané
+        # 5) Force gaz / inertie / couple instantané
         # ============================================================
         F_gaz: Optional[float] = None
         F_inertie: Optional[float] = None
         F_bielle: Optional[float] = None
         T_inst: Optional[float] = None
 
-        # 5.1 Force gaz instantanée
         if pression_cylindre_pa is not None and self.alesage_m is not None:
             F_gaz = float(
                 calcul_force_gaz(
@@ -737,7 +1130,6 @@ class MoteurThermique:
         else:
             _push_inconnue(rapport, "partielles", "force gaz instantanée", "Calculable si pression_cylindre_pa et alesage_m sont fournis.")
 
-        # 5.2 Force inertie alternative
         r_manivelle: Optional[float] = None
         if self.rayon_manivelle_m is not None:
             r_manivelle = float(self.rayon_manivelle_m)
@@ -748,7 +1140,7 @@ class MoteurThermique:
         if (
             self.masse_alternative_kg is not None
             and r_manivelle is not None
-            and rpm is not None
+            and rpm_effectif is not None
             and self.longueur_bielle_m is not None
             and angle_vilebrequin_deg is not None
         ):
@@ -756,7 +1148,7 @@ class MoteurThermique:
                 calcul_force_inertie_alternative(
                     masse_alternative_kg=self.masse_alternative_kg,
                     rayon_manivelle_m=r_manivelle,
-                    vitesse_rotation_tr_min=_require_positive("rpm", rpm, strictly=False),
+                    vitesse_rotation_tr_min=_require_positive("rpm", rpm_effectif, strictly=False),
                     longueur_bielle_m=self.longueur_bielle_m,
                     angle_vilebrequin_deg=_require_finite("angle_vilebrequin_deg", angle_vilebrequin_deg),
                     angle_unite="deg",
@@ -773,13 +1165,11 @@ class MoteurThermique:
                 "Calculable si (masse_alternative_kg, course/rayon_manivelle_m, rpm, longueur_bielle_m, angle_vilebrequin_deg) sont fournis.",
             )
 
-        # 5.3 Force bielle effective (simplifiée)
         if F_gaz is not None and F_inertie is not None:
             F_bielle = F_gaz - F_inertie
         else:
             _push_inconnue(rapport, "partielles", "force bielle effective", "Déductible si force gaz ET force inertie sont calculées.")
 
-        # 5.4 Couple instantané (simplifié)
         if F_bielle is not None and r_manivelle is not None and angle_vilebrequin_deg is not None:
             T_inst = float(
                 calcul_couple_instantane(
@@ -807,7 +1197,7 @@ class MoteurThermique:
         rapport["cinematique"]["rayon_manivelle_m_effectif"] = r_manivelle
 
         # ============================================================
-        # 6) Thermo : gaz parfait + compression adiabatique
+        # 6) Thermo
         # ============================================================
         P_gaz: Optional[float] = None
         if masse_gaz_kg is not None and volume_gaz_m3 is not None and temperature_gaz_k is not None:
@@ -839,7 +1229,7 @@ class MoteurThermique:
         rapport["thermo"]["temperature_adiabatique_T2_k"] = T2
 
         # ============================================================
-        # 7) Fuite annulaire : débit volumique + débit massique
+        # 7) Fuite annulaire
         # ============================================================
         Q_fuite: Optional[float] = None
         m_dot_fuite: Optional[float] = None
@@ -888,7 +1278,7 @@ class MoteurThermique:
         rapport["resultats"]["m_dot_fuite_kg_s"] = m_dot_fuite
 
         # ============================================================
-        # 8) Pertes par frottement : segments + paliers
+        # 8) Pertes par frottement
         # ============================================================
         P_frott_seg: Optional[float] = None
         P_frott_palier: Optional[float] = None
@@ -923,8 +1313,14 @@ class MoteurThermique:
         rapport["pertes"]["P_frottement_palier_W"] = P_frott_palier
         rapport["pertes"]["P_frottement_total_W"] = P_frott_total
 
+        rendement_mecanique_estime = None
+        if P_i is not None and P_i > 0.0 and P_frott_total is not None:
+            rendement_mecanique_estime = max(0.0, (P_i - P_frott_total) / P_i)
+
+        rapport["pertes"]["rendement_mecanique_estime"] = rendement_mecanique_estime
+
         # ============================================================
-        # 9) Usure (Archard) : taux + cumulé si durée fournie
+        # 9) Usure Archard
         # ============================================================
         usure_seg = _archard_depuis_vitesse(
             k=self.coefficient_usure_segment_k,
@@ -993,14 +1389,14 @@ class MoteurThermique:
             _push_inconnue(rapport, "impossibles", "usure palier (valeur absolue)", "Impossible sans coefficient d'usure k et dureté H (tribologie/datasheet).")
 
         # ============================================================
-        # 10) Dimensionnement paroi cylindre (mince + Lamé)
+        # 10) Dimensionnement paroi cylindre
         # ============================================================
         t_mince: Optional[float] = None
         t_lame: Optional[float] = None
 
         p_dim: Optional[float] = None
-        if pression_max_pa is not None:
-            p_dim = _require_positive("pression_max_pa", pression_max_pa, strictly=False)
+        if pression_max_effective is not None:
+            p_dim = _require_positive("pression_max_pa", pression_max_effective, strictly=False)
         elif pression_cylindre_pa is not None:
             p_dim = _require_finite("pression_cylindre_pa", pression_cylindre_pa)
 
@@ -1039,6 +1435,11 @@ class MoteurThermique:
         rapport["dimensionnement"]["pression_dimensionnement_pa"] = p_dim
         rapport["dimensionnement"]["epaisseur_cylindre_mince_m"] = t_mince
         rapport["dimensionnement"]["epaisseur_cylindre_lame_m"] = t_lame
+        if t_mince is not None or t_lame is not None:
+            rapport["dimensionnement"]["epaisseur_cylindre_retenue_m"] = max(
+                t_mince or 0.0,
+                t_lame or 0.0,
+            )
 
         # ============================================================
         # 11) Précharge vis couvercle
@@ -1048,10 +1449,10 @@ class MoteurThermique:
         F_par_vis: Optional[float] = None
         M_serrage: Optional[float] = None
 
-        if pression_max_pa is not None and aire_effective_couvercle_m2 is not None:
+        if pression_max_effective is not None and aire_effective_couvercle_m2 is not None:
             F_sep = float(
                 calcul_force_separation(
-                    pression_max_pa=_require_positive("pression_max_pa", pression_max_pa, strictly=False),
+                    pression_max_pa=_require_positive("pression_max_pa", pression_max_effective, strictly=False),
                     aire_effective_m2=_require_positive("aire_effective_couvercle_m2", aire_effective_couvercle_m2, strictly=False),
                 )
             )
@@ -1097,7 +1498,66 @@ class MoteurThermique:
         rapport["assemblage"]["couple_serrage_par_vis_Nm"] = M_serrage
 
         # ============================================================
-        # 12) Inconnues réellement impossibles sans données externes
+        # 12) Synthèse conception (fiabilité / efficience / masse / coût / maintenance)
+        # ============================================================
+        reserve_vitesse_piston = None
+        if v_piston_moy is not None and self.rpm_nominal is not None and self.course_m is not None:
+            # pas de limite si elle n'est pas connue ; on ne force rien
+            pass
+
+        indice_maintenance = _estimer_indice_maintenance(
+            nombre_cylindres=self.nombre_cylindres,
+            architecture=self.architecture,
+        )
+
+        epaisseur_retenue = None
+        if t_mince is not None or t_lame is not None:
+            epaisseur_retenue = max(t_mince or 0.0, t_lame or 0.0)
+
+        estimation_masse = _estimer_masse_cylindres(
+            alesage_m=self.alesage_m,
+            course_m=self.course_m,
+            nombre_cylindres=self.nombre_cylindres,
+            epaisseur_paroi_m=epaisseur_retenue,
+            densite_materiau_kg_m3=self.densite_materiau_kg_m3,
+        )
+        masse_estimee_kg = estimation_masse["masse_estimee_kg"]
+        cout_matiere_estime_eur = _estimer_cout_matiere(
+            masse_kg=masse_estimee_kg,
+            cout_matiere_eur_kg=self.cout_matiere_eur_kg,
+        )
+
+        rapport["conception"].update(
+            {
+                "masse": estimation_masse,
+                "cout_matiere_estime_eur": cout_matiere_estime_eur,
+                "indice_maintenance": indice_maintenance,
+                "respecte_masse_estimee_max": _booleen_contrainte_max(
+                    valeur=masse_estimee_kg,
+                    limite_max=self.masse_estimee_max_kg,
+                ),
+                "respecte_cout_matiere_max": _booleen_contrainte_max(
+                    valeur=cout_matiere_estime_eur,
+                    limite_max=self.cout_matiere_max_eur,
+                ),
+                "respecte_indice_maintenance_max": _booleen_contrainte_max(
+                    valeur=indice_maintenance,
+                    limite_max=self.indice_maintenance_max,
+                ),
+                "respecte_rendement_mecanique_min": _booleen_contrainte_min(
+                    valeur=rendement_mecanique_estime,
+                    limite_min=self.rendement_mecanique_cible_min,
+                ),
+                "commentaires": [
+                    "La masse et le coût ici restent des estimations limitées à la matière des viroles de cylindres lorsque les données sont présentes.",
+                    "L'indice de maintenance est un proxy déterministe de complexité, pas un coût d'atelier réel.",
+                    "La fiabilité absolue reste impossible à conclure ici sans fatigue détaillée, états de surface, matériaux de chaque pièce et spectres de charge.",
+                ],
+            }
+        )
+
+        # ============================================================
+        # 13) Inconnues réellement impossibles sans données externes
         # ============================================================
         _push_inconnue(
             rapport,
