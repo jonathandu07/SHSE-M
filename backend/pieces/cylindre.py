@@ -1457,6 +1457,21 @@ class Cylindre:
                 ro = ri + t_retenue
                 rapport["geometrie"]["longueur_totale_sans_brides_m"] = L
                 rapport["geometrie"]["diametre_externe_sans_brides_m"] = 2.0 * ro
+                
+                if self.epaisseur_bride_m is not None and self.largeur_bride_m is not None:
+                    e_b = _req_pos("epaisseur_bride_m", self.epaisseur_bride_m)
+                    w_b = _req_pos("largeur_bride_m", self.largeur_bride_m)
+                    D_bride = 2.0 * (ro + w_b)
+                    rapport["geometrie"]["diametre_externe_avec_brides_m"] = D_bride
+                    rapport["geometrie"]["longueur_totale_avec_brides_m"] = L + 2.0 * e_b
+                    
+                    if densite is not None:
+                        rho_mat = _req_pos("densite_kg_m3", densite)
+                        r_b = 0.5 * D_bride
+                        A_anneau = math.pi * (r_b * r_b - ro * ro)
+                        V_brides = 2.0 * A_anneau * e_b
+                        rapport["masse"]["volume_brides_m3"] = V_brides
+                        rapport["masse"]["masse_brides_kg"] = rho_mat * V_brides
             else:
                 try:
                     geo_cao = _calcul_cao_cylindre_ferme(
