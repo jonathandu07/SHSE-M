@@ -544,6 +544,16 @@ def _first_non_none(*vals: Any) -> Any:
     return None
 
 
+def _extract_pertes(rep: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    r = _safe_dict(rep)
+    p = _safe_dict(r.get("pertes"))
+    return {
+        "P_frottement_W": _first_finite(p.get("P_frottement_totale_W"), p.get("P_frottement_W"), r.get("P_frottement_W")),
+        "Q_fuite_m3_s": _first_finite(p.get("Q_fuite_totale_m3_s"), p.get("Q_fuite_m3_s"), r.get("Q_fuite_m3_s")),
+        "m_dot_fuite_kg_s": _first_finite(p.get("m_dot_fuite_total_kg_s"), p.get("m_dot_fuite_kg_s"), r.get("m_dot_fuite_kg_s")),
+    }
+
+
 # ============================================================
 # Pièce agrégée d'optimisation
 # ============================================================
