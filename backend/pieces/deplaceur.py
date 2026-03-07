@@ -323,7 +323,7 @@ class Deplaceur:
 
     # --- Géométrie principale ---
     diametre_exterieur_m: Optional[float] = None
-    longueur_totale_m: float = 0.0
+    longueur_totale_m: Optional[float] = None
     course_disponible_m: Optional[float] = None
     jeu_radial_m: float = 0.0
 
@@ -443,7 +443,13 @@ class Deplaceur:
         else:
             D_dep = _req_pos("diametre_exterieur_m", D_dep)
 
-        L_dep = _req_pos("longueur_totale_m", self.longueur_totale_m)
+        if self.longueur_totale_m is not None:
+            L_dep = _req_pos("longueur_totale_m", self.longueur_totale_m)
+        elif cyl.get("longueur_utile_m") is not None:
+            L_dep = _req_pos("longueur_totale_m", cyl["longueur_utile_m"])
+        else:
+            _push_inconnue(rapport, "impossibles", "longueur_totale_m", "Longueur totale non fournie et cylindre absent.")
+            L_dep = float("nan")
         course = self.course_disponible_m
         if course is None and L_cyl is not None:
             course = max(

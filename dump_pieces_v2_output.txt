@@ -58,25 +58,9 @@ Inconnues Impossibles: ['diametre_ouverture_m', 'force_separation', 'dimensionne
 Inconnues Partielles: ['rayon_externe_couvercle_m']
 
 --- deplaceur ---
-Erreur d'analyse: longueur_totale_m doit être > 0 (reçu: 0.0).
-Traceback (most recent call last):
-  File "D:\Documents\GitHub\SHSE-M\dump_pieces_v2.py", line 18, in <module>
-    r = p.analyser()
-  File "D:\Documents\GitHub\SHSE-M\backend\pieces\deplaceur.py", line 446, in analyser
-    L_dep = _req_pos("longueur_totale_m", self.longueur_totale_m)
-  File "D:\Documents\GitHub\SHSE-M\backend\pieces\deplaceur.py", line 57, in _req_pos
-    raise ValueError(f"{name} doit être {op} 0 (reçu: {v}).")
-ValueError: longueur_totale_m doit être > 0 (reçu: 0.0).
-
+Inconnues Impossibles: ['position_axiale_centre_m']
+Inconnues Partielles: ['volumes chaud/froid', 'joints toriques']
 
 --- joint_deplaceur ---
-Erreur d'analyse: longueur_deplaceur_m doit être > 0 (reçu: 0.0).
-Traceback (most recent call last):
-  File "D:\Documents\GitHub\SHSE-M\dump_pieces_v2.py", line 18, in <module>
-    r = p.analyser()
-  File "D:\Documents\GitHub\SHSE-M\backend\pieces\joint_deplaceur.py", line 463, in analyser
-    L_dep = _req_pos("longueur_deplaceur_m", L_dep)
-  File "D:\Documents\GitHub\SHSE-M\backend\pieces\joint_deplaceur.py", line 55, in _req_pos
-    raise ValueError(f"{name} doit être {op} 0 (reçu: {v}).")
-ValueError: longueur_deplaceur_m doit être > 0 (reçu: 0.0).
-
+Inconnues Impossibles: ['diametre_deplaceur_m', 'section_joint_mm', 'squeeze', 'profondeur_gorge']
+Inconnues Partielles: ['facteur_largeur', 'largeur_gorge_m', 'diametre_fond_gorge_m', 'verification_radiale', 'volumes_gorge_joint', 'module_min', 'pression_contact_estimee', 'frottement']
