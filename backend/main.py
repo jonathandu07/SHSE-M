@@ -161,13 +161,11 @@ def construire_moteur_electrique(
 def construire_batterie(
     *,
     tension_nominale_v: float = 400.0,
-    capacite_nominale_ah: float = 120.0,
     rendement_charge: float = 0.94,
     tension_charge_v: float = 420.0,
 ) -> Batterie:
     return Batterie(
         tension_nominale_v=tension_nominale_v,
-        capacite_nominale_ah=capacite_nominale_ah,
         rendement_charge=rendement_charge,
         tension_charge_v=tension_charge_v,
     )
