@@ -378,3 +378,79 @@
 2026-01-07 19:11:14,152 - test_batterie - INFO - RESULT - test_evaluer_electrolyte_solide_nominal: SUCCESS 
 2026-01-07 19:11:14,156 - test_batterie - INFO - Starting test_evaluer_electrolyte_solide_incomple
 2026-01-07 19:11:14,157 - test_batterie - INFO - RESULT - test_evaluer_electrolyte_solide_incomple: SUCCESS 
+2026-03-07 19:31:58,966 - test_batterie - INFO - Starting test_calcul_capacite_totale_batterie
+2026-03-07 19:31:58,979 - test_batterie - INFO - RESULT - test_calcul_capacite_totale_batterie: SUCCESS 
+2026-03-07 19:31:58,981 - test_batterie - INFO - Starting test_calcul_poids_batterie
+2026-03-07 19:31:58,981 - test_batterie - INFO - RESULT - test_calcul_poids_batterie: SUCCESS 
+2026-03-07 19:31:58,989 - test_batterie - INFO - Starting test_calcul_conso_kwh_km_depuis_puissance_vitesse
+2026-03-07 19:31:58,989 - test_batterie - INFO - RESULT - test_calcul_conso_kwh_km_depuis_puissance_vitesse: SUCCESS 
+2026-03-07 19:31:58,991 - test_batterie - INFO - Starting test_calcul_ah_depuis_kwh_tension
+2026-03-07 19:31:58,992 - test_batterie - INFO - RESULT - test_calcul_ah_depuis_kwh_tension: SUCCESS 
+2026-03-07 19:31:58,996 - test_batterie - INFO - Starting test_calcul_courant_depuis_kw_tension
+2026-03-07 19:31:58,996 - test_batterie - INFO - RESULT - test_calcul_courant_depuis_kw_tension: SUCCESS 
+2026-03-07 19:31:58,998 - test_batterie - INFO - Starting test_calcul_c_rate_depuis_kw_kwh
+2026-03-07 19:31:58,998 - test_batterie - INFO - RESULT - test_calcul_c_rate_depuis_kw_kwh: SUCCESS 
+2026-03-07 19:31:59,006 - test_batterie - INFO - Starting test_calcul_puissance_effective_stockee
+2026-03-07 19:31:59,006 - test_batterie - INFO - RESULT - test_calcul_puissance_effective_stockee: SUCCESS 
+2026-03-07 19:31:59,021 - test_batterie - INFO - Starting test_calcul_puissance_charge_requise
+2026-03-07 19:31:59,021 - test_batterie - INFO - RESULT - test_calcul_puissance_charge_requise: SUCCESS 
+2026-03-07 19:31:59,025 - test_batterie - INFO - Starting test_calcul_energie_utile_cible
+2026-03-07 19:31:59,025 - test_batterie - INFO - RESULT - test_calcul_energie_utile_cible: SUCCESS 
+2026-03-07 19:31:59,027 - test_batterie - INFO - Starting test_calcul_energie_utile_trajet
+2026-03-07 19:31:59,027 - test_batterie - INFO - RESULT - test_calcul_energie_utile_trajet: SUCCESS 
+2026-03-07 19:31:59,028 - test_batterie - INFO - Starting test_calcul_energie_utile_pic
+2026-03-07 19:31:59,029 - test_batterie - INFO - RESULT - test_calcul_energie_utile_pic: SUCCESS 
+2026-03-07 19:31:59,031 - test_batterie - INFO - Starting test_choisir_energie_utile_finale
+2026-03-07 19:31:59,031 - test_batterie - INFO - RESULT - test_choisir_energie_utile_finale: SUCCESS 
+2026-03-07 19:31:59,037 - test_batterie - INFO - Starting test_calcul_densite_air_sec
+2026-03-07 19:31:59,037 - test_batterie - INFO - RESULT - test_calcul_densite_air_sec: SUCCESS 
+2026-03-07 19:31:59,041 - test_batterie - INFO - Starting test_calcul_forces_traction
+2026-03-07 19:31:59,041 - test_batterie - INFO - RESULT - test_calcul_forces_traction: SUCCESS 
+2026-03-07 19:31:59,044 - test_batterie - INFO - Starting test_conso_l_100km_pour_capacite
+2026-03-07 19:31:59,045 - test_batterie - INFO - RESULT - test_conso_l_100km_pour_capacite: SUCCESS 
+2026-03-07 19:31:59,047 - test_batterie - INFO - Starting test_balayage_capacites
+2026-03-07 19:31:59,047 - test_batterie - INFO - RESULT - test_balayage_capacites: SUCCESS 
+2026-03-07 19:31:59,055 - test_batterie - INFO - Starting test_calcul_temps_charge
+2026-03-07 19:31:59,055 - test_batterie - INFO - RESULT - test_calcul_temps_charge: SUCCESS 
+2026-03-07 19:31:59,060 - test_batterie - INFO - Starting test_evaluer_electrolyte_solide_nominal
+2026-03-07 19:31:59,060 - test_batterie - INFO - RESULT - test_evaluer_electrolyte_solide_nominal: SUCCESS 
+2026-03-07 19:31:59,062 - test_batterie - INFO - Starting test_evaluer_electrolyte_solide_incomple
+2026-03-07 19:31:59,062 - test_batterie - INFO - RESULT - test_evaluer_electrolyte_solide_incomple: SUCCESS 
+2026-03-07 19:32:20,231 - test_batterie - INFO - Starting test_calcul_capacite_totale_batterie
+2026-03-07 19:32:20,232 - test_batterie - INFO - RESULT - test_calcul_capacite_totale_batterie: SUCCESS 
+2026-03-07 19:32:20,233 - test_batterie - INFO - Starting test_calcul_poids_batterie
+2026-03-07 19:32:20,233 - test_batterie - INFO - RESULT - test_calcul_poids_batterie: SUCCESS 
+2026-03-07 19:32:20,236 - test_batterie - INFO - Starting test_calcul_conso_kwh_km_depuis_puissance_vitesse
+2026-03-07 19:32:20,236 - test_batterie - INFO - RESULT - test_calcul_conso_kwh_km_depuis_puissance_vitesse: SUCCESS 
+2026-03-07 19:32:20,237 - test_batterie - INFO - Starting test_calcul_ah_depuis_kwh_tension
+2026-03-07 19:32:20,237 - test_batterie - INFO - RESULT - test_calcul_ah_depuis_kwh_tension: SUCCESS 
+2026-03-07 19:32:20,239 - test_batterie - INFO - Starting test_calcul_courant_depuis_kw_tension
+2026-03-07 19:32:20,239 - test_batterie - INFO - RESULT - test_calcul_courant_depuis_kw_tension: SUCCESS 
+2026-03-07 19:32:20,240 - test_batterie - INFO - Starting test_calcul_c_rate_depuis_kw_kwh
+2026-03-07 19:32:20,240 - test_batterie - INFO - RESULT - test_calcul_c_rate_depuis_kw_kwh: SUCCESS 
+2026-03-07 19:32:20,242 - test_batterie - INFO - Starting test_calcul_puissance_effective_stockee
+2026-03-07 19:32:20,242 - test_batterie - INFO - RESULT - test_calcul_puissance_effective_stockee: SUCCESS 
+2026-03-07 19:32:20,243 - test_batterie - INFO - Starting test_calcul_puissance_charge_requise
+2026-03-07 19:32:20,243 - test_batterie - INFO - RESULT - test_calcul_puissance_charge_requise: SUCCESS 
+2026-03-07 19:32:20,245 - test_batterie - INFO - Starting test_calcul_energie_utile_cible
+2026-03-07 19:32:20,245 - test_batterie - INFO - RESULT - test_calcul_energie_utile_cible: SUCCESS 
+2026-03-07 19:32:20,246 - test_batterie - INFO - Starting test_calcul_energie_utile_trajet
+2026-03-07 19:32:20,247 - test_batterie - INFO - RESULT - test_calcul_energie_utile_trajet: SUCCESS 
+2026-03-07 19:32:20,248 - test_batterie - INFO - Starting test_calcul_energie_utile_pic
+2026-03-07 19:32:20,248 - test_batterie - INFO - RESULT - test_calcul_energie_utile_pic: SUCCESS 
+2026-03-07 19:32:20,249 - test_batterie - INFO - Starting test_choisir_energie_utile_finale
+2026-03-07 19:32:20,249 - test_batterie - INFO - RESULT - test_choisir_energie_utile_finale: SUCCESS 
+2026-03-07 19:32:20,251 - test_batterie - INFO - Starting test_calcul_densite_air_sec
+2026-03-07 19:32:20,251 - test_batterie - INFO - RESULT - test_calcul_densite_air_sec: SUCCESS 
+2026-03-07 19:32:20,252 - test_batterie - INFO - Starting test_calcul_forces_traction
+2026-03-07 19:32:20,253 - test_batterie - INFO - RESULT - test_calcul_forces_traction: SUCCESS 
+2026-03-07 19:32:20,254 - test_batterie - INFO - Starting test_conso_l_100km_pour_capacite
+2026-03-07 19:32:20,254 - test_batterie - INFO - RESULT - test_conso_l_100km_pour_capacite: SUCCESS 
+2026-03-07 19:32:20,256 - test_batterie - INFO - Starting test_balayage_capacites
+2026-03-07 19:32:20,256 - test_batterie - INFO - RESULT - test_balayage_capacites: SUCCESS 
+2026-03-07 19:32:20,258 - test_batterie - INFO - Starting test_calcul_temps_charge
+2026-03-07 19:32:20,258 - test_batterie - INFO - RESULT - test_calcul_temps_charge: SUCCESS 
+2026-03-07 19:32:20,260 - test_batterie - INFO - Starting test_evaluer_electrolyte_solide_nominal
+2026-03-07 19:32:20,260 - test_batterie - INFO - RESULT - test_evaluer_electrolyte_solide_nominal: SUCCESS 
+2026-03-07 19:32:20,261 - test_batterie - INFO - Starting test_evaluer_electrolyte_solide_incomple
+2026-03-07 19:32:20,261 - test_batterie - INFO - RESULT - test_evaluer_electrolyte_solide_incomple: SUCCESS 
