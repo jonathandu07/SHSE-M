@@ -51,7 +51,7 @@ try:
     from backend.pieces.arbre_vilbrequin import ArbreVilbrequin
     from backend.pieces.vilbrequin import Vilbrequin
     from backend.pieces.roulement_aiguille_arbre import RoulementAiguilleArbre
-    from backend.pieces.roulement_aiguille_arbre_vilebrequin import RoulementAiguilleArbreVilbrequin
+    from backend.pieces.roulement_aiguille_arbre_vilebrequin import RoulementAiguilleArbreVilebrequin
     from backend.pieces.couvercle_cylindre import CouvercleCylindre
     from backend.pieces.vis_couvercle_cylindre import VisCouvercleCylindre
     from backend.pieces.deplaceur import Deplaceur
@@ -69,7 +69,7 @@ except Exception:
     ArbreVilbrequin = None  # type: ignore
     Vilbrequin = None  # type: ignore
     RoulementAiguilleArbre = None  # type: ignore
-    RoulementAiguilleArbreVilbrequin = None  # type: ignore
+    RoulementAiguilleArbreVilebrequin = None  # type: ignore
     CouvercleCylindre = None  # type: ignore
     VisCouvercleCylindre = None  # type: ignore
     Deplaceur = None  # type: ignore

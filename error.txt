@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "<string>", line 11, in <module>
+    from backend.pieces.roulement_aiguille_arbre_vilebrequin import RoulementAiguilleArbreVilbrequin
+ImportError: cannot import name 'RoulementAiguilleArbreVilbrequin' from 'backend.pieces.roulement_aiguille_arbre_vilebrequin' (D:\Documents\GitHub\SHSE-M\backend\pieces\roulement_aiguille_arbre_vilebrequin.py)
