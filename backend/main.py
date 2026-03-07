@@ -174,6 +174,7 @@ def construire_alternateur() -> Alternateur:
     return Alternateur(
         connexion="etoile",
         nombre_poles=12,
+        pertes_fixes_w=500.0,
     )
 
 

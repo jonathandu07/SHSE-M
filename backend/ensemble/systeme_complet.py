@@ -747,7 +747,9 @@ class SystemeComplet:
             P_alt_mec_w: Optional[float] = None
 
             if isinstance(alternateur_rapport, dict):
-                res = _safe_dict(alternateur_rapport.get("resultats"))
+                # Le rapport peut venir de analyser_pour_bus_dc (imbriqué) ou analyser_point_de_fonctionnement (direct)
+                alt_base = alternateur_rapport.get("alternateur") if isinstance(alternateur_rapport.get("alternateur"), dict) else alternateur_rapport
+                res = _safe_dict(alt_base.get("resultats"))
                 couple_alt_nm = _safe_float(res.get("couple_mecanique_Nm"))
                 P_alt_mec_w = _safe_float(res.get("P_mecanique_W"))
 
