@@ -496,7 +496,9 @@ class ArbreVilbrequin:
     # Géométrie globale utile CAO
     entre_axe_paliers_m: Optional[float] = None
     largeur_totale_arbre_m: Optional[float] = None
-    nb_journaux_principaux: int = 2
+    
+    # Arbre Vilebrequin = Maneton Unitaire (1 Maneton, portion de journaux)
+    nb_journaux_principaux: Literal[1, 2] = 2 # Represente les portées encadrant le maneton unitaire
 
     # Matériau
     materiau_cle: Optional[str] = None

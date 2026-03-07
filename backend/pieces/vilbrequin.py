@@ -225,10 +225,11 @@ class Vilbrequin:
     bielle: Optional[Any] = None
     deplaceur: Optional[Any] = None
     systeme_complet: Optional[Any] = None    # optionnel (si tu veux récupérer couple/rpm)
+    moteur_thermique: Optional[Any] = None   # Source absolue d'architecture
 
-    # Architecture (aucune hypothèse automatique)
-    nb_manetons: Optional[int] = None                 # A FOURNIR si tu veux totaux
-    nb_journaux_principaux: Optional[int] = None      # A FOURNIR si tu veux totaux
+    # Architecture (aucune hypothèse automatique si MoteurThermique présent)
+    nb_manetons: Optional[int] = None                 # Bypass manuel
+    nb_journaux_principaux: Optional[int] = None      # Bypass manuel
 
     # Offsets / cinématique
     course_m: Optional[float] = None                  # sinon depuis cylindre ou arbre
@@ -284,6 +285,7 @@ class Vilbrequin:
         rep_dep = _try_call(self.deplaceur, "analyser") if self.deplaceur is not None else None
         rep_pis = _try_call(self.piston, "calculer") if self.piston is not None else None
         rep_bie = _try_call(self.bielle, "calculer") if self.bielle is not None else None
+        rep_mt = _try_call(self.moteur_thermique, "analyser") if hasattr(self.moteur_thermique, "analyser") else None
 
         rapport["recuperations"] = {
             "arbre_vilbrequin": bool(rep_arbre),
@@ -291,6 +293,7 @@ class Vilbrequin:
             "deplaceur": bool(rep_dep),
             "piston": bool(rep_pis),
             "bielle": bool(rep_bie),
+            "moteur_thermique": bool(rep_mt) or bool(self.moteur_thermique),
         }
 
         # ---------------------------------------------------------------------
@@ -474,9 +477,16 @@ class Vilbrequin:
                 "Requis pour volume/mass manetons (largeur de la portée).",
             )
 
-        # Comptages (aucune hypothèse automatique)
+        # Comptages (Architecture centralisée)
         nJ = self.nb_journaux_principaux
         nM = self.nb_manetons
+
+        if self.moteur_thermique is not None:
+            if nM is None:
+                nM = _get(self.moteur_thermique, "nb_manetons_requis")
+            if nJ is None:
+                nJ = _get(self.moteur_thermique, "nb_journaux_principaux_requis")
+
         if nJ is not None:
             if not isinstance(nJ, int) or nJ <= 0:
                 raise ValueError(f"nb_journaux_principaux doit être un int > 0 (reçu: {nJ!r}).")

@@ -429,6 +429,41 @@ class MoteurThermique:
     viscosite_pa_s: Optional[float] = None
     densite_kg_m3: Optional[float] = None
 
+    @property
+    def arch_type(self) -> str:
+        if self.architecture:
+            return str(self.architecture)
+        return "L" if self.nombre_cylindres <= 6 else "V"
+
+    @property
+    def cylindres_par_banc(self) -> int:
+        n = max(1, int(self.nombre_cylindres))
+        A = self.arch_type
+        if A == "V":
+            return math.ceil(n / 2)
+        elif A == "W":
+            return math.ceil(n / 4)
+        elif A == "Etoile":
+            return n
+        return n # L type
+
+    @property
+    def nb_manetons_requis(self) -> int:
+        """Nombre de manetons (throws) physiques sur le vilebrequin global."""
+        n = max(1, int(self.nombre_cylindres))
+        A = self.arch_type
+        if A in ("V", "W"):
+            return math.ceil(n / 2)  # Typically 2 rods per throw in V engines
+        elif A == "Etoile":
+            return 1  # Standard single-row radial engine
+        return n # L type (one throw per cylinder)
+
+    @property
+    def nb_journaux_principaux_requis(self) -> int:
+        """Nombre de paliers principaux (main bearings) sur le vilebrequin global."""
+        manetons = self.nb_manetons_requis
+        return manetons + 1 # Fully supported crankshaft as a general reliable rule
+
     # --- Frottements ---
     coef_frottement_segment: Optional[float] = None
     coef_frottement_palier: Optional[float] = None

@@ -1,1 +1,0 @@
-Keys in sous_systemes: ['traction', 'check_moteurs', 'batterie', 'chaine_moteur_alternateur', 'alternateur', 'boite_crabots', 'architecture', 'moteur_thermique_definition', 'moteur_thermique']

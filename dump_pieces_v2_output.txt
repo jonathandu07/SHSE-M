@@ -40,7 +40,7 @@ Moteur_thermique dependency is none: False
 
 --- vilbrequin ---
 Inconnues Impossibles: []
-Inconnues Partielles: ['diametre_journal_principal_m', 'largeur_portee_journal_m', 'diametre_maneton_m', 'largeur_portee_maneton_m', 'volume_webs_total_m3', 'volume_contrepoids_total_m3', 'longueur_torsion_equivalente_m', 'moment_flexion_max_Nm', 'limite_elastique_pa']
+Inconnues Partielles: ['diametre_journal_principal_m', 'largeur_portee_journal_m', 'diametre_maneton_m', 'largeur_portee_maneton_m', 'nb_journaux_principaux', 'nb_manetons', 'volume_webs_total_m3', 'volume_contrepoids_total_m3', 'longueur_torsion_equivalente_m', 'moment_flexion_max_Nm', 'limite_elastique_pa']
 
 --- roulement_aiguille_arbre ---
 Inconnues Impossibles: []
