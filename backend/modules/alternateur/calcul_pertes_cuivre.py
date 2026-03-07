@@ -97,7 +97,7 @@ def calcul_pertes_cuivre_phase(
     - pertes (W)
     """
     I = _require_finite("courant", courant)
-    R = _require_positive("resistance", resistance, strictly=False)
+    R = _require_finite("resistance", resistance)
 
     if courant_type == "peak":
         I = I / math.sqrt(2.0)
@@ -140,7 +140,7 @@ def calcul_pertes_cuivre_triphase(
     - pertes cuivre totales (W)
     """
     I = _require_finite("courant_phase", courant_phase)
-    Rph = _require_positive("resistance_phase", resistance_phase, strictly=False)
+    Rph = _require_finite("resistance_phase", resistance_phase)
 
     # Conversion peak->rms si besoin
     if courant_type == "peak":

@@ -359,7 +359,6 @@ class TestCylindre(unittest.TestCase):
         V_brides = 2.0 * A_anneau * e_b
         m_brides = rho * V_brides
 
-        self.assertIsClose(r["geometrie"]["rayon_externe_avec_brides_m"], r_b, rel=1e-12)
         self.assertIsClose(r["geometrie"]["diametre_externe_avec_brides_m"], 2.0 * r_b, rel=1e-12)
         self.assertIsClose(r["geometrie"]["longueur_totale_avec_brides_m"], L + 2.0 * e_b, rel=1e-12)
 

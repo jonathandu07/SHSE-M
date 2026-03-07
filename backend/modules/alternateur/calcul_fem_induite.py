@@ -346,6 +346,19 @@ def calcul_facteur_enroulement_depuis_tension(
 # Rapport complet (calcule tout ce qui est calculable, sinon inconnues)
 # =============================================================================
 
+def _dedup_inconnues(rep: Dict[str, Any]) -> None:
+    for cat in ["impossibles", "partielles"]:
+        if cat in rep["inconnues"]:
+            vu = set()
+            new_list = []
+            for d in rep["inconnues"][cat]:
+                nom = d.get("nom", "")
+                if nom not in vu:
+                    vu.add(nom)
+                    new_list.append(d)
+            rep["inconnues"][cat] = new_list
+
+
 @dataclass(frozen=True)
 class RapportFEM:
     """

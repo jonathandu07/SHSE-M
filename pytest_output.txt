@@ -1,0 +1,92 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\Documents\GitHub\SHSE-M
+plugins: anyio-4.8.0, Faker-37.4.0, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 294 items
+
+backend\tests\ensemble\test_air.py .......                               [  2%]
+backend\tests\ensemble\test_eau.py ......                                [  4%]
+backend\tests\ensemble\test_materiaux.py .....                           [  6%]
+backend\tests\ensemble\test_optimisation.py .                            [  6%]
+backend\tests\ensemble\test_systeme_complet.py ..                        [  7%]
+backend\tests\modules\alternateur\test_calcul_couple_alternateur.py .... [  8%]
+...................                                                      [ 14%]
+backend\tests\modules\alternateur\test_calcul_echauffement_thermique.py . [ 15%]
+..............                                                           [ 20%]
+backend\tests\modules\alternateur\test_calcul_fem_induite.py ........... [ 23%]
+.....................                                                    [ 30%]
+backend\tests\modules\alternateur\test_calcul_frequence_synchrone.py ... [ 31%]
+.........                                                                [ 35%]
+backend\tests\modules\alternateur\test_calcul_pertes_cuivre.py ......... [ 38%]
+.................                                                        [ 43%]
+backend\tests\modules\alternateur\test_calcul_puissance_electrique.py .. [ 44%]
+......................                                                   [ 52%]
+backend\tests\modules\alternateur\test_calcul_puissance_mecanique.py ... [ 53%]
+..............                                                           [ 57%]
+backend\tests\modules\alternateur\test_calcul_rendement_alternateur.py . [ 58%]
+...................                                                      [ 64%]
+backend\tests\modules\alternateur\test_calcul_vitesse_angulaire.py ..... [ 66%]
+..........                                                               [ 69%]
+backend\tests\modules\architecture\test_calcul_cout_maintenance_archard.py . [ 70%]
+..                                                                       [ 70%]
+backend\tests\modules\architecture\test_calcul_cylindree_admissible.py . [ 71%]
+.                                                                        [ 71%]
+backend\tests\modules\architecture\test_calcul_cylindree_totale.py .     [ 71%]
+backend\tests\modules\architecture\test_calcul_nombre_cylindres_min.py . [ 72%]
+                                                                         [ 72%]
+backend\tests\modules\architecture\test_choix_architecture_optimale.py . [ 72%]
+.                                                                        [ 72%]
+backend\tests\modules\architecture\test_resolution_globale_architecture.py . [ 73%]
+                                                                         [ 73%]
+backend\tests\modules\batterie\test_calcul_dimensionnement_batterie.py . [ 73%]
+.                                                                        [ 73%]
+backend\tests\modules\batterie\test_calcul_electrique_pack.py ......     [ 75%]
+backend\tests\modules\batterie\test_calcul_energie_utile.py ....         [ 77%]
+backend\tests\modules\batterie\test_calcul_ratio.py ....                 [ 78%]
+backend\tests\modules\batterie\test_calcul_temps_charge.py .             [ 78%]
+backend\tests\modules\batterie\test_electrolyte_solide.py ..             [ 79%]
+backend\tests\modules\boite_crabots\test_calcul_choc_engagement.py ...   [ 80%]
+backend\tests\modules\boite_crabots\test_calcul_contact_dent.py .        [ 80%]
+backend\tests\modules\boite_crabots\test_calcul_dimensionnement_arbre.py . [ 81%]
+......                                                                   [ 83%]
+backend\tests\modules\boite_crabots\test_calcul_dimensionnement_crabot.py . [ 83%]
+.                                                                        [ 84%]
+backend\tests\modules\boite_crabots\test_calcul_duree_vie_roulement.py . [ 84%]
+..                                                                       [ 85%]
+backend\tests\modules\boite_crabots\test_calcul_flexion_dent.py .        [ 85%]
+backend\tests\modules\boite_crabots\test_calcul_force_pignon.py ..       [ 86%]
+backend\tests\modules\moteur_electrique\test_calcul_acceleration_max.py . [ 86%]
+.                                                                        [ 86%]
+backend\tests\modules\moteur_electrique\test_calcul_charge_essieu.py .   [ 87%]
+backend\tests\modules\moteur_electrique\test_calcul_force_resistance_vitesse.py . [ 87%]
+                                                                         [ 87%]
+backend\tests\modules\moteur_electrique\test_calcul_multi_domaine.py ... [ 88%]
+                                                                         [ 88%]
+backend\tests\modules\moteur_electrique\test_calcul_puissance_moteur.py . [ 88%]
+.                                                                        [ 89%]
+backend\tests\modules\moteur_electrique\test_calcul_puissance_roue.py .. [ 89%]
+.                                                                        [ 90%]
+backend\tests\modules\moteur_thermique\test_calcul_couple_vilebrequin.py . [ 90%]
+                                                                         [ 90%]
+backend\tests\modules\moteur_thermique\test_calcul_cylindree.py .....    [ 92%]
+backend\tests\modules\moteur_thermique\test_calcul_force_inertie.py .    [ 92%]
+backend\tests\modules\moteur_thermique\test_calcul_gaz.py ....           [ 93%]
+backend\tests\modules\moteur_thermique\test_calcul_pertes_frottement.py . [ 94%]
+.                                                                        [ 94%]
+backend\tests\modules\moteur_thermique\test_calcul_precharge_vis.py ...  [ 95%]
+backend\tests\modules\moteur_thermique\test_calcul_travail_indique.py .. [ 96%]
+                                                                         [ 96%]
+backend\tests\modules\moteur_thermique\test_calcul_usure_archard.py ..   [ 96%]
+backend\tests\modules\moteur_thermique\test_calcul_vitesse_piston.py .   [ 97%]
+backend\tests\pieces\test_cylindre.py .F......                           [100%]
+
+================================== FAILURES ===================================
+____________________ TestCylindre.test_brides_si_fournies _____________________
+backend\tests\pieces\test_cylindre.py:362: in test_brides_si_fournies
+    self.assertIsClose(r["geometrie"]["diametre_externe_avec_brides_m"], 2.0 * r_b, rel=1e-12)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'diametre_externe_avec_brides_m'
+=========================== short test summary info ===========================
+FAILED backend/tests/pieces/test_cylindre.py::TestCylindre::test_brides_si_fournies
+======================== 1 failed, 293 passed in 2.62s ========================

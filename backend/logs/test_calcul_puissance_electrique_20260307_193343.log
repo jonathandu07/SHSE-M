@@ -1,0 +1,79 @@
+2026-03-07 19:33:43 [INFO] === DÉBUT TESTS ===
+2026-03-07 19:33:43 [INFO] Module de test : D:\Documents\GitHub\SHSE-M\backend\tests\modules\alternateur\test_calcul_puissance_electrique.py
+2026-03-07 19:33:43 [INFO] Log file       : D:\Documents\GitHub\SHSE-M\backend\logs\test_calcul_puissance_electrique_20260307_193343.log
+2026-03-07 19:33:43 [INFO] Python         : 3.13.12 (tags/v3.13.12:1cbe481, Feb  3 2026, 18:22:25) [MSC v.1944 64 bit (AMD64)]
+2026-03-07 19:33:43 [INFO] Platform       : Windows-11-10.0.26100-SP0 | AMD64
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_dc_details
+2026-03-07 19:33:43 [INFO] DC details | out={'P': 480.0, 'V': 48.0, 'I': 10.0}
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_dc_details | OK | 0.000652 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_dc_negative_clamp
+2026-03-07 19:33:43 [INFO] DC clamp | V=48 I=-10 | P=0 | attendu=0
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_dc_negative_clamp | OK | 0.000181 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_dc_nominal
+2026-03-07 19:33:43 [INFO] DC | V=48 I=10 | P=480 | attendu=480
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_dc_nominal | OK | 0.000205 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_dc_non_finis_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | V NaN
+2026-03-07 19:33:43 [INFO] expect ValueError | I inf
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_dc_non_finis_refuse | OK | 0.000307 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_details
+2026-03-07 19:33:43 [INFO] 1ph details | out={'P': 1380.0, 'S': 2300.0, 'Q': 1840.0, 'pf': 0.6}
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_details | OK | 0.000181 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_i_non_fini_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | I inf
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_i_non_fini_refuse | OK | 0.000231 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_nominal
+2026-03-07 19:33:43 [INFO] 1ph | V=230 I=10 pf=0.8 | P=1840 | attendu=1840
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_nominal | OK | 0.000193 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_pf_negatif_et_clamp
+2026-03-07 19:33:43 [INFO] 1ph clamp | pf=-0.5 | P=0 | attendu=0
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_pf_negatif_et_clamp | OK | 0.000196 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_v_non_fini_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | V NaN
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_monophase_v_non_fini_refuse | OK | 0.000197 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_pf_legere_survaleur_float_corregee
+2026-03-07 19:33:43 [INFO] pf survaleur | pf_in=1 pf_used=1
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_pf_legere_survaleur_float_corregee | OK | 0.000196 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_pf_non_fini_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | pf NaN
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_pf_non_fini_refuse | OK | 0.002230 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_pf_trop_grand_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | pf > 1
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_pf_trop_grand_refuse | OK | 0.001721 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_pf_trop_petit_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | pf < -1
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_pf_trop_petit_refuse | OK | 0.000199 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_clamp_non_negative
+2026-03-07 19:33:43 [INFO] 3ph clamp | pf=-0.8 | P=0 | attendu=0
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_clamp_non_negative | OK | 0.000192 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_connexion_invalide_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | connexion invalide
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_connexion_invalide_refuse | OK | 0.000193 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_entree_invalide_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | entree invalide
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_entree_invalide_refuse | OK | 0.000219 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_i_non_fini_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | IL NaN/inf
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_i_non_fini_refuse | OK | 0.000204 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_return_details
+2026-03-07 19:33:43 [INFO] 3ph details | out={'P': 5542.562584220407, 'S': 6928.203230275509, 'Q': 4156.921938165305, 'V_LL': 400.0, 'I_L': 10.0, 'pf': 0.8}
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_return_details | OK | 0.001618 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_v_non_fini_refuse
+2026-03-07 19:33:43 [INFO] expect ValueError | VLL NaN/inf
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_v_non_fini_refuse | OK | 0.001035 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vll_il_pf05
+2026-03-07 19:33:43 [INFO] 3ph VLL/IL | pf=0.5 | P=3464.1 | attendu=3464.1
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vll_il_pf05 | OK | 0.001246 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vll_il_pf1
+2026-03-07 19:33:43 [INFO] 3ph VLL/IL | VLL=400 IL=10 pf=1 | P=6928.2 | attendu=6928.2
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vll_il_pf1 | OK | 0.002861 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vll_il_pf_negative
+2026-03-07 19:33:43 [INFO] 3ph VLL/IL | pf=-0.8 | P=-5542.56 | attendu=-5542.56
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vll_il_pf_negative | OK | 0.000221 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vph_iph_Delta_equivalent
+2026-03-07 19:33:43 [INFO] 3ph Vph/Iph Delta | P=6210 | attendu=6210
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vph_iph_Delta_equivalent | OK | 0.000216 s
+2026-03-07 19:33:43 [INFO] --- START test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vph_iph_Y_equivalent
+2026-03-07 19:33:43 [INFO] 3ph Vph/Iph Y | P=6210 | attendu=6210
+2026-03-07 19:33:43 [INFO] --- END   test_calcul_puissance_electrique.TestCalculPuissanceElectrique.test_triphase_vph_iph_Y_equivalent | OK | 0.000185 s
+2026-03-07 19:33:43 [INFO] === FIN TESTS ===
