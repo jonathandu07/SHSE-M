@@ -658,16 +658,13 @@ class SystemeComplet:
                 tension_bus_dc_v=float(Vbus_dc),
                 rpm_moteur=float(_require_positive("vitesse_moteur_thermique_rpm", vitesse_moteur_thermique_rpm, strict=True)),
                 rapports=list(rapports_boite_candidates),
-                energie_a_recharger_kwh=energie_a_recharger_kwh,
                 rendement_boite=rendement_boite,
-                facteur_service=float(_require_positive("facteur_service_boite", facteur_service_boite, strict=True)),
-                moment_flechissant_nm=moment_flechissant_nm,
                 inertie_primaire_kg_m2=inertie_primaire_kg_m2,
                 inertie_secondaire_kg_m2=inertie_secondaire_kg_m2,
                 delta_omega_rad_s=delta_omega_rad_s,
                 temps_engagement_s=temps_engagement_s,
-                force_axiale_roulement_N=force_axiale_roulement_N,
-                force_radiale_roulement_N=force_radiale_roulement_N,
+                force_axiale_N=force_axiale_roulement_N,
+                force_radiale_N=force_radiale_roulement_N,
             )
             rapport["sous_systemes"]["chaine_moteur_alternateur"] = chaine_rapport
             _merge_inconnues(rapport, chaine_rapport, prefix="chaine_moteur_alternateur")

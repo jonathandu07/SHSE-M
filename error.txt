@@ -5,16 +5,9 @@ Traceback (most recent call last):
     ...<12 lines>...
         rendement_mecanique_cible_min=0.80,
     )
-  File "D:\Documents\GitHub\SHSE-M\backend\main.py", line 464, in dimensionner_systeme_shsem
-    rapport_systeme = systeme.analyser(
-        puissance_moyenne_kw=p_trac_kw,
-    ...<24 lines>...
-        puissance_elec_alt_cible_w=(puissance_charge_kw * 1000.0) if charger_batterie else None,
-    )
-  File "D:\Documents\GitHub\SHSE-M\backend\ensemble\systeme_complet.py", line 654, in analyser
-    chaine_rapport = self.boite_crabots.analyser_chaine_moteur_alternateur(
-        alternateur=self.alternateur,
-    ...<14 lines>...
-        force_radiale_roulement_N=force_radiale_roulement_N,
-    )
-TypeError: BoiteCrabots.analyser_chaine_moteur_alternateur() got an unexpected keyword argument 'energie_a_recharger_kwh'
+  File "D:\Documents\GitHub\SHSE-M\backend\main.py", line 520, in dimensionner_systeme_shsem
+    rapport_optimisation = optimiseur.analyser()
+  File "D:\Documents\GitHub\SHSE-M\backend\ensemble\optimisation.py", line 861, in analyser
+    pertes_sys = _extract_pertes(rep_sys)
+                 ^^^^^^^^^^^^^^^
+NameError: name '_extract_pertes' is not defined. Did you mean: '_extraire_pertes'?
