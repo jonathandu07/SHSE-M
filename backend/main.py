@@ -375,6 +375,7 @@ def construire_pieces_depuis_systeme(
         pieces["deplaceur"] = Deplaceur(
             cylindre=pieces["cylindre"],
             materiau_cle=materiau_metal_cle,
+            longueur_totale_m=_req_pos("longueur_utile_m", getattr(pieces["cylindre"], "longueur_utile_m", None) or 0.0),
         )
 
     if JointDeplaceur is not None and pieces.get("deplaceur") is not None:
