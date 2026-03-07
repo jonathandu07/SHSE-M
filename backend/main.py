@@ -56,7 +56,6 @@ try:
     from backend.pieces.vis_couvercle_cylindre import VisCouvercleCylindre
     from backend.pieces.deplaceur import Deplaceur
     from backend.pieces.joint_deplaceur import JointDeplaceur
-    from backend.pieces.clavette_arbre import ClavetteArbre
 except Exception:
     # si certains modules sont absents dans l’environnement courant,
     # on laisse à None pour conserver l’orchestrateur exécutable
