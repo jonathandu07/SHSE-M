@@ -23,7 +23,7 @@ try:
     from backend.components.boite_crabots import BoiteCrabots
     from backend.components.architecture import Architecture
 
-    # Modules (réutilisation quand disponibles)
+    # Modules
     from backend.modules.moteur_thermique.calcul_cylindree import calcul_cylindree_totale
 
 except Exception:
@@ -65,6 +65,16 @@ def _require_positive(name: str, x: Any, *, strict: bool = True) -> float:
         op = ">" if strict else ">="
         raise ValueError(f"{name} doit être {op} 0 (reçu: {v}).")
     return v
+
+
+def _require_int_positive(name: str, x: Any, *, strict: bool = True) -> int:
+    if not isinstance(x, int):
+        raise ValueError(f"{name} doit être un entier (reçu: {x!r}).")
+    ok = x > 0 if strict else x >= 0
+    if not ok:
+        op = ">" if strict else ">="
+        raise ValueError(f"{name} doit être {op} 0 (reçu: {x}).")
+    return int(x)
 
 
 def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: str) -> None:
@@ -119,6 +129,65 @@ def _cylindree_totale_m3(alesage_m: float, course_m: float, nombre_cylindres: in
     return _fallback_cylindree_totale(alesage_m, course_m, int(nombre_cylindres))
 
 
+def _safe_dict(d: Any) -> Dict[str, Any]:
+    return d if isinstance(d, dict) else {}
+
+
+def _safe_float(x: Any) -> Optional[float]:
+    return float(x) if _is_finite(x) else None
+
+
+def _safe_int(x: Any) -> Optional[int]:
+    if isinstance(x, int):
+        return int(x)
+    if _is_finite(x):
+        xi = int(float(x))
+        return xi
+    return None
+
+
+def _safe_bool(x: Any) -> Optional[bool]:
+    if isinstance(x, bool):
+        return x
+    return None
+
+
+def _add_note(rapport: Dict[str, Any], message: str) -> None:
+    if "notes_modele" not in rapport:
+        rapport["notes_modele"] = []
+    rapport["notes_modele"].append(str(message))
+
+
+def _first_finite(*vals: Any) -> Optional[float]:
+    for v in vals:
+        if _is_finite(v):
+            return float(v)
+    return None
+
+
+def _first_non_none(*vals: Any) -> Any:
+    for v in vals:
+        if v is not None:
+            return v
+    return None
+
+
+def _bool_max_all(values: Sequence[Optional[bool]]) -> Optional[bool]:
+    """
+    Agrégation conservatrice :
+    - si au moins un False => False
+    - sinon si au moins un True => True
+    - sinon None
+    """
+    seen_true = False
+    for v in values:
+        if v is False:
+            return False
+        if v is True:
+            seen_true = True
+    return True if seen_true else None
+
+
 # ============================================================
 # Modèle système complet
 # ============================================================
@@ -131,8 +200,14 @@ ScenarioBusDC = Literal["traction", "charge", "max", "traction_plus_charge"]
 class SystemeComplet:
     """
     Chaîne visée :
-    moteur électrique -> bus DC -> batterie -> alternateur -> boîte à crabots -> moteur thermique -> architecture.
-    Ne calcule que ce qui est calculable avec les entrées fournies et les composants existants.
+    moteur électrique -> bus DC -> batterie -> alternateur -> boîte à crabots
+    -> moteur thermique -> architecture.
+
+    Le système :
+    - calcule ce qui est calculable ;
+    - n'invente pas les données manquantes ;
+    - consolide les résultats techniques et les critères globaux :
+      puissance / énergie / nombre de cylindres / géométrie / cohérence système.
     """
 
     moteur_electrique: MoteurElectrique
@@ -197,7 +272,7 @@ class SystemeComplet:
         courant_est_ligne: bool = True,
         rendement_liaison_meca_alt: float = 1.0,
 
-        # E) Boîte à crabots (choix rapport)
+        # E) Boîte à crabots
         rapports_boite_candidates: Optional[Sequence[float]] = None,
         rendement_boite: Optional[float] = None,
         facteur_service_boite: float = 1.2,
@@ -217,6 +292,27 @@ class SystemeComplet:
         largeur_dispo_m: Optional[float] = None,
         horizon_usage_h: float = 20000.0,
 
+        architectures_autorisees: Optional[List[Literal["L", "V", "W", "Etoile"]]] = None,
+        architecture_forcee: Optional[Literal["L", "V", "W", "Etoile"]] = None,
+        poids_maintenance: float = 1.0,
+        poids_masse: float = 1.0,
+        poids_cout_matiere: float = 1.0,
+        poids_compacite: float = 1.0,
+        poids_fiabilite: float = 1.0,
+        poids_rendement: float = 1.0,
+
+        # Critères moteur thermique globaux
+        pression_max_pa: Optional[float] = None,
+        contrainte_admissible_pa: Optional[float] = None,
+        densite_materiau_kg_m3: Optional[float] = None,
+        cout_matiere_eur_kg: Optional[float] = None,
+        rendement_indique_cible_min: Optional[float] = None,
+        rendement_mecanique_cible_min: Optional[float] = None,
+        masse_estimee_max_kg: Optional[float] = None,
+        cout_matiere_max_eur: Optional[float] = None,
+        indice_maintenance_max: Optional[float] = None,
+        duree_vie_cible_h: Optional[float] = None,
+
         # G) Pass-through moteur thermique
         moteur_thermique_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -225,8 +321,103 @@ class SystemeComplet:
             "entrees": {},
             "sous_systemes": {},
             "liaisons": {},
+            "synthese": {},
+            "criteres_conception": {},
+            "cao": {},
             "inconnues": {"impossibles": [], "partielles": []},
             "notes_modele": [],
+        }
+
+        rapport["entrees"] = {
+            "vehicule": {
+                "masse_kg": masse_kg,
+                "vitesse_ms": vitesse_ms,
+                "acceleration_ms2": acceleration_ms2,
+                "angle_pente": angle_pente,
+                "angle_unite": angle_unite,
+                "coef_roulement": coef_roulement,
+                "coef_trainee_aero_cda": coef_trainee_aero_cda,
+                "densite_air": densite_air,
+                "gravite": gravite,
+                "rayon_roue_m": rayon_roue_m,
+                "rapport_reduction_global": rapport_reduction_global,
+                "rendement_transmission": rendement_transmission,
+                "nb_roues_motrices": nb_roues_motrices,
+                "nb_moteurs_electriques": nb_moteurs_electriques,
+                "pertes_fixes_transmission_w": pertes_fixes_transmission_w,
+                "couple_pertes_transmission_nm": couple_pertes_transmission_nm,
+                "marge_puissance": marge_puissance,
+                "marge_couple": marge_couple,
+                "puissance_auxiliaire_w": puissance_auxiliaire_w,
+            },
+            "batterie": {
+                "distance_km": distance_km,
+                "conso_kwh_km": conso_kwh_km,
+                "puissance_moyenne_kw": puissance_moyenne_kw,
+                "vitesse_moyenne_kmh": vitesse_moyenne_kmh,
+                "temps_charge_cible_h": temps_charge_cible_h,
+                "puissance_pic_kw": puissance_pic_kw,
+                "duree_pic_s": duree_pic_s,
+                "energie_utile_imposee_kwh": energie_utile_imposee_kwh,
+                "calculer_puissance_charge_requise": calculer_puissance_charge_requise,
+                "utiliser_puissance_traction_comme_pic_si_absente": utiliser_puissance_traction_comme_pic_si_absente,
+            },
+            "bus_dc": {
+                "scenario_bus_dc": scenario_bus_dc,
+                "tension_bus_dc_v": tension_bus_dc_v,
+            },
+            "alternateur": {
+                "mode_electrique_alternateur": mode_electrique_alternateur,
+                "vitesse_alternateur_rpm": vitesse_alternateur_rpm,
+                "rapport_vitesse_alt_sur_moteur": rapport_vitesse_alt_sur_moteur,
+                "vitesse_moteur_thermique_rpm": vitesse_moteur_thermique_rpm,
+                "puissance_elec_alt_cible_w": puissance_elec_alt_cible_w,
+                "tension_alt_v": tension_alt_v,
+                "courant_alt_a": courant_alt_a,
+                "facteur_puissance_alt": facteur_puissance_alt,
+                "entree_puissance_ac": entree_puissance_ac,
+                "courant_est_ligne": courant_est_ligne,
+                "rendement_liaison_meca_alt": rendement_liaison_meca_alt,
+            },
+            "boite_crabots": {
+                "rapports_boite_candidates": list(rapports_boite_candidates) if rapports_boite_candidates is not None else None,
+                "rendement_boite": rendement_boite,
+                "facteur_service_boite": facteur_service_boite,
+                "moment_flechissant_nm": moment_flechissant_nm,
+                "inertie_primaire_kg_m2": inertie_primaire_kg_m2,
+                "inertie_secondaire_kg_m2": inertie_secondaire_kg_m2,
+                "delta_omega_rad_s": delta_omega_rad_s,
+                "temps_engagement_s": temps_engagement_s,
+                "force_axiale_roulement_N": force_axiale_roulement_N,
+                "force_radiale_roulement_N": force_radiale_roulement_N,
+            },
+            "architecture": {
+                "pme_pa": pme_pa,
+                "vitesse_piston_max_ms": vitesse_piston_max_ms,
+                "longueur_dispo_m": longueur_dispo_m,
+                "largeur_dispo_m": largeur_dispo_m,
+                "horizon_usage_h": horizon_usage_h,
+                "architectures_autorisees": architectures_autorisees,
+                "architecture_forcee": architecture_forcee,
+                "poids_maintenance": poids_maintenance,
+                "poids_masse": poids_masse,
+                "poids_cout_matiere": poids_cout_matiere,
+                "poids_compacite": poids_compacite,
+                "poids_fiabilite": poids_fiabilite,
+                "poids_rendement": poids_rendement,
+            },
+            "moteur_thermique_criteres": {
+                "pression_max_pa": pression_max_pa,
+                "contrainte_admissible_pa": contrainte_admissible_pa,
+                "densite_materiau_kg_m3": densite_materiau_kg_m3,
+                "cout_matiere_eur_kg": cout_matiere_eur_kg,
+                "rendement_indique_cible_min": rendement_indique_cible_min,
+                "rendement_mecanique_cible_min": rendement_mecanique_cible_min,
+                "masse_estimee_max_kg": masse_estimee_max_kg,
+                "cout_matiere_max_eur": cout_matiere_max_eur,
+                "indice_maintenance_max": indice_maintenance_max,
+                "duree_vie_cible_h": duree_vie_cible_h,
+            },
         }
 
         # ------------------------------------------------------------
@@ -290,7 +481,12 @@ class SystemeComplet:
                     ),
                 }
             else:
-                _push_inconnue(rapport, "impossibles", "nb_moteurs_electriques", "nb_moteurs_electriques doit être >= 1.")
+                _push_inconnue(
+                    rapport,
+                    "impossibles",
+                    "nb_moteurs_electriques",
+                    "nb_moteurs_electriques doit être >= 1.",
+                )
         else:
             _push_inconnue(
                 rapport,
@@ -311,17 +507,27 @@ class SystemeComplet:
             dm = traction["demande_par_moteur"]
             nbm = int(max(1, nb_moteurs_electriques))
 
-            eta = self.moteur_electrique.rendement_moteur
-            pertes_fixes = self.moteur_electrique.pertes_fixes_w or 0.0
+            eta = getattr(self.moteur_electrique, "rendement_moteur", None)
+            pertes_fixes = getattr(self.moteur_electrique, "pertes_fixes_w", None) or 0.0
 
             if eta is None or not _is_finite(eta) or float(eta) <= 0.0 or float(eta) > 1.0:
-                _push_inconnue(rapport, "partielles", "P_bus_dc_traction_w", "Calculable si moteur_electrique.rendement_moteur (0..1) est fourni.")
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "P_bus_dc_traction_w",
+                    "Calculable si moteur_electrique.rendement_moteur (0..1) est fourni.",
+                )
             else:
                 Pm_par = float(dm["P_moteur_W"])
                 Pin_par = (Pm_par + float(pertes_fixes)) / float(eta)
                 P_bus_dc_traction_w = max(0.0, Pin_par * nbm + float(puissance_auxiliaire_w))
         else:
-            _push_inconnue(rapport, "partielles", "P_bus_dc_traction_w", "Calculable si traction est calculée et rendement moteur est connu.")
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "P_bus_dc_traction_w",
+                "Calculable si traction est calculée et rendement moteur est connu.",
+            )
 
         # ------------------------------------------------------------
         # 3) Batterie : dimensionnement (énergie + charge)
@@ -329,7 +535,10 @@ class SystemeComplet:
         puissance_pic_kw_eff = puissance_pic_kw
         if puissance_pic_kw_eff is None and utiliser_puissance_traction_comme_pic_si_absente and P_bus_dc_traction_w is not None:
             puissance_pic_kw_eff = float(P_bus_dc_traction_w) / 1000.0
-            rapport["notes_modele"].append("puissance_pic_kw déduite du point traction (P_bus_dc_traction_w) car absente en entrée.")
+            _add_note(
+                rapport,
+                "puissance_pic_kw déduite du point traction (P_bus_dc_traction_w) car absente en entrée."
+            )
 
         batterie_rapport = self.batterie.analyser_dimensionnement(
             distance_km=distance_km,
@@ -346,12 +555,12 @@ class SystemeComplet:
         _merge_inconnues(rapport, batterie_rapport, prefix="batterie")
 
         # ------------------------------------------------------------
-        # 4) Besoins bus DC (traction / charge) => puissance DC à fournir par alternateur
+        # 4) Besoins bus DC
         # ------------------------------------------------------------
         P_bus_dc_charge_w: Optional[float] = None
         P_bus_dc_design_w: Optional[float] = None
 
-        P_charge_req_kw = (batterie_rapport.get("charge") or {}).get("puissance_charge_requise_kw")
+        P_charge_req_kw = (_safe_dict(batterie_rapport.get("charge"))).get("puissance_charge_requise_kw")
         if _is_finite(P_charge_req_kw):
             P_bus_dc_charge_w = float(P_charge_req_kw) * 1000.0
 
@@ -366,7 +575,12 @@ class SystemeComplet:
                 if P_bus_dc_traction_w is not None and P_bus_dc_charge_w is not None:
                     P_bus_dc_design_w = float(P_bus_dc_traction_w) + float(P_bus_dc_charge_w)
                 else:
-                    _push_inconnue(rapport, "partielles", "P_bus_dc_design_w", "traction_plus_charge nécessite traction ET charge calculées.")
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "P_bus_dc_design_w",
+                        "traction_plus_charge nécessite traction ET charge calculées.",
+                    )
             else:  # max
                 if P_bus_dc_traction_w is not None and P_bus_dc_charge_w is not None:
                     P_bus_dc_design_w = max(float(P_bus_dc_traction_w), float(P_bus_dc_charge_w))
@@ -374,28 +588,37 @@ class SystemeComplet:
                     P_bus_dc_design_w = P_bus_dc_traction_w if P_bus_dc_traction_w is not None else P_bus_dc_charge_w
 
             if P_bus_dc_design_w is None:
-                _push_inconnue(rapport, "partielles", "P_bus_dc_design_w", "Donner puissance_elec_alt_cible_w ou fournir traction/charge exploitables.")
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "P_bus_dc_design_w",
+                    "Donner puissance_elec_alt_cible_w ou fournir traction/charge exploitables.",
+                )
 
         # Tension bus DC : entrée > moteur > batterie charge > batterie nominale
         Vbus_dc: Optional[float] = None
         if tension_bus_dc_v is not None:
             Vbus_dc = _require_positive("tension_bus_dc_v", tension_bus_dc_v, strict=True)
         else:
-            if self.moteur_electrique.tension_bus_v is not None:
-                Vbus_dc = float(self.moteur_electrique.tension_bus_v)
-            elif self.batterie.tension_charge_v is not None:
-                Vbus_dc = float(self.batterie.tension_charge_v)
-            elif self.batterie.tension_nominale_v is not None:
-                Vbus_dc = float(self.batterie.tension_nominale_v)
+            Vbus_dc = _first_finite(
+                getattr(self.moteur_electrique, "tension_bus_v", None),
+                getattr(self.batterie, "tension_charge_v", None),
+                getattr(self.batterie, "tension_nominale_v", None),
+            )
 
         if Vbus_dc is None:
-            _push_inconnue(rapport, "partielles", "tension bus DC", "Donner tension_bus_dc_v ou fournir tension bus moteur/batterie.")
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "tension bus DC",
+                "Donner tension_bus_dc_v ou fournir tension bus moteur/batterie.",
+            )
 
-        # Energie à recharger (utile) : si disponible via batterie
+        # Energie à recharger
         energie_a_recharger_kwh: Optional[float] = None
-        dim = batterie_rapport.get("dimensionnement") or {}
-        if _is_finite(dim.get("E_utile_finale_kwh")):
-            energie_a_recharger_kwh = float(dim["E_utile_finale_kwh"])
+        dim_batt = _safe_dict(batterie_rapport.get("dimensionnement"))
+        if _is_finite(dim_batt.get("E_utile_finale_kwh")):
+            energie_a_recharger_kwh = float(dim_batt["E_utile_finale_kwh"])
         elif energie_utile_imposee_kwh is not None and _is_finite(energie_utile_imposee_kwh):
             energie_a_recharger_kwh = float(energie_utile_imposee_kwh)
 
@@ -409,7 +632,7 @@ class SystemeComplet:
         }
 
         # ------------------------------------------------------------
-        # 5) Alternateur + boîte à crabots (si fournie) : choix rapport puis exigences moteur thermique
+        # 5) Alternateur + boîte à crabots
         # ------------------------------------------------------------
         alternateur_rapport: Optional[Dict[str, Any]] = None
         boite_rapport: Optional[Dict[str, Any]] = None
@@ -420,7 +643,7 @@ class SystemeComplet:
         couple_moteur_thermique_nm: Optional[float] = None
         P_moteur_thermique_w: Optional[float] = None
 
-        # --- Chaîne complète via boîte (prioritaire) ---
+        # --- Chaîne complète via boîte (prioritaire)
         if (
             self.boite_crabots is not None
             and rapports_boite_candidates is not None
@@ -449,23 +672,27 @@ class SystemeComplet:
             rapport["sous_systemes"]["chaine_moteur_alternateur"] = chaine_rapport
             _merge_inconnues(rapport, chaine_rapport, prefix="chaine_moteur_alternateur")
 
-            best = (chaine_rapport or {}).get("meilleur")
-            if isinstance(best, dict):
-                alternateur_rapport = best.get("alternateur")
-                boite_rapport = best.get("boite_crabots")
-                resume = best.get("resume", {}) if isinstance(best.get("resume"), dict) else {}
+            best = _safe_dict(chaine_rapport.get("meilleur"))
+            if best:
+                alternateur_rapport = _safe_dict(best.get("alternateur"))
+                boite_rapport = _safe_dict(best.get("boite_crabots"))
+                resume = _safe_dict(best.get("resume"))
 
-                rpm_alt = resume.get("rpm_alternateur")
-                ratio_alt_sur_moteur = resume.get("rapport")
-                couple_moteur_thermique_nm = resume.get("couple_moteur_requis_Nm")
-                P_moteur_thermique_w = resume.get("P_moteur_requis_W")
+                rpm_alt = _safe_float(resume.get("rpm_alternateur"))
+                ratio_alt_sur_moteur = _safe_float(resume.get("rapport"))
+                couple_moteur_thermique_nm = _safe_float(resume.get("couple_moteur_requis_Nm"))
+                P_moteur_thermique_w = _safe_float(resume.get("P_moteur_requis_W"))
             else:
-                _push_inconnue(rapport, "partielles", "chaine_moteur_alternateur", "Chaîne calculée mais aucun 'meilleur' exploitable.")
-
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "chaine_moteur_alternateur",
+                    "Chaîne calculée mais aucun 'meilleur' exploitable.",
+                )
         else:
             rapport["sous_systemes"]["chaine_moteur_alternateur"] = None
 
-        # --- Sinon alternateur simple ---
+        # --- Sinon alternateur simple
         if alternateur_rapport is None:
             if vitesse_alternateur_rpm is not None:
                 rpm_alt = _require_positive("vitesse_alternateur_rpm", vitesse_alternateur_rpm, strict=True)
@@ -475,12 +702,22 @@ class SystemeComplet:
                     ratio_alt_sur_moteur = _require_positive("rapport_vitesse_alt_sur_moteur", rapport_vitesse_alt_sur_moteur, strict=True)
                     rpm_alt = rpm_mth * ratio_alt_sur_moteur
                 else:
-                    _push_inconnue(rapport, "partielles", "vitesse alternateur", "Donner vitesse_alternateur_rpm OU (rpm moteur + ratio).")
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "vitesse alternateur",
+                        "Donner vitesse_alternateur_rpm OU (rpm moteur + ratio).",
+                    )
 
             if rpm_alt is not None:
                 if mode_electrique_alternateur == "dc":
                     if Vbus_dc is None or P_bus_dc_design_w is None:
-                        _push_inconnue(rapport, "partielles", "alternateur bus DC", "Nécessite Vbus_dc et P_bus_dc_design_w.")
+                        _push_inconnue(
+                            rapport,
+                            "partielles",
+                            "alternateur bus DC",
+                            "Nécessite Vbus_dc et P_bus_dc_design_w.",
+                        )
                     else:
                         alternateur_rapport = self.alternateur.analyser_pour_bus_dc(
                             batterie=self.batterie,
@@ -513,22 +750,32 @@ class SystemeComplet:
             P_alt_mec_w: Optional[float] = None
 
             if isinstance(alternateur_rapport, dict):
-                res = alternateur_rapport.get("resultats", {}) if isinstance(alternateur_rapport.get("resultats"), dict) else {}
-                couple_alt_nm = res.get("couple_mecanique_Nm")
-                P_alt_mec_w = res.get("P_mecanique_W")
+                res = _safe_dict(alternateur_rapport.get("resultats"))
+                couple_alt_nm = _safe_float(res.get("couple_mecanique_Nm"))
+                P_alt_mec_w = _safe_float(res.get("P_mecanique_W"))
 
             eta_liaison = _require_positive("rendement_liaison_meca_alt", rendement_liaison_meca_alt, strict=True)
 
             if _is_finite(P_alt_mec_w):
                 P_moteur_thermique_w = float(P_alt_mec_w) / float(eta_liaison)
             else:
-                _push_inconnue(rapport, "partielles", "P_moteur_thermique_w", "Calculable si alternateur fournit P_mecanique_W.")
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "P_moteur_thermique_w",
+                    "Calculable si alternateur fournit P_mecanique_W.",
+                )
 
             if _is_finite(couple_alt_nm) and ratio_alt_sur_moteur is not None:
                 ratio = _require_positive("rapport_vitesse_alt_sur_moteur", ratio_alt_sur_moteur, strict=True)
                 couple_moteur_thermique_nm = (float(couple_alt_nm) * ratio) / float(eta_liaison)
             else:
-                _push_inconnue(rapport, "partielles", "couple moteur thermique", "Calculable si couple alternateur + ratio connus.")
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "couple moteur thermique",
+                    "Calculable si couple alternateur + ratio connus.",
+                )
 
         rapport["liaisons"]["moteur_thermique_exigences"] = {
             "rpm_moteur_thermique": vitesse_moteur_thermique_rpm,
@@ -539,13 +786,13 @@ class SystemeComplet:
         }
 
         # ------------------------------------------------------------
-        # 7) Boîte : si pas de chaîne et boîte fournie, analyse au couple alternateur
+        # 7) Boîte : si pas de chaîne et boîte fournie
         # ------------------------------------------------------------
         if boite_rapport is None and self.boite_crabots is not None:
             couple_alt_nm = None
             if isinstance(alternateur_rapport, dict):
-                res = alternateur_rapport.get("resultats", {}) if isinstance(alternateur_rapport.get("resultats"), dict) else {}
-                couple_alt_nm = res.get("couple_mecanique_Nm")
+                res = _safe_dict(alternateur_rapport.get("resultats"))
+                couple_alt_nm = _safe_float(res.get("couple_mecanique_Nm"))
 
             if _is_finite(couple_alt_nm):
                 boite_rapport = self.boite_crabots.analyser_point(
@@ -561,24 +808,46 @@ class SystemeComplet:
                     force_radiale_N=force_radiale_roulement_N,
                 )
             else:
-                _push_inconnue(rapport, "partielles", "boite_crabots", "Analyse possible si couple alternateur calculable.")
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "boite_crabots",
+                    "Analyse possible si couple alternateur calculable.",
+                )
 
         rapport["sous_systemes"]["boite_crabots"] = boite_rapport
         _merge_inconnues(rapport, boite_rapport, prefix="boite_crabots")
 
         # ------------------------------------------------------------
-        # 8) Architecture : proposition bore/course/N (si fournie)
+        # 8) Architecture / définition moteur thermique
         # ------------------------------------------------------------
         arch_rapport: Optional[Dict[str, Any]] = None
+        moteur_thermique_definition: Optional[Dict[str, Any]] = None
         moteur_thermique_effectif = self.moteur_thermique
 
+        # 8A) Si composant Architecture fourni : arbitrage N / archi / bore / course
         if self.architecture is not None:
             if P_moteur_thermique_w is None or not _is_finite(P_moteur_thermique_w):
-                _push_inconnue(rapport, "partielles", "architecture", "Nécessite P_moteur_thermique_w.")
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "architecture",
+                    "Nécessite P_moteur_thermique_w.",
+                )
             elif vitesse_moteur_thermique_rpm is None:
-                _push_inconnue(rapport, "impossibles", "architecture::rpm", "Nécessite vitesse_moteur_thermique_rpm.")
+                _push_inconnue(
+                    rapport,
+                    "impossibles",
+                    "architecture::rpm",
+                    "Nécessite vitesse_moteur_thermique_rpm.",
+                )
             elif pme_pa is None:
-                _push_inconnue(rapport, "partielles", "architecture::pme", "Nécessite pme_pa (entrée modèle).")
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "architecture::pme",
+                    "Nécessite pme_pa (entrée modèle).",
+                )
             else:
                 arch_rapport = self.architecture.analyser(
                     puissance_cible_w=float(P_moteur_thermique_w),
@@ -588,26 +857,135 @@ class SystemeComplet:
                     longueur_dispo_m=longueur_dispo_m,
                     largeur_dispo_m=largeur_dispo_m,
                     horizon_usage_h=float(horizon_usage_h),
+                    architectures_autorisees=architectures_autorisees,
+                    architecture_forcee=architecture_forcee,
+                    poids_maintenance=poids_maintenance,
+                    poids_masse=poids_masse,
+                    poids_cout_matiere=poids_cout_matiere,
+                    poids_compacite=poids_compacite,
+                    poids_fiabilite=poids_fiabilite,
+                    poids_rendement=poids_rendement,
                 )
-                best = (arch_rapport or {}).get("meilleur")
-                if isinstance(best, dict):
+                best = _safe_dict(arch_rapport.get("meilleur"))
+                if best:
                     try:
                         bore_m = _require_positive("bore_mm", best.get("bore_mm"), strict=True) / 1000.0
                         course_m = _require_positive("course_mm", best.get("course_mm"), strict=True) / 1000.0
-                        N_cyl = int(best.get("N_cyl", 1))
-                        if N_cyl < 1:
-                            raise ValueError("N_cyl < 1")
-                        moteur_thermique_effectif = replace(moteur_thermique_effectif, alesage_m=bore_m, course_m=course_m, nombre_cylindres=N_cyl)
+                        N_cyl = _require_int_positive("N_cyl", int(best.get("N_cyl", 1)), strict=True)
+                        moteur_thermique_effectif = replace(
+                            moteur_thermique_effectif,
+                            alesage_m=bore_m,
+                            course_m=course_m,
+                            nombre_cylindres=N_cyl,
+                            architecture=str(best.get("architecture")) if best.get("architecture") is not None else getattr(moteur_thermique_effectif, "architecture", None),
+                            rpm_nominal=float(vitesse_moteur_thermique_rpm),
+                            pme_nominale_pa=float(pme_pa),
+                            puissance_nominale_visee_w=float(P_moteur_thermique_w),
+                            type_puissance_nominale="frein",
+                        )
                     except Exception:
-                        _push_inconnue(rapport, "partielles", "moteur_thermique(géométrie)", "Architecture 'meilleur' inexploitable (format/valeurs).")
+                        _push_inconnue(
+                            rapport,
+                            "partielles",
+                            "moteur_thermique(géométrie depuis architecture)",
+                            "Architecture 'meilleur' inexploitable (format/valeurs).",
+                        )
         else:
-            _push_inconnue(rapport, "partielles", "architecture", "Composant Architecture non fourni.")
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "architecture",
+                "Composant Architecture non fourni.",
+            )
 
         rapport["sous_systemes"]["architecture"] = arch_rapport
         _merge_inconnues(rapport, arch_rapport, prefix="architecture")
 
+        # 8B) Définition directe du moteur thermique si assez d'entrées
+        # Utilise la méthode enrichie du composant moteur thermique.
+        if (
+            P_moteur_thermique_w is not None
+            and _is_finite(P_moteur_thermique_w)
+            and vitesse_moteur_thermique_rpm is not None
+            and _is_finite(vitesse_moteur_thermique_rpm)
+            and pme_pa is not None
+            and _is_finite(pme_pa)
+            and vitesse_piston_max_ms is not None
+            and _is_finite(vitesse_piston_max_ms)
+        ):
+            try:
+                moteur_thermique_definition = MoteurThermique.definir_depuis_exigences(
+                    puissance_visee_w=float(P_moteur_thermique_w),
+                    type_puissance="frein",
+                    rpm=float(vitesse_moteur_thermique_rpm),
+                    pression_moyenne_effective_pa=float(pme_pa),
+                    temps_moteur=int(moteur_thermique_effectif.temps_moteur),
+                    rendement_mecanique=getattr(moteur_thermique_effectif, "rendement_mecanique_nominal", None) or getattr(moteur_thermique_effectif, "rendement_mecanique_cible_min", None) or 0.85,
+                    vitesse_piston_max_ms=float(vitesse_piston_max_ms),
+                    ratio_course_alesage_max=getattr(self.architecture, "ratio_course_alesage_max", None) if self.architecture is not None else 1.2,
+                    ratio_course_alesage_cible=None,
+                    L_max_m=longueur_dispo_m,
+                    W_max_m=largeur_dispo_m,
+                    architectures_autorisees=tuple(architectures_autorisees) if architectures_autorisees is not None else None,
+                    architecture_forcee=architecture_forcee,
+                    pression_max_pa=pression_max_pa,
+                    contrainte_admissible_pa=contrainte_admissible_pa,
+                    facteur_securite_cylindre=getattr(moteur_thermique_effectif, "facteur_securite_cylindre", 1.5),
+                    densite_materiau_kg_m3=densite_materiau_kg_m3,
+                    cout_matiere_eur_kg=cout_matiere_eur_kg,
+                    rendement_indique_cible_min=rendement_indique_cible_min,
+                    rendement_mecanique_cible_min=rendement_mecanique_cible_min,
+                    masse_estimee_max_kg=masse_estimee_max_kg,
+                    cout_matiere_max_eur=cout_matiere_max_eur,
+                    indice_maintenance_max=indice_maintenance_max,
+                    duree_vie_cible_h=duree_vie_cible_h,
+                )
+                rapport["sous_systemes"]["moteur_thermique_definition"] = moteur_thermique_definition
+                _merge_inconnues(rapport, moteur_thermique_definition, prefix="moteur_thermique_definition")
+
+                mt_def = moteur_thermique_definition.get("moteur_defini")
+                if mt_def is not None:
+                    # garde les champs calculés sans perdre les champs déjà portés par l'instance système
+                    moteur_thermique_effectif = replace(
+                        moteur_thermique_effectif,
+                        alesage_m=getattr(mt_def, "alesage_m", moteur_thermique_effectif.alesage_m),
+                        course_m=getattr(mt_def, "course_m", moteur_thermique_effectif.course_m),
+                        nombre_cylindres=getattr(mt_def, "nombre_cylindres", moteur_thermique_effectif.nombre_cylindres),
+                        architecture=getattr(mt_def, "architecture", getattr(moteur_thermique_effectif, "architecture", None)),
+                        rpm_nominal=getattr(mt_def, "rpm_nominal", getattr(moteur_thermique_effectif, "rpm_nominal", None)),
+                        pme_nominale_pa=getattr(mt_def, "pme_nominale_pa", getattr(moteur_thermique_effectif, "pme_nominale_pa", None)),
+                        puissance_nominale_visee_w=getattr(mt_def, "puissance_nominale_visee_w", getattr(moteur_thermique_effectif, "puissance_nominale_visee_w", None)),
+                        type_puissance_nominale=getattr(mt_def, "type_puissance_nominale", getattr(moteur_thermique_effectif, "type_puissance_nominale", None)),
+                        rendement_mecanique_nominal=getattr(mt_def, "rendement_mecanique_nominal", getattr(moteur_thermique_effectif, "rendement_mecanique_nominal", None)),
+                        pression_max_pa=getattr(mt_def, "pression_max_pa", getattr(moteur_thermique_effectif, "pression_max_pa", None)),
+                        contrainte_admissible_pa=getattr(mt_def, "contrainte_admissible_pa", getattr(moteur_thermique_effectif, "contrainte_admissible_pa", None)),
+                        densite_materiau_kg_m3=getattr(mt_def, "densite_materiau_kg_m3", getattr(moteur_thermique_effectif, "densite_materiau_kg_m3", None)),
+                        cout_matiere_eur_kg=getattr(mt_def, "cout_matiere_eur_kg", getattr(moteur_thermique_effectif, "cout_matiere_eur_kg", None)),
+                        rendement_indique_cible_min=getattr(mt_def, "rendement_indique_cible_min", getattr(moteur_thermique_effectif, "rendement_indique_cible_min", None)),
+                        rendement_mecanique_cible_min=getattr(mt_def, "rendement_mecanique_cible_min", getattr(moteur_thermique_effectif, "rendement_mecanique_cible_min", None)),
+                        masse_estimee_max_kg=getattr(mt_def, "masse_estimee_max_kg", getattr(moteur_thermique_effectif, "masse_estimee_max_kg", None)),
+                        cout_matiere_max_eur=getattr(mt_def, "cout_matiere_max_eur", getattr(moteur_thermique_effectif, "cout_matiere_max_eur", None)),
+                        indice_maintenance_max=getattr(mt_def, "indice_maintenance_max", getattr(moteur_thermique_effectif, "indice_maintenance_max", None)),
+                        duree_vie_cible_h=getattr(mt_def, "duree_vie_cible_h", getattr(moteur_thermique_effectif, "duree_vie_cible_h", None)),
+                    )
+            except Exception as e:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "moteur_thermique_definition",
+                    f"Echec de definir_depuis_exigences(): {e}",
+                )
+        else:
+            rapport["sous_systemes"]["moteur_thermique_definition"] = None
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "moteur_thermique_definition",
+                "Nécessite au minimum P_moteur_thermique_w, vitesse_moteur_thermique_rpm, pme_pa et vitesse_piston_max_ms.",
+            )
+
         # ------------------------------------------------------------
-        # 9) PME requise (si non fournie) : calcul inverse (P, Vd, cycles/s)
+        # 9) PME requise (si non fournie)
         # ------------------------------------------------------------
         pme_utilisee_ou_requise_pa: Optional[float] = None
         rpm_th = vitesse_moteur_thermique_rpm
@@ -629,16 +1007,33 @@ class SystemeComplet:
                     if Vd_tot > 1e-12 and f_cycles > 1e-12:
                         pme_utilisee_ou_requise_pa = float(P_moteur_thermique_w) / (Vd_tot * f_cycles)
                     else:
-                        _push_inconnue(rapport, "partielles", "PME requise", "Vd_tot ou f_cycles nul.")
+                        _push_inconnue(
+                            rapport,
+                            "partielles",
+                            "PME requise",
+                            "Vd_tot ou f_cycles nul.",
+                        )
                 else:
-                    _push_inconnue(rapport, "partielles", "PME requise", "Nécessite alesage_m/course_m.")
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "PME requise",
+                        "Nécessite alesage_m/course_m.",
+                    )
             else:
-                _push_inconnue(rapport, "partielles", "PME requise", "Nécessite P_moteur_thermique_w et rpm moteur thermique.")
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "PME requise",
+                    "Nécessite P_moteur_thermique_w et rpm moteur thermique.",
+                )
 
-        rapport["liaisons"]["pme"] = {"pme_pa_utilisee_ou_requise": pme_utilisee_ou_requise_pa}
+        rapport["liaisons"]["pme"] = {
+            "pme_pa_utilisee_ou_requise": pme_utilisee_ou_requise_pa,
+        }
 
         # ------------------------------------------------------------
-        # 10) Moteur thermique : analyse point (pass-through)
+        # 10) Moteur thermique : analyse point
         # ------------------------------------------------------------
         moteur_th_rapport: Optional[Dict[str, Any]] = None
         if rpm_th is not None:
@@ -646,20 +1041,258 @@ class SystemeComplet:
             moteur_th_rapport = moteur_thermique_effectif.analyser_point_de_fonctionnement(
                 rpm=float(_require_positive("vitesse_moteur_thermique_rpm", rpm_th, strict=True)),
                 pression_moyenne_effective_pa=pme_utilisee_ou_requise_pa,
+                pression_max_pa=pression_max_pa,
                 **params,
             )
             rapport["sous_systemes"]["moteur_thermique"] = moteur_th_rapport
             _merge_inconnues(rapport, moteur_th_rapport, prefix="moteur_thermique")
         else:
             rapport["sous_systemes"]["moteur_thermique"] = None
-            _push_inconnue(rapport, "partielles", "moteur thermique", "Nécessite vitesse_moteur_thermique_rpm.")
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "moteur thermique",
+                "Nécessite vitesse_moteur_thermique_rpm.",
+            )
+
+        # ------------------------------------------------------------
+        # 11) Synthèse système
+        # ------------------------------------------------------------
+        mt_dim = _safe_dict((_safe_dict(moteur_th_rapport)).get("dimensionnement"))
+        mt_conception = _safe_dict((_safe_dict(moteur_th_rapport)).get("conception"))
+        mt_resultats = _safe_dict((_safe_dict(moteur_th_rapport)).get("resultats"))
+        mt_pertes = _safe_dict((_safe_dict(moteur_th_rapport)).get("pertes"))
+
+        arch_best = _safe_dict((_safe_dict(arch_rapport)).get("meilleur"))
+        mt_def_dim = _safe_dict((_safe_dict(moteur_thermique_definition)).get("dimensionnement"))
+        mt_def_eval = _safe_dict((_safe_dict(moteur_thermique_definition)).get("evaluation_conception"))
+        mt_def_estim = _safe_dict((_safe_dict(moteur_thermique_definition)).get("estimations"))
+
+        batterie_dim = _safe_dict((_safe_dict(batterie_rapport)).get("dimensionnement"))
+        batterie_charge = _safe_dict((_safe_dict(batterie_rapport)).get("charge"))
+        alt_resultats = _safe_dict((_safe_dict(alternateur_rapport)).get("resultats"))
+
+        mt_bore_m = _first_finite(
+            getattr(moteur_thermique_effectif, "alesage_m", None),
+            _safe_float(mt_def_dim.get("alesage_defini_m")),
+            (_safe_float(arch_best.get("bore_mm")) / 1000.0) if _is_finite(arch_best.get("bore_mm")) else None,
+        )
+        mt_course_m = _first_finite(
+            getattr(moteur_thermique_effectif, "course_m", None),
+            _safe_float(mt_def_dim.get("course_definie_m")),
+            (_safe_float(arch_best.get("course_mm")) / 1000.0) if _is_finite(arch_best.get("course_mm")) else None,
+        )
+        mt_n_cyl = _first_non_none(
+            getattr(moteur_thermique_effectif, "nombre_cylindres", None),
+            _safe_int(arch_best.get("N_cyl")),
+            _safe_int(mt_def_dim.get("nombre_cylindres_min")),
+        )
+        mt_arch = _first_non_none(
+            getattr(moteur_thermique_effectif, "architecture", None),
+            arch_best.get("architecture"),
+            _safe_dict((_safe_dict(arch_rapport)).get("architecture")).get("architecture_choisie") if isinstance(_safe_dict(arch_rapport).get("architecture"), dict) else None,
+        )
+
+        Vd_tot_m3 = None
+        if mt_bore_m is not None and mt_course_m is not None and mt_n_cyl is not None:
+            Vd_tot_m3 = _cylindree_totale_m3(mt_bore_m, mt_course_m, int(mt_n_cyl))
+
+        respecte_masse = _bool_max_all(
+            [
+                _safe_bool(mt_conception.get("respecte_masse_estimee_max")),
+                _safe_bool(mt_def_eval.get("respecte_masse_max")),
+            ]
+        )
+        respecte_cout = _bool_max_all(
+            [
+                _safe_bool(mt_conception.get("respecte_cout_matiere_max")),
+                _safe_bool(mt_def_eval.get("respecte_cout_matiere_max")),
+            ]
+        )
+        respecte_maintenance = _bool_max_all(
+            [
+                _safe_bool(mt_conception.get("respecte_indice_maintenance_max")),
+                _safe_bool(mt_def_eval.get("respecte_indice_maintenance_max")),
+            ]
+        )
+        respecte_rendement_meca = _bool_max_all(
+            [
+                _safe_bool(mt_conception.get("respecte_rendement_mecanique_min")),
+                _safe_bool(mt_def_eval.get("respecte_rendement_mecanique_min")),
+            ]
+        )
+
+        rapport["criteres_conception"] = {
+            "maintenance": {
+                "poids": poids_maintenance,
+                "indice_maintenance_max": indice_maintenance_max,
+                "respecte": respecte_maintenance,
+            },
+            "masse": {
+                "poids": poids_masse,
+                "masse_estimee_max_kg": masse_estimee_max_kg,
+                "respecte": respecte_masse,
+            },
+            "cout": {
+                "poids": poids_cout_matiere,
+                "cout_matiere_max_eur": cout_matiere_max_eur,
+                "respecte": respecte_cout,
+            },
+            "compacite": {
+                "poids": poids_compacite,
+                "longueur_dispo_m": longueur_dispo_m,
+                "largeur_dispo_m": largeur_dispo_m,
+            },
+            "fiabilite": {
+                "poids": poids_fiabilite,
+                "pression_max_pa": pression_max_pa,
+                "contrainte_admissible_pa": contrainte_admissible_pa,
+                "duree_vie_cible_h": duree_vie_cible_h,
+            },
+            "rendement": {
+                "poids": poids_rendement,
+                "rendement_indique_cible_min": rendement_indique_cible_min,
+                "rendement_mecanique_cible_min": rendement_mecanique_cible_min,
+                "respecte_rendement_mecanique_min": respecte_rendement_meca,
+            },
+        }
+
+        rapport["synthese"] = {
+            "vehicule": {
+                "puissance_traction_bus_dc_w": P_bus_dc_traction_w,
+                "puissance_bus_dc_design_w": P_bus_dc_design_w,
+                "tension_bus_dc_v": Vbus_dc,
+            },
+            "batterie": {
+                "energie_utile_kwh": _first_finite(
+                    batterie_dim.get("E_utile_finale_kwh"),
+                    energie_a_recharger_kwh,
+                ),
+                "puissance_charge_requise_kw": _safe_float(batterie_charge.get("puissance_charge_requise_kw")),
+                "puissance_pic_kw": _first_finite(
+                    batterie_dim.get("P_pic_finale_kw"),
+                    puissance_pic_kw_eff,
+                ),
+            },
+            "alternateur": {
+                "rpm_alternateur": rpm_alt,
+                "P_mecanique_W": _safe_float(alt_resultats.get("P_mecanique_W")),
+                "couple_mecanique_Nm": _safe_float(alt_resultats.get("couple_mecanique_Nm")),
+            },
+            "moteur_thermique": {
+                "rpm_nominal": _first_finite(
+                    getattr(moteur_thermique_effectif, "rpm_nominal", None),
+                    vitesse_moteur_thermique_rpm,
+                ),
+                "puissance_requise_W": P_moteur_thermique_w,
+                "couple_requis_Nm": couple_moteur_thermique_nm,
+                "pme_pa": pme_utilisee_ou_requise_pa,
+                "architecture": mt_arch,
+                "nombre_cylindres": mt_n_cyl,
+                "alesage_m": mt_bore_m,
+                "course_m": mt_course_m,
+                "cylindree_totale_m3": Vd_tot_m3,
+                "cylindree_totale_cc": Vd_tot_m3 * 1e6 if Vd_tot_m3 is not None else None,
+                "epaisseur_cylindre_retenue_m": _first_finite(
+                    mt_dim.get("epaisseur_cylindre_retenue_m"),
+                    mt_def_dim.get("epaisseur_cylindre_retenue_m"),
+                ),
+                "puissance_indiquee_W": _safe_float(mt_resultats.get("puissance_indiquee_W")),
+                "puissance_frein_estimee_W": _safe_float(mt_resultats.get("puissance_frein_estimee_W")),
+                "rendement_mecanique_estime": _safe_float(mt_pertes.get("rendement_mecanique_estime")),
+                "masse_estimee_kg": _first_finite(
+                    _safe_dict(mt_conception.get("masse")).get("masse_estimee_kg"),
+                    _safe_dict(mt_def_estim.get("masse")).get("masse_estimee_kg"),
+                ),
+                "cout_matiere_estime_eur": _first_finite(
+                    mt_conception.get("cout_matiere_estime_eur"),
+                    mt_def_estim.get("cout_matiere_estime_eur"),
+                ),
+                "indice_maintenance": _first_finite(
+                    mt_conception.get("indice_maintenance"),
+                    mt_def_estim.get("indice_maintenance"),
+                ),
+                "respecte_masse_max": respecte_masse,
+                "respecte_cout_max": respecte_cout,
+                "respecte_indice_maintenance_max": respecte_maintenance,
+                "respecte_rendement_mecanique_min": respecte_rendement_meca,
+            },
+        }
+
+        # ------------------------------------------------------------
+        # 12) CAO : paquet de cotes de haut niveau
+        # ------------------------------------------------------------
+        rapport["cao"] = {
+            "solidworks_ready": (
+                mt_bore_m is not None
+                and mt_course_m is not None
+                and mt_n_cyl is not None
+            ),
+            "moteur_thermique": {
+                "architecture": mt_arch,
+                "nombre_cylindres": mt_n_cyl,
+                "alesage_mm": mt_bore_m * 1000.0 if mt_bore_m is not None else None,
+                "course_mm": mt_course_m * 1000.0 if mt_course_m is not None else None,
+                "epaisseur_cylindre_mm": (
+                    _first_finite(
+                        mt_dim.get("epaisseur_cylindre_retenue_m"),
+                        mt_def_dim.get("epaisseur_cylindre_retenue_m"),
+                    ) * 1000.0
+                    if _first_finite(
+                        mt_dim.get("epaisseur_cylindre_retenue_m"),
+                        mt_def_dim.get("epaisseur_cylindre_retenue_m"),
+                    ) is not None
+                    else None
+                ),
+                "cylindree_totale_cc": Vd_tot_m3 * 1e6 if Vd_tot_m3 is not None else None,
+                "rpm_nominal": _first_finite(
+                    getattr(moteur_thermique_effectif, "rpm_nominal", None),
+                    vitesse_moteur_thermique_rpm,
+                ),
+                "pme_pa": pme_utilisee_ou_requise_pa,
+            },
+            "systeme": {
+                "P_bus_dc_design_w": P_bus_dc_design_w,
+                "V_bus_dc_v": Vbus_dc,
+                "P_moteur_thermique_requise_w": P_moteur_thermique_w,
+                "couple_moteur_thermique_requis_nm": couple_moteur_thermique_nm,
+            },
+        }
+
+        # ------------------------------------------------------------
+        # 13) Inconnues système de haut niveau
+        # ------------------------------------------------------------
+        if rapport["cao"]["solidworks_ready"] is False:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "cao moteur thermique",
+                "La géométrie moteur n'est pas encore complètement fermée pour une saisie SolidWorks directe.",
+            )
+
+        if self.architecture is None and moteur_thermique_definition is None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "synthèse architecture moteur",
+                "Le système n'a ni arbitrage Architecture exploitable ni définition directe complète du moteur thermique.",
+            )
+
+        _add_note(
+            rapport,
+            "Le système complet consolide ce qui est calculable mais ne remplace pas encore le dimensionnement détaillé de toutes les pièces mécaniques aval."
+        )
+        _add_note(
+            rapport,
+            "Le bloc 'cao' fourni ici est un paquet de cotes de haut niveau pour fermer l'architecture moteur ; les autres pièces devront ensuite consommer ces données."
+        )
 
         _dedup_inconnues(rapport)
         return rapport
 
 
 if __name__ == "__main__":
-    # Exemple minimal (valeurs d'appel seulement, pas une datasheet)
+    # Exemple minimal d'appel
     systeme = SystemeComplet(
         moteur_electrique=MoteurElectrique(
             puissance_max_w=10000.0,
@@ -685,7 +1318,7 @@ if __name__ == "__main__":
             alesage_m=0.08,
             course_m=0.08,
         ),
-        architecture=None,
+        architecture=Architecture(),
         boite_crabots=None,
     )
 
@@ -702,8 +1335,21 @@ if __name__ == "__main__":
         vitesse_moteur_thermique_rpm=3000.0,
         rapport_vitesse_alt_sur_moteur=2.0,
         temps_charge_cible_h=1.0,
+        pme_pa=8.0e5,
+        vitesse_piston_max_ms=10.0,
+        longueur_dispo_m=1.2,
+        largeur_dispo_m=0.8,
+        pression_max_pa=3.0e6,
+        contrainte_admissible_pa=1.2e8,
+        densite_materiau_kg_m3=7800.0,
+        cout_matiere_eur_kg=2.0,
+        rendement_mecanique_cible_min=0.80,
+        masse_estimee_max_kg=150.0,
+        cout_matiere_max_eur=1000.0,
+        indice_maintenance_max=10.0,
     )
 
     print("Inconnues impossibles:", len(rep["inconnues"]["impossibles"]))
     print("Inconnues partielles:", len(rep["inconnues"]["partielles"]))
     print("Sous-systèmes:", list(rep["sous_systemes"].keys()))
+    print("Synthèse moteur thermique:", rep["synthese"]["moteur_thermique"])
