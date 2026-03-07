@@ -48,7 +48,7 @@ try:
     from backend.pieces.bielle import CorpsBielle
     from backend.pieces.arbre_piston import ArbrePiston
     from backend.pieces.coussinet_arbre_piston import CoussinetArbrePiston
-    from backend.pieces.arbre_vilebrequin import ArbreVilbrequin
+    from backend.pieces.arbre_vilbrequin import ArbreVilbrequin
     from backend.pieces.vilbrequin import Vilbrequin
     from backend.pieces.roulement_aiguille_arbre import RoulementAiguilleArbre
     from backend.pieces.roulement_aiguille_arbre_vilebrequin import RoulementAiguilleArbreVilbrequin
