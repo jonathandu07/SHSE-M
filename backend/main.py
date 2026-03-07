@@ -264,7 +264,7 @@ def construire_pieces_depuis_systeme(
     if Piston is not None and pieces.get("cylindre") is not None:
         pieces["piston"] = Piston(
             cylindre=pieces["cylindre"],
-            materiau_cle=materiau_piston_cle,
+            materiau_piston_cle=materiau_piston_cle,
             pression_max_pa=pression_max_pa,
             rpm=rpm,
         )
@@ -274,7 +274,7 @@ def construire_pieces_depuis_systeme(
         pieces["joint_piston"] = JointPiston(
             piston=pieces["piston"],
             cylindre=pieces.get("cylindre"),
-            materiau_cle=materiau_joint_cle,
+            materiau_joint_cle=materiau_joint_cle,
         )
 
     # Arbre piston
@@ -301,7 +301,7 @@ def construire_pieces_depuis_systeme(
     if CoussinetArbrePiston is not None:
         pieces["coussinet_arbre_piston"] = CoussinetArbrePiston(
             arbre_piston=pieces.get("arbre_piston"),
-            materiau_cle=materiau_coussinet_cle,
+            materiau_coussinet=materiau_coussinet_cle,
             rpm=rpm,
         )
 
@@ -342,17 +342,16 @@ def construire_pieces_depuis_systeme(
             rpm=rpm,
             duree_vie_cible_h=5000.0,
             exposant_vie_p=10.0 / 3.0,
-            materiau_cle=materiau_metal_cle if "materiau_cle" in getattr(RoulementAiguilleArbre, "__dataclass_fields__", {}) else None,
         )
 
-    if RoulementAiguilleArbreVilbrequin is not None:
-        pieces["roulement_aiguille_arbre_vilebrequin"] = RoulementAiguilleArbreVilbrequin(
-            bielle=pieces.get("bielle"),
+    if RoulementAiguilleArbreVilebrequin is not None:
+        pieces["roulement_aiguille_arbre_vilebrequin"] = RoulementAiguilleArbreVilebrequin(
+            corps_bielle=pieces.get("bielle"),
             arbre_vilebrequin=pieces.get("arbre_vilebrequin"),
-            vilbrequin=pieces.get("vilbrequin"),
-            rpm=rpm,
-            duree_vie_cible_h=5000.0,
-            exposant_vie_p=10.0 / 3.0,
+            moteur_thermique=None,
+            rpm_vilebrequin=rpm,
+            vie_cible_heures=5000.0,
+            exposant_p_iso281=10.0 / 3.0,
         )
 
     # Couvercle + vis
@@ -367,7 +366,7 @@ def construire_pieces_depuis_systeme(
         pieces["vis_couvercle_cylindre"] = VisCouvercleCylindre(
             cylindre=pieces.get("cylindre"),
             couvercle=pieces.get("couvercle_cylindre"),
-            classe_vis="10.9",
+            classe_vis_iso898="10.9",
         )
 
     # Déplaceur + joint déplaceur
@@ -381,18 +380,11 @@ def construire_pieces_depuis_systeme(
         pieces["joint_deplaceur"] = JointDeplaceur(
             deplaceur=pieces["deplaceur"],
             cylindre=pieces.get("cylindre"),
-            materiau_cle=materiau_joint_cle,
+            materiau_joint_cle=materiau_joint_cle,
         )
 
-    # Clavette
-    if ClavetteArbre is not None and pieces.get("arbre_vilebrequin") is not None:
-        try:
-            pieces["clavette_arbre"] = ClavetteArbre(
-                arbre=pieces["arbre_vilebrequin"],
-                materiau_cle=materiau_metal_cle,
-            )
-        except Exception:
-            pieces["clavette_arbre"] = None
+    # Clavette (désactivée car fichier vide)
+    # pieces["clavette_arbre"] = None
 
     return pieces
 
