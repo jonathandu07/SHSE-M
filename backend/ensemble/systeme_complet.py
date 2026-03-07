@@ -1186,6 +1186,7 @@ class SystemeComplet:
                 "puissance_requise_W": P_moteur_thermique_w,
                 "couple_requis_Nm": couple_moteur_thermique_nm,
                 "pme_pa": pme_utilisee_ou_requise_pa,
+                "pression_max_pa": pression_max_pa,
                 "architecture": mt_arch,
                 "nombre_cylindres": mt_n_cyl,
                 "alesage_m": mt_bore_m,

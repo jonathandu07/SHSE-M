@@ -1,0 +1,82 @@
+=== INCONNUES OPTIMISATION ===
+{'impossibles': [],
+ 'partielles': [{'nom': 'coherence piston/cylindre',
+                 'raison': 'Nécessite alesage cylindre et diamètre piston.'},
+                {'nom': 'interface arbre_piston',
+                 'raison': 'Diamètre arbre-piston introuvable.'},
+                {'nom': 'interface maneton',
+                 'raison': 'Aucun diamètre de maneton exploitable.'}]}
+
+=== PIECES ===
+
+--- cylindre ---
+Inconnues Impossibles: []
+Inconnues Partielles: ['dilatation thermique', 'R convection interne', 'R convection externe', 'joint torique / fermeture complète']
+
+--- piston ---
+Inconnues Impossibles: ['diametre_piston_min_max', 'nb_joints']
+Inconnues Partielles: ['temperature_fonctionnement_k', 'epaisseur_tete_min_m', 'longueur_jupe_min_m', 'hauteur_totale_m', 'masse_piston', 'force_inertie_alternative_n', 'frottements_joints', 'debit_fuite_m3_s']
+
+--- joint_piston ---
+Inconnues Impossibles: ['geometrie_joint_torique']
+Inconnues Partielles: ['volume_gorge', 'squeeze_radial_fraction', 'aire_contact_m2', 'force_frottement_estimee_N', 'force_pression_equivalente_N', 'masse_joint_kg', 'rainures']
+
+--- arbre_piston ---
+Inconnues Impossibles: []
+Inconnues Partielles: ['limite_elastique_pa', 'dimensionnement_fut', 'flambage', 'bloc_cao']
+
+--- bielle ---
+Pas de méthode analyser()
+
+--- coussinet_arbre_piston ---
+Inconnues Impossibles: ['charge_radiale_N', 'diametre_portee_m', 'longueur_coussinet_m']
+Inconnues Partielles: ['pression_admissible_pa', 'pv_admissible_W_m2', 'PV', 'puissance_frottement_W', 'sommerfeld_S', 'R_conduction_K_W', 'masse_coussinet', 'bloc_cao']
+
+--- arbre_vilebrequin ---
+Inconnues Impossibles: ['limite_elastique_pa', 'diametre_maneton_m']
+Inconnues Partielles: ['moment_flexion_max_Nm', 'pression_contact_maneton', 'entre_axe_paliers_m', 'masse', 'bloc_cao', 'reactions_paliers', 'bras_de_vilebrequin', 'contrepoids', 'fatigue']
+Bielle liée ?: Oui
+Moteur_thermique dependency is none: False
+
+--- vilbrequin ---
+Inconnues Impossibles: []
+Inconnues Partielles: ['diametre_journal_principal_m', 'largeur_portee_journal_m', 'diametre_maneton_m', 'largeur_portee_maneton_m', 'volume_webs_total_m3', 'volume_contrepoids_total_m3', 'longueur_torsion_equivalente_m', 'moment_flexion_max_Nm', 'limite_elastique_pa']
+
+--- roulement_aiguille_arbre ---
+Inconnues Impossibles: []
+Inconnues Partielles: ['diametre_journal_principal_m', 'diametre_maneton_m', 'largeur_portee_journal_m', 'largeur_portee_maneton_m', 'P_equivalente_N', 'C_dynamique_requis_N', 'd_min_torsion_vonmises_m', 'reference_roulement', 'dimensions_requises.d_interieur_requis_m']
+
+--- roulement_aiguille_arbre_vilebrequin ---
+Pas de méthode analyser()
+
+--- couvercle_cylindre ---
+Inconnues Impossibles: []
+Inconnues Partielles: ['nb_vis', 'dilatation thermique', 'R convection interne', 'R convection externe']
+
+--- vis_couvercle_cylindre ---
+Inconnues Impossibles: ['diametre_ouverture_m', 'force_separation', 'dimensionnement vis', 'couple_de_serrage', 'dimensions_tete_vis']
+Inconnues Partielles: ['rayon_externe_couvercle_m']
+
+--- deplaceur ---
+Erreur d'analyse: longueur_totale_m doit être > 0 (reçu: 0.0).
+Traceback (most recent call last):
+  File "D:\Documents\GitHub\SHSE-M\dump_pieces_v2.py", line 18, in <module>
+    r = p.analyser()
+  File "D:\Documents\GitHub\SHSE-M\backend\pieces\deplaceur.py", line 446, in analyser
+    L_dep = _req_pos("longueur_totale_m", self.longueur_totale_m)
+  File "D:\Documents\GitHub\SHSE-M\backend\pieces\deplaceur.py", line 57, in _req_pos
+    raise ValueError(f"{name} doit être {op} 0 (reçu: {v}).")
+ValueError: longueur_totale_m doit être > 0 (reçu: 0.0).
+
+
+--- joint_deplaceur ---
+Erreur d'analyse: longueur_deplaceur_m doit être > 0 (reçu: 0.0).
+Traceback (most recent call last):
+  File "D:\Documents\GitHub\SHSE-M\dump_pieces_v2.py", line 18, in <module>
+    r = p.analyser()
+  File "D:\Documents\GitHub\SHSE-M\backend\pieces\joint_deplaceur.py", line 463, in analyser
+    L_dep = _req_pos("longueur_deplaceur_m", L_dep)
+  File "D:\Documents\GitHub\SHSE-M\backend\pieces\joint_deplaceur.py", line 55, in _req_pos
+    raise ValueError(f"{name} doit être {op} 0 (reçu: {v}).")
+ValueError: longueur_deplaceur_m doit être > 0 (reçu: 0.0).
+

@@ -110,6 +110,8 @@ def _first_numeric_from_dict(d: Dict[str, Any], candidates: List[Tuple[str, ...]
 def _try_call_report(obj: Any) -> Optional[Dict[str, Any]]:
     if obj is None:
         return None
+    if isinstance(obj, dict):
+        return obj
     for m in ("calculer", "analyser"):
         try:
             if hasattr(obj, m) and callable(getattr(obj, m)):

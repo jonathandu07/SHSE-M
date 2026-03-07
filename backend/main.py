@@ -240,8 +240,9 @@ def construire_pieces_depuis_systeme(
     rpm = _first_finite(mt.get("rpm_nominal"), ex_mth.get("rpm_moteur_thermique"))
     pme_pa = _safe_float(mt.get("pme_pa"))
     pression_max_pa = _first_finite(
+        mt.get("pression_max_pa"),
         _get_nested(rapport_systeme, "entrees", "moteur_thermique_criteres", "pression_max_pa"),
-        pme_pa * 2.0 if _is_finite(pme_pa) else None,
+        pme_pa * 4.0 if _is_finite(pme_pa) else None, # approximate fallback
     )
     epaisseur_cylindre_m = _safe_float(mt.get("epaisseur_cylindre_retenue_m"))
 
@@ -293,7 +294,7 @@ def construire_pieces_depuis_systeme(
             piston=pieces.get("piston"),
             arbre_piston=pieces.get("arbre_piston"),
             cylindre=pieces.get("cylindre"),
-            moteur_thermique=None,
+            moteur_thermique=mt,
             longueur_bielle_m=3.0 * course_m if course_m is not None else None,
             materiau_cle=materiau_metal_cle,
         )
@@ -312,7 +313,7 @@ def construire_pieces_depuis_systeme(
             cylindre=pieces.get("cylindre"),
             piston=pieces.get("piston"),
             bielle=pieces.get("bielle"),
-            moteur_thermique=None,
+            moteur_thermique=mt,
             materiau_cle=materiau_metal_cle,
             rpm=rpm,
         )
@@ -349,7 +350,7 @@ def construire_pieces_depuis_systeme(
         pieces["roulement_aiguille_arbre_vilebrequin"] = RoulementAiguilleArbreVilebrequin(
             corps_bielle=pieces.get("bielle"),
             arbre_vilebrequin=pieces.get("arbre_vilebrequin"),
-            moteur_thermique=None,
+            moteur_thermique=mt,
             rpm_vilebrequin=rpm,
             vie_cible_heures=5000.0,
             exposant_p_iso281=10.0 / 3.0,

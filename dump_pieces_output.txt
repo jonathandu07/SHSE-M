@@ -1,0 +1,31 @@
+=== RÉSOLUTION GLOBALE ARCHITECTURE SHSE-M ===
+Cylindrée Totale Requise: 1205.9 cc
+Cylindrée Unitaire Max: 545.4 cc (Alésage max 83.3 mm, S/B max 1.20)
+Nombre Cylindres Min (Physique): 3
+N= 3 -> Arch=L      | Maint=    8000 € | Score=   9.38 | Bore=  75.3 mm | Course=  90.3 mm | S/B=1.20
+N= 4 -> Arch=L      | Maint=    8000 € | Score=   9.50 | Bore=  68.4 mm | Course=  82.1 mm | S/B=1.20
+N= 5 -> Arch=L      | Maint=    8000 € | Score=   9.63 | Bore=  63.5 mm | Course=  76.2 mm | S/B=1.20
+N= 6 -> Arch=L      | Maint=    8000 € | Score=   9.75 | Bore=  59.7 mm | Course=  71.7 mm | S/B=1.20
+N= 7 -> Arch=L      | Maint=    8000 € | Score=   9.87 | Bore=  56.8 mm | Course=  68.1 mm | S/B=1.20
+N= 8 -> Arch=L      | Maint=    8000 € | Score=  10.00 | Bore=  54.3 mm | Course=  65.1 mm | S/B=1.20
+N= 9 -> Arch=W      | Maint=    8000 € | Score=  15.61 | Bore=  52.2 mm | Course=  62.6 mm | S/B=1.20
+N=10 -> Arch=V      | Maint=    8000 € | Score=  12.03 | Bore=  50.4 mm | Course=  60.5 mm | S/B=1.20
+N=12 -> Arch=V      | Maint=    8000 € | Score=  12.15 | Bore=  47.4 mm | Course=  56.9 mm | S/B=1.20
+N=14 -> Arch=V      | Maint=    8000 € | Score=  12.28 | Bore=  45.0 mm | Course=  54.1 mm | S/B=1.20
+N=15 -> Arch=W      | Maint=    8000 € | Score=  15.86 | Bore=  44.0 mm | Course=  52.8 mm | S/B=1.20
+N=16 -> Arch=V      | Maint=    8000 € | Score=  12.40 | Bore=  43.1 mm | Course=  51.7 mm | S/B=1.20
+
+=== RÉSULTAT OPTIMAL ===
+{'N_cyl': 3, 'Architecture': 'L', 'Score': 9.375, 'Cout_Maint_Estime': 8000.0, 'Bore_mm': 75.27270431706255, 'RPM': 3000.0, 'PME': 800000.0, 'Course_mm': 90.32724518047506, 'Ratio_Sur_B': 1.2, 'Cylindree_tot_cc': 1205.8823529411764, 'Cylindree_unit_cc': 401.96078431372547, 'Up_max_ms': 10.0}
+=== DIMENSIONNEMENT SYSTÈME SHSE-M ===
+Architecture   : L
+N cylindres    : 8
+Alésage        : 54.28101272858003 mm
+Course         : 65.13721527429604 mm
+Régime         : 3000.0 rpm
+PME            : 800000.0 Pa
+Cylindrée      : 1205.8823529411768 cc
+Bus DC design  : 20000.0 W
+Batterie utile : None kWh
+Score cohérence: 94.0
+Score global   : 94.0
