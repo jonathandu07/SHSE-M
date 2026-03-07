@@ -1,0 +1,13 @@
+--- ALESAGE ---
+.systeme_complet.sous_systemes.moteur_thermique.entrees.alesage_m = None
+.systeme_complet.synthese.moteur_thermique.alesage_m = None
+.systeme_complet.cao.moteur_thermique.alesage_mm = None
+.optimisation.extractions.systeme_complet.alesage_m = None
+.optimisation.extractions.cylindre.alesage_m = None
+--- COURSE ---
+.systeme_complet.sous_systemes.moteur_thermique.entrees.course_m = None
+.systeme_complet.synthese.moteur_thermique.course_m = None
+.systeme_complet.cao.moteur_thermique.course_mm = None
+.optimisation.extractions.systeme_complet.course_m = None
+.optimisation.extractions.cylindre.course_m = None
+.optimisation.extractions.vilbrequin.course_m = None
