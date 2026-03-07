@@ -251,7 +251,9 @@ def construire_pieces_depuis_systeme(
         kwargs_cyl: Dict[str, Any] = {
             "alesage_m": alesage_m,
             "course_m": course_m,
-            "pression_max_pa": pression_max_pa,
+            "longueur_utile_m": course_m * 1.5,
+            "pression_service_pa": pme_pa if pme_pa is not None else (pression_max_pa / 2.0 if pression_max_pa else 0.0),
+            "pression_max_pa": pression_max_pa if pression_max_pa is not None else 0.0,
             "materiau_cle": materiau_metal_cle,
         }
         if epaisseur_cylindre_m is not None:
