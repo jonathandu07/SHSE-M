@@ -1,0 +1,42 @@
+2026-03-07 23:24:23 [INFO] === DÉBUT TESTS ===
+2026-03-07 23:24:23 [INFO] Module de test : D:\Documents\GitHub\SHSE-M\backend\tests\modules\alternateur\test_calcul_frequence_synchrone.py
+2026-03-07 23:24:23 [INFO] Log file       : D:\Documents\GitHub\SHSE-M\backend\logs\test_calcul_frequence_synchrone_20260307_232423.log
+2026-03-07 23:24:23 [INFO] Python         : 3.13.12 (tags/v3.13.12:1cbe481, Feb  3 2026, 18:22:25) [MSC v.1944 64 bit (AMD64)]
+2026-03-07 23:24:23 [INFO] Platform       : Windows-11-10.0.26100-SP0 | AMD64
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_equivalence_poles_vs_pole_pairs
+2026-03-07 23:24:23 [INFO] equiv | n_rpm=1500 | P=6 | p=3 | f(P)=75 | f(p)=75
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_equivalence_poles_vs_pole_pairs | OK | 0.000495 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_mode_poles_invalide_refuse
+2026-03-07 23:24:23 [INFO] expect ValueError | mode_poles invalide
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_mode_poles_invalide_refuse | OK | 0.000204 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_nombre_poles_non_int_refuse
+2026-03-07 23:24:23 [INFO] expect ValueError | nombre_poles non int
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_nombre_poles_non_int_refuse | OK | 0.000198 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_nombre_poles_zero_ou_negatif_refuse
+2026-03-07 23:24:23 [INFO] expect ValueError | nombre_poles <= 0
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_nombre_poles_zero_ou_negatif_refuse | OK | 0.000218 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_pair_poles_alias
+2026-03-07 23:24:23 [INFO] calc | n_rpm=3000 | P=4 | mode=pair_poles | f=100 | attendu=100
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_pair_poles_alias | OK | 0.000241 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_pole_pairs_nominal
+2026-03-07 23:24:23 [INFO] calc | n_rpm=3000 | p=2 | mode=pole_pairs | f=100 | attendu=100
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_pole_pairs_nominal | OK | 0.000198 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_poles_impair_refuse
+2026-03-07 23:24:23 [INFO] expect ValueError | P impair en mode=poles
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_poles_impair_refuse | OK | 0.000564 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_poles_nominal
+2026-03-07 23:24:23 [INFO] calc | n_rpm=3000 | P=4 | mode=poles | f=100 | attendu=100
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_poles_nominal | OK | 0.000315 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_vitesse_negative_clamp_false
+2026-03-07 23:24:23 [INFO] calc | n_rpm=-3000 | clamp=False | f=-100 | attendu=-100
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_vitesse_negative_clamp_false | OK | 0.000212 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_vitesse_negative_clamp_true
+2026-03-07 23:24:23 [INFO] calc | n_rpm=-3000 | clamp=True | f=100 | attendu=100
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_vitesse_negative_clamp_true | OK | 0.000217 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_vitesse_non_finie_refuse
+2026-03-07 23:24:23 [INFO] expect ValueError | n_rpm NaN/inf
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_vitesse_non_finie_refuse | OK | 0.000291 s
+2026-03-07 23:24:23 [INFO] --- START test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_vitesse_zero_ok
+2026-03-07 23:24:23 [INFO] calc | n_rpm=0 | P=4 | f=0
+2026-03-07 23:24:23 [INFO] --- END   test_calcul_frequence_synchrone.TestCalculFrequenceSynchrone.test_vitesse_zero_ok | OK | 0.000228 s
+2026-03-07 23:24:23 [INFO] === FIN TESTS ===

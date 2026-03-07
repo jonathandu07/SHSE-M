@@ -561,3 +561,143 @@
   "Up_max_ms": 25.0
 }
 2026-03-07 19:36:21,765 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
+2026-03-07 23:21:47,629 - test_architecture - INFO - Starting test_calcul_cout_maintenance_estime
+2026-03-07 23:21:47,629 - test_architecture - INFO - RESULT - test_calcul_cout_maintenance_estime: SUCCESS 
+2026-03-07 23:21:47,632 - test_architecture - INFO - Starting test_normalisation_prix
+2026-03-07 23:21:47,632 - test_architecture - INFO - RESULT - test_normalisation_prix: SUCCESS 
+2026-03-07 23:21:47,635 - test_architecture - INFO - Starting test_extraction_prix
+2026-03-07 23:21:47,635 - test_architecture - INFO - RESULT - test_extraction_prix: SUCCESS 
+2026-03-07 23:21:47,637 - test_architecture - INFO - Starting test_calcul_bore_max_admissible
+2026-03-07 23:21:47,637 - test_architecture - INFO - RESULT - test_calcul_bore_max_admissible: SUCCESS 
+2026-03-07 23:21:47,646 - test_architecture - INFO - Starting test_calcul_cylindree_unit_max
+2026-03-07 23:21:47,647 - test_architecture - INFO - RESULT - test_calcul_cylindree_unit_max: SUCCESS 
+2026-03-07 23:21:47,650 - test_architecture - INFO - Starting test_calcul_cylindree_totale_requise
+2026-03-07 23:21:47,650 - test_architecture - INFO - RESULT - test_calcul_cylindree_totale_requise: SUCCESS 
+2026-03-07 23:21:47,653 - test_architecture - INFO - Starting test_calcul_nombre_cylindres_min
+2026-03-07 23:21:47,653 - test_architecture - INFO - RESULT - test_calcul_nombre_cylindres_min: SUCCESS 
+2026-03-07 23:21:47,655 - test_architecture - INFO - Starting test_evaluer_architecture
+2026-03-07 23:21:47,655 - test_architecture - INFO - RESULT - test_evaluer_architecture: SUCCESS 
+2026-03-07 23:21:47,664 - test_architecture - INFO - Starting test_choix_architecture_optimale
+2026-03-07 23:21:47,664 - test_architecture - INFO - RESULT - test_choix_architecture_optimale: SUCCESS 
+2026-03-07 23:21:47,667 - test_architecture - INFO - Starting test_resoudre_architecture_globale
+2026-03-07 23:21:47,682 - test_architecture - INFO - RESULTATS DETAILLES ARCHITECTURE OPTIMALE:
+2026-03-07 23:21:47,683 - test_architecture - INFO - {
+  "N_cyl": 2,
+  "Architecture": "L",
+  "Score": 9.25,
+  "Cout_Maint_Estime": 8000.0,
+  "Bore_mm": 127.65942937047289,
+  "RPM": 4500.0,
+  "PME": 1200000.0,
+  "Course_mm": 153.19131524456748,
+  "Ratio_Sur_B": 1.2,
+  "Cylindree_tot_cc": 3921.5686274509803,
+  "Cylindree_unit_cc": 1960.7843137254902,
+  "Up_max_ms": 25.0
+}
+2026-03-07 23:21:47,683 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
+2026-03-07 23:23:56,847 - test_architecture - INFO - Starting test_calcul_cout_maintenance_estime
+2026-03-07 23:23:56,848 - test_architecture - INFO - RESULT - test_calcul_cout_maintenance_estime: SUCCESS 
+2026-03-07 23:23:56,850 - test_architecture - INFO - Starting test_normalisation_prix
+2026-03-07 23:23:56,850 - test_architecture - INFO - RESULT - test_normalisation_prix: SUCCESS 
+2026-03-07 23:23:56,852 - test_architecture - INFO - Starting test_extraction_prix
+2026-03-07 23:23:56,852 - test_architecture - INFO - RESULT - test_extraction_prix: SUCCESS 
+2026-03-07 23:23:56,855 - test_architecture - INFO - Starting test_calcul_bore_max_admissible
+2026-03-07 23:23:56,855 - test_architecture - INFO - RESULT - test_calcul_bore_max_admissible: SUCCESS 
+2026-03-07 23:23:56,858 - test_architecture - INFO - Starting test_calcul_cylindree_unit_max
+2026-03-07 23:23:56,858 - test_architecture - INFO - RESULT - test_calcul_cylindree_unit_max: SUCCESS 
+2026-03-07 23:23:56,861 - test_architecture - INFO - Starting test_calcul_cylindree_totale_requise
+2026-03-07 23:23:56,861 - test_architecture - INFO - RESULT - test_calcul_cylindree_totale_requise: SUCCESS 
+2026-03-07 23:23:56,863 - test_architecture - INFO - Starting test_calcul_nombre_cylindres_min
+2026-03-07 23:23:56,863 - test_architecture - INFO - RESULT - test_calcul_nombre_cylindres_min: SUCCESS 
+2026-03-07 23:23:56,866 - test_architecture - INFO - Starting test_evaluer_architecture
+2026-03-07 23:23:56,866 - test_architecture - INFO - RESULT - test_evaluer_architecture: SUCCESS 
+2026-03-07 23:23:56,868 - test_architecture - INFO - Starting test_choix_architecture_optimale
+2026-03-07 23:23:56,868 - test_architecture - INFO - RESULT - test_choix_architecture_optimale: SUCCESS 
+2026-03-07 23:23:56,871 - test_architecture - INFO - Starting test_resoudre_architecture_globale
+2026-03-07 23:23:56,872 - test_architecture - INFO - RESULTATS DETAILLES ARCHITECTURE OPTIMALE:
+2026-03-07 23:23:56,872 - test_architecture - INFO - {
+  "N_cyl": 2,
+  "Architecture": "L",
+  "Score": 9.25,
+  "Cout_Maint_Estime": 8000.0,
+  "Bore_mm": 127.65942937047289,
+  "RPM": 4500.0,
+  "PME": 1200000.0,
+  "Course_mm": 153.19131524456748,
+  "Ratio_Sur_B": 1.2,
+  "Cylindree_tot_cc": 3921.5686274509803,
+  "Cylindree_unit_cc": 1960.7843137254902,
+  "Up_max_ms": 25.0
+}
+2026-03-07 23:23:56,873 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
+2026-03-07 23:24:24,422 - test_architecture - INFO - Starting test_calcul_cout_maintenance_estime
+2026-03-07 23:24:24,422 - test_architecture - INFO - RESULT - test_calcul_cout_maintenance_estime: SUCCESS 
+2026-03-07 23:24:24,438 - test_architecture - INFO - Starting test_normalisation_prix
+2026-03-07 23:24:24,438 - test_architecture - INFO - RESULT - test_normalisation_prix: SUCCESS 
+2026-03-07 23:24:24,441 - test_architecture - INFO - Starting test_extraction_prix
+2026-03-07 23:24:24,441 - test_architecture - INFO - RESULT - test_extraction_prix: SUCCESS 
+2026-03-07 23:24:24,445 - test_architecture - INFO - Starting test_calcul_bore_max_admissible
+2026-03-07 23:24:24,445 - test_architecture - INFO - RESULT - test_calcul_bore_max_admissible: SUCCESS 
+2026-03-07 23:24:24,450 - test_architecture - INFO - Starting test_calcul_cylindree_unit_max
+2026-03-07 23:24:24,450 - test_architecture - INFO - RESULT - test_calcul_cylindree_unit_max: SUCCESS 
+2026-03-07 23:24:24,453 - test_architecture - INFO - Starting test_calcul_cylindree_totale_requise
+2026-03-07 23:24:24,453 - test_architecture - INFO - RESULT - test_calcul_cylindree_totale_requise: SUCCESS 
+2026-03-07 23:24:24,456 - test_architecture - INFO - Starting test_calcul_nombre_cylindres_min
+2026-03-07 23:24:24,456 - test_architecture - INFO - RESULT - test_calcul_nombre_cylindres_min: SUCCESS 
+2026-03-07 23:24:24,460 - test_architecture - INFO - Starting test_evaluer_architecture
+2026-03-07 23:24:24,460 - test_architecture - INFO - RESULT - test_evaluer_architecture: SUCCESS 
+2026-03-07 23:24:24,462 - test_architecture - INFO - Starting test_choix_architecture_optimale
+2026-03-07 23:24:24,462 - test_architecture - INFO - RESULT - test_choix_architecture_optimale: SUCCESS 
+2026-03-07 23:24:24,465 - test_architecture - INFO - Starting test_resoudre_architecture_globale
+2026-03-07 23:24:24,481 - test_architecture - INFO - RESULTATS DETAILLES ARCHITECTURE OPTIMALE:
+2026-03-07 23:24:24,481 - test_architecture - INFO - {
+  "N_cyl": 2,
+  "Architecture": "L",
+  "Score": 9.25,
+  "Cout_Maint_Estime": 8000.0,
+  "Bore_mm": 127.65942937047289,
+  "RPM": 4500.0,
+  "PME": 1200000.0,
+  "Course_mm": 153.19131524456748,
+  "Ratio_Sur_B": 1.2,
+  "Cylindree_tot_cc": 3921.5686274509803,
+  "Cylindree_unit_cc": 1960.7843137254902,
+  "Up_max_ms": 25.0
+}
+2026-03-07 23:24:24,482 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
+2026-03-07 23:25:09,702 - test_architecture - INFO - Starting test_calcul_cout_maintenance_estime
+2026-03-07 23:25:09,703 - test_architecture - INFO - RESULT - test_calcul_cout_maintenance_estime: SUCCESS 
+2026-03-07 23:25:09,706 - test_architecture - INFO - Starting test_normalisation_prix
+2026-03-07 23:25:09,706 - test_architecture - INFO - RESULT - test_normalisation_prix: SUCCESS 
+2026-03-07 23:25:09,708 - test_architecture - INFO - Starting test_extraction_prix
+2026-03-07 23:25:09,709 - test_architecture - INFO - RESULT - test_extraction_prix: SUCCESS 
+2026-03-07 23:25:09,711 - test_architecture - INFO - Starting test_calcul_bore_max_admissible
+2026-03-07 23:25:09,711 - test_architecture - INFO - RESULT - test_calcul_bore_max_admissible: SUCCESS 
+2026-03-07 23:25:09,714 - test_architecture - INFO - Starting test_calcul_cylindree_unit_max
+2026-03-07 23:25:09,715 - test_architecture - INFO - RESULT - test_calcul_cylindree_unit_max: SUCCESS 
+2026-03-07 23:25:09,718 - test_architecture - INFO - Starting test_calcul_cylindree_totale_requise
+2026-03-07 23:25:09,718 - test_architecture - INFO - RESULT - test_calcul_cylindree_totale_requise: SUCCESS 
+2026-03-07 23:25:09,722 - test_architecture - INFO - Starting test_calcul_nombre_cylindres_min
+2026-03-07 23:25:09,723 - test_architecture - INFO - RESULT - test_calcul_nombre_cylindres_min: SUCCESS 
+2026-03-07 23:25:09,725 - test_architecture - INFO - Starting test_evaluer_architecture
+2026-03-07 23:25:09,725 - test_architecture - INFO - RESULT - test_evaluer_architecture: SUCCESS 
+2026-03-07 23:25:09,728 - test_architecture - INFO - Starting test_choix_architecture_optimale
+2026-03-07 23:25:09,728 - test_architecture - INFO - RESULT - test_choix_architecture_optimale: SUCCESS 
+2026-03-07 23:25:09,731 - test_architecture - INFO - Starting test_resoudre_architecture_globale
+2026-03-07 23:25:09,747 - test_architecture - INFO - RESULTATS DETAILLES ARCHITECTURE OPTIMALE:
+2026-03-07 23:25:09,747 - test_architecture - INFO - {
+  "N_cyl": 2,
+  "Architecture": "L",
+  "Score": 9.25,
+  "Cout_Maint_Estime": 8000.0,
+  "Bore_mm": 127.65942937047289,
+  "RPM": 4500.0,
+  "PME": 1200000.0,
+  "Course_mm": 153.19131524456748,
+  "Ratio_Sur_B": 1.2,
+  "Cylindree_tot_cc": 3921.5686274509803,
+  "Cylindree_unit_cc": 1960.7843137254902,
+  "Up_max_ms": 25.0
+}
+2026-03-07 23:25:09,747 - test_architecture - INFO - RESULT - test_resoudre_architecture_globale: SUCCESS 
