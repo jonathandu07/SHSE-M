@@ -1,4 +1,13 @@
 Traceback (most recent call last):
-  File "<string>", line 16, in <module>
-    from backend.pieces.clavette_arbre import ClavetteArbre
-ImportError: cannot import name 'ClavetteArbre' from 'backend.pieces.clavette_arbre' (D:\Documents\GitHub\SHSE-M\backend\pieces\clavette_arbre.py)
+  File "D:\Documents\GitHub\SHSE-M\dump_pieces.py", line 8, in <module>
+    rep = dimensionner_systeme_shsem(
+        puissance_traction_kw=40.0,
+    ...<12 lines>...
+        rendement_mecanique_cible_min=0.80,
+    )
+  File "D:\Documents\GitHub\SHSE-M\backend\main.py", line 495, in dimensionner_systeme_shsem
+    pieces = construire_pieces_depuis_systeme(rapport_systeme=rapport_systeme)
+  File "D:\Documents\GitHub\SHSE-M\backend\main.py", line 259, in construire_pieces_depuis_systeme
+    pieces["cylindre"] = Cylindre(**kwargs_cyl)
+                         ~~~~~~~~^^^^^^^^^^^^^^
+TypeError: Cylindre.__init__() missing 2 required positional arguments: 'longueur_utile_m' and 'pression_service_pa'
