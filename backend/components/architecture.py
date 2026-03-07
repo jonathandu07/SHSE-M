@@ -7,7 +7,7 @@ import math
 
 
 # ============================================================
-# Types / profils d'usage (sélection "meilleur" selon contexte)
+# Types / profils d'usage
 # ============================================================
 
 UsageType = Literal["voiture", "moto", "bateau", "avion", "stationnaire", "autre"]
@@ -19,12 +19,8 @@ class ProfilUsageMoteur:
     """
     Profil d'usage : n'apporte AUCUNE donnée inventée.
 
-    Tu fournis les contraintes et priorités (gabarit, durabilité, etc.) ;
-    le composant calcule le meilleur (N, architecture) sous ces contraintes.
-
-    - poids_maintenance : pondère l'importance du coût maintenance dans le score.
-    - architectures_autorisees : restreint l'espace de recherche.
-    - architecture_forcee : force une architecture (mais N reste optimisé).
+    Tu fournis les contraintes et priorités ; le composant calcule
+    le meilleur (N, architecture) sous ces contraintes.
     """
     usage: UsageType
     longueur_dispo_m: float
@@ -32,7 +28,15 @@ class ProfilUsageMoteur:
     horizon_usage_h: float = 20000.0
     vitesse_piston_max_ms: Optional[float] = None
 
+    # pondérations explicites
     poids_maintenance: float = 1.0
+    poids_masse: float = 1.0
+    poids_cout_matiere: float = 1.0
+    poids_compacite: float = 1.0
+    poids_fiabilite: float = 1.0
+    poids_rendement: float = 1.0
+
+    # contraintes / préférences
     architectures_autorisees: Optional[Tuple[ArchitectureType, ...]] = None
     architecture_forcee: Optional[ArchitectureType] = None
 
@@ -48,13 +52,8 @@ def estimer_pme_depuis_couple_et_cylindree(
     """
     Estime la PME (BMEP) à partir du couple et de la cylindrée totale.
 
-    Relations usuelles (cf. cours : Torque and Power) :
       - 4T : BMEP = 4π T / Vd
       - 2T : BMEP = 2π T / Vd
-
-    Source équations couple↔BMEP : “Lecture No2 (Operating Characteristic)”
-    (section Torque and Power) :
-    https://www.researchgate.net/.../Lecture%2BNo2.pdf
     """
     T = _require_finite("couple_nm", couple_nm)
     Vd = _require_positive("cylindree_totale_m3", cylindree_totale_m3, strict=True)
@@ -76,12 +75,7 @@ def estimer_pme_depuis_puissance_et_cylindree(
     """
     Estime la PME (BMEP) à partir de P, Vd, régime et rendement.
 
-    En partant de la relation du module cylindrée totale :
-      Vd = P / (PME * f * eta_m)
-      => PME = P / (Vd * f * eta_m)
-
-    avec f = fréquence des cycles (Hz) :
-      4T : f = n/120 ; 2T : f = n/60
+      PME = P / (Vd * f * eta_m)
     """
     P = _require_positive("puissance_mecanique_w", puissance_mecanique_w, strict=False)
     Vd = _require_positive("cylindree_totale_m3", cylindree_totale_m3, strict=True)
@@ -127,14 +121,22 @@ except Exception:
     )
 
 try:
-    from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise
+    from backend.modules.architecture.calcul_cylindree_totale import (
+        calcul_cylindree_totale_requise,
+    )
 except Exception:
-    from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise  # type: ignore
+    from backend.modules.architecture.calcul_cylindree_totale import (  # type: ignore
+        calcul_cylindree_totale_requise,
+    )
 
 try:
-    from backend.modules.architecture.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min
+    from backend.modules.architecture.calcul_nombre_cylindres_min import (
+        calcul_nombre_cylindres_min,
+    )
 except Exception:
-    from backend.modules.architecture.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min  # type: ignore
+    from backend.modules.architecture.calcul_nombre_cylindres_min import (  # type: ignore
+        calcul_nombre_cylindres_min,
+    )
 
 try:
     from backend.modules.architecture.choix_architecture_optimale import (
@@ -148,9 +150,13 @@ except Exception:
     )
 
 try:
-    from backend.modules.architecture.resolution_globale_architecture import resoudre_architecture_globale
+    from backend.modules.architecture.resolution_globale_architecture import (
+        resoudre_architecture_globale,
+    )
 except Exception:
-    from backend.modules.architecture.resolution_globale_architecture import resoudre_architecture_globale  # type: ignore
+    from backend.modules.architecture.resolution_globale_architecture import (  # type: ignore
+        resoudre_architecture_globale,
+    )
 
 
 # ============================================================
@@ -255,13 +261,13 @@ def _estimer_packaging_simple(
     nb_cyl: int,
     *,
     pas_cylindre_m: float,
-    largeur_base_m: float
+    largeur_base_m: float,
 ) -> Tuple[float, float]:
     nb = _require_int_positive("nb_cyl", nb_cyl, strict=True)
     pas = _require_positive("pas_cylindre_m", pas_cylindre_m, strict=True)
     w0 = _require_positive("largeur_base_m", largeur_base_m, strict=True)
 
-    arch = architecture
+    arch = str(architecture)
     if arch == "L":
         return nb * pas, w0
     if arch == "V":
@@ -274,6 +280,237 @@ def _estimer_packaging_simple(
     return float("nan"), float("nan")
 
 
+def _safe_div(a: Optional[float], b: Optional[float]) -> Optional[float]:
+    if a is None or b is None:
+        return None
+    if not _is_finite(a) or not _is_finite(b):
+        return None
+    if float(b) == 0.0:
+        return None
+    return float(a) / float(b)
+
+
+def _clamp01(x: Optional[float]) -> Optional[float]:
+    if x is None:
+        return None
+    return max(0.0, min(1.0, float(x)))
+
+
+def _architecture_complexity_factor(arch: str) -> float:
+    mapping = {
+        "L": 1.00,
+        "V": 1.10,
+        "W": 1.25,
+        "Etoile": 1.35,
+    }
+    return float(mapping.get(str(arch), 1.50))
+
+
+def _appeler_choix_architecture_optimale(
+    nb_cyl: int,
+    longueur_dispo_m: float,
+    largeur_dispo_m: float,
+    cout_maintenance_score: Optional[float],
+) -> str:
+    """
+    Wrapper robuste :
+    accepte plusieurs signatures possibles du module externe.
+    """
+    last_err: Optional[Exception] = None
+    essais = [
+        (nb_cyl, longueur_dispo_m, largeur_dispo_m, cout_maintenance_score),
+        (nb_cyl, longueur_dispo_m, largeur_dispo_m),
+    ]
+    for args in essais:
+        try:
+            return str(choix_architecture_optimale(*args))
+        except TypeError as e:
+            last_err = e
+            continue
+    if last_err is not None:
+        raise last_err
+    return "Inconnue"
+
+
+def _appeler_evaluer_architecture(
+    arch: str,
+    nb_cyl: int,
+    longueur_dispo_m: float,
+    largeur_dispo_m: float,
+    cout_maintenance_score: Optional[float],
+) -> Tuple[float, bool]:
+    """
+    Wrapper robuste :
+    accepte plusieurs signatures possibles du module externe.
+    """
+    last_err: Optional[Exception] = None
+    essais = [
+        (arch, nb_cyl, longueur_dispo_m, largeur_dispo_m, cout_maintenance_score),
+        (arch, nb_cyl, longueur_dispo_m, largeur_dispo_m),
+    ]
+    for args in essais:
+        try:
+            out = evaluer_architecture(*args)
+            if isinstance(out, tuple) and len(out) >= 2:
+                return float(out[0]), bool(out[1])
+            if isinstance(out, (int, float)):
+                return float(out), True
+        except TypeError as e:
+            last_err = e
+            continue
+    if last_err is not None:
+        raise last_err
+    return float("inf"), False
+
+
+def _estimer_indice_maintenance(
+    *,
+    nb_cyl: int,
+    architecture: str,
+) -> float:
+    return float(nb_cyl) * _architecture_complexity_factor(architecture)
+
+
+def _estimer_masse_relative(
+    *,
+    nb_cyl: int,
+    bore_m: float,
+    course_m: float,
+    architecture: str,
+) -> float:
+    """
+    Indice de masse RELATIF, pas une masse réelle.
+    Sert à comparer des candidats quand la densité matière n'est pas fournie.
+    """
+    volume_geom = float(nb_cyl) * max(0.0, float(bore_m)) ** 2 * max(0.0, float(course_m))
+    f_arch = _architecture_complexity_factor(architecture)
+    return float(volume_geom * f_arch)
+
+
+def _estimer_cout_matiere_relatif(
+    *,
+    masse_relative: float,
+    architecture: str,
+) -> float:
+    """
+    Proxy de coût relatif :
+    coût matière/usinage simplifié, uniquement pour l'arbitrage.
+    """
+    return float(masse_relative * _architecture_complexity_factor(architecture))
+
+
+def _estimer_indice_fiabilite(
+    *,
+    nb_cyl: int,
+    architecture: str,
+    ratio_s_b: float,
+    charge_moy_piston_n: float,
+    charge_ref_n: float,
+) -> float:
+    """
+    Plus l'indice est élevé, plus la solution est pénalisée.
+    Proxy de complexité/charge, pas une probabilité de panne réelle.
+    """
+    charge_ratio = _safe_div(charge_moy_piston_n, charge_ref_n)
+    charge_ratio = 1.0 if charge_ratio is None else max(0.0, charge_ratio)
+    return float(
+        _architecture_complexity_factor(architecture)
+        * (1.0 + 0.10 * max(0.0, nb_cyl - 1))
+        * (1.0 + 0.25 * max(0.0, ratio_s_b - 1.0))
+        * charge_ratio
+    )
+
+
+def _estimer_indice_rendement_relatif(
+    *,
+    nb_cyl: int,
+    architecture: str,
+    ratio_s_b: float,
+) -> float:
+    """
+    Plus l'indice est faible, mieux c'est.
+    Proxy très limité :
+    - plus de cylindres => plus de surfaces frottantes,
+    - architecture plus complexe => légère pénalité auxiliaire,
+    - ratio S/B élevé => vitesse piston / pertes associées potentiellement plus fortes.
+    """
+    return float(
+        1.0
+        + 0.06 * max(0.0, nb_cyl - 1)
+        + 0.15 * max(0.0, ratio_s_b - 1.0)
+        + 0.10 * (_architecture_complexity_factor(architecture) - 1.0)
+    )
+
+
+def _normaliser_sur_candidats(
+    lignes: List[Dict[str, Any]],
+    champ: str,
+    *,
+    sens: str = "min",
+) -> None:
+    """
+    Ajoute champ_norm dans chaque ligne.
+    sens='min' : plus petit = meilleur
+    sens='max' : plus grand = meilleur
+    """
+    valeurs: List[float] = []
+    for row in lignes:
+        v = row.get(champ)
+        if _is_finite(v):
+            valeurs.append(float(v))
+    if not valeurs:
+        for row in lignes:
+            row[f"{champ}_norm"] = None
+        return
+
+    vmin = min(valeurs)
+    vmax = max(valeurs)
+    if abs(vmax - vmin) <= 1e-15:
+        for row in lignes:
+            row[f"{champ}_norm"] = 0.0
+        return
+
+    for row in lignes:
+        v = row.get(champ)
+        if not _is_finite(v):
+            row[f"{champ}_norm"] = None
+            continue
+        x = (float(v) - vmin) / (vmax - vmin)
+        if sens == "max":
+            x = 1.0 - x
+        row[f"{champ}_norm"] = float(max(0.0, min(1.0, x)))
+
+
+def _score_multi_criteres(
+    row: Dict[str, Any],
+    *,
+    poids_maintenance: float,
+    poids_masse: float,
+    poids_cout_matiere: float,
+    poids_compacite: float,
+    poids_fiabilite: float,
+    poids_rendement: float,
+) -> float:
+    """
+    Combine des critères déjà normalisés.
+    Plus le score est faible, mieux c'est.
+    """
+    def g(name: str) -> float:
+        v = row.get(name)
+        if v is None or not _is_finite(v):
+            return 1.0
+        return float(v)
+
+    score = 0.0
+    score += float(poids_maintenance) * g("cout_maintenance_score_eur_norm")
+    score += float(poids_masse) * g("masse_relative_norm")
+    score += float(poids_cout_matiere) * g("cout_matiere_relatif_norm")
+    score += float(poids_compacite) * g("compacite_score_norm")
+    score += float(poids_fiabilite) * g("fiabilite_indice_norm")
+    score += float(poids_rendement) * g("rendement_indice_norm")
+    return float(score)
+
+
 # ============================================================
 # Composant Architecture
 # ============================================================
@@ -282,17 +519,19 @@ def _estimer_packaging_simple(
 class Architecture:
     """
     Analyse et pré-dimensionnement architecture moteur :
-    - cylindrée totale requise (P, PME, fréquence cycles, rendement),
-    - cylindrée unitaire max admissible (vitesse piston + ratio S/B max),
+    - cylindrée totale requise,
+    - cylindrée unitaire max admissible,
     - N_min,
-    - exploration N et architecture via ton module de scoring,
-    - estimation maintenance (Archard).
+    - exploration N et architecture,
+    - estimation maintenance,
+    - arbitrage multi-critères explicite :
+      maintenance / masse / coût matière / compacité / fiabilité / rendement relatif.
     """
 
     # cycle moteur : 4T ou 2T
     temps_moteur: int = 4
 
-    # rendement mécanique : si PME n'est pas déjà "net vilebrequin"
+    # rendement mécanique
     rendement_mecanique: float = 0.85
 
     # contrainte géométrique S/B max
@@ -302,7 +541,7 @@ class Architecture:
     duree_vie_joint_base_h: float = 5000.0
     joints_par_cyl: int = 3
     cout_intervention_base_eur: float = 2000.0
-    beta_wear_model: str = "1.5 (dans le module)"  # info seulement
+    beta_wear_model: str = "1.5 (dans le module)"
 
     # exploration N
     delta_exploration: int = 6
@@ -313,7 +552,7 @@ class Architecture:
     pas_cylindre_m: float = 0.15
     largeur_base_m: float = 0.40
 
-    # option : scraping
+    # scraping optionnel
     activer_scraping_prix: bool = False
     urls_prix_joints: Optional[List[str]] = None
     urls_main_oeuvre: Optional[List[str]] = None
@@ -349,6 +588,11 @@ class Architecture:
             architectures_autorisees=list(profil.architectures_autorisees) if profil.architectures_autorisees else None,
             architecture_forcee=profil.architecture_forcee,
             poids_maintenance=profil.poids_maintenance,
+            poids_masse=profil.poids_masse,
+            poids_cout_matiere=profil.poids_cout_matiere,
+            poids_compacite=profil.poids_compacite,
+            poids_fiabilite=profil.poids_fiabilite,
+            poids_rendement=profil.poids_rendement,
             usage=profil.usage,
             commentaire_usage=profil.commentaire,
         )
@@ -364,18 +608,33 @@ class Architecture:
         largeur_dispo_m: Optional[float] = None,
         horizon_usage_h: float = 20000.0,
 
-        # nouveaux paramètres
+        # contraintes / préférences architecture
         architectures_autorisees: Optional[List[ArchitectureType]] = None,
         architecture_forcee: Optional[ArchitectureType] = None,
-        poids_maintenance: float = 1.0,
 
-        # métadonnées (n'affecte pas les calculs)
+        # pondérations explicites
+        poids_maintenance: float = 1.0,
+        poids_masse: float = 1.0,
+        poids_cout_matiere: float = 1.0,
+        poids_compacite: float = 1.0,
+        poids_fiabilite: float = 1.0,
+        poids_rendement: float = 1.0,
+
+        # métadonnées
         usage: Optional[UsageType] = None,
         commentaire_usage: str = "",
     ) -> Dict[str, Any]:
 
-        if not _is_finite(poids_maintenance) or float(poids_maintenance) < 0.0:
-            raise ValueError("poids_maintenance doit être un nombre fini >= 0.")
+        for nom, val in {
+            "poids_maintenance": poids_maintenance,
+            "poids_masse": poids_masse,
+            "poids_cout_matiere": poids_cout_matiere,
+            "poids_compacite": poids_compacite,
+            "poids_fiabilite": poids_fiabilite,
+            "poids_rendement": poids_rendement,
+        }.items():
+            if not _is_finite(val) or float(val) < 0.0:
+                raise ValueError(f"{nom} doit être un nombre fini >= 0.")
 
         rapport: Dict[str, Any] = {
             "entrees": {},
@@ -383,6 +642,7 @@ class Architecture:
             "cylindree": {},
             "contraintes_admissibles": {},
             "maintenance": {},
+            "criteres_conception": {},
             "exploration": [],
             "meilleur": None,
             "meilleurs_par_architecture": {},
@@ -407,23 +667,56 @@ class Architecture:
             "joints_par_cyl": self.joints_par_cyl,
             "duree_vie_joint_base_h": self.duree_vie_joint_base_h,
             "cout_intervention_base_eur": self.cout_intervention_base_eur,
-            "poids_maintenance": poids_maintenance,
             "architectures_autorisees": architectures_autorisees,
             "architecture_forcee": architecture_forcee,
         }
 
+        rapport["criteres_conception"] = {
+            "poids_maintenance": poids_maintenance,
+            "poids_masse": poids_masse,
+            "poids_cout_matiere": poids_cout_matiere,
+            "poids_compacite": poids_compacite,
+            "poids_fiabilite": poids_fiabilite,
+            "poids_rendement": poids_rendement,
+        }
+
         if puissance_cible_w is None:
-            _push_inconnue(rapport, "impossibles", "puissance_cible_w", "Nécessaire pour calculer la cylindrée totale requise.")
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "puissance_cible_w",
+                "Nécessaire pour calculer la cylindrée totale requise.",
+            )
         if regime_tr_min is None:
-            _push_inconnue(rapport, "impossibles", "regime_tr_min", "Nécessaire pour f(cycles/s), vitesse piston, et cylindrée.")
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "regime_tr_min",
+                "Nécessaire pour f(cycles/s), vitesse piston, et cylindrée.",
+            )
         if pme_pa is None:
-            _push_inconnue(rapport, "impossibles", "pme_pa", "Nécessaire pour relier puissance et cylindrée (PME).")
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "pme_pa",
+                "Nécessaire pour relier puissance et cylindrée (PME).",
+            )
 
         if longueur_dispo_m is None or largeur_dispo_m is None:
-            _push_inconnue(rapport, "partielles", "gabarit (L/W)", "Nécessaire pour valider le packaging et choisir l'architecture optimale.")
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "gabarit (L/W)",
+                "Nécessaire pour valider le packaging et choisir l'architecture optimale.",
+            )
 
         if vitesse_piston_max_ms is None:
-            _push_inconnue(rapport, "partielles", "vitesse_piston_max_ms", "Nécessaire pour borner l'alésage et la cylindrée unitaire admissible.")
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "vitesse_piston_max_ms",
+                "Nécessaire pour borner l'alésage et la cylindrée unitaire admissible.",
+            )
 
         if puissance_cible_w is None or regime_tr_min is None or pme_pa is None:
             _dedup_inconnues(rapport)
@@ -436,7 +729,10 @@ class Architecture:
 
         # 1) cycles
         f_hz = _hz_cycles(n_rpm, self.temps_moteur)
-        rapport["cycles"] = {"temps_moteur": self.temps_moteur, "frequence_cycles_hz": f_hz}
+        rapport["cycles"] = {
+            "temps_moteur": self.temps_moteur,
+            "frequence_cycles_hz": f_hz,
+        }
 
         # 2) cylindrée totale
         eta_m = _require_positive("rendement_mecanique", self.rendement_mecanique, strict=True)
@@ -480,11 +776,21 @@ class Architecture:
         if V_unit_max_m3 is not None:
             n_min_calc = int(calcul_nombre_cylindres_min(V_tot_m3, V_unit_max_m3))
             if n_min_calc >= 999:
-                _push_inconnue(rapport, "impossibles", "N_min", "Cylindrée unitaire max invalide (paramètres incohérents).")
+                _push_inconnue(
+                    rapport,
+                    "impossibles",
+                    "N_min",
+                    "Cylindrée unitaire max invalide (paramètres incohérents).",
+                )
             else:
                 n_min = n_min_calc
         else:
-            _push_inconnue(rapport, "partielles", "N_min", "Calculable si vitesse_piston_max_ms est fournie.")
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "N_min",
+                "Calculable si vitesse_piston_max_ms est fournie.",
+            )
         rapport["cylindree"]["N_min"] = n_min
 
         if n_min is None:
@@ -492,12 +798,21 @@ class Architecture:
             return rapport
 
         if n_min > self.n_max_absolu:
-            _push_inconnue(rapport, "impossibles", "N_min", f"N_min={n_min} > n_max_absolu={self.n_max_absolu}.")
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "N_min",
+                f"N_min={n_min} > n_max_absolu={self.n_max_absolu}.",
+            )
             _dedup_inconnues(rapport)
             return rapport
 
         # 5) maintenance base (scraping optionnel)
-        cout_inter_base = _require_positive("cout_intervention_base_eur", self.cout_intervention_base_eur, strict=False)
+        cout_inter_base = _require_positive(
+            "cout_intervention_base_eur",
+            self.cout_intervention_base_eur,
+            strict=False,
+        )
         if self.activer_scraping_prix:
             try:
                 _ = calcul_cout_maintenance_estime_auto_prix(
@@ -519,9 +834,13 @@ class Architecture:
                     cout_consommables_eur=self.cout_consommables_eur,
                     strict_scraping=self.strict_scraping,
                 )
-                rapport["notes_modele"].append("Scraping activé : le module sait estimer des prix ; calibrer cout_intervention_base_eur si besoin.")
+                rapport["notes_modele"].append(
+                    "Scraping activé : le module sait estimer des prix ; calibrer cout_intervention_base_eur si besoin."
+                )
             except Exception:
-                rapport["notes_modele"].append("Scraping activé mais estimation prix indisponible (fallback sur cout_intervention_base_eur).")
+                rapport["notes_modele"].append(
+                    "Scraping activé mais estimation prix indisponible (fallback sur cout_intervention_base_eur)."
+                )
 
         rapport["maintenance"]["cout_intervention_base_eur"] = cout_inter_base
         rapport["maintenance"]["duree_vie_joint_base_h"] = self.duree_vie_joint_base_h
@@ -553,9 +872,7 @@ class Architecture:
         if architectures_autorisees:
             allowed_set = set(map(str, architectures_autorisees))
 
-        best_score = float("inf")
-        best_row: Optional[Dict[str, Any]] = None
-
+        # exploration brute
         for N in range(n_min, n_max_explore + 1):
             V_u = V_tot_m3 / N
 
@@ -591,26 +908,79 @@ class Architecture:
             if architecture_forcee is not None:
                 arch = str(architecture_forcee)
             else:
-                arch = str(choix_architecture_optimale(N, L_max, W_max, cout_maint_score))
+                arch = _appeler_choix_architecture_optimale(
+                    N,
+                    L_max,
+                    W_max,
+                    cout_maint_score,
+                )
 
             if arch == "Inconnue":
                 continue
             if allowed_set is not None and arch not in allowed_set:
                 continue
 
-            score, valide = evaluer_architecture(arch, N, L_max, W_max, cout_maint_score)
+            score_module, valide = _appeler_evaluer_architecture(
+                arch,
+                N,
+                L_max,
+                W_max,
+                cout_maint_score,
+            )
             if not bool(valide):
                 continue
 
-            L_pkg, W_pkg = _estimer_packaging_simple(arch, N, pas_cylindre_m=self.pas_cylindre_m, largeur_base_m=self.largeur_base_m)
+            L_pkg, W_pkg = _estimer_packaging_simple(
+                arch,
+                N,
+                pas_cylindre_m=self.pas_cylindre_m,
+                largeur_base_m=self.largeur_base_m,
+            )
+
+            compacite_score = None
+            if _is_finite(L_pkg) and _is_finite(W_pkg):
+                compacite_score = _safe_div((L_pkg / L_max) + (W_pkg / W_max), 2.0)
+
+            maintenance_indice = _estimer_indice_maintenance(
+                nb_cyl=N,
+                architecture=arch,
+            )
+            masse_relative = _estimer_masse_relative(
+                nb_cyl=N,
+                bore_m=bore_m,
+                course_m=course_m,
+                architecture=arch,
+            )
+            cout_matiere_relatif = _estimer_cout_matiere_relatif(
+                masse_relative=masse_relative,
+                architecture=arch,
+            )
+            fiabilite_indice = _estimer_indice_fiabilite(
+                nb_cyl=N,
+                architecture=arch,
+                ratio_s_b=ratio_ret,
+                charge_moy_piston_n=charge_moy_n,
+                charge_ref_n=charge_ref_n,
+            )
+            rendement_indice = _estimer_indice_rendement_relatif(
+                nb_cyl=N,
+                architecture=arch,
+                ratio_s_b=ratio_ret,
+            )
 
             row = {
                 "N_cyl": N,
                 "architecture": arch,
-                "score": float(score),
+                "score_module_externe": float(score_module),
                 "valide": bool(valide),
                 "cout_maintenance_eur": float(cout_maint_raw),
                 "cout_maintenance_score_eur": float(cout_maint_score),
+                "maintenance_indice": float(maintenance_indice),
+                "masse_relative": float(masse_relative),
+                "cout_matiere_relatif": float(cout_matiere_relatif),
+                "fiabilite_indice": float(fiabilite_indice),
+                "rendement_indice": float(rendement_indice),
+                "compacite_score": float(compacite_score) if compacite_score is not None else None,
                 "cylindree_tot_cc": float(V_tot_m3 * 1e6),
                 "cylindree_unit_cc": float(V_u * 1e6),
                 "bore_mm": float(bore_m * 1000.0),
@@ -622,22 +992,56 @@ class Architecture:
             }
             rapport["exploration"].append(row)
 
-            if float(score) < best_score:
-                best_score = float(score)
+        if not rapport["exploration"]:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "solution",
+                "Aucune configuration (N, architecture) valide dans le gabarit et sous contraintes admissibles.",
+            )
+            _dedup_inconnues(rapport)
+            return rapport
+
+        # normalisations multi-critères
+        _normaliser_sur_candidats(rapport["exploration"], "cout_maintenance_score_eur", sens="min")
+        _normaliser_sur_candidats(rapport["exploration"], "masse_relative", sens="min")
+        _normaliser_sur_candidats(rapport["exploration"], "cout_matiere_relatif", sens="min")
+        _normaliser_sur_candidats(rapport["exploration"], "compacite_score", sens="min")
+        _normaliser_sur_candidats(rapport["exploration"], "fiabilite_indice", sens="min")
+        _normaliser_sur_candidats(rapport["exploration"], "rendement_indice", sens="min")
+        _normaliser_sur_candidats(rapport["exploration"], "score_module_externe", sens="min")
+
+        best_score = float("inf")
+        best_row: Optional[Dict[str, Any]] = None
+
+        for row in rapport["exploration"]:
+            score_multi = _score_multi_criteres(
+                row,
+                poids_maintenance=poids_maintenance,
+                poids_masse=poids_masse,
+                poids_cout_matiere=poids_cout_matiere,
+                poids_compacite=poids_compacite,
+                poids_fiabilite=poids_fiabilite,
+                poids_rendement=poids_rendement,
+            )
+
+            # petite influence conservée du score externe pour ne pas perdre sa logique
+            score_global = float(score_multi + 0.20 * float(row.get("score_module_externe_norm") or 0.0))
+
+            row["score_multi_criteres"] = float(score_multi)
+            row["score_global"] = float(score_global)
+
+            if score_global < best_score:
+                best_score = score_global
                 best_row = row
 
         rapport["meilleur"] = best_row
 
-        if best_row is None:
-            _push_inconnue(rapport, "impossibles", "solution", "Aucune configuration (N, architecture) valide dans le gabarit et sous contraintes admissibles.")
-            _dedup_inconnues(rapport)
-            return rapport
-
-        # meilleurs par architecture (pour choisir une arch spécifique)
+        # meilleurs par architecture
         best_by_arch: Dict[str, Dict[str, Any]] = {}
         for row in rapport["exploration"]:
             a = str(row["architecture"])
-            if a not in best_by_arch or float(row["score"]) < float(best_by_arch[a]["score"]):
+            if a not in best_by_arch or float(row["score_global"]) < float(best_by_arch[a]["score_global"]):
                 best_by_arch[a] = row
         rapport["meilleurs_par_architecture"] = best_by_arch
 
@@ -648,19 +1052,61 @@ class Architecture:
                     puissance_cible_w=P,
                     regime_tr_min=n_rpm,
                     pme_pa=PME,
-                    vitesse_piston_max_ms=_require_positive("vitesse_piston_max_ms", vitesse_piston_max_ms, strict=False),
+                    vitesse_piston_max_ms=_require_positive(
+                        "vitesse_piston_max_ms",
+                        vitesse_piston_max_ms,
+                        strict=False,
+                    ),
                     L_max_m=L_max,
                     W_max_m=W_max,
                     horizon_usage_h=T_usage,
                 )
             except Exception:
                 rapport["solution_module_globale"] = None
-                rapport["notes_modele"].append("Échec appel resoudre_architecture_globale (paramètres / contraintes).")
+                rapport["notes_modele"].append(
+                    "Échec appel resoudre_architecture_globale (paramètres / contraintes)."
+                )
 
-        # 8) inconnues impossibles sans données externes
-        _push_inconnue(rapport, "impossibles", "PME réelle (carte + pertes + transitoires)", "PME est une entrée modèle. Impossible de la déduire sans cycle thermo/mesures.")
-        _push_inconnue(rapport, "impossibles", "vibrations / NVH / équilibrage", "Nécessite un modèle dynamique complet.")
-        _push_inconnue(rapport, "impossibles", "refroidissement & gradients thermiques", "Nécessite architecture thermique, matériaux, échanges, conditions d'usage.")
+        # 8) notes / inconnues
+        rapport["notes_modele"].append(
+            "Les critères masse/coût matière/fiabilité/rendement sont ici des indices RELATIFS d'arbitrage, "
+            "pas des valeurs industrielles absolues."
+        )
+        rapport["notes_modele"].append(
+            "Le score global combine explicitement maintenance, masse, coût matière, compacité, fiabilité relative "
+            "et rendement relatif."
+        )
+
+        _push_inconnue(
+            rapport,
+            "impossibles",
+            "PME réelle (carte + pertes + transitoires)",
+            "PME est une entrée modèle. Impossible de la déduire sans cycle thermo/mesures.",
+        )
+        _push_inconnue(
+            rapport,
+            "impossibles",
+            "vibrations / NVH / équilibrage",
+            "Nécessite un modèle dynamique complet.",
+        )
+        _push_inconnue(
+            rapport,
+            "impossibles",
+            "refroidissement & gradients thermiques",
+            "Nécessite architecture thermique, matériaux, échanges, conditions d'usage.",
+        )
+        _push_inconnue(
+            rapport,
+            "impossibles",
+            "coût industriel réel",
+            "Le coût matière/usinage réel nécessite procédés, temps de fabrication, tolérances, outillages et volumes de série.",
+        )
+        _push_inconnue(
+            rapport,
+            "impossibles",
+            "masse réelle moteur complet",
+            "Une masse réelle exige ensuite le détail des pièces, matériaux, épaisseurs et accessoires.",
+        )
 
         _dedup_inconnues(rapport)
         return rapport
