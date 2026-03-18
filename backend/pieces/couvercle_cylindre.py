@@ -1,13 +1,29 @@
+
 # backend/pieces/couvercle_cylindre.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple, Literal, List
 import math
 
 # ============================================================
 # Imports projet (avec fallbacks)
 # ============================================================
+
+# --- Cylindrée / chambre ---
+try:
+    from backend.modules.moteur_thermique.calcul_cylindree import calcul_cylindree_unitaire
+except Exception:  # pragma: no cover
+    def calcul_cylindree_unitaire(
+        *,
+        alesage_m: float,
+        course_m: float,
+        allow_zero: bool = False,
+        return_details: bool = False,
+    ) -> float:
+        if alesage_m <= 0 or course_m <= 0:
+            raise ValueError("alesage_m et course_m doivent être > 0")
+        return (math.pi * (alesage_m ** 2) / 4.0) * course_m
 
 # --- Matériaux ---
 try:
@@ -59,7 +75,6 @@ except Exception:  # pragma: no cover
     etat_eau_pure = etat_eau_salee = etat_antigel = None  # type: ignore
 
 try:
-    # air.py réel: altitude_m + temperature_offset_K + RH + co2_ppm
     from backend.ensemble.air import air_state, isa_dry_temperature_pressure
 except Exception:  # pragma: no cover
     air_state = None  # type: ignore
@@ -116,6 +131,9 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
 
     rapport["inconnues"]["impossibles"] = dedup(list(rapport["inconnues"].get("impossibles", []) or []))
     rapport["inconnues"]["partielles"] = dedup(list(rapport["inconnues"].get("partielles", []) or []))
+
+def _float_if_finite(x: Any) -> Optional[float]:
+    return float(x) if _is_finite(x) else None
 
 
 # ============================================================
@@ -488,17 +506,11 @@ def _proposer_forme_calotte_depuis_pression_matiere(
     rapport_min: float = 0.12,
     rapport_max: float = 0.35,
 ) -> Dict[str, float]:
-    """
-    Règle explicite de conception :
-    - plus p/sigma_eff est élevé, plus on bombe le couvercle
-    - on borne h/a pour garder une pièce réaliste et dessinable
-    """
     a = _req_pos("rayon_base_m", rayon_base_m)
     p = _req_pos("pression_dimensionnement_pa", pression_dimensionnement_pa, strictly=False)
     s = _req_pos("sigma_admissible_eff_pa", sigma_admissible_eff_pa)
 
     phi = p / s if s > 0 else 0.0
-    # règle déterministe, sans prétendre être une loi physique pure
     ratio_h_sur_a = _borne(0.12 + 4.0 * phi, rapport_min, rapport_max)
     h = ratio_h_sur_a * a
     geo = _calotte_spherique_resoudre_geometrie(
@@ -520,6 +532,243 @@ def _surface_annulaire(r_int: float, r_ext: float) -> float:
     if re <= ri:
         raise ValueError("r_ext doit être > r_int.")
     return math.pi * (re * re - ri * ri)
+
+
+# ============================================================
+# Culasse / chambre / fermeture haute / fluides associés
+# ============================================================
+
+TypeJointCulasse = Literal["plat", "torique", "mls", "metal"]
+TypeOrganePassage = Literal["admission", "echappement"]
+TypeOrganeHaut = Literal["bougie", "injecteur", "injecteur_bougie", "aucun"]
+
+@dataclass(frozen=True)
+class DonneesChambreHaute:
+    taux_compression: Optional[float] = None
+    volume_mort_m3: Optional[float] = None
+    volume_chambre_m3: Optional[float] = None
+    jeu_haut_m: Optional[float] = None
+    surface_squish_m2: Optional[float] = None
+    hauteur_locale_min_m: Optional[float] = None
+    angle_toit_deg: Optional[float] = None
+
+@dataclass(frozen=True)
+class CulasseSpec:
+    epaisseur_culasse_m: Optional[float] = None
+    volume_matiere_m3: Optional[float] = None
+    surface_appui_joint_m2: Optional[float] = None
+    gradient_thermique_travers_epaisseur_k: Optional[float] = None
+    temperature_metal_max_C: Optional[float] = None
+
+@dataclass(frozen=True)
+class OrganePassageHaut:
+    nom: str
+    type_organe: TypeOrganePassage
+    nb: int = 1
+    diametre_siege_m: Optional[float] = None
+    levee_max_m: Optional[float] = None
+    coefficient_decharge: float = 1.0
+    perte_charge_zeta: Optional[float] = None
+    debit_massique_kg_s: Optional[float] = None
+    masse_volumique_gaz_kg_m3: Optional[float] = None
+    viscosite_gaz_pa_s: Optional[float] = None
+    temperature_gaz_k: Optional[float] = None
+
+@dataclass(frozen=True)
+class OrganeAllumageInjection:
+    type_organe: TypeOrganeHaut = "aucun"
+    nombre: int = 1
+    diametre_orifice_m: Optional[float] = None
+    temperature_piece_max_C: Optional[float] = None
+    saillie_m: Optional[float] = None
+
+@dataclass(frozen=True)
+class JointCulasseSpec:
+    type_joint: TypeJointCulasse = "plat"
+    largeur_appui_m: Optional[float] = None
+    rayon_moyen_m: Optional[float] = None
+    aire_appui_m2: Optional[float] = None
+    pression_contact_min_pa: Optional[float] = None
+    force_joint_additionnelle_n: float = 0.0
+    epaisseur_m: Optional[float] = None
+    conductivite_w_m_k: Optional[float] = None
+
+@dataclass(frozen=True)
+class SerrageCulasseSpec:
+    nb_vis: Optional[int] = None
+    vis_d_nominal_mm: Optional[float] = None
+    vis_pas_mm: Optional[float] = None
+    classe_vis_iso898: Optional[str] = None
+    limite_elastique_vis_pa: Optional[float] = None
+    facteur_securite_vis: float = 1.5
+    facteur_frottement_k: float = 0.20
+
+    rigidite_vis_n_m: Optional[float] = None
+    rigidite_empilage_n_m: Optional[float] = None
+    longueur_serree_vis_m: Optional[float] = None
+    longueur_empilage_m: Optional[float] = None
+    alpha_vis_1_k: Optional[float] = None
+    alpha_empilage_1_k: Optional[float] = None
+    delta_temperature_serrage_k: Optional[float] = None
+
+    securite_desserrage_min: float = 1.10
+
+@dataclass(frozen=True)
+class LubrificationHautSpec:
+    debit_massique_huile_kg_s: Optional[float] = None
+    masse_volumique_huile_kg_m3: Optional[float] = None
+    viscosite_dynamique_pa_s: Optional[float] = None
+    temperature_huile_C: Optional[float] = None
+
+    diametre_galerie_m: Optional[float] = None
+    longueur_galerie_m: Optional[float] = None
+    nb_points_lubrifies: int = 0
+
+    pression_amont_pa: Optional[float] = None
+    pression_aval_pa: Optional[float] = None
+
+    epaisseur_film_estimee_m: Optional[float] = None
+    epaisseur_film_min_requise_m: Optional[float] = None
+    charge_normale_n: Optional[float] = None
+    aire_portante_m2: Optional[float] = None
+    vitesse_glissement_m_s: Optional[float] = None
+
+@dataclass(frozen=True)
+class RefroidissementHautSpec:
+    puissance_thermique_w: Optional[float] = None
+    temperature_fluide_entree_C: Optional[float] = None
+    temperature_ambiante_C: Optional[float] = None
+
+    h_interne_w_m2_k: Optional[float] = None
+    h_externe_w_m2_k: Optional[float] = None
+    surface_interne_m2: Optional[float] = None
+    surface_externe_m2: Optional[float] = None
+
+    conductivite_piece_w_m_k: Optional[float] = None
+    epaisseur_eq_m: Optional[float] = None
+    delta_temperature_extreme_k: Optional[float] = None
+
+
+def _section_circulaire(d_m: float) -> float:
+    d = _req_pos("d_m", d_m)
+    return math.pi * d * d / 4.0
+
+def _surface_rideau_organe(diametre_siege_m: float, levee_m: float, nb: int = 1, coefficient_decharge: float = 1.0) -> float:
+    d = _req_pos("diametre_siege_m", diametre_siege_m)
+    l = _req_pos("levee_m", levee_m, strictly=False)
+    n = _req_int_pos("nb", nb)
+    cd = _req_pos("coefficient_decharge", coefficient_decharge, strictly=False)
+    return math.pi * d * l * n * cd
+
+def _perte_charge_singuliere(rho: float, v: float, zeta: float) -> float:
+    return 0.5 * _req_pos("rho", rho) * (_req_pos("v", v, strictly=False) ** 2) * _req_pos("zeta", zeta, strictly=False)
+
+def _reynolds(rho: float, v: float, D: float, mu: float) -> float:
+    return _req_pos("rho", rho) * _req_pos("v", v, strictly=False) * _req_pos("D", D) / _req_pos("mu", mu)
+
+def _debit_volumique_depuis_massique(mdot: float, rho: float) -> float:
+    return _req_pos("mdot", mdot, strictly=False) / _req_pos("rho", rho)
+
+def _volume_chambre_depuis_donnees(
+    *,
+    volume_deplace_unitaire_m3: Optional[float],
+    taux_compression: Optional[float],
+    volume_mort_m3: Optional[float],
+    volume_chambre_m3: Optional[float],
+) -> Dict[str, Optional[float]]:
+    out = {
+        "volume_deplace_unitaire_m3": volume_deplace_unitaire_m3,
+        "volume_chambre_m3": None,
+        "volume_mort_m3": None,
+        "taux_compression": None,
+    }
+
+    Vd = volume_deplace_unitaire_m3
+
+    if volume_chambre_m3 is not None:
+        Vc = _req_pos("volume_chambre_m3", volume_chambre_m3)
+        out["volume_chambre_m3"] = Vc
+        out["volume_mort_m3"] = Vc
+        if Vd is not None:
+            out["taux_compression"] = (Vd + Vc) / Vc
+        return out
+
+    if volume_mort_m3 is not None:
+        Vc = _req_pos("volume_mort_m3", volume_mort_m3)
+        out["volume_chambre_m3"] = Vc
+        out["volume_mort_m3"] = Vc
+        if Vd is not None:
+            out["taux_compression"] = (Vd + Vc) / Vc
+        return out
+
+    if taux_compression is not None and Vd is not None:
+        rc = _req_pos("taux_compression", taux_compression)
+        if rc <= 1.0:
+            raise ValueError("taux_compression doit être > 1.")
+        Vc = Vd / (rc - 1.0)
+        out["volume_chambre_m3"] = Vc
+        out["volume_mort_m3"] = Vc
+        out["taux_compression"] = rc
+        return out
+
+    return out
+
+def _eta_remplissage_depuis_debit(
+    *,
+    debit_massique_air_kg_s: float,
+    masse_volumique_air_kg_m3: float,
+    cylindree_totale_m3: float,
+    rpm: float,
+    temps_moteur: int,
+) -> float:
+    mdot = _req_pos("debit_massique_air_kg_s", debit_massique_air_kg_s, strictly=False)
+    rho = _req_pos("masse_volumique_air_kg_m3", masse_volumique_air_kg_m3)
+    Vd = _req_pos("cylindree_totale_m3", cylindree_totale_m3)
+    n = _req_pos("rpm", rpm)
+    cps = n / 60.0
+    if int(temps_moteur) == 4:
+        cps /= 2.0
+    q_reel = mdot / rho
+    q_theorique = Vd * cps
+    return q_reel / q_theorique if q_theorique > 0 else float("nan")
+
+def _rigidite_equivalente_serie(k1: float, k2: float) -> float:
+    a = _req_pos("k1", k1)
+    b = _req_pos("k2", k2)
+    return (a * b) / (a + b)
+
+def _variation_precharge_thermique(
+    *,
+    rigidite_vis_n_m: float,
+    rigidite_empilage_n_m: float,
+    alpha_vis_1_k: float,
+    alpha_empilage_1_k: float,
+    longueur_serree_vis_m: float,
+    longueur_empilage_m: float,
+    delta_temperature_k: float,
+) -> Dict[str, float]:
+    k_eq = _rigidite_equivalente_serie(rigidite_vis_n_m, rigidite_empilage_n_m)
+    dL_vis = _req_pos("alpha_vis_1_k", alpha_vis_1_k, strictly=False) * _req_pos("longueur_serree_vis_m", longueur_serree_vis_m) * _req_finite("delta_temperature_k", delta_temperature_k)
+    dL_emp = _req_pos("alpha_empilage_1_k", alpha_empilage_1_k, strictly=False) * _req_pos("longueur_empilage_m", longueur_empilage_m) * _req_finite("delta_temperature_k", delta_temperature_k)
+    dF = k_eq * (dL_emp - dL_vis)
+    return {
+        "rigidite_equivalente_n_m": k_eq,
+        "delta_L_vis_m": dL_vis,
+        "delta_L_empilage_m": dL_emp,
+        "delta_precharge_thermique_N": dF,
+    }
+
+def _pression_contact_reelle(force_n: float, aire_m2: float) -> float:
+    return _req_pos("force_n", force_n, strictly=False) / _req_pos("aire_m2", aire_m2)
+
+def _resistance_convection(h: float, A: float) -> float:
+    return 1.0 / (_req_pos("h", h) * _req_pos("A", A))
+
+def _resistance_conduction_plane(epaisseur_m: float, k: float, A: float) -> float:
+    return _req_pos("epaisseur_m", epaisseur_m, strictly=False) / (_req_pos("k", k) * _req_pos("A", A))
+
+def _poiseuille_tube_circulaire(mu: float, L: float, Q: float, D: float) -> float:
+    return (128.0 * _req_pos("mu", mu) * _req_pos("L", L, strictly=False) * _req_pos("Q", Q, strictly=False)) / (math.pi * (_req_pos("D", D) ** 4))
 
 
 # ============================================================
@@ -545,9 +794,18 @@ class ReglesFormeCouvercle:
     rugosite_exterieure_ra_um: float = 3.2
     rugosite_interieure_ra_um: float = 1.6
 
+    circularite_m: float = 0.00003
+    cylindricite_m: float = 0.00005
+    coaxialite_m: float = 0.00005
+    perpendicularite_faces_m: float = 0.00003
+
     tolerance_epaisseur_m: float = 0.00010
     tolerance_bride_m: float = 0.00010
     tolerance_position_trous_m: float = 0.00010
+
+    surepaisseur_usinage_m: float = 0.00050
+    surepaisseur_finition_m: float = 0.00010
+
 
 def _resoudre_depuis_cylindre_cao(cyl_rep: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     out: Dict[str, Any] = {
@@ -566,6 +824,7 @@ def _resoudre_depuis_cylindre_cao(cyl_rep: Optional[Dict[str, Any]]) -> Dict[str
         "largeur_bride_m": None,
         "pression_max_pa": None,
         "pression_service_pa": None,
+        "course_m": None,
     }
     if not isinstance(cyl_rep, dict):
         return out
@@ -616,6 +875,7 @@ def _resoudre_depuis_cylindre_cao(cyl_rep: Optional[Dict[str, Any]]) -> Dict[str
 
     out["pression_max_pa"] = ent.get("pression_max_pa")
     out["pression_service_pa"] = ent.get("pression_service_pa")
+    out["course_m"] = ent.get("course_m")
     return out
 
 def _calcul_force_joint_torique_simplifiee(gorge_joint: Dict[str, Any]) -> Optional[float]:
@@ -636,13 +896,13 @@ def _calcul_force_joint_torique_simplifiee(gorge_joint: Dict[str, Any]) -> Optio
 @dataclass(frozen=True)
 class CouvercleCylindre:
     # Référence au cylindre
-    cylindre: Optional[Any] = None  # Cylindre ou dict rapport
+    cylindre: Optional[Any] = None
 
     # Géométrie ouverture / appui
     diametre_ouverture_m: Optional[float] = None
     rayon_appui_m: Optional[float] = None
     source_appui: SourceAppui = "ouverture"
-    rayon_externe_m: Optional[float] = None  # si None -> rayon base bride/cylindre
+    rayon_externe_m: Optional[float] = None
 
     # Pressions
     pression_service_pa: Optional[float] = None
@@ -700,8 +960,30 @@ class CouvercleCylindre:
 
     type_appui: TypeAppui = "encastre"
 
+    # Liaison moteur / cycle
+    course_m: Optional[float] = None
+    rpm: Optional[float] = None
+    nombre_cylindres: int = 1
+    temps_moteur: Literal[2, 4] = 4
+    pression_admission_pa: Optional[float] = None
+    pression_echappement_pa: Optional[float] = None
+
+    # Culasse / chambre
+    chambre_haute: Optional[DonneesChambreHaute] = None
+    culasse_spec: Optional[CulasseSpec] = None
+
+    organes_admission: Optional[List[OrganePassageHaut]] = None
+    organes_echappement: Optional[List[OrganePassageHaut]] = None
+    organes_allumage_injection: Optional[List[OrganeAllumageInjection]] = None
+
+    joint_culasse_spec: Optional[JointCulasseSpec] = None
+    serrage_culasse_spec: Optional[SerrageCulasseSpec] = None
+
+    lubrification_haute: Optional[LubrificationHautSpec] = None
+    refroidissement_haut: Optional[RefroidissementHautSpec] = None
+
     # Règles explicites de forme/fabrication
-    regles_forme: ReglesFormeCouvercle = ReglesFormeCouvercle()
+    regles_forme: ReglesFormeCouvercle = field(default_factory=ReglesFormeCouvercle)
 
     def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
@@ -713,6 +995,11 @@ class CouvercleCylindre:
             "contraintes": {},
             "deformations": {},
             "thermique": {},
+            "culasse": {},
+            "combustion_haute": {},
+            "distribution": {"admission": [], "echappement": [], "organes_hauts": []},
+            "lubrification": {},
+            "refroidissement_haut": {},
             "masse": {},
             "assemblage": {},
             "fabrication": {},
@@ -742,32 +1029,32 @@ class CouvercleCylindre:
         # ------------------------------------------------------------
         # 1) Entrées géométriques et pressions
         # ------------------------------------------------------------
-        D_ouv: Optional[float] = self.diametre_ouverture_m
+        D_ouv = _float_if_finite(self.diametre_ouverture_m)
         if D_ouv is None and cyl_auto["diametre_interieur_nominal_m"] is not None:
-            D_ouv = float(cyl_auto["diametre_interieur_nominal_m"])
+            D_ouv = _float_if_finite(cyl_auto["diametre_interieur_nominal_m"])
         elif D_ouv is None and cyl is not None:
             try:
                 if hasattr(cyl, "alesage_m"):
-                    D_ouv = float(getattr(cyl, "alesage_m"))
+                    D_ouv = _float_if_finite(getattr(cyl, "alesage_m"))
             except Exception:
                 D_ouv = None
 
-        p_serv = self.pression_service_pa
-        p_max = self.pression_max_pa
+        p_serv = _float_if_finite(self.pression_service_pa)
+        p_max = _float_if_finite(self.pression_max_pa)
         if p_serv is None and cyl_auto["pression_service_pa"] is not None:
-            p_serv = float(cyl_auto["pression_service_pa"])
+            p_serv = _float_if_finite(cyl_auto["pression_service_pa"])
         if p_max is None and cyl_auto["pression_max_pa"] is not None:
-            p_max = float(cyl_auto["pression_max_pa"])
+            p_max = _float_if_finite(cyl_auto["pression_max_pa"])
 
-        if D_ouv is None:
+        if D_ouv is None or D_ouv <= 0.0:
             _push_inconnue(rapport, "impossibles", "diametre_ouverture_m", "Donner diametre_ouverture_m ou fournir un cylindre analysable.")
-            D_ouv = float("nan")
+            D_ouv_val: Optional[float] = None
         else:
-            D_ouv = _req_pos("diametre_ouverture_m", D_ouv)
+            D_ouv_val = _req_pos("diametre_ouverture_m", D_ouv)
 
         if p_max is None:
             _push_inconnue(rapport, "impossibles", "pression_max_pa", "Nécessaire pour dimensionner le couvercle.")
-            p_max_v = 0.0
+            p_max_v: Optional[float] = None
         else:
             p_max_v = _req_pos("pression_max_pa", p_max, strictly=False)
 
@@ -777,10 +1064,10 @@ class CouvercleCylindre:
         e_min = _req_pos("epaisseur_min_fabrication_m", self.epaisseur_min_fabrication_m, strictly=False)
 
         # appui
-        a: Optional[float] = self.rayon_appui_m
+        a = _float_if_finite(self.rayon_appui_m)
         if a is None:
-            if self.source_appui == "ouverture":
-                a = 0.5 * D_ouv
+            if self.source_appui == "ouverture" and D_ouv_val is not None:
+                a = 0.5 * D_ouv_val
             elif self.source_appui == "cylindre_sans_brides":
                 if cyl_auto["diametre_exterieur_nominal_m"] is not None:
                     a = 0.5 * float(cyl_auto["diametre_exterieur_nominal_m"])
@@ -788,29 +1075,45 @@ class CouvercleCylindre:
                 if cyl_auto["diametre_bride_externe_m"] is not None:
                     a = 0.5 * float(cyl_auto["diametre_bride_externe_m"])
                 elif isinstance(cyl_rep, dict):
-                    geo = cyl_rep.get("geometrie", {}) if isinstance(cyl_rep.get("geometrie", {}), dict) else {}
-                    if geo.get("rayon_externe_avec_brides_m") is not None:
-                        a = float(geo["rayon_externe_avec_brides_m"])
-        if a is None:
-            _push_inconnue(rapport, "partielles", "rayon_appui_m", "Non déduit ; repli sur rayon ouverture.")
-            a = 0.5 * D_ouv
-        a = _req_pos("rayon_appui_m", a)
+                    geo_tmp = cyl_rep.get("geometrie", {}) if isinstance(cyl_rep.get("geometrie", {}), dict) else {}
+                    if geo_tmp.get("rayon_externe_avec_brides_m") is not None:
+                        a = float(geo_tmp["rayon_externe_avec_brides_m"])
 
-        r_ext = self.rayon_externe_m
+        if a is None or a <= 0.0:
+            if D_ouv_val is not None:
+                _push_inconnue(rapport, "partielles", "rayon_appui_m", "Non déduit ; repli sur rayon ouverture.")
+                a = 0.5 * D_ouv_val
+            else:
+                _push_inconnue(rapport, "impossibles", "rayon_appui_m", "Impossible de déterminer le rayon d'appui.")
+                a = None
+
+        r_ext = _float_if_finite(self.rayon_externe_m)
         if r_ext is None:
             if cyl_auto["diametre_bride_externe_m"] is not None:
                 r_ext = 0.5 * float(cyl_auto["diametre_bride_externe_m"])
-            else:
+            elif a is not None:
                 r_ext = a
-        r_ext = _req_pos("rayon_externe_m", r_ext)
+
+        if r_ext is None or r_ext <= 0.0:
+            _push_inconnue(rapport, "partielles", "rayon_externe_m", "Non déterminé.")
+            r_ext = a
+
+        course_eff = _float_if_finite(self.course_m)
+        if course_eff is None and cyl_auto["course_m"] is not None:
+            course_eff = _float_if_finite(cyl_auto["course_m"])
+        if course_eff is None and cyl is not None and hasattr(cyl, "course_m"):
+            try:
+                course_eff = _float_if_finite(getattr(cyl, "course_m"))
+            except Exception:
+                course_eff = None
 
         rapport["entrees"].update({
-            "diametre_ouverture_m": D_ouv,
+            "diametre_ouverture_m": D_ouv_val,
             "rayon_appui_m": a,
             "source_appui": self.source_appui,
             "rayon_externe_m": r_ext,
-            "pression_service_pa": p_serv,
-            "pression_max_pa": p_max,
+            "pression_service_pa": p_serv_v,
+            "pression_max_pa": p_max_v,
             "pression_externe_pa": p_ext,
             "facteur_securite": FS,
             "epaisseur_m": self.epaisseur_m,
@@ -823,6 +1126,12 @@ class CouvercleCylindre:
             "type_appui": self.type_appui,
             "temperature_service_C": self.temperature_service_C,
             "cylindre_fournit": cyl is not None,
+            "course_m": course_eff,
+            "rpm": self.rpm,
+            "nombre_cylindres": self.nombre_cylindres,
+            "temps_moteur": self.temps_moteur,
+            "pression_admission_pa": self.pression_admission_pa,
+            "pression_echappement_pa": self.pression_echappement_pa,
         })
 
         # ------------------------------------------------------------
@@ -861,9 +1170,18 @@ class CouvercleCylindre:
         # ------------------------------------------------------------
         # 3) Charges de pression
         # ------------------------------------------------------------
-        delta_p = max(0.0, p_max_v - p_ext)
-        A_ouverture = math.pi * (0.5 * D_ouv) ** 2
-        F_sep = calcul_force_separation(delta_p, A_ouverture)
+        delta_p = None
+        A_ouverture = None
+        F_sep = None
+        if p_max_v is not None:
+            delta_p = max(0.0, p_max_v - p_ext)
+        if D_ouv_val is not None:
+            A_ouverture = math.pi * (0.5 * D_ouv_val) ** 2
+        if delta_p is not None and A_ouverture is not None:
+            F_sep = calcul_force_separation(delta_p, A_ouverture)
+        else:
+            _push_inconnue(rapport, "impossibles", "charges pression", "Impossible de calculer les charges sans pression et aire d'ouverture.")
+
         rapport["charges"].update({
             "delta_p_dimensionnement_pa": delta_p,
             "aire_ouverture_m2": A_ouverture,
@@ -879,6 +1197,8 @@ class CouvercleCylindre:
             sigma_eff = float(sigma_adm) / FS
 
         try:
+            if a is None:
+                raise ValueError("rayon d'appui indisponible.")
             if self.hauteur_bombe_m is not None or self.rayon_courbure_m is not None:
                 geo_cap = _calotte_spherique_resoudre_geometrie(
                     rayon_base_m=a,
@@ -887,8 +1207,8 @@ class CouvercleCylindre:
                 )
                 rapport["dimensionnement"]["source_forme_calotte"] = "input"
             else:
-                if sigma_eff is None:
-                    raise ValueError("Impossible de proposer automatiquement la forme sans sigma_eff.")
+                if sigma_eff is None or delta_p is None:
+                    raise ValueError("Impossible de proposer automatiquement la forme sans sigma_eff et delta_p.")
                 geo_cap = _proposer_forme_calotte_depuis_pression_matiere(
                     rayon_base_m=a,
                     pression_dimensionnement_pa=delta_p,
@@ -900,7 +1220,6 @@ class CouvercleCylindre:
                 rapport["notes_modele"].append(
                     "Forme convexe auto-déduite par règle explicite h/a = f(p/sigma_eff), bornée par les règles de conception."
                 )
-
             rapport["geometrie"]["calotte"] = geo_cap
         except Exception as e:
             _push_inconnue(rapport, "impossibles", "géométrie calotte", f"{e}")
@@ -918,7 +1237,7 @@ class CouvercleCylindre:
         else:
             if sigma_eff is None:
                 _push_inconnue(rapport, "impossibles", "epaisseur_m", "Impossible de dimensionner sans sigma_eff.")
-            elif "R_m" in geo_cap:
+            elif "R_m" in geo_cap and delta_p is not None:
                 e_req_membrane = _epaisseur_requise_calotte_spherique_membrane(
                     p_Pa=delta_p,
                     R_m=float(geo_cap["R_m"]),
@@ -927,7 +1246,7 @@ class CouvercleCylindre:
                 e_calc = max(float(e_req_membrane), float(e_min))
                 rapport["dimensionnement"]["epaisseur_source"] = "dimensionnement_membrane"
             else:
-                _push_inconnue(rapport, "impossibles", "epaisseur_m", "Géométrie calotte non disponible.")
+                _push_inconnue(rapport, "impossibles", "epaisseur_m", "Géométrie calotte ou charge non disponible.")
 
         rapport["dimensionnement"].update({
             "modele": "calotte_spherique_membrane",
@@ -970,7 +1289,7 @@ class CouvercleCylindre:
                 l_bride = _req_pos("largeur_bride_m", l_bride)
 
         bride_geo: Dict[str, Any] = {}
-        if e_bride is not None and l_bride is not None:
+        if e_bride is not None and l_bride is not None and a is not None and r_ext is not None:
             e_bride = _req_pos("epaisseur_bride_m", e_bride)
             l_bride = _req_pos("largeur_bride_m", l_bride)
             r_bride_int = a
@@ -990,7 +1309,7 @@ class CouvercleCylindre:
         # ------------------------------------------------------------
         # 7) Contraintes membrane
         # ------------------------------------------------------------
-        if e_calc is not None and e_calc > 0 and "R_m" in geo_cap:
+        if e_calc is not None and e_calc > 0 and "R_m" in geo_cap and delta_p is not None:
             Rm = float(geo_cap["R_m"])
             sigma_mem = (delta_p * Rm) / (2.0 * e_calc)
             marge_sigma = None
@@ -1002,7 +1321,7 @@ class CouvercleCylindre:
                 "marge_sigma_membrane": marge_sigma,
             })
         else:
-            _push_inconnue(rapport, "impossibles", "contraintes", "Impossible sans epaisseur_retenue_m et géométrie calotte (R).")
+            _push_inconnue(rapport, "impossibles", "contraintes", "Impossible sans epaisseur_retenue_m, charge et géométrie calotte (R).")
 
         # ------------------------------------------------------------
         # 8) Assemblage vis/perçages
@@ -1017,11 +1336,13 @@ class CouvercleCylindre:
 
         # force joint
         F_joint = _calcul_force_joint_torique_simplifiee(gorge_joint) if gorge_joint is not None else 0.0
-        F_pre_tot = calcul_precharge_vis_totale(
-            force_separation_n=F_sep,
-            force_joint_n=F_joint,
-            facteur_securite=1.5,
-        )
+        F_pre_tot = None
+        if F_sep is not None:
+            F_pre_tot = calcul_precharge_vis_totale(
+                force_separation_n=F_sep,
+                force_joint_n=F_joint,
+                facteur_securite=1.5,
+            )
 
         Re_vis: Optional[float] = self.limite_elastique_vis_pa
         if Re_vis is None and self.classe_vis_iso898 is not None:
@@ -1029,10 +1350,6 @@ class CouvercleCylindre:
                 Re_vis = float(_iso898_yield_strength_pa_from_class(self.classe_vis_iso898))
             except Exception as e:
                 _push_inconnue(rapport, "partielles", "limite_elastique_vis_pa", f"Classe vis ISO invalide: {e!r}")
-        elif Re_vis is None and visserie_cyl is not None:
-            if visserie_cyl.get("contrainte_admissible_vis_pa") is not None:
-                # remonter à une contrainte d'usage si besoin, sans prétendre retrouver Re
-                pass
 
         filetage_impose: Optional[Dict[str, Any]] = None
         if self.vis_d_nominal_mm is not None:
@@ -1066,7 +1383,7 @@ class CouvercleCylindre:
         elif visserie_cyl is not None and visserie_cyl.get("contrainte_admissible_vis_pa") is not None:
             sigma_eff_vis = float(visserie_cyl["contrainte_admissible_vis_pa"])
 
-        if nb_vis_eff is None:
+        if nb_vis_eff is None and F_pre_tot is not None:
             if As_m2 is not None and sigma_eff_vis is not None and As_m2 > 0 and sigma_eff_vis > 0:
                 F_cap = As_m2 * sigma_eff_vis
                 nb_vis_eff = int(math.ceil(F_pre_tot / F_cap))
@@ -1075,14 +1392,13 @@ class CouvercleCylindre:
             elif visserie_cyl is not None and visserie_cyl.get("nb_vis") is not None:
                 nb_vis_eff = int(visserie_cyl["nb_vis"])
 
-        if nb_vis_eff is not None:
+        F_par_vis = None
+        if nb_vis_eff is not None and F_pre_tot is not None:
             nb_vis_eff = _req_int_pos("nb_vis", int(nb_vis_eff))
             F_par_vis = F_pre_tot / nb_vis_eff if nb_vis_eff > 0 else None
         else:
-            F_par_vis = None
             _push_inconnue(rapport, "partielles", "nb_vis", "Impossible de fixer le nombre de vis sans données visserie suffisantes ou cylindre CAO.")
 
-        # si le cylindre a déjà défini DPC/trous/angles, on les reprend
         if nb_vis_eff is not None and dpc_eff is None and bride_geo:
             r_bi = bride_geo["rayon_bride_interne_m"]
             r_be = bride_geo["rayon_bride_externe_m"]
@@ -1098,6 +1414,7 @@ class CouvercleCylindre:
         if nb_vis_eff is not None and angles_eff is None:
             angles_eff = [i * (360.0 / nb_vis_eff) for i in range(nb_vis_eff)]
 
+        couple_serrage = None
         if F_par_vis is not None:
             d_nom_vis_m = None
             if filetage_impose is not None:
@@ -1108,8 +1425,6 @@ class CouvercleCylindre:
                 calcul_couple_serrage(F_par_vis, d_nom_vis_m, 0.2)
                 if d_nom_vis_m is not None else None
             )
-        else:
-            couple_serrage = None
 
         assemblage = {
             "force_separation_N": F_sep,
@@ -1129,17 +1444,485 @@ class CouvercleCylindre:
         rapport["assemblage"].update(assemblage)
 
         # ------------------------------------------------------------
-        # 9) Déformations thermiques
+        # 8bis) Culasse / chambre / fermeture haute
         # ------------------------------------------------------------
-        if alpha is not None and self.delta_temperature_k is not None:
-            a2 = _req_pos("coefficient_dilatation_1_k", alpha)
-            dT = _req_finite("delta_temperature_k", self.delta_temperature_k)
-            rapport["deformations"]["delta_diametre_ouverture_thermique_m"] = a2 * D_ouv * dT
+        Vd_unit = None
+        if course_eff is not None and D_ouv_val is not None:
+            try:
+                Vd_unit = calcul_cylindree_unitaire(alesage_m=D_ouv_val, course_m=_req_pos("course_m", course_eff))
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "volume déplacé unitaire", f"Impossible de calculer Vd: {e!r}")
         else:
-            _push_inconnue(rapport, "partielles", "dilatation thermique", "Calculable si alpha et delta_temperature_k sont fournis.")
+            _push_inconnue(rapport, "partielles", "course_m", "Nécessaire pour calculer le volume déplacé et la chambre.")
+
+        chambre = self.chambre_haute or DonneesChambreHaute()
+        try:
+            res_chambre = _volume_chambre_depuis_donnees(
+                volume_deplace_unitaire_m3=Vd_unit,
+                taux_compression=chambre.taux_compression,
+                volume_mort_m3=chambre.volume_mort_m3,
+                volume_chambre_m3=chambre.volume_chambre_m3,
+            )
+            rapport["combustion_haute"].update(res_chambre)
+            rapport["combustion_haute"].update({
+                "jeu_haut_m": chambre.jeu_haut_m,
+                "surface_squish_m2": chambre.surface_squish_m2,
+                "hauteur_locale_min_m": chambre.hauteur_locale_min_m,
+                "angle_toit_deg": chambre.angle_toit_deg,
+            })
+        except Exception as e:
+            _push_inconnue(rapport, "partielles", "chambre de combustion", f"Impossible de résoudre la chambre: {e!r}")
+
+        culasse = self.culasse_spec or CulasseSpec()
+        rapport["culasse"].update({
+            "epaisseur_culasse_m": culasse.epaisseur_culasse_m,
+            "surface_appui_joint_m2": culasse.surface_appui_joint_m2,
+            "gradient_thermique_travers_epaisseur_k": culasse.gradient_thermique_travers_epaisseur_k,
+            "temperature_metal_max_C": culasse.temperature_metal_max_C,
+            "volume_matiere_m3": culasse.volume_matiere_m3,
+        })
+
+        if culasse.volume_matiere_m3 is not None and densite is not None:
+            try:
+                rapport["culasse"]["masse_culasse_kg"] = _req_pos("densite_kg_m3", densite) * _req_pos("volume_matiere_m3", culasse.volume_matiere_m3, strictly=False)
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "masse culasse", f"Impossible de calculer la masse culasse: {e!r}")
+        elif culasse.volume_matiere_m3 is not None and densite is None:
+            _push_inconnue(rapport, "partielles", "masse culasse", "Calculable si densite_kg_m3 est fournie.")
 
         # ------------------------------------------------------------
-        # 10) Thermique
+        # 8ter) Joint de culasse / pression de contact / serrage à chaud
+        # ------------------------------------------------------------
+        joint_spec = self.joint_culasse_spec
+        serrage_spec = self.serrage_culasse_spec
+
+        aire_appui_joint = None
+        force_joint_min_contact = None
+        pression_contact_reelle = None
+
+        if joint_spec is not None:
+            if joint_spec.aire_appui_m2 is not None:
+                aire_appui_joint = _req_pos("aire_appui_m2", joint_spec.aire_appui_m2)
+            elif joint_spec.largeur_appui_m is not None and D_ouv_val is not None:
+                largeur = _req_pos("largeur_appui_m", joint_spec.largeur_appui_m)
+                r_moy = joint_spec.rayon_moyen_m
+                if r_moy is None:
+                    r_moy = 0.5 * D_ouv_val + 0.5 * largeur
+                aire_appui_joint = 2.0 * math.pi * _req_pos("rayon_moyen_m", r_moy) * largeur
+
+            if joint_spec.pression_contact_min_pa is not None and aire_appui_joint is not None:
+                force_joint_min_contact = _req_pos("pression_contact_min_pa", joint_spec.pression_contact_min_pa, strictly=False) * aire_appui_joint
+
+            rapport["culasse"]["joint_culasse"] = {
+                "type_joint": joint_spec.type_joint,
+                "aire_appui_m2": aire_appui_joint,
+                "pression_contact_min_pa": joint_spec.pression_contact_min_pa,
+                "force_joint_min_contact_N": force_joint_min_contact,
+                "force_joint_additionnelle_n": joint_spec.force_joint_additionnelle_n,
+                "epaisseur_m": joint_spec.epaisseur_m,
+                "conductivite_w_m_k": joint_spec.conductivite_w_m_k,
+            }
+
+        if serrage_spec is not None:
+            if serrage_spec.nb_vis is not None:
+                nb_vis_eff = _req_int_pos("nb_vis", serrage_spec.nb_vis)
+                rapport["assemblage"]["nb_vis"] = nb_vis_eff
+
+            if serrage_spec.limite_elastique_vis_pa is not None:
+                Re_vis = _req_pos("limite_elastique_vis_pa", serrage_spec.limite_elastique_vis_pa)
+            elif serrage_spec.classe_vis_iso898 is not None:
+                Re_vis = _iso898_yield_strength_pa_from_class(serrage_spec.classe_vis_iso898)
+
+            if serrage_spec.vis_d_nominal_mm is not None:
+                filetage_impose = _filetage_depuis_nominal(
+                    d_nominal_mm=_req_pos("vis_d_nominal_mm", serrage_spec.vis_d_nominal_mm),
+                    pas_mm=serrage_spec.vis_pas_mm,
+                )
+                As_m2 = float(filetage_impose["As_m2"])
+                rapport["assemblage"]["filetage"] = filetage_impose
+
+            if Re_vis is not None:
+                sigma_eff_vis = _req_pos("limite_elastique_vis_pa", Re_vis) / _req_pos("facteur_securite_vis", serrage_spec.facteur_securite_vis)
+                rapport["assemblage"]["sigma_admissible_vis_eff_Pa"] = sigma_eff_vis
+
+        F_joint_joint_culasse = None
+        if joint_spec is not None:
+            F_joint_joint_culasse = max(
+                float(force_joint_min_contact or 0.0),
+                float(joint_spec.force_joint_additionnelle_n or 0.0),
+            )
+
+            if F_joint_joint_culasse > float(F_joint or 0.0) and F_sep is not None:
+                F_joint = F_joint_joint_culasse
+                F_pre_tot = calcul_precharge_vis_totale(
+                    force_separation_n=F_sep,
+                    force_joint_n=F_joint,
+                    facteur_securite=float((serrage_spec.facteur_securite_vis if serrage_spec is not None else 1.5)),
+                )
+                rapport["assemblage"]["force_joint_N"] = F_joint
+                rapport["assemblage"]["force_precharge_totale_N"] = F_pre_tot
+
+                if nb_vis_eff is not None:
+                    F_par_vis = F_pre_tot / nb_vis_eff
+                    rapport["assemblage"]["force_precharge_par_vis_N"] = F_par_vis
+
+                    d_nom_vis_m = None
+                    if filetage_impose is not None:
+                        d_nom_vis_m = float(filetage_impose["d_nominal_mm"]) / 1000.0
+                    if d_nom_vis_m is not None:
+                        k_serrage = serrage_spec.facteur_frottement_k if serrage_spec is not None else 0.2
+                        rapport["assemblage"]["couple_serrage_par_vis_Nm"] = calcul_couple_serrage(F_par_vis, d_nom_vis_m, k_serrage)
+
+        if F_pre_tot is not None and aire_appui_joint is not None:
+            pression_contact_reelle = _pression_contact_reelle(F_pre_tot, aire_appui_joint)
+            rapport["culasse"]["pression_contact_reelle_pa"] = pression_contact_reelle
+
+        if serrage_spec is not None:
+            if (
+                F_pre_tot is not None
+                and serrage_spec.rigidite_vis_n_m is not None
+                and serrage_spec.rigidite_empilage_n_m is not None
+                and serrage_spec.alpha_vis_1_k is not None
+                and serrage_spec.alpha_empilage_1_k is not None
+                and serrage_spec.longueur_serree_vis_m is not None
+                and serrage_spec.longueur_empilage_m is not None
+                and serrage_spec.delta_temperature_serrage_k is not None
+            ):
+                try:
+                    delta_precharge_thermique = _variation_precharge_thermique(
+                        rigidite_vis_n_m=serrage_spec.rigidite_vis_n_m,
+                        rigidite_empilage_n_m=serrage_spec.rigidite_empilage_n_m,
+                        alpha_vis_1_k=serrage_spec.alpha_vis_1_k,
+                        alpha_empilage_1_k=serrage_spec.alpha_empilage_1_k,
+                        longueur_serree_vis_m=serrage_spec.longueur_serree_vis_m,
+                        longueur_empilage_m=serrage_spec.longueur_empilage_m,
+                        delta_temperature_k=serrage_spec.delta_temperature_serrage_k,
+                    )
+                    precharge_residuelle_chaud = F_pre_tot + delta_precharge_thermique["delta_precharge_thermique_N"]
+                    rapport["culasse"]["variation_precharge_thermique"] = delta_precharge_thermique
+                    rapport["culasse"]["precharge_residuelle_chaud_N"] = precharge_residuelle_chaud
+
+                    F_ref_desserrage = float(F_sep or 0.0) + max(0.0, float(F_joint or 0.0))
+                    if F_ref_desserrage > 0.0:
+                        securite_desserrage = precharge_residuelle_chaud / F_ref_desserrage
+                        rapport["culasse"]["securite_desserrage"] = securite_desserrage
+                        rapport["verifications"]["desserrage_acceptable_a_chaud"] = (
+                            securite_desserrage >= float(serrage_spec.securite_desserrage_min)
+                        )
+                except Exception as e:
+                    _push_inconnue(rapport, "partielles", "perte de précharge à chaud", f"Impossible de calculer la variation thermique de précharge: {e!r}")
+            else:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "perte de précharge à chaud",
+                    "Calculable si rigidités, longueurs, coefficients de dilatation et delta_temperature_serrage_k sont fournis."
+                )
+
+        # ------------------------------------------------------------
+        # 8quater) Distribution / admission / échappement
+        # ------------------------------------------------------------
+        def _analyser_organe_passage(org: OrganePassageHaut) -> Dict[str, Any]:
+            out: Dict[str, Any] = {
+                "nom": org.nom,
+                "type_organe": org.type_organe,
+                "nb": org.nb,
+                "diametre_siege_m": org.diametre_siege_m,
+                "levee_max_m": org.levee_max_m,
+                "coefficient_decharge": org.coefficient_decharge,
+                "debit_massique_kg_s": org.debit_massique_kg_s,
+                "temperature_gaz_k": org.temperature_gaz_k,
+                "aire_geometrique_m2": None,
+                "aire_rideau_effective_m2": None,
+                "vitesse_gaz_m_s": None,
+                "Re": None,
+                "perte_charge_pa": None,
+            }
+
+            if org.diametre_siege_m is not None:
+                out["aire_geometrique_m2"] = _section_circulaire(org.diametre_siege_m) * _req_int_pos("nb", org.nb)
+
+            if org.diametre_siege_m is not None and org.levee_max_m is not None:
+                out["aire_rideau_effective_m2"] = _surface_rideau_organe(
+                    diametre_siege_m=org.diametre_siege_m,
+                    levee_m=org.levee_max_m,
+                    nb=org.nb,
+                    coefficient_decharge=org.coefficient_decharge,
+                )
+
+            if (
+                org.debit_massique_kg_s is not None
+                and org.masse_volumique_gaz_kg_m3 is not None
+                and out["aire_rideau_effective_m2"] is not None
+            ):
+                qv = _debit_volumique_depuis_massique(org.debit_massique_kg_s, org.masse_volumique_gaz_kg_m3)
+                Aeff = float(out["aire_rideau_effective_m2"])
+                if Aeff > 0.0:
+                    out["vitesse_gaz_m_s"] = qv / Aeff
+
+                if org.viscosite_gaz_pa_s is not None and out["vitesse_gaz_m_s"] is not None and org.diametre_siege_m is not None:
+                    out["Re"] = _reynolds(
+                        rho=org.masse_volumique_gaz_kg_m3,
+                        v=out["vitesse_gaz_m_s"],
+                        D=org.diametre_siege_m,
+                        mu=org.viscosite_gaz_pa_s,
+                    )
+
+                if org.perte_charge_zeta is not None and out["vitesse_gaz_m_s"] is not None:
+                    out["perte_charge_pa"] = _perte_charge_singuliere(
+                        rho=org.masse_volumique_gaz_kg_m3,
+                        v=out["vitesse_gaz_m_s"],
+                        zeta=org.perte_charge_zeta,
+                    )
+            return out
+
+        for org in list(self.organes_admission or []):
+            try:
+                rapport["distribution"]["admission"].append(_analyser_organe_passage(org))
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", f"distribution admission:{org.nom}", f"{e!r}")
+
+        for org in list(self.organes_echappement or []):
+            try:
+                rapport["distribution"]["echappement"].append(_analyser_organe_passage(org))
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", f"distribution échappement:{org.nom}", f"{e!r}")
+
+        for org in list(self.organes_allumage_injection or []):
+            try:
+                out_org = {
+                    "type_organe": org.type_organe,
+                    "nombre": org.nombre,
+                    "diametre_orifice_m": org.diametre_orifice_m,
+                    "temperature_piece_max_C": org.temperature_piece_max_C,
+                    "saillie_m": org.saillie_m,
+                    "section_totale_m2": None,
+                }
+                if org.diametre_orifice_m is not None:
+                    out_org["section_totale_m2"] = _section_circulaire(org.diametre_orifice_m) * _req_int_pos("nombre", org.nombre)
+                rapport["distribution"]["organes_hauts"].append(out_org)
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "organe allumage/injection", f"{e!r}")
+
+        if (
+            self.rpm is not None
+            and Vd_unit is not None
+            and self.nombre_cylindres is not None
+            and len(rapport["distribution"]["admission"]) > 0
+        ):
+            try:
+                debit_air_total = 0.0
+                rho_air_ref = None
+                for it in rapport["distribution"]["admission"]:
+                    if it.get("debit_massique_kg_s") is not None:
+                        debit_air_total += float(it["debit_massique_kg_s"])
+                    if rho_air_ref is None:
+                        src = next((x for x in (self.organes_admission or []) if x.nom == it["nom"]), None)
+                        if src is not None and src.masse_volumique_gaz_kg_m3 is not None:
+                            rho_air_ref = float(src.masse_volumique_gaz_kg_m3)
+
+                if debit_air_total > 0.0 and rho_air_ref is not None:
+                    eta_v = _eta_remplissage_depuis_debit(
+                        debit_massique_air_kg_s=debit_air_total,
+                        masse_volumique_air_kg_m3=rho_air_ref,
+                        cylindree_totale_m3=float(Vd_unit) * float(self.nombre_cylindres),
+                        rpm=_req_pos("rpm", self.rpm),
+                        temps_moteur=int(self.temps_moteur),
+                    )
+                    rapport["distribution"]["rendement_remplissage"] = eta_v
+                else:
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "rendement de remplissage",
+                        "Calculable si un débit massique d'admission et une masse volumique de gaz sont fournis."
+                    )
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "rendement de remplissage", f"{e!r}")
+
+        # ------------------------------------------------------------
+        # 8quinquies) Lubrification
+        # ------------------------------------------------------------
+        lub = self.lubrification_haute
+        if lub is not None:
+            lub_rep: Dict[str, Any] = {
+                "debit_massique_huile_kg_s": lub.debit_massique_huile_kg_s,
+                "masse_volumique_huile_kg_m3": lub.masse_volumique_huile_kg_m3,
+                "viscosite_dynamique_pa_s": lub.viscosite_dynamique_pa_s,
+                "temperature_huile_C": lub.temperature_huile_C,
+                "nb_points_lubrifies": lub.nb_points_lubrifies,
+                "debit_volumique_huile_m3_s": None,
+                "section_galerie_m2": None,
+                "vitesse_huile_m_s": None,
+                "Re_galerie": None,
+                "delta_p_poiseuille_pa": None,
+                "pression_moyenne_contact_pa": None,
+                "marge_film": None,
+                "marge_pression_disponible": None,
+            }
+
+            try:
+                if lub.debit_massique_huile_kg_s is not None and lub.masse_volumique_huile_kg_m3 is not None:
+                    Q_h = _debit_volumique_depuis_massique(lub.debit_massique_huile_kg_s, lub.masse_volumique_huile_kg_m3)
+                    lub_rep["debit_volumique_huile_m3_s"] = Q_h
+
+                    if lub.diametre_galerie_m is not None:
+                        A_gal = _section_circulaire(lub.diametre_galerie_m)
+                        lub_rep["section_galerie_m2"] = A_gal
+                        lub_rep["vitesse_huile_m_s"] = Q_h / A_gal if A_gal > 0 else None
+
+                    if (
+                        lub.viscosite_dynamique_pa_s is not None
+                        and lub.diametre_galerie_m is not None
+                        and lub.longueur_galerie_m is not None
+                    ):
+                        lub_rep["delta_p_poiseuille_pa"] = _poiseuille_tube_circulaire(
+                            mu=lub.viscosite_dynamique_pa_s,
+                            L=lub.longueur_galerie_m,
+                            Q=Q_h,
+                            D=lub.diametre_galerie_m,
+                        )
+
+                    if (
+                        lub.masse_volumique_huile_kg_m3 is not None
+                        and lub.viscosite_dynamique_pa_s is not None
+                        and lub.diametre_galerie_m is not None
+                        and lub_rep["vitesse_huile_m_s"] is not None
+                    ):
+                        lub_rep["Re_galerie"] = _reynolds(
+                            rho=lub.masse_volumique_huile_kg_m3,
+                            v=lub_rep["vitesse_huile_m_s"],
+                            D=lub.diametre_galerie_m,
+                            mu=lub.viscosite_dynamique_pa_s,
+                        )
+
+                if lub.charge_normale_n is not None and lub.aire_portante_m2 is not None:
+                    lub_rep["pression_moyenne_contact_pa"] = _pression_contact_reelle(
+                        force_n=lub.charge_normale_n,
+                        aire_m2=lub.aire_portante_m2,
+                    )
+
+                if lub.epaisseur_film_estimee_m is not None and lub.epaisseur_film_min_requise_m is not None:
+                    lub_rep["marge_film"] = _req_pos("epaisseur_film_estimee_m", lub.epaisseur_film_estimee_m, strictly=False) / _req_pos("epaisseur_film_min_requise_m", lub.epaisseur_film_min_requise_m)
+
+                if (
+                    lub.pression_amont_pa is not None
+                    and lub.pression_aval_pa is not None
+                    and lub_rep["delta_p_poiseuille_pa"] is not None
+                ):
+                    delta_p_dispo = _req_pos("pression_amont_pa", lub.pression_amont_pa, strictly=False) - _req_pos("pression_aval_pa", lub.pression_aval_pa, strictly=False)
+                    delta_p_calc = _req_pos("delta_p_poiseuille_pa", lub_rep["delta_p_poiseuille_pa"], strictly=False)
+                    if delta_p_calc > 0:
+                        lub_rep["marge_pression_disponible"] = delta_p_dispo / delta_p_calc
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "lubrification", f"Impossible de résoudre une partie de la lubrification: {e!r}")
+
+            rapport["lubrification"].update(lub_rep)
+        else:
+            _push_inconnue(rapport, "partielles", "lubrification", "Aucune donnée de lubrification fournie.")
+
+        # ------------------------------------------------------------
+        # 8sexies) Refroidissement haut
+        # ------------------------------------------------------------
+        refh = self.refroidissement_haut
+        if refh is not None:
+            ref_rep: Dict[str, Any] = {
+                "puissance_thermique_w": refh.puissance_thermique_w,
+                "temperature_fluide_entree_C": refh.temperature_fluide_entree_C,
+                "temperature_ambiante_C": refh.temperature_ambiante_C,
+                "R_conv_interne_K_W": None,
+                "R_cond_piece_K_W": None,
+                "R_joint_culasse_K_W": None,
+                "R_conv_externe_K_W": None,
+                "R_totale_K_W": None,
+                "delta_T_piece_fluide_K": None,
+                "temperature_piece_estimee_C": None,
+                "temperature_piece_extreme_C": None,
+            }
+
+            try:
+                R_i = None
+                R_c = None
+                R_j = None
+                R_o = None
+
+                if refh.h_interne_w_m2_k is not None and refh.surface_interne_m2 is not None:
+                    R_i = _resistance_convection(refh.h_interne_w_m2_k, refh.surface_interne_m2)
+                    ref_rep["R_conv_interne_K_W"] = R_i
+
+                k_piece = refh.conductivite_piece_w_m_k if refh.conductivite_piece_w_m_k is not None else k_mat
+                if refh.epaisseur_eq_m is not None and k_piece is not None and refh.surface_interne_m2 is not None:
+                    R_c = _resistance_conduction_plane(refh.epaisseur_eq_m, k_piece, refh.surface_interne_m2)
+                    ref_rep["R_cond_piece_K_W"] = R_c
+
+                if joint_spec is not None and joint_spec.epaisseur_m is not None and joint_spec.conductivite_w_m_k is not None and aire_appui_joint is not None:
+                    R_j = _resistance_conduction_plane(joint_spec.epaisseur_m, joint_spec.conductivite_w_m_k, aire_appui_joint)
+                    ref_rep["R_joint_culasse_K_W"] = R_j
+
+                if refh.h_externe_w_m2_k is not None and refh.surface_externe_m2 is not None:
+                    R_o = _resistance_convection(refh.h_externe_w_m2_k, refh.surface_externe_m2)
+                    ref_rep["R_conv_externe_K_W"] = R_o
+
+                Rs = [x for x in (R_i, R_c, R_j, R_o) if x is not None]
+                if len(Rs) > 0:
+                    ref_rep["R_totale_K_W"] = sum(Rs)
+
+                if refh.puissance_thermique_w is not None and ref_rep["R_totale_K_W"] is not None:
+                    dT = _req_pos("puissance_thermique_w", refh.puissance_thermique_w, strictly=False) * ref_rep["R_totale_K_W"]
+                    ref_rep["delta_T_piece_fluide_K"] = dT
+                    if refh.temperature_fluide_entree_C is not None:
+                        ref_rep["temperature_piece_estimee_C"] = refh.temperature_fluide_entree_C + dT
+                    if refh.delta_temperature_extreme_k is not None and ref_rep["temperature_piece_estimee_C"] is not None:
+                        ref_rep["temperature_piece_extreme_C"] = ref_rep["temperature_piece_estimee_C"] + refh.delta_temperature_extreme_k
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "refroidissement haut", f"Impossible de résoudre une partie du refroidissement: {e!r}")
+
+            rapport["refroidissement_haut"].update(ref_rep)
+        else:
+            _push_inconnue(rapport, "partielles", "refroidissement haut", "Aucune donnée de refroidissement haut fournie.")
+
+        # ------------------------------------------------------------
+        # 8septies) Déformation thermique culasse
+        # ------------------------------------------------------------
+        if alpha is not None and culasse.epaisseur_culasse_m is not None and D_ouv_val is not None:
+            try:
+                if self.delta_temperature_k is not None:
+                    rapport["deformations"]["delta_diametre_culasse_thermique_m"] = (
+                        _req_pos("coefficient_dilatation_1_k", alpha, strictly=False) * D_ouv_val * _req_finite("delta_temperature_k", self.delta_temperature_k)
+                    )
+
+                if E is not None and nu is not None and culasse.gradient_thermique_travers_epaisseur_k is not None:
+                    sigma_th = (
+                        _req_pos("module_young_pa", E)
+                        * _req_pos("coefficient_dilatation_1_k", alpha, strictly=False)
+                        * _req_finite("gradient_thermique_travers_epaisseur_k", culasse.gradient_thermique_travers_epaisseur_k)
+                        / (1.0 - _req_pos("coefficient_poisson", nu, strictly=False))
+                    )
+                    rapport["contraintes"]["sigma_thermique_culasse_bloquee_pa"] = sigma_th
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "déformation thermique culasse", f"{e!r}")
+        else:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "déformation thermique culasse",
+                "Calculable si alpha, epaisseur_culasse_m et/ou gradient thermique sont fournis."
+            )
+
+        # ------------------------------------------------------------
+        # 9) Déformations thermiques globales
+        # ------------------------------------------------------------
+        if alpha is not None and self.delta_temperature_k is not None and D_ouv_val is not None:
+            a2 = _req_pos("coefficient_dilatation_1_k", alpha)
+            dT = _req_finite("delta_temperature_k", self.delta_temperature_k)
+            rapport["deformations"]["delta_diametre_ouverture_thermique_m"] = a2 * D_ouv_val * dT
+            if course_eff is not None:
+                rapport["deformations"]["delta_longueur_thermique_m"] = a2 * course_eff * dT
+        else:
+            _push_inconnue(rapport, "partielles", "dilatation thermique", "Calculable si alpha, delta_temperature_k et la géométrie sont fournis.")
+
+        # ------------------------------------------------------------
+        # 10) Thermique global du couvercle
         # ------------------------------------------------------------
         h_i = self.h_interne_w_m2_k
         h_o = self.h_externe_w_m2_k
@@ -1229,7 +2012,7 @@ class CouvercleCylindre:
 
             cao = {
                 "forme": "calotte_spherique_avec_bride",
-                "diametre_ouverture_m": D_ouv,
+                "diametre_ouverture_m": D_ouv_val,
                 "rayon_base_calotte_m": float(geo_cap["a_m"]),
                 "hauteur_bombe_interieure_m": float(geo_cap["h_m"]),
                 "rayon_courbure_interieur_m": R_int,
@@ -1237,7 +2020,7 @@ class CouvercleCylindre:
                 "epaisseur_calotte_m": e_calc,
                 "diametre_exterieur_calotte_base_m": 2.0 * float(geo_cap["a_m"]),
                 "bride": bride_geo,
-                "assemblage": assemblage,
+                "assemblage": rapport["assemblage"],
                 "chanfrein_m": chanfrein,
                 "conge_m": conge,
                 "etat_surface": {
@@ -1249,11 +2032,20 @@ class CouvercleCylindre:
                     "epaisseur_m": self.regles_forme.tolerance_epaisseur_m,
                     "bride_m": self.regles_forme.tolerance_bride_m,
                     "position_trous_m": self.regles_forme.tolerance_position_trous_m,
+                    "circularite_m": self.regles_forme.circularite_m,
+                    "cylindricite_m": self.regles_forme.cylindricite_m,
+                    "coaxialite_m": self.regles_forme.coaxialite_m,
+                    "perpendicularite_faces_m": self.regles_forme.perpendicularite_faces_m,
+                },
+                "usinage": {
+                    "surepaisseur_usinage_m": self.regles_forme.surepaisseur_usinage_m,
+                    "surepaisseur_finition_m": self.regles_forme.surepaisseur_finition_m,
                 },
             }
             rapport["geometrie"]["cao"] = cao
             rapport["fabrication"].update(cao["etat_surface"])
             rapport["fabrication"]["tolerances"] = cao["tolerances"]
+            rapport["fabrication"]["usinage"] = cao["usinage"]
 
         # ------------------------------------------------------------
         # 13) Vérifications de cohérence cylindre/couvercle
@@ -1270,6 +2062,11 @@ class CouvercleCylindre:
 
         if cyl_auto["nb_trous"] is not None and nb_vis_eff is not None:
             rapport["verifications"]["nb_trous_coherent_avec_cylindre"] = (int(cyl_auto["nb_trous"]) == int(nb_vis_eff))
+
+        if aire_appui_joint is not None and pression_contact_reelle is not None and joint_spec is not None and joint_spec.pression_contact_min_pa is not None:
+            rapport["verifications"]["pression_contact_joint_suffisante"] = (
+                pression_contact_reelle >= float(joint_spec.pression_contact_min_pa)
+            )
 
         # ------------------------------------------------------------
         # 14) Mode strict

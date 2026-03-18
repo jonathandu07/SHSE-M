@@ -604,6 +604,233 @@ class ReglesFabricationCylindre:
     longueur_utile_suppl_montage_arriere_m: float = 0.0
 
 
+
+@dataclass(frozen=True)
+class ProfilThermiqueAxialCylindre:
+    """
+    Profil axial volontairement simple et explicite :
+    - 3 zones axiales,
+    - températures représentatives par zone,
+    - calcul des dilatations et jeux locaux.
+
+    Rien n'est inféré si les températures ne sont pas fournies.
+    """
+    temperature_zone_chaude_C: Optional[float] = None
+    temperature_zone_intermediaire_C: Optional[float] = None
+    temperature_zone_froide_C: Optional[float] = None
+
+    fraction_zone_chaude: float = 0.30
+    fraction_zone_intermediaire: float = 0.40
+    fraction_zone_froide: float = 0.30
+
+    temperature_reference_jeu_C: float = 20.0
+    diametre_reference_piston_m: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class DonneesContactFermetureCylindre:
+    """
+    Données supplémentaires pour raffiner la fermeture.
+    Les rigidités peuvent être :
+    - fournies directement,
+    - ou déduites grossièrement des géométries si E et les longueurs sont connues.
+    """
+    rigidite_vis_n_m: Optional[float] = None
+    rigidite_bride_n_m: Optional[float] = None
+
+    longueur_serree_vis_m: Optional[float] = None
+    longueur_empilage_m: Optional[float] = None
+
+    alpha_vis_1_k: Optional[float] = None
+    alpha_empilage_1_k: Optional[float] = None
+    delta_temperature_serrage_k: Optional[float] = None
+
+    aire_contact_joint_m2: Optional[float] = None
+    pression_contact_joint_min_pa: Optional[float] = None
+
+    facteur_non_uniformite_serrage: float = 0.15
+
+
+@dataclass(frozen=True)
+class ReglesPrecisionUsinageCylindre:
+    """
+    Règles de précision de fabrication.
+    Ce sont des règles explicites de conception/production,
+    pas des lois physiques cachées.
+    """
+    circularite_sur_tol_alesage: float = 0.50
+    cylindricite_sur_tol_alesage: float = 1.00
+    coaxialite_sur_tol_alesage: float = 1.00
+    perpendicularite_sur_tol_longueur: float = 0.50
+
+    surcote_ebauche_interieure_frac: float = 1.00
+    surcote_semi_finition_interieure_frac: float = 0.35
+    surcote_finition_interieure_frac: float = 0.15
+
+    surcote_ebauche_exterieure_frac: float = 1.00
+    surcote_semi_finition_exterieure_frac: float = 0.35
+    surcote_finition_exterieure_frac: float = 0.15
+
+
+def _surface_annulaire(r_int: float, r_ext: float) -> float:
+    ri = _req_pos("r_int", r_int, strictly=False)
+    re = _req_pos("r_ext", r_ext)
+    if re <= ri:
+        raise ValueError("r_ext doit être > r_int.")
+    return math.pi * (re * re - ri * ri)
+
+
+def _rigidite_axiale_barre(*, E_pa: float, aire_m2: float, longueur_m: float) -> float:
+    return _req_pos("E_pa", E_pa) * _req_pos("aire_m2", aire_m2) / _req_pos("longueur_m", longueur_m)
+
+
+def _rigidite_equivalente_serie(k1: float, k2: float) -> float:
+    a = _req_pos("k1", k1)
+    b = _req_pos("k2", k2)
+    return (a * b) / (a + b)
+
+
+def _variation_precharge_thermique(
+    *,
+    rigidite_vis_n_m: float,
+    rigidite_empilage_n_m: float,
+    alpha_vis_1_k: float,
+    alpha_empilage_1_k: float,
+    longueur_serree_vis_m: float,
+    longueur_empilage_m: float,
+    delta_temperature_k: float,
+) -> Dict[str, float]:
+    k_eq = _rigidite_equivalente_serie(rigidite_vis_n_m, rigidite_empilage_n_m)
+    dL_vis = _req_pos("alpha_vis_1_k", alpha_vis_1_k, strictly=False) * _req_pos("longueur_serree_vis_m", longueur_serree_vis_m) * _req_finite("delta_temperature_k", delta_temperature_k)
+    dL_emp = _req_pos("alpha_empilage_1_k", alpha_empilage_1_k, strictly=False) * _req_pos("longueur_empilage_m", longueur_empilage_m) * _req_finite("delta_temperature_k", delta_temperature_k)
+    dF = k_eq * (dL_emp - dL_vis)
+    return {
+        "rigidite_equivalente_n_m": k_eq,
+        "delta_L_vis_m": dL_vis,
+        "delta_L_empilage_m": dL_emp,
+        "delta_precharge_thermique_N": dF,
+    }
+
+
+def _pression_contact_reelle(force_n: float, aire_m2: float) -> float:
+    return _req_pos("force_n", force_n, strictly=False) / _req_pos("aire_m2", aire_m2)
+
+
+def _normaliser_fractions_zones(chaud: float, inter: float, froid: float) -> Tuple[float, float, float]:
+    a = _req_pos("fraction_zone_chaude", chaud, strictly=False)
+    b = _req_pos("fraction_zone_intermediaire", inter, strictly=False)
+    c = _req_pos("fraction_zone_froide", froid, strictly=False)
+    s = a + b + c
+    if s <= 0.0:
+        raise ValueError("La somme des fractions de zones doit être > 0.")
+    return a / s, b / s, c / s
+
+
+def _profil_thermique_axial_3_zones(
+    *,
+    longueur_m: float,
+    temperature_zone_chaude_C: float,
+    temperature_zone_intermediaire_C: float,
+    temperature_zone_froide_C: float,
+    fraction_zone_chaude: float,
+    fraction_zone_intermediaire: float,
+    fraction_zone_froide: float,
+) -> Dict[str, Any]:
+    L = _req_pos("longueur_m", longueur_m)
+    f1, f2, f3 = _normaliser_fractions_zones(
+        fraction_zone_chaude,
+        fraction_zone_intermediaire,
+        fraction_zone_froide,
+    )
+
+    l1 = f1 * L
+    l2 = f2 * L
+    l3 = f3 * L
+
+    T1 = _req_finite("temperature_zone_chaude_C", temperature_zone_chaude_C)
+    T2 = _req_finite("temperature_zone_intermediaire_C", temperature_zone_intermediaire_C)
+    T3 = _req_finite("temperature_zone_froide_C", temperature_zone_froide_C)
+
+    Tm = (T1 * l1 + T2 * l2 + T3 * l3) / L
+
+    return {
+        "zones": [
+            {"nom": "chaude", "longueur_m": l1, "temperature_C": T1, "x_debut_m": 0.0, "x_fin_m": l1},
+            {"nom": "intermediaire", "longueur_m": l2, "temperature_C": T2, "x_debut_m": l1, "x_fin_m": l1 + l2},
+            {"nom": "froide", "longueur_m": l3, "temperature_C": T3, "x_debut_m": l1 + l2, "x_fin_m": L},
+        ],
+        "temperature_moyenne_axiale_C": Tm,
+        "gradient_axial_moyen_C_m": (T1 - T3) / L if L > 0 else None,
+    }
+
+
+def _recommandations_precision_usinage(
+    *,
+    regles_fab: ReglesFabricationCylindre,
+    regles_precision: ReglesPrecisionUsinageCylindre,
+) -> Dict[str, Any]:
+    tol_alesage = _req_pos("tolerance_alesage_m", regles_fab.tolerance_alesage_m, strictly=False)
+    tol_long = _req_pos("tolerance_longueur_m", regles_fab.tolerance_longueur_m, strictly=False)
+    sur_i = _req_pos("surcote_usinage_interieur_m", regles_fab.surcote_usinage_interieur_m, strictly=False)
+    sur_e = _req_pos("surcote_usinage_exterieur_m", regles_fab.surcote_usinage_exterieur_m, strictly=False)
+
+    circ = regles_precision.circularite_sur_tol_alesage * tol_alesage
+    cyl = regles_precision.cylindricite_sur_tol_alesage * tol_alesage
+    coax = regles_precision.coaxialite_sur_tol_alesage * tol_alesage
+    perp = regles_precision.perpendicularite_sur_tol_longueur * tol_long
+
+    return {
+        "geometrie_precision": {
+            "circularite_max_m": circ,
+            "cylindricite_max_m": cyl,
+            "coaxialite_max_m": coax,
+            "perpendicularite_faces_max_m": perp,
+        },
+        "strategie_usinage": {
+            "alesage": {
+                "surcote_brute_m": sur_i * regles_precision.surcote_ebauche_interieure_frac,
+                "surcote_semi_finition_m": sur_i * regles_precision.surcote_semi_finition_interieure_frac,
+                "surcote_finition_m": sur_i * regles_precision.surcote_finition_interieure_frac,
+            },
+            "exterieur": {
+                "surcote_brute_m": sur_e * regles_precision.surcote_ebauche_exterieure_frac,
+                "surcote_semi_finition_m": sur_e * regles_precision.surcote_semi_finition_exterieure_frac,
+                "surcote_finition_m": sur_e * regles_precision.surcote_finition_exterieure_frac,
+            },
+        },
+    }
+
+
+def _ovalisation_serrage_proxy(
+    *,
+    pression_contact_pa: float,
+    facteur_non_uniformite: float,
+    diametre_interieur_m: float,
+    epaisseur_m: float,
+    module_young_pa: float,
+) -> Dict[str, float]:
+    """
+    Proxy grossier mais dimensionnellement cohérent :
+    on ramène le serrage à une composante non uniforme de pression de contact,
+    puis à une compliance radiale de virole mince.
+
+    Ce n'est pas une MEF.
+    """
+    p = _req_pos("pression_contact_pa", pression_contact_pa, strictly=False)
+    eta = _borne(_req_pos("facteur_non_uniformite", facteur_non_uniformite, strictly=False), 0.0, 1.0)
+    D = _req_pos("diametre_interieur_m", diametre_interieur_m)
+    t = _req_pos("epaisseur_m", epaisseur_m)
+    E = _req_pos("module_young_pa", module_young_pa)
+
+    p2 = eta * p
+    delta_D = (p2 * D * D) / (2.0 * E * t)
+    return {
+        "pression_harmonique_pa": p2,
+        "ovalisation_diametrale_estimee_m": delta_D,
+        "ovalisation_radiale_estimee_m": 0.5 * delta_D,
+    }
+
+
 # ============================================================
 # Calculs fermeture / joint / CAO
 # ============================================================
@@ -1027,6 +1254,11 @@ class Cylindre:
     regles_visserie: Optional[ReglesVisserieBride] = None
     regles_fabrication: Optional[ReglesFabricationCylindre] = None
 
+    # Raffinements calculatoires
+    profil_thermique_axial: Optional[ProfilThermiqueAxialCylindre] = None
+    contact_fermeture: Optional[DonneesContactFermetureCylindre] = None
+    regles_precision_usinage: Optional[ReglesPrecisionUsinageCylindre] = None
+
     def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "entrees": {},
@@ -1036,6 +1268,10 @@ class Cylindre:
             "contraintes": {},
             "deformations": {},
             "thermique": {},
+            "profil_thermique_axial": {},
+            "distorsions": {},
+            "contact_fermeture": {},
+            "usinage_precision": {},
             "masse": {},
             "inerties": {},
             "assemblage": {},
@@ -1066,6 +1302,8 @@ class Cylindre:
             "materiau_cle": self.materiau_cle,
             "mode_materiau": self.mode_materiau,
             "temperature_service_C": self.temperature_service_C,
+            "profil_thermique_axial_fournit": self.profil_thermique_axial is not None,
+            "contact_fermeture_fournit": self.contact_fermeture is not None,
         })
 
         if p_max < p_serv:
@@ -1522,6 +1760,221 @@ class Cylindre:
 
                 except Exception as e:
                     _push_inconnue(rapport, "partielles", "géométrie CAO", f"Impossible de générer la géométrie CAO complète: {e!r}")
+
+
+        # ------------------------------------------------------------
+        # 10bis) Profil thermique axial / jeu local / déformation
+        # ------------------------------------------------------------
+        profil_axial = self.profil_thermique_axial
+        if profil_axial is not None:
+            if alpha is None:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "profil thermique axial",
+                    "Calculable si coefficient_dilatation_1_k est connu ou déduit du matériau.",
+                )
+            else:
+                try:
+                    profil = _profil_thermique_axial_3_zones(
+                        longueur_m=L,
+                        temperature_zone_chaude_C=_req_finite("temperature_zone_chaude_C", profil_axial.temperature_zone_chaude_C),
+                        temperature_zone_intermediaire_C=_req_finite("temperature_zone_intermediaire_C", profil_axial.temperature_zone_intermediaire_C),
+                        temperature_zone_froide_C=_req_finite("temperature_zone_froide_C", profil_axial.temperature_zone_froide_C),
+                        fraction_zone_chaude=profil_axial.fraction_zone_chaude,
+                        fraction_zone_intermediaire=profil_axial.fraction_zone_intermediaire,
+                        fraction_zone_froide=profil_axial.fraction_zone_froide,
+                    )
+
+                    a_th = _req_pos("coefficient_dilatation_1_k", alpha, strictly=False)
+                    Tref = _req_finite("temperature_reference_jeu_C", profil_axial.temperature_reference_jeu_C)
+                    jeu_nominal = None
+                    if isinstance(rapport["geometrie"].get("cao"), dict):
+                        jeu_nominal = rapport["geometrie"]["cao"].get("jeu_piston_cylindre_m")
+
+                    zones_calculees: List[Dict[str, Any]] = []
+                    for z in profil["zones"]:
+                        dT = float(z["temperature_C"]) - Tref
+                        delta_D = a_th * D * dT
+                        delta_L = a_th * float(z["longueur_m"]) * dT
+
+                        jeu_local = None
+                        if profil_axial.diametre_reference_piston_m is not None:
+                            jeu_local = 0.5 * ((D + delta_D) - float(profil_axial.diametre_reference_piston_m))
+                        elif jeu_nominal is not None:
+                            jeu_local = float(jeu_nominal) + 0.5 * delta_D
+
+                        zones_calculees.append({
+                            **z,
+                            "delta_temperature_K": dT,
+                            "augmentation_diametre_locale_m": delta_D,
+                            "dilatation_longitudinale_locale_m": delta_L,
+                            "jeu_local_m": jeu_local,
+                        })
+
+                    rapport["profil_thermique_axial"] = {
+                        **profil,
+                        "temperature_reference_jeu_C": Tref,
+                        "zones_calculees": zones_calculees,
+                    }
+
+                    dT_mean = float(profil["temperature_moyenne_axiale_C"]) - Tref
+                    rapport["distorsions"]["dilatation_longitudinale_m"] = a_th * L * dT_mean
+
+                    if E is not None and nu is not None and len(zones_calculees) >= 2:
+                        E2 = _req_pos("module_young_pa", E)
+                        nu2 = _req_pos("coefficient_poisson", nu, strictly=False)
+                        sigma_zones: List[Dict[str, Any]] = []
+                        Tm = float(profil["temperature_moyenne_axiale_C"])
+                        for z in zones_calculees:
+                            dTz = float(z["temperature_C"]) - Tm
+                            sigma_th = (E2 * a_th * dTz) / max(1e-12, (1.0 - nu2))
+                            sigma_zones.append({
+                                "nom": z["nom"],
+                                "sigma_thermique_bloquee_pa": sigma_th,
+                            })
+                        rapport["distorsions"]["contraintes_thermiques_axiales_pa"] = sigma_zones
+                except Exception as e:
+                    _push_inconnue(rapport, "partielles", "profil thermique axial", f"Impossible de résoudre le profil axial: {e!r}")
+        else:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "profil thermique axial",
+                "Fournir profil_thermique_axial pour calculer zone chaude / intermédiaire / froide, jeux locaux et contraintes thermiques associées.",
+            )
+
+        # ------------------------------------------------------------
+        # 10ter) Contact de fermeture / rigidités / ovalisation sous serrage
+        # ------------------------------------------------------------
+        contact = self.contact_fermeture
+        if contact is not None:
+            try:
+                geo_cao = rapport["geometrie"].get("cao", {}) if isinstance(rapport["geometrie"].get("cao", {}), dict) else {}
+                ass = rapport["assemblage"]
+                vis = ass.get("visserie", {}) if isinstance(ass.get("visserie", {}), dict) else {}
+                bride = ass.get("bride", {}) if isinstance(ass.get("bride", {}), dict) else {}
+                gorge = ass.get("gorge_joint", {}) if isinstance(ass.get("gorge_joint", {}), dict) else {}
+
+                F_pre_tot = ass.get("force_precharge_totale_requise_N")
+                F_sep = ass.get("force_separation_N")
+                F_joint = ass.get("force_joint_N")
+
+                # Rigidité vis
+                k_vis = contact.rigidite_vis_n_m
+                if k_vis is None and E is not None and contact.longueur_serree_vis_m is not None:
+                    As_vis = vis.get("As_m2")
+                    if As_vis is not None:
+                        k_vis = _rigidite_axiale_barre(
+                            E_pa=_req_pos("module_young_pa", E),
+                            aire_m2=_req_pos("As_m2", As_vis),
+                            longueur_m=_req_pos("longueur_serree_vis_m", contact.longueur_serree_vis_m),
+                        )
+
+                # Rigidité bride / empilage
+                k_bride = contact.rigidite_bride_n_m
+                if k_bride is None and E is not None and bride:
+                    r_int = 0.5 * float(geo_cao["diametre_exterieur_nominal_m"]) if geo_cao.get("diametre_exterieur_nominal_m") is not None else None
+                    r_ext = 0.5 * float(bride["diametre_bride_externe_m"]) if bride.get("diametre_bride_externe_m") is not None else None
+                    L_emp = contact.longueur_empilage_m if contact.longueur_empilage_m is not None else bride.get("epaisseur_bride_m")
+                    if r_int is not None and r_ext is not None and L_emp is not None:
+                        A_emp = _surface_annulaire(r_int, r_ext)
+                        k_bride = _rigidite_axiale_barre(
+                            E_pa=_req_pos("module_young_pa", E),
+                            aire_m2=A_emp,
+                            longueur_m=_req_pos("longueur_empilage_m", L_emp),
+                        )
+
+                # Aire réelle de contact joint
+                A_contact = contact.aire_contact_joint_m2
+                if A_contact is None and gorge:
+                    Dj = gorge.get("diametre_moyen_joint_m")
+                    dt = gorge.get("diametre_tore_m")
+                    if Dj is not None and dt is not None:
+                        A_contact = math.pi * float(Dj) * float(dt)
+
+                p_contact = None
+                if F_pre_tot is not None and A_contact is not None:
+                    p_contact = _pression_contact_reelle(float(F_pre_tot), float(A_contact))
+
+                rapport["contact_fermeture"].update({
+                    "rigidite_vis_n_m": k_vis,
+                    "rigidite_bride_n_m": k_bride,
+                    "aire_contact_joint_reelle_m2": A_contact,
+                    "pression_contact_joint_reelle_pa": p_contact,
+                })
+
+                if (
+                    k_vis is not None
+                    and k_bride is not None
+                    and contact.alpha_vis_1_k is not None
+                    and contact.alpha_empilage_1_k is not None
+                    and contact.longueur_serree_vis_m is not None
+                    and contact.longueur_empilage_m is not None
+                    and contact.delta_temperature_serrage_k is not None
+                    and F_pre_tot is not None
+                ):
+                    therm = _variation_precharge_thermique(
+                        rigidite_vis_n_m=k_vis,
+                        rigidite_empilage_n_m=k_bride,
+                        alpha_vis_1_k=contact.alpha_vis_1_k,
+                        alpha_empilage_1_k=contact.alpha_empilage_1_k,
+                        longueur_serree_vis_m=contact.longueur_serree_vis_m,
+                        longueur_empilage_m=contact.longueur_empilage_m,
+                        delta_temperature_k=contact.delta_temperature_serrage_k,
+                    )
+                    F_chaud = float(F_pre_tot) + therm["delta_precharge_thermique_N"]
+                    rapport["contact_fermeture"]["variation_precharge_thermique"] = therm
+                    rapport["contact_fermeture"]["precharge_residuelle_chaud_N"] = F_chaud
+
+                    ref_effort = max(1e-12, float(F_sep or 0.0) + float(F_joint or 0.0))
+                    securite = F_chaud / ref_effort
+                    rapport["contact_fermeture"]["securite_desserrage"] = securite
+
+                if p_contact is not None and E is not None and t_retenue is not None:
+                    oval = _ovalisation_serrage_proxy(
+                        pression_contact_pa=float(p_contact),
+                        facteur_non_uniformite=float(contact.facteur_non_uniformite_serrage),
+                        diametre_interieur_m=D,
+                        epaisseur_m=t_retenue,
+                        module_young_pa=_req_pos("module_young_pa", E),
+                    )
+                    rapport["distorsions"]["ovalisation_sous_serrage"] = oval
+
+                    if k_vis is not None and k_bride is not None:
+                        rapport["contact_fermeture"]["partage_rigidite_bride_fraction"] = k_bride / (k_bride + k_vis)
+                        rapport["contact_fermeture"]["partage_rigidite_vis_fraction"] = k_vis / (k_bride + k_vis)
+
+                if p_contact is not None and contact.pression_contact_joint_min_pa is not None:
+                    rapport["verifications"]["pression_contact_joint_suffisante"] = (
+                        float(p_contact) >= float(contact.pression_contact_joint_min_pa)
+                    )
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "contact de fermeture", f"Impossible de résoudre le contact de fermeture: {e!r}")
+        else:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "contact de fermeture",
+                "Fournir contact_fermeture pour calculer rigidité bride/vis, perte de précharge à chaud, sécurité au desserrage et pression de contact réelle.",
+            )
+
+        # ------------------------------------------------------------
+        # 10quater) Rugosité / usinage / précision géométrique
+        # ------------------------------------------------------------
+        regles_fab_eff = self.regles_fabrication or ReglesFabricationCylindre()
+        regles_prec = self.regles_precision_usinage or ReglesPrecisionUsinageCylindre()
+        try:
+            usinage = _recommandations_precision_usinage(
+                regles_fab=regles_fab_eff,
+                regles_precision=regles_prec,
+            )
+            rapport["usinage_precision"].update(usinage)
+            rapport["notes_modele"].append(
+                "Circularité, cylindricité, coaxialité, perpendicularité et stratégie de surépaisseur sont ici issues de règles explicites d'usinage, pas d'une loi physique."
+            )
+        except Exception as e:
+            _push_inconnue(rapport, "partielles", "usinage / précision", f"Impossible de générer les précisions d'usinage: {e!r}")
 
         # ------------------------------------------------------------
         # 11) Mode strict
