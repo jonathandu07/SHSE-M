@@ -267,6 +267,89 @@ def _moment_inertie_disque_plein_axe(diametre_m: float, masse_kg: float) -> floa
     return 0.5 * m * r * r
 
 
+def _moment_inertie_cylindre_plein_transversal_cg(diametre_m: float, hauteur_m: float, masse_kg: float) -> float:
+    D = _req_pos("diametre_m", diametre_m)
+    H = _req_pos("hauteur_m", hauteur_m)
+    m = _req_pos("masse_kg", masse_kg, strict=False)
+    r = 0.5 * D
+    return m * ((3.0 * r * r) + (H * H)) / 12.0
+
+
+def _volume_tore_m3(diametre_moyen_m: float, section_m: float) -> float:
+    Dm = _req_pos("diametre_moyen_m", diametre_moyen_m)
+    d = _req_pos("section_m", section_m)
+    R = 0.5 * Dm
+    r = 0.5 * d
+    return 2.0 * math.pi * math.pi * R * r * r
+
+
+def _moment_inertie_tore_axe(diametre_moyen_m: float, section_m: float, masse_kg: float) -> float:
+    Dm = _req_pos("diametre_moyen_m", diametre_moyen_m)
+    d = _req_pos("section_m", section_m)
+    m = _req_pos("masse_kg", masse_kg, strict=False)
+    R = 0.5 * Dm
+    r = 0.5 * d
+    return m * (R * R + 0.75 * r * r)
+
+
+def _angle_bielle_rad(rayon_manivelle_m: float, longueur_bielle_m: float, angle_vilebrequin_deg: float) -> float:
+    r = _req_pos("rayon_manivelle_m", rayon_manivelle_m, strict=False)
+    l = _req_pos("longueur_bielle_m", longueur_bielle_m, strict=True)
+    th = math.radians(_req_finite("angle_vilebrequin_deg", angle_vilebrequin_deg))
+    arg = _borne((r / l) * math.sin(th), -1.0, 1.0)
+    return math.asin(arg)
+
+
+def _force_laterale_piston(F_axiale_n: float, rayon_manivelle_m: float, longueur_bielle_m: float, angle_vilebrequin_deg: float) -> Dict[str, float]:
+    F = _req_finite("F_axiale_n", F_axiale_n)
+    beta = _angle_bielle_rad(rayon_manivelle_m, longueur_bielle_m, angle_vilebrequin_deg)
+    Fl = F * math.tan(beta)
+    return {"angle_bielle_rad": beta, "angle_bielle_deg": math.degrees(beta), "force_laterale_n": Fl}
+
+
+def _aire_projectee_contact_jupe(diametre_m: float, longueur_m: float, fraction_circonference: float) -> float:
+    D = _req_pos("diametre_m", diametre_m)
+    L = _req_pos("longueur_m", longueur_m)
+    f = _req_pos("fraction_circonference", fraction_circonference, strict=False)
+    if f > 1.0:
+        raise ValueError(f"fraction_circonference doit être <= 1 (reçu: {f}).")
+    return _perimetre(D) * L * f
+
+
+def _contrainte_tete_plaque_pa(k_sigma_plaque: float, pression_pa: float, alesage_m: float, epaisseur_tete_m: float) -> float:
+    k = _req_pos("k_sigma_plaque", k_sigma_plaque)
+    p = _req_pos("pression_pa", pression_pa, strict=False)
+    D = _req_pos("alesage_m", alesage_m)
+    t = _req_pos("epaisseur_tete_m", epaisseur_tete_m)
+    a = 0.5 * D
+    return k * p * (a * a) / (t * t)
+
+
+def _gradient_thermique_k_m(T_chaud_k: float, T_froid_k: float, epaisseur_m: float) -> float:
+    Tch = _req_pos("T_chaud_k", T_chaud_k)
+    Tfr = _req_pos("T_froid_k", T_froid_k)
+    e = _req_pos("epaisseur_m", epaisseur_m)
+    return (Tch - Tfr) / e
+
+
+def _contrainte_thermique_biaxiale_pa(E_pa: float, alpha_1_k: float, delta_t_k: float, poisson: float, facteur_contrainte: float = 1.0) -> float:
+    E = _req_pos("E_pa", E_pa)
+    a = _req_pos("alpha_1_k", alpha_1_k)
+    nu = _req_finite("poisson", poisson)
+    k = _req_pos("facteur_contrainte", facteur_contrainte, strict=False)
+    if abs(1.0 - nu) < 1e-12:
+        raise ValueError("poisson ne doit pas être égal à 1 pour la contrainte thermique biaxiale.")
+    return k * E * a * float(delta_t_k) / (1.0 - nu)
+
+
+def _somme_masses(points: List[Tuple[float, float]]) -> Tuple[float, Optional[float]]:
+    m_tot = sum(max(0.0, float(m)) for m, _ in points)
+    if m_tot <= 0.0:
+        return 0.0, None
+    xg = sum(max(0.0, float(m)) * float(x) for m, x in points) / m_tot
+    return m_tot, xg
+
+
 # =============================================================================
 # ISO 286 (version volontairement limitée à H/h comme ton code actuel)
 # =============================================================================
@@ -543,6 +626,26 @@ class Piston:
     pression_max_pa: Optional[float] = None
     temperature_fonctionnement_k: Optional[float] = None
 
+    # Températures locales piston / cylindre
+    temperature_tete_k: Optional[float] = None
+    temperature_zone_segments_k: Optional[float] = None
+    temperature_jupe_k: Optional[float] = None
+    temperature_axe_k: Optional[float] = None
+    temperature_cylindre_tete_k: Optional[float] = None
+    temperature_cylindre_zone_segments_k: Optional[float] = None
+    temperature_cylindre_jupe_k: Optional[float] = None
+    temperature_tete_face_chaude_k: Optional[float] = None
+    temperature_tete_face_froide_k: Optional[float] = None
+    temperature_cycle_tete_min_k: Optional[float] = None
+
+    # Géométrie locale de référence
+    diametre_tete_ref_m: Optional[float] = None
+    diametre_zone_segments_ref_m: Optional[float] = None
+    diametre_jupe_ref_m: Optional[float] = None
+    diametre_axe_ref_m: Optional[float] = None
+    diametre_jupe_poussee_ref_m: Optional[float] = None
+    diametre_jupe_contre_poussee_ref_m: Optional[float] = None
+
     alesage_nominal_m: Optional[float] = None
     course_m: Optional[float] = None
     rpm: Optional[float] = None
@@ -561,6 +664,22 @@ class Piston:
 
     hauteur_totale_m: Optional[float] = None
 
+    # Axe / masses locales
+    materiau_axe_cle: Optional[str] = None
+    diametre_axe_m: Optional[float] = None
+    longueur_axe_m: Optional[float] = None
+    position_axe_depuis_face_tete_m: Optional[float] = None
+    densite_axe_kg_m3: Optional[float] = None
+    poisson_axe: Optional[float] = None
+    coef_dilatation_axe_1_k: Optional[float] = None
+
+    # Efforts latéraux / contact jupe
+    aire_zone_poussee_m2: Optional[float] = None
+    aire_zone_contre_poussee_m2: Optional[float] = None
+    fraction_circonference_zone_poussee: Optional[float] = None
+    fraction_circonference_zone_contre_poussee: Optional[float] = None
+    pression_contact_jupe_admissible_pa: Optional[float] = None
+
     nb_joints: Optional[int] = None
     section_joint_mm: Optional[float] = None
     squeeze: Optional[float] = None
@@ -571,6 +690,16 @@ class Piston:
     coeff_frottement_joint: Optional[float] = None
     largeur_bande_contact_joint_m: Optional[float] = None
     PV_admissible_pa_ms: Optional[float] = None
+    type_etancheite: Literal["joint_torique", "segment"] = "joint_torique"
+    epaisseur_levre_superieure_m: Optional[float] = None
+    epaisseur_levre_inferieure_m: Optional[float] = None
+    pression_matage_admissible_pa: Optional[float] = None
+    contrainte_levre_admissible_pa: Optional[float] = None
+    masse_joints_kg: Optional[float] = None
+    masse_segments_kg: Optional[float] = None
+    masse_segment_unitaire_kg: Optional[float] = None
+    force_appui_segment_n: Optional[float] = None
+    jeu_axial_segment_m: Optional[float] = None
 
     longueur_portee_etanche_m: Optional[float] = None
     pression_aval_pa: Optional[float] = None
@@ -578,10 +707,16 @@ class Piston:
     masse_alternative_kg: Optional[float] = None
     longueur_bielle_m: Optional[float] = None
     angle_vilebrequin_deg: Optional[float] = None
+    masse_bielle_kg: Optional[float] = None
+    fraction_bielle_alternative: Optional[float] = None
 
     coefficient_usure_joint_k: Optional[float] = None
     durete_contact_joint_pa: Optional[float] = None
     duree_fonctionnement_s: Optional[float] = None
+
+    # Thermo-mécanique tête
+    facteur_contrainte_thermique_tete: Optional[float] = None
+    poisson_piston: Optional[float] = None
 
     regles_fabrication: ReglesFabricationPiston = field(default_factory=ReglesFabricationPiston)
 
@@ -595,8 +730,12 @@ class Piston:
             "dimensions": {},
             "jeux": {},
             "thermique": {},
+            "thermique_zonee": {},
             "contraintes": {},
+            "contraintes_tete": {},
             "joints": {},
+            "rainures": {},
+            "efforts_lateraux": {},
             "frottements": {},
             "masses": {},
             "fuites": {},
@@ -728,6 +867,7 @@ class Piston:
         props_p = _materiau_props(self.materiau_piston_cle, mode=self.mode_materiau)
         props_c = _materiau_props(materiau_cylindre_cle_effectif, mode=self.mode_materiau)
         props_j = _materiau_props(self.materiau_joint_cle, mode=self.mode_materiau)
+        props_a = _materiau_props(self.materiau_axe_cle, mode=self.mode_materiau)
 
         rap["materiaux"]["piston"] = {
             "materiau_piston_cle": self.materiau_piston_cle,
@@ -740,6 +880,10 @@ class Piston:
         rap["materiaux"]["joint"] = {
             "materiau_joint_cle": self.materiau_joint_cle,
             **props_j,
+        }
+        rap["materiaux"]["axe"] = {
+            "materiau_axe_cle": self.materiau_axe_cle,
+            **props_a,
         }
 
         # ---------------------------------------------------------------------
@@ -791,6 +935,102 @@ class Piston:
                 _push_inc(rap, "partielles", "jeu_chaud", "Calculable si bornes ISO + alpha piston/cylindre + T sont connus.")
 
         # ---------------------------------------------------------------------
+        # 4 bis) Thermique par zones + dilatation locale / conicité / ovalisation
+        # ---------------------------------------------------------------------
+        H_tot_dim = rap["dimensions"].get("hauteur_totale_m")
+        alpha_axe = self.coef_dilatation_axe_1_k if self.coef_dilatation_axe_1_k is not None else props_a.get("alpha_dilatation_1_k")
+        if D_piston_cao is not None:
+            zones = {
+                "tete": {
+                    "diam_ref_m": self.diametre_tete_ref_m if self.diametre_tete_ref_m is not None else D_piston_cao,
+                    "T_piston_k": self.temperature_tete_k,
+                    "T_cylindre_k": self.temperature_cylindre_tete_k if self.temperature_cylindre_tete_k is not None else Tfn,
+                    "alpha_piston_1_k": alpha_p,
+                    "alpha_cylindre_1_k": alpha_c,
+                    "diam_cyl_ref_m": Dcyl,
+                },
+                "zone_segments": {
+                    "diam_ref_m": self.diametre_zone_segments_ref_m if self.diametre_zone_segments_ref_m is not None else D_piston_cao,
+                    "T_piston_k": self.temperature_zone_segments_k,
+                    "T_cylindre_k": self.temperature_cylindre_zone_segments_k if self.temperature_cylindre_zone_segments_k is not None else Tfn,
+                    "alpha_piston_1_k": alpha_p,
+                    "alpha_cylindre_1_k": alpha_c,
+                    "diam_cyl_ref_m": Dcyl,
+                },
+                "jupe": {
+                    "diam_ref_m": self.diametre_jupe_ref_m if self.diametre_jupe_ref_m is not None else D_piston_cao,
+                    "T_piston_k": self.temperature_jupe_k,
+                    "T_cylindre_k": self.temperature_cylindre_jupe_k if self.temperature_cylindre_jupe_k is not None else Tfn,
+                    "alpha_piston_1_k": alpha_p,
+                    "alpha_cylindre_1_k": alpha_c,
+                    "diam_cyl_ref_m": Dcyl,
+                },
+                "axe": {
+                    "diam_ref_m": self.diametre_axe_ref_m if self.diametre_axe_ref_m is not None else self.diametre_axe_m,
+                    "T_piston_k": self.temperature_axe_k,
+                    "T_cylindre_k": None,
+                    "alpha_piston_1_k": alpha_axe,
+                    "alpha_cylindre_1_k": None,
+                    "diam_cyl_ref_m": None,
+                },
+            }
+            for nom_zone, z in zones.items():
+                diam_ref = z["diam_ref_m"]
+                T_zone = z["T_piston_k"]
+                a_zone = z["alpha_piston_1_k"]
+                if diam_ref is None:
+                    _push_inc(rap, "partielles", f"zone_{nom_zone}", f"Diamètre de référence manquant pour la zone {nom_zone}.")
+                    continue
+                rap["thermique_zonee"][nom_zone] = {
+                    "diametre_ref_m": diam_ref,
+                    "temperature_piston_k": T_zone,
+                    "temperature_cylindre_k": z["T_cylindre_k"],
+                    "alpha_piston_1_k": a_zone,
+                    "alpha_cylindre_1_k": z["alpha_cylindre_1_k"],
+                }
+                if T_zone is None or a_zone is None:
+                    _push_inc(rap, "partielles", f"dilatation_{nom_zone}", f"Calculable si température locale et alpha sont connus pour {nom_zone}.")
+                    continue
+                dT_zone = float(T_zone) - float(self.temperature_ref_k)
+                diam_hot = float(diam_ref) * (1.0 + float(a_zone) * dT_zone)
+                rap["thermique_zonee"][nom_zone].update({
+                    "delta_t_k": dT_zone,
+                    "dilatation_locale_m": diam_hot - float(diam_ref),
+                    "diametre_hot_m": diam_hot,
+                })
+                if z["diam_cyl_ref_m"] is not None and z["T_cylindre_k"] is not None and z["alpha_cylindre_1_k"] is not None:
+                    dT_cyl = float(z["T_cylindre_k"]) - float(self.temperature_ref_k)
+                    diam_cyl_hot = float(z["diam_cyl_ref_m"]) * (1.0 + float(z["alpha_cylindre_1_k"]) * dT_cyl)
+                    jeu_diam = diam_cyl_hot - diam_hot
+                    rap["thermique_zonee"][nom_zone].update({
+                        "delta_t_cylindre_k": dT_cyl,
+                        "diametre_cylindre_hot_m": diam_cyl_hot,
+                        "jeu_diametral_fonctionnel_reel_m": jeu_diam,
+                        "jeu_radial_fonctionnel_reel_m": 0.5 * jeu_diam,
+                    })
+            zt = rap["thermique_zonee"].get("tete", {})
+            zj = rap["thermique_zonee"].get("jupe", {})
+            if zt.get("diametre_hot_m") is not None and zj.get("diametre_hot_m") is not None and H_tot_dim is not None:
+                conicite = float(zt["diametre_hot_m"]) - float(zj["diametre_hot_m"])
+                rap["thermique_zonee"]["conicite_theorique_m"] = conicite
+                if float(H_tot_dim) > 0.0:
+                    rap["thermique_zonee"]["conicite_theorique_m_par_m"] = conicite / float(H_tot_dim)
+            else:
+                _push_inc(rap, "partielles", "conicite_theorique", "Calculable si diamètres chauds tête/jupe et hauteur totale sont connus.")
+            if self.diametre_jupe_poussee_ref_m is not None and self.diametre_jupe_contre_poussee_ref_m is not None and self.temperature_jupe_k is not None and alpha_p is not None:
+                dTj = float(self.temperature_jupe_k) - float(self.temperature_ref_k)
+                Dp_hot = float(self.diametre_jupe_poussee_ref_m) * (1.0 + float(alpha_p) * dTj)
+                Dc_hot = float(self.diametre_jupe_contre_poussee_ref_m) * (1.0 + float(alpha_p) * dTj)
+                rap["thermique_zonee"].setdefault("jupe", {})
+                rap["thermique_zonee"]["jupe"].update({
+                    "diametre_poussee_hot_m": Dp_hot,
+                    "diametre_contre_poussee_hot_m": Dc_hot,
+                    "ovalisation_theorique_m": Dp_hot - Dc_hot,
+                })
+            else:
+                _push_inc(rap, "partielles", "ovalisation_theorique", "Calculable si diamètres jupe poussée/contre-poussée et température de jupe sont fournis.")
+
+        # ---------------------------------------------------------------------
         # 5) Tête
         # ---------------------------------------------------------------------
         ep_tete = None
@@ -816,22 +1056,64 @@ class Piston:
                     rap["notes_modele"].append("Épaisseur tête issue du modèle explicite sigma = k*p*(a²/t²).")
 
         # ---------------------------------------------------------------------
+        # 5 bis) Thermo-mécanique tête de piston
+        # ---------------------------------------------------------------------
+        if ep_tete is not None and self.k_sigma_plaque is not None and Pmax is not None and Dcyl is not None:
+            rap["contraintes_tete"]["contrainte_pression_pa"] = _contrainte_tete_plaque_pa(self.k_sigma_plaque, Pmax, Dcyl, ep_tete)
+        else:
+            _push_inc(rap, "partielles", "contrainte_pression_tete", "Calculable si epaisseur_tete, k_sigma_plaque, pression_max et alesage sont connus.")
+
+        E_p = props_p.get("module_young_pa")
+        nu_p = self.poisson_piston if self.poisson_piston is not None else props_p.get("poisson")
+        if self.temperature_tete_face_chaude_k is not None and self.temperature_tete_face_froide_k is not None and ep_tete is not None:
+            grad = _gradient_thermique_k_m(self.temperature_tete_face_chaude_k, self.temperature_tete_face_froide_k, ep_tete)
+            rap["contraintes_tete"]["gradient_thermique_k_m"] = grad
+            rap["contraintes_tete"]["delta_t_travers_epaisseur_k"] = float(self.temperature_tete_face_chaude_k) - float(self.temperature_tete_face_froide_k)
+            if E_p is not None and alpha_p is not None and nu_p is not None and self.facteur_contrainte_thermique_tete is not None:
+                sigma_th = _contrainte_thermique_biaxiale_pa(E_p, alpha_p, float(self.temperature_tete_face_chaude_k) - float(self.temperature_tete_face_froide_k), nu_p, self.facteur_contrainte_thermique_tete)
+                rap["contraintes_tete"]["contrainte_thermique_pa"] = sigma_th
+                if rap["contraintes_tete"].get("contrainte_pression_pa") is not None:
+                    rap["contraintes_tete"]["contrainte_combinee_pression_thermique_pa"] = float(rap["contraintes_tete"]["contrainte_pression_pa"]) + sigma_th
+            else:
+                _push_inc(rap, "partielles", "contrainte_thermique_tete", "Calculable si E, alpha, poisson et facteur_contrainte_thermique_tete sont connus.")
+        else:
+            _push_inc(rap, "partielles", "gradient_thermique_tete", "Calculable si températures face chaude/froide et épaisseur de tête sont connues.")
+
+        if self.temperature_tete_k is not None and self.temperature_cycle_tete_min_k is not None:
+            alt = 0.5 * (float(self.temperature_tete_k) - float(self.temperature_cycle_tete_min_k))
+            rap["contraintes_tete"]["alternance_thermique_k"] = alt
+            if E_p is not None and alpha_p is not None and nu_p is not None and self.facteur_contrainte_thermique_tete is not None:
+                rap["contraintes_tete"]["contrainte_alternee_thermique_pa"] = abs(_contrainte_thermique_biaxiale_pa(E_p, alpha_p, 2.0 * alt, nu_p, self.facteur_contrainte_thermique_tete)) * 0.5
+        else:
+            _push_inc(rap, "partielles", "alternance_thermique_tete", "Calculable si température tête max et température mini de cycle sont fournies.")
+
+        # ---------------------------------------------------------------------
         # 6) Jupe
         # ---------------------------------------------------------------------
         L_jupe = None
+        F_lateral_design: Optional[float] = None
+        if self.effort_lateral_N is not None:
+            F_lateral_design = _req_pos("effort_lateral_N", self.effort_lateral_N, strict=False)
+        elif Pmax is not None and Dcyl is not None and self.longueur_bielle_m is not None and self.angle_vilebrequin_deg is not None and course is not None:
+            F_gaz_design = float(calcul_force_gaz(pression_pa=Pmax, alesage_m=Dcyl, allow_negative_pression=True, allow_zero_alesage=False, clamp_non_negative=False, return_details=False))
+            F_in_design = None
+            if self.masse_alternative_kg is not None and self.rpm is not None:
+                F_in_design = float(calcul_force_inertie_alternative(masse_alternative_kg=self.masse_alternative_kg, rayon_manivelle_m=0.5 * float(course), vitesse_rotation_tr_min=self.rpm, longueur_bielle_m=self.longueur_bielle_m, angle_vilebrequin_deg=self.angle_vilebrequin_deg, angle_unite="deg", input_vitesse="rpm", clamp_ratio_r_sur_l=False, return_details=False))
+            F_ax_design = F_gaz_design - (F_in_design or 0.0)
+            F_lateral_design = abs(_force_laterale_piston(F_ax_design, 0.5 * float(course), self.longueur_bielle_m, self.angle_vilebrequin_deg)["force_laterale_n"])
+            rap["notes_modele"].append("Effort latéral de jupe déduit de F_axiale * tan(beta) quand effort_lateral_N n'est pas fourni.")
         if self.longueur_jupe_m is not None:
             L_jupe = _req_pos("longueur_jupe_m", self.longueur_jupe_m)
             rap["dimensions"]["longueur_jupe_m"] = L_jupe
         else:
-            if Dcyl is None or self.effort_lateral_N is None or self.pression_palier_admissible_pa is None:
-                _push_inc(rap, "partielles", "longueur_jupe_min_m", "Calculable si alesage, effort_lateral_N et pression_palier_admissible_pa sont fournis.")
+            if Dcyl is None or F_lateral_design is None or self.pression_palier_admissible_pa is None:
+                _push_inc(rap, "partielles", "longueur_jupe_min_m", "Calculable si alesage, effort latéral de jupe et pression_palier_admissible_pa sont fournis ou déductibles.")
             else:
-                F = _req_pos("effort_lateral_N", self.effort_lateral_N, strict=False)
                 p_adm = _req_pos("pression_palier_admissible_pa", self.pression_palier_admissible_pa)
-                L_jupe = F / (_perimetre(Dcyl) * p_adm) if p_adm > 0 else None
+                L_jupe = F_lateral_design / (_perimetre(Dcyl) * p_adm) if p_adm > 0 else None
                 if L_jupe is not None:
                     rap["dimensions"]["longueur_jupe_min_m"] = L_jupe
-                    rap["notes_modele"].append("Longueur jupe issue du modèle p = F / (πDL).")
+                    rap["notes_modele"].append("Longueur jupe issue du modèle p = F_lateral / (πDL).")
 
         # ---------------------------------------------------------------------
         # 7) Joints / rainures / positions axiales
@@ -1038,6 +1320,45 @@ class Piston:
                             rap["joints"]["pression_contact_estimee_pa"] = p_contact
                             if Pmax is not None:
                                 rap["joints"]["etancheite_contact_ok_si_p_contact_sup_pmax"] = (p_contact > float(Pmax))
+
+                            per_joint = _perimetre(D_pis)
+                            F_joint_unitaire = p_contact * per_joint * bande_contact
+                            A_fond = _perimetre(D_fond) * w
+                            p_fond = F_joint_unitaire / A_fond if A_fond > 0.0 else None
+                            rap["rainures"].update({
+                                "force_radiale_unitaire_joint_n": F_joint_unitaire,
+                                "aire_fond_rainure_m2": A_fond,
+                                "pression_contact_fond_rainure_pa": p_fond,
+                            })
+                            if self.pression_matage_admissible_pa is not None and p_fond is not None:
+                                rap["rainures"]["matage_ok"] = p_fond <= _req_pos("pression_matage_admissible_pa", self.pression_matage_admissible_pa)
+                            elif props_p.get("limite_elastique_pa") is not None and p_fond is not None:
+                                rap["rainures"]["matage_ok_vs_re_piston"] = p_fond <= float(props_p["limite_elastique_pa"])
+                            if self.epaisseur_levre_superieure_m is not None:
+                                sigma_levre_sup = F_joint_unitaire / (_perimetre(D_fond) * _req_pos("epaisseur_levre_superieure_m", self.epaisseur_levre_superieure_m))
+                                rap["rainures"]["contrainte_levre_superieure_pa"] = sigma_levre_sup
+                                if self.contrainte_levre_admissible_pa is not None:
+                                    rap["rainures"]["levre_superieure_ok"] = sigma_levre_sup <= _req_pos("contrainte_levre_admissible_pa", self.contrainte_levre_admissible_pa)
+                            if self.epaisseur_levre_inferieure_m is not None:
+                                sigma_levre_inf = F_joint_unitaire / (_perimetre(D_fond) * _req_pos("epaisseur_levre_inferieure_m", self.epaisseur_levre_inferieure_m))
+                                rap["rainures"]["contrainte_levre_inferieure_pa"] = sigma_levre_inf
+                                if self.contrainte_levre_admissible_pa is not None:
+                                    rap["rainures"]["levre_inferieure_ok"] = sigma_levre_inf <= _req_pos("contrainte_levre_admissible_pa", self.contrainte_levre_admissible_pa)
+                            if self.coefficient_usure_joint_k is not None and self.durete_contact_joint_pa is not None and self.duree_fonctionnement_s is not None and course is not None and self.rpm is not None and p_fond is not None:
+                                v_moy_r = float(calcul_vitesse_moyenne_piston(float(course), float(self.rpm)))
+                                distance_r = v_moy_r * _req_pos("duree_fonctionnement_s", self.duree_fonctionnement_s, strict=False)
+                                Vw_r = calcul_volume_usure_archard(coefficient_usure_k=self.coefficient_usure_joint_k, charge_normale_w=F_joint_unitaire, distance_glissement_ls=distance_r, durete_h=self.durete_contact_joint_pa)
+                                dh_r = calcul_perte_epaisseur(Vw_r, A_fond)
+                                rap["rainures"]["usure_fond_rainure"] = {"distance_glissement_m": distance_r, "volume_use_m3": Vw_r, "perte_epaisseur_m": dh_r}
+                            if self.type_etancheite == "segment" and self.masse_segment_unitaire_kg is not None and self.force_appui_segment_n is not None and r_manivelle is not None and self.longueur_bielle_m is not None and self.rpm is not None and self.angle_vilebrequin_deg is not None:
+                                acc_unit = float(calcul_force_inertie_alternative(masse_alternative_kg=1.0, rayon_manivelle_m=r_manivelle, vitesse_rotation_tr_min=self.rpm, longueur_bielle_m=self.longueur_bielle_m, angle_vilebrequin_deg=self.angle_vilebrequin_deg, angle_unite="deg", input_vitesse="rpm", clamp_ratio_r_sur_l=False, return_details=False))
+                                F_seg_in = abs(acc_unit) * _req_pos("masse_segment_unitaire_kg", self.masse_segment_unitaire_kg, strict=False)
+                                rap["rainures"]["segment"] = {
+                                    "force_inertie_segment_n": F_seg_in,
+                                    "force_appui_segment_n": _req_pos("force_appui_segment_n", self.force_appui_segment_n, strict=False),
+                                    "flottement_probable": F_seg_in > _req_pos("force_appui_segment_n", self.force_appui_segment_n, strict=False),
+                                    "jeu_axial_segment_m": self.jeu_axial_segment_m,
+                                }
                         else:
                             _push_inc(
                                 rap,
@@ -1065,18 +1386,77 @@ class Piston:
         # ---------------------------------------------------------------------
         rho_p = props_p["densite_kg_m3"]
         H_tot_dim = rap["dimensions"].get("hauteur_totale_m")
+        masse_corps = None
         if rho_p is not None and D_piston_cao is not None and H_tot_dim is not None:
             V_plein = _vol_cylindre(D_piston_cao, float(H_tot_dim))
             V_gorges = float(rap["joints"].get("volume_gorges_total_m3", 0.0) or 0.0)
             V_net = max(0.0, V_plein - V_gorges)
-            m = float(rho_p) * V_net
+            masse_corps = float(rho_p) * V_net
             rap["masses"]["volume_plein_m3"] = V_plein
             rap["masses"]["volume_gorges_total_m3"] = V_gorges
-            rap["masses"]["volume_net_m3"] = V_net
-            rap["masses"]["masse_kg"] = m
-            rap["masses"]["inertie_rotation_axe_kg_m2"] = _moment_inertie_disque_plein_axe(D_piston_cao, m)
+            rap["masses"]["volume_net_corps_m3"] = V_net
+            rap["masses"]["masse_corps_piston_kg"] = masse_corps
+            rap["masses"]["inertie_rotation_axe_corps_kg_m2"] = _moment_inertie_disque_plein_axe(D_piston_cao, masse_corps)
+            rap["masses"]["inertie_transversale_cg_corps_kg_m2"] = _moment_inertie_cylindre_plein_transversal_cg(D_piston_cao, float(H_tot_dim), masse_corps)
         else:
-            _push_inc(rap, "partielles", "masse_piston", "Calculable si densité piston + diamètre CAO + hauteur totale sont connus.")
+            _push_inc(rap, "partielles", "masse_corps_piston", "Calculable si densité piston + diamètre CAO + hauteur totale sont connus.")
+
+        masse_axe = None
+        if self.diametre_axe_m is not None and self.longueur_axe_m is not None:
+            rho_a = self.densite_axe_kg_m3 if self.densite_axe_kg_m3 is not None else props_a.get("densite_kg_m3")
+            if rho_a is not None:
+                V_axe = _vol_cylindre(self.diametre_axe_m, self.longueur_axe_m)
+                masse_axe = float(rho_a) * V_axe
+                rap["masses"]["volume_axe_m3"] = V_axe
+                rap["masses"]["masse_axe_kg"] = masse_axe
+            else:
+                _push_inc(rap, "partielles", "masse_axe", "Calculable si densité axe ou matériau axe sont fournis.")
+
+        masse_joints = self.masse_joints_kg
+        if masse_joints is None and self.type_etancheite == "joint_torique" and nbj is not None and nbj > 0 and props_j.get("densite_kg_m3") is not None and rap["joints"].get("diametre_moyen_joint_monte_m") is not None and rap["joints"].get("section_joint_m") is not None:
+            vol_joint = _volume_tore_m3(float(rap["joints"]["diametre_moyen_joint_monte_m"]), float(rap["joints"]["section_joint_m"]))
+            masse_joints = float(props_j["densite_kg_m3"]) * vol_joint * float(nbj)
+            rap["masses"]["volume_joint_unitaire_m3"] = vol_joint
+        elif masse_joints is None and self.type_etancheite == "joint_torique":
+            _push_inc(rap, "partielles", "masse_joints", "Calculable si densité joint, diamètre moyen monté, section et nb_joints sont connus.")
+        if masse_joints is not None:
+            rap["masses"]["masse_joints_kg"] = float(masse_joints)
+
+        masse_segments = self.masse_segments_kg
+        if masse_segments is None and self.type_etancheite == "segment" and self.masse_segment_unitaire_kg is not None and nbj is not None:
+            masse_segments = float(self.masse_segment_unitaire_kg) * float(nbj)
+        if masse_segments is not None:
+            rap["masses"]["masse_segments_kg"] = float(masse_segments)
+
+        points_cg: List[Tuple[float, float]] = []
+        if masse_corps is not None and H_tot_dim is not None:
+            points_cg.append((masse_corps, 0.5 * float(H_tot_dim)))
+        if masse_axe is not None and self.position_axe_depuis_face_tete_m is not None:
+            points_cg.append((masse_axe, float(self.position_axe_depuis_face_tete_m)))
+        elif masse_axe is not None:
+            _push_inc(rap, "partielles", "centre_gravite_total", "Position de l'axe requise pour le CG exact avec l'axe inclus.")
+        if masse_joints is not None and nbj is not None and nbj > 0 and rainures:
+            mj = float(masse_joints) / float(nbj)
+            for ri in rainures:
+                points_cg.append((mj, float(ri["position_centre_depuis_face_tete_m"])))
+        if masse_segments is not None and nbj is not None and nbj > 0 and rainures:
+            ms = float(masse_segments) / float(nbj)
+            for ri in rainures:
+                points_cg.append((ms, float(ri["position_centre_depuis_face_tete_m"])))
+
+        masse_tot_alt, xg_alt = _somme_masses(points_cg)
+        if masse_tot_alt > 0.0:
+            rap["masses"]["masse_alternative_calculee_kg"] = masse_tot_alt
+        if xg_alt is not None:
+            rap["masses"]["centre_gravite_depuis_face_tete_m"] = xg_alt
+
+        if D_piston_cao is not None and masse_corps is not None:
+            rap["masses"]["inertie_rotation_axe_piston_kg_m2"] = _moment_inertie_disque_plein_axe(D_piston_cao, masse_corps)
+        if self.masse_bielle_kg is not None and self.fraction_bielle_alternative is not None:
+            m_b_alt = _req_pos("masse_bielle_kg", self.masse_bielle_kg, strict=False) * _req_pos("fraction_bielle_alternative", self.fraction_bielle_alternative, strict=False)
+            rap["masses"]["masse_bielle_alternative_kg"] = m_b_alt
+            if rap["masses"].get("masse_alternative_calculee_kg") is not None:
+                rap["masses"]["masse_alternative_totale_avec_bielle_kg"] = float(rap["masses"]["masse_alternative_calculee_kg"]) + m_b_alt
 
         # ---------------------------------------------------------------------
         # 10) Force gaz / inertie / force nette
@@ -1123,6 +1503,39 @@ class Piston:
                 rap["cinematique"]["force_axiale_nette_n"] = float(rap["cinematique"]["force_gaz_n"]) - float(F_in)
         else:
             _push_inc(rap, "partielles", "force_inertie_alternative_n", "Calculable si masse_alternative_kg, course/rayon, rpm, longueur_bielle_m et angle_vilebrequin_deg sont fournis.")
+
+        # ---------------------------------------------------------------------
+        # 10 bis) Effort latéral piston / pression de jupe / poussée / contre-poussée
+        # ---------------------------------------------------------------------
+        if rap["cinematique"].get("force_axiale_nette_n") is not None and r_manivelle is not None and self.longueur_bielle_m is not None and self.angle_vilebrequin_deg is not None:
+            rep_lat = _force_laterale_piston(rap["cinematique"]["force_axiale_nette_n"], r_manivelle, self.longueur_bielle_m, self.angle_vilebrequin_deg)
+            F_lat = float(rep_lat["force_laterale_n"])
+            rap["efforts_lateraux"].update(rep_lat)
+            rap["efforts_lateraux"]["charge_zone_poussee_n"] = max(0.0, F_lat)
+            rap["efforts_lateraux"]["charge_zone_contre_poussee_n"] = max(0.0, -F_lat)
+            if D_piston_cao is not None and L_jupe is not None:
+                A_p = self.aire_zone_poussee_m2
+                A_c = self.aire_zone_contre_poussee_m2
+                if A_p is None and self.fraction_circonference_zone_poussee is not None:
+                    A_p = _aire_projectee_contact_jupe(D_piston_cao, L_jupe, self.fraction_circonference_zone_poussee)
+                if A_c is None and self.fraction_circonference_zone_contre_poussee is not None:
+                    A_c = _aire_projectee_contact_jupe(D_piston_cao, L_jupe, self.fraction_circonference_zone_contre_poussee)
+                rap["efforts_lateraux"]["aire_zone_poussee_m2"] = A_p
+                rap["efforts_lateraux"]["aire_zone_contre_poussee_m2"] = A_c
+                if A_p is not None and A_p > 0.0:
+                    rap["efforts_lateraux"]["pression_jupe_poussee_pa"] = max(0.0, F_lat) / A_p
+                if A_c is not None and A_c > 0.0:
+                    rap["efforts_lateraux"]["pression_jupe_contre_poussee_pa"] = max(0.0, -F_lat) / A_c
+                if self.pression_contact_jupe_admissible_pa is not None:
+                    p_adm_loc = _req_pos("pression_contact_jupe_admissible_pa", self.pression_contact_jupe_admissible_pa)
+                    if rap["efforts_lateraux"].get("pression_jupe_poussee_pa") is not None:
+                        rap["efforts_lateraux"]["contact_local_poussee_ok"] = float(rap["efforts_lateraux"]["pression_jupe_poussee_pa"]) <= p_adm_loc
+                    if rap["efforts_lateraux"].get("pression_jupe_contre_poussee_pa") is not None:
+                        rap["efforts_lateraux"]["contact_local_contre_poussee_ok"] = float(rap["efforts_lateraux"]["pression_jupe_contre_poussee_pa"]) <= p_adm_loc
+            else:
+                _push_inc(rap, "partielles", "pression_jupe", "Calculable si diamètre piston et longueur de jupe sont connus, avec aire ou fraction de contact locale.")
+        else:
+            _push_inc(rap, "partielles", "effort_lateral_piston", "Calculable si force axiale nette, bielle, rayon manivelle et angle vilebrequin sont connus.")
 
         # ---------------------------------------------------------------------
         # 11) Frottements joints + PV + usure
@@ -1325,6 +1738,16 @@ class Piston:
             "fit_shaft": self.fit_shaft,
             "pression_max_pa": self.pression_max_pa,
             "temperature_fonctionnement_k": self.temperature_fonctionnement_k,
+            "temperature_tete_k": self.temperature_tete_k,
+            "temperature_zone_segments_k": self.temperature_zone_segments_k,
+            "temperature_jupe_k": self.temperature_jupe_k,
+            "temperature_axe_k": self.temperature_axe_k,
+            "temperature_cylindre_tete_k": self.temperature_cylindre_tete_k,
+            "temperature_cylindre_zone_segments_k": self.temperature_cylindre_zone_segments_k,
+            "temperature_cylindre_jupe_k": self.temperature_cylindre_jupe_k,
+            "temperature_tete_face_chaude_k": self.temperature_tete_face_chaude_k,
+            "temperature_tete_face_froide_k": self.temperature_tete_face_froide_k,
+            "temperature_cycle_tete_min_k": self.temperature_cycle_tete_min_k,
             "materiau_piston_cle": self.materiau_piston_cle,
             "materiau_cylindre_cle": self.materiau_cylindre_cle,
             "mode_materiau": self.mode_materiau,
@@ -1337,6 +1760,17 @@ class Piston:
             "hauteur_totale_m": self.hauteur_totale_m,
             "epaisseur_tete_m": self.epaisseur_tete_m,
             "longueur_jupe_m": self.longueur_jupe_m,
+            "materiau_axe_cle": self.materiau_axe_cle,
+            "diametre_axe_m": self.diametre_axe_m,
+            "longueur_axe_m": self.longueur_axe_m,
+            "position_axe_depuis_face_tete_m": self.position_axe_depuis_face_tete_m,
+            "densite_axe_kg_m3": self.densite_axe_kg_m3,
+            "coef_dilatation_axe_1_k": self.coef_dilatation_axe_1_k,
+            "aire_zone_poussee_m2": self.aire_zone_poussee_m2,
+            "aire_zone_contre_poussee_m2": self.aire_zone_contre_poussee_m2,
+            "fraction_circonference_zone_poussee": self.fraction_circonference_zone_poussee,
+            "fraction_circonference_zone_contre_poussee": self.fraction_circonference_zone_contre_poussee,
+            "pression_contact_jupe_admissible_pa": self.pression_contact_jupe_admissible_pa,
             "nb_joints": self.nb_joints,
             "section_joint_mm": self.section_joint_mm,
             "squeeze": self.squeeze,
@@ -1346,14 +1780,28 @@ class Piston:
             "coeff_frottement_joint": self.coeff_frottement_joint,
             "largeur_bande_contact_joint_m": self.largeur_bande_contact_joint_m,
             "PV_admissible_pa_ms": self.PV_admissible_pa_ms,
+            "type_etancheite": self.type_etancheite,
+            "epaisseur_levre_superieure_m": self.epaisseur_levre_superieure_m,
+            "epaisseur_levre_inferieure_m": self.epaisseur_levre_inferieure_m,
+            "pression_matage_admissible_pa": self.pression_matage_admissible_pa,
+            "contrainte_levre_admissible_pa": self.contrainte_levre_admissible_pa,
+            "masse_joints_kg": self.masse_joints_kg,
+            "masse_segments_kg": self.masse_segments_kg,
+            "masse_segment_unitaire_kg": self.masse_segment_unitaire_kg,
+            "force_appui_segment_n": self.force_appui_segment_n,
+            "jeu_axial_segment_m": self.jeu_axial_segment_m,
             "longueur_portee_etanche_m": self.longueur_portee_etanche_m,
             "pression_aval_pa": self.pression_aval_pa,
             "masse_alternative_kg": self.masse_alternative_kg,
             "longueur_bielle_m": self.longueur_bielle_m,
             "angle_vilebrequin_deg": self.angle_vilebrequin_deg,
+            "masse_bielle_kg": self.masse_bielle_kg,
+            "fraction_bielle_alternative": self.fraction_bielle_alternative,
             "coefficient_usure_joint_k": self.coefficient_usure_joint_k,
             "durete_contact_joint_pa": self.durete_contact_joint_pa,
             "duree_fonctionnement_s": self.duree_fonctionnement_s,
+            "facteur_contrainte_thermique_tete": self.facteur_contrainte_thermique_tete,
+            "poisson_piston": self.poisson_piston,
         }
 
         _dedup_inconnues(rap)
