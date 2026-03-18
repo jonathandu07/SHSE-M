@@ -74,6 +74,8 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
                 out.append(it)
         return out
 
+    rapport.setdefault("inconnues", {}).setdefault("impossibles", [])
+    rapport.setdefault("inconnues", {}).setdefault("partielles", [])
     rapport["inconnues"]["impossibles"] = dedup(
         list(rapport["inconnues"].get("impossibles", []) or [])
     )
@@ -115,10 +117,16 @@ def _resoudre_materiau(
     densite_kg_m3: Optional[float],
     limite_elastique_pa: Optional[float],
     module_young_pa: Optional[float],
+    poisson: Optional[float] = None,
+    resistance_traction_pa: Optional[float] = None,
+    limite_fatigue_pa: Optional[float] = None,
 ) -> Dict[str, Optional[float]]:
-    rho = densite_kg_m3
-    Re = limite_elastique_pa
-    E = module_young_pa
+    rho = float(densite_kg_m3) if _is_finite(densite_kg_m3) else None
+    Re = float(limite_elastique_pa) if _is_finite(limite_elastique_pa) else None
+    E = float(module_young_pa) if _is_finite(module_young_pa) else None
+    nu = float(poisson) if _is_finite(poisson) else None
+    Rm = float(resistance_traction_pa) if _is_finite(resistance_traction_pa) else None
+    Sf = float(limite_fatigue_pa) if _is_finite(limite_fatigue_pa) else None
 
     if materiau_cle:
         for modname in (
@@ -157,6 +165,13 @@ def _resoudre_materiau(
                 E = E if E is not None else g(
                     mat, "module_young_pa", "E_pa", "young_pa", "young_modulus_pa"
                 )
+                nu = nu if nu is not None else g(mat, "poisson", "nu")
+                Rm = Rm if Rm is not None else g(
+                    mat, "resistance_traction_pa", "Rm_pa", "uts_pa", "ultimate_strength_pa"
+                )
+                Sf = Sf if Sf is not None else g(
+                    mat, "limite_fatigue_pa", "Sf_pa", "endurance_limit_pa"
+                )
                 break
             except Exception:
                 continue
@@ -165,6 +180,9 @@ def _resoudre_materiau(
         "densite_kg_m3": rho,
         "limite_elastique_pa": Re,
         "module_young_pa": E,
+        "poisson": nu,
+        "resistance_traction_pa": Rm,
+        "limite_fatigue_pa": Sf,
     }
 
 
@@ -227,6 +245,29 @@ def _dmin_axial(F: float, Re: float, FS: float) -> float:
     if sigma_adm <= 0.0:
         raise ValueError("sigma_adm <= 0")
     return math.sqrt((4.0 * abs(float(F))) / (math.pi * sigma_adm))
+
+
+def _reactions_simple(F: float, L: float, a: float) -> Dict[str, float]:
+    Rg = float(F) * (float(L) - float(a)) / float(L)
+    Rd = float(F) * float(a) / float(L)
+    return {
+        "reaction_gauche_N": Rg,
+        "reaction_droite_N": Rd,
+        "moment_max_Nm": Rg * float(a),
+    }
+
+
+def _goodman(sigma_a: float, sigma_m: float, Se: float, Rm: float) -> float:
+    return float(sigma_a) / float(Se) + max(float(sigma_m), 0.0) / float(Rm)
+
+
+def _soderberg(sigma_a: float, sigma_m: float, Se: float, Re: float) -> float:
+    return float(sigma_a) / float(Se) + max(float(sigma_m), 0.0) / float(Re)
+
+
+def _frequence_propre_torsion_2_masses(k: float, J1: float, J2: float) -> Dict[str, float]:
+    omega = math.sqrt(float(k) * (1.0 / float(J1) + 1.0 / float(J2)))
+    return {"omega_rad_s": omega, "frequence_hz": omega / (2.0 * math.pi)}
 
 
 # =============================================================================
@@ -299,7 +340,6 @@ def _resoudre_depuis_bielle(bielle: Optional[Any]) -> Dict[str, Any]:
 
     rep = _try_call_report(bielle)
     if not isinstance(rep, dict):
-        # fallback attributs directs
         for attr in ("diametre_maneton_m", "longueur_portee_grande_tete_m", "force_axiale_max_N", "longueur_bielle_m"):
             v = getattr(bielle, attr, None)
             if _is_finite(v):
@@ -342,7 +382,6 @@ def _resoudre_depuis_moteur(moteur: Optional[Any]) -> Dict[str, Any]:
 
     out["rapport"] = rep
 
-    # blocs fréquents
     couple_blocs = [
         _safe_get_dict(rep, "couple"),
         _safe_get_dict(rep, "resultats"),
@@ -410,7 +449,6 @@ def _resoudre_depuis_roulement(roulement: Optional[Any]) -> Dict[str, Any]:
         if out["B_largeur_reference_m"] is None and _is_finite(bloc_r.get("largeur_m")):
             out["B_largeur_reference_m"] = float(bloc_r["largeur_m"])
 
-    # fallback attributs directs
     if out["d_interieur_reference_m"] is None:
         for attr in ("d_interieur_m", "d_alesage_m", "diametre_interieur_m", "d_m"):
             v = getattr(roulement, attr, None)
@@ -441,21 +479,17 @@ def _resoudre_depuis_roulement(roulement: Optional[Any]) -> Dict[str, Any]:
 
 @dataclass(frozen=True)
 class ReglesFabricationArbreVilebrequin:
-    # Epaulements / marges
     marge_largeur_portee_sur_roulement_m: float = 0.001
     marge_diametre_epaulement_sur_portee_m: float = 0.001
 
-    # Congés / rayons
     conge_min_m: float = 0.0008
     conge_max_m: float = 0.0040
     ratio_conge_sur_diametre: float = 0.06
 
-    # Chanfreins
     chanfrein_min_m: float = 0.0005
     chanfrein_max_m: float = 0.0020
     ratio_chanfrein_sur_diametre: float = 0.03
 
-    # Rugosité / tolérances
     rugosite_portees_ra_um: float = 0.4
     rugosite_hors_portees_ra_um: float = 1.6
     tolerance_diametre_portee_m: float = 0.00003
@@ -472,14 +506,12 @@ class ArbreVilbrequin:
     Arbre de vilebrequin (journaux principaux + maneton).
     """
 
-    # Liens
     cylindre: Optional[Any] = None
     piston: Optional[Any] = None
     bielle: Optional[Any] = None
     moteur_thermique: Optional[Any] = None
     roulement_aiguille: Optional[Any] = None
 
-    # Cinématique / externes
     course_m: Optional[float] = None
     couple_max_Nm: Optional[float] = None
     moment_flexion_max_Nm: Optional[float] = None
@@ -487,31 +519,28 @@ class ArbreVilbrequin:
     force_bielle_effective_N: Optional[float] = None
     rpm: Optional[float] = None
 
-    # Géométrie imposée
     diametre_journal_principal_m: Optional[float] = None
     diametre_maneton_m: Optional[float] = None
     largeur_portee_journal_m: Optional[float] = None
     largeur_portee_maneton_m: Optional[float] = None
 
-    # Géométrie globale utile CAO
     entre_axe_paliers_m: Optional[float] = None
     largeur_totale_arbre_m: Optional[float] = None
-    
-    # Arbre Vilebrequin = Maneton Unitaire (1 Maneton, portion de journaux)
-    nb_journaux_principaux: Literal[1, 2] = 2 # Represente les portées encadrant le maneton unitaire
 
-    # Matériau
+    nb_journaux_principaux: Literal[1, 2] = 2
+
     materiau_cle: Optional[str] = None
     densite_kg_m3: Optional[float] = None
     limite_elastique_pa: Optional[float] = None
     module_young_pa: Optional[float] = None
+    poisson: Optional[float] = None
+    resistance_traction_pa: Optional[float] = None
+    limite_fatigue_pa: Optional[float] = None
     facteur_securite: float = 2.0
 
-    # Ajustements
     serrage_roulement_m: Optional[float] = None
     jeu_roulement_m: Optional[float] = None
 
-    # Règles CAO
     regles_fabrication: ReglesFabricationArbreVilebrequin = field(
         default_factory=ReglesFabricationArbreVilebrequin
     )
@@ -539,18 +568,21 @@ class ArbreVilbrequin:
 
         FS = _req_pos("facteur_securite", self.facteur_securite)
 
-        # ---------------------------------------------------------------------
-        # 1) Matériau
-        # ---------------------------------------------------------------------
         props = _resoudre_materiau(
             self.materiau_cle,
             self.densite_kg_m3,
             self.limite_elastique_pa,
             self.module_young_pa,
+            self.poisson,
+            self.resistance_traction_pa,
+            self.limite_fatigue_pa,
         )
         rho = props["densite_kg_m3"]
         Re = props["limite_elastique_pa"]
         E = props["module_young_pa"]
+        nu = props["poisson"]
+        Rm = props["resistance_traction_pa"]
+        Sf = props["limite_fatigue_pa"]
         sigma_adm = (float(Re) / FS) if Re is not None else None
 
         rapport["materiau"] = {
@@ -558,6 +590,9 @@ class ArbreVilbrequin:
             "densite_kg_m3": rho,
             "limite_elastique_pa": Re,
             "module_young_pa": E,
+            "poisson": nu,
+            "resistance_traction_pa": Rm,
+            "limite_fatigue_pa": Sf,
             "facteur_securite": FS,
             "sigma_admissible_pa": sigma_adm,
         }
@@ -570,18 +605,12 @@ class ArbreVilbrequin:
                 "Nécessaire pour dimensionner quantitativement les diamètres mini.",
             )
 
-        # ---------------------------------------------------------------------
-        # 2) Résolution depuis autres pièces
-        # ---------------------------------------------------------------------
         cyl = _resoudre_depuis_cylindre(self.cylindre)
         pist = _resoudre_depuis_piston(self.piston)
         bie = _resoudre_depuis_bielle(self.bielle)
         mot = _resoudre_depuis_moteur(self.moteur_thermique)
         rou = _resoudre_depuis_roulement(self.roulement_aiguille)
 
-        # ---------------------------------------------------------------------
-        # 3) Course -> rayon manivelle
-        # ---------------------------------------------------------------------
         course = self.course_m
         if course is None and cyl["course_m"] is not None:
             course = float(cyl["course_m"])
@@ -605,9 +634,6 @@ class ArbreVilbrequin:
             course = _req_pos("course_m", course)
             r_manivelle = 0.5 * course
 
-        # ---------------------------------------------------------------------
-        # 4) Efforts / couple / rpm
-        # ---------------------------------------------------------------------
         rpm = self.rpm
         if rpm is None and mot["rpm"] is not None:
             rpm = float(mot["rpm"])
@@ -670,9 +696,6 @@ class ArbreVilbrequin:
         if F_ax is not None:
             F_ax = _req_pos("force_axiale_N", F_ax, strictly=False)
 
-        # ---------------------------------------------------------------------
-        # 5) Roulement + maneton
-        # ---------------------------------------------------------------------
         d_ref = rou["d_interieur_reference_m"]
         D_ref = rou["D_exterieur_reference_m"]
         B_ref = rou["B_largeur_reference_m"]
@@ -747,9 +770,6 @@ class ArbreVilbrequin:
             "force_axiale_max_bielle_N": bie["force_axiale_max_N"],
         }
 
-        # ---------------------------------------------------------------------
-        # 6) Dimensionnements diamètres minimaux
-        # ---------------------------------------------------------------------
         dmin_tors = None
         dmin_bend = None
         dmin_ax = None
@@ -769,7 +789,6 @@ class ArbreVilbrequin:
             rapport["dimensionnements"]["diametre_min_axial_m"] = dmin_ax
             rapport["dimensionnements"]["critere_axial"] = "traction/compression sigma <= Re/FS"
 
-        # Géométrie imposée minimale
         dmin_geo_maneton = None
         if d_requis_maneton is not None:
             dmin_geo_maneton = float(d_requis_maneton)
@@ -784,13 +803,7 @@ class ArbreVilbrequin:
             if candidats:
                 rapport["dimensionnements"]["diametre_journal_min_calcule_m"] = max(candidats)
 
-        # ---------------------------------------------------------------------
-        # 7) Contraintes réelles si géométrie connue
-        # ---------------------------------------------------------------------
-        def calc_contraintes_section(
-            d_use: Optional[float],
-            nom: str,
-        ) -> Optional[Dict[str, Any]]:
+        def calc_contraintes_section(d_use: Optional[float], nom: str) -> Optional[Dict[str, Any]]:
             if d_use is None:
                 return None
 
@@ -823,9 +836,6 @@ class ArbreVilbrequin:
         if c_m is not None:
             rapport["contraintes"]["maneton"] = c_m
 
-        # ---------------------------------------------------------------------
-        # 8) Pressions de contact sur portées
-        # ---------------------------------------------------------------------
         if F_bielle is not None and d_maneton is not None and largeur_maneton is not None:
             p = abs(float(F_bielle)) / (float(d_maneton) * float(largeur_maneton))
             rapport["pressions_contact"]["maneton"] = {
@@ -842,7 +852,6 @@ class ArbreVilbrequin:
                 "Calculable si force_bielle_effective_N, diametre_maneton_m et largeur_portee_maneton_m sont connus.",
             )
 
-        # pression sur journal : on ne connaît pas la réaction palier sans statique détaillée
         if d_journal is not None and largeur_journal is not None:
             _push_inconnue(
                 rapport,
@@ -851,9 +860,6 @@ class ArbreVilbrequin:
                 "Nécessite la réaction au palier principal, non calculée ici sans statique détaillée.",
             )
 
-        # ---------------------------------------------------------------------
-        # 9) Ajustement roulement
-        # ---------------------------------------------------------------------
         if d_ref is not None and d_journal is not None:
             if self.serrage_roulement_m is not None and self.jeu_roulement_m is not None:
                 _push_inconnue(
@@ -882,10 +888,6 @@ class ArbreVilbrequin:
                     "Impossible de proposer un diamètre usiné sans jeu/serrage cible ni ajustement normalisé.",
                 )
 
-        # ---------------------------------------------------------------------
-        # 10) Géométrie exploitable
-        # ---------------------------------------------------------------------
-        # Entre-axe paliers : si non fourni, impossible de statuer sur les réactions.
         if self.entre_axe_paliers_m is not None:
             entre_paliers = _req_pos("entre_axe_paliers_m", self.entre_axe_paliers_m)
         else:
@@ -901,18 +903,15 @@ class ArbreVilbrequin:
         if nb_j < 1:
             raise ValueError("nb_journaux_principaux doit être >= 1.")
 
-        # Largeur totale approximative si on a les largeurs
         largeur_totale = self.largeur_totale_arbre_m
         if largeur_totale is not None:
             largeur_totale = _req_pos("largeur_totale_arbre_m", largeur_totale)
         elif largeur_journal is not None and largeur_maneton is not None:
-            # modèle minimal : 2 journaux + 1 maneton
             largeur_totale = nb_j * float(largeur_journal) + float(largeur_maneton)
             rapport["notes_modele"].append(
                 "largeur_totale_arbre_m déduite minimalement des largeurs de portées connues."
             )
 
-        # Détails CAO
         d_epaulement_journal = None
         if d_journal is not None:
             d_epaulement_journal = d_journal + self.regles_fabrication.marge_diametre_epaulement_sur_portee_m
@@ -966,9 +965,6 @@ class ArbreVilbrequin:
             "largeur_totale_arbre_m": largeur_totale,
         })
 
-        # ---------------------------------------------------------------------
-        # 11) Masse / inerties minimales
-        # ---------------------------------------------------------------------
         if rho is not None:
             Vtot = 0.0
             detail = []
@@ -1032,14 +1028,6 @@ class ArbreVilbrequin:
                 "module_flexion_m3": _module_flexion(float(d_maneton)),
             }
 
-        # ---------------------------------------------------------------------
-        # 12) Bloc CAO / SolidWorks
-        # ---------------------------------------------------------------------
-        # Convention minimaliste :
-        # - origine en X au centre du maneton,
-        # - axe de rotation principal = Z,
-        # - les portées sont des cylindres coaxiaux distincts à modéliser,
-        # - les masses de bras/contrepoids restent hors modèle tant qu'elles ne sont pas définies.
         if d_maneton is not None or d_journal is not None:
             x_j_g = None
             x_j_d = None
@@ -1101,9 +1089,6 @@ class ArbreVilbrequin:
                 "Bloc CAO complet calculable si au moins un diamètre de portée est connu.",
             )
 
-        # ---------------------------------------------------------------------
-        # 13) Synthèse cinématique
-        # ---------------------------------------------------------------------
         rapport["cinematique"] = {
             "course_m": course,
             "rayon_manivelle_m": r_manivelle,
@@ -1111,9 +1096,6 @@ class ArbreVilbrequin:
             "omega_rad_s": (2.0 * math.pi * float(rpm) / 60.0) if rpm is not None else None,
         }
 
-        # ---------------------------------------------------------------------
-        # 14) Inconnues complémentaires mécaniques
-        # ---------------------------------------------------------------------
         _push_inconnue(
             rapport,
             "partielles",
@@ -1139,9 +1121,6 @@ class ArbreVilbrequin:
             "Nécessite spectre de charge, concentrations de contraintes, état de surface et traitements.",
         )
 
-        # ---------------------------------------------------------------------
-        # 15) Entrées tracées
-        # ---------------------------------------------------------------------
         rapport["entrees"] = {
             "course_m": self.course_m,
             "couple_max_Nm": self.couple_max_Nm,
@@ -1160,19 +1139,240 @@ class ArbreVilbrequin:
             "densite_kg_m3": self.densite_kg_m3,
             "limite_elastique_pa": self.limite_elastique_pa,
             "module_young_pa": self.module_young_pa,
+            "poisson": self.poisson,
+            "resistance_traction_pa": self.resistance_traction_pa,
+            "limite_fatigue_pa": self.limite_fatigue_pa,
             "facteur_securite": self.facteur_securite,
             "serrage_roulement_m": self.serrage_roulement_m,
             "jeu_roulement_m": self.jeu_roulement_m,
         }
 
         _dedup_inconnues(rapport)
-        if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
+        if strict and rapport["inconnues"]["impossibles"]:
             raise ValueError(
-                "ArbreVilbrequin(strict=True) : des inconnues restent.\n"
+                "ArbreVilbrequin(strict=True) : des inconnues impossibles restent.\n"
                 f"Impossibles: {rapport['inconnues']['impossibles']}\n"
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
 
+        return rapport
+
+
+# =============================================================================
+# Extension fine : réactions, joues, équilibrage, fatigue, torsion vibratoire
+# =============================================================================
+
+@dataclass
+class ArbreVilbrequinFine(ArbreVilbrequin):
+    position_charge_depuis_palier_gauche_m: Optional[float] = None
+    force_radiale_bielle_N: Optional[float] = None
+
+    entraxe_journal_maneton_m: Optional[float] = None
+    epaisseur_joue_m: Optional[float] = None
+    largeur_joue_m: Optional[float] = None
+    nb_joues: Optional[int] = None
+    debord_joue_m: Optional[float] = None
+    rayon_conge_joue_m: Optional[float] = None
+    chanfrein_joue_m: Optional[float] = None
+
+    masse_tournante_equilibree_kg: Optional[float] = None
+    masse_alternative_kg: Optional[float] = None
+    fraction_masse_alternative_equilibree: Optional[float] = None
+    coefficient_equilibrage: Optional[float] = None
+    rayon_cg_contrepoids_m: Optional[float] = None
+    masse_contrepoids_existante_kg: Optional[float] = None
+
+    moment_flexion_min_Nm: Optional[float] = None
+    moment_flexion_moyen_Nm: Optional[float] = None
+    moment_flexion_alterne_Nm: Optional[float] = None
+    couple_min_Nm: Optional[float] = None
+    couple_moyen_Nm: Optional[float] = None
+    couple_alterne_Nm: Optional[float] = None
+    Kt_flexion: float = 1.0
+    Kt_torsion: float = 1.0
+    facteur_surface_fatigue: float = 1.0
+    facteur_taille_fatigue: float = 1.0
+    facteur_fiabilite_fatigue: float = 1.0
+    facteur_temperature_fatigue: float = 1.0
+    traitement_thermique: Optional[str] = None
+
+    inertie_amont_kg_m2: Optional[float] = None
+    inertie_aval_kg_m2: Optional[float] = None
+    raideur_torsion_equivalente_Nm_rad: Optional[float] = None
+    ordre_excitation: Optional[float] = None
+
+    def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
+        rapport = super().analyser(strict=False)
+        rapport.setdefault("reactions_paliers", {})
+        rapport.setdefault("joues", {})
+        rapport.setdefault("equilibrage", {})
+        rapport.setdefault("fatigue", {})
+        rapport.setdefault("torsion_vibratoire", {})
+
+        geom = rapport.get("geometrie", {})
+        mat = rapport.get("materiau", {})
+        rec = rapport.get("recuperations", {})
+
+        d_j = geom.get("diametre_journal_principal_m")
+        d_m = geom.get("diametre_maneton_m")
+        L_j = geom.get("largeur_portee_journal_m")
+        r = geom.get("rayon_manivelle_m")
+        rpm = rec.get("rpm")
+        Re = mat.get("limite_elastique_pa")
+        Rm = mat.get("resistance_traction_pa")
+        Sf = mat.get("limite_fatigue_pa")
+        rho = mat.get("densite_kg_m3")
+
+        F_rad = self.force_radiale_bielle_N
+        if F_rad is None and _is_finite(rec.get("force_bielle_effective_N")):
+            F_rad = abs(float(rec["force_bielle_effective_N"]))
+        if _is_finite(self.entre_axe_paliers_m) and F_rad is not None:
+            L = _req_pos("entre_axe_paliers_m", self.entre_axe_paliers_m)
+            a = self.position_charge_depuis_palier_gauche_m
+            if a is None and int(getattr(self, "nb_journaux_principaux", 2)) == 2:
+                a = 0.5 * L
+                rapport["notes_modele"].append(
+                    "position_charge_depuis_palier_gauche_m non fournie : charge supposée au milieu entre deux paliers."
+                )
+            if a is not None:
+                a = _req_pos("position_charge_depuis_palier_gauche_m", a, strictly=False)
+                stat = _reactions_simple(float(F_rad), L, a)
+                rapport["reactions_paliers"] = {
+                    "force_radiale_bielle_N": float(F_rad),
+                    "entre_axe_paliers_m": L,
+                    "position_charge_depuis_palier_gauche_m": a,
+                    **stat,
+                }
+                if not _is_finite(rec.get("moment_flexion_max_Nm")):
+                    rec["moment_flexion_max_Nm"] = stat["moment_max_Nm"]
+                    rapport["recuperations"]["moment_flexion_max_Nm"] = stat["moment_max_Nm"]
+            else:
+                _push_inconnue(rapport, "partielles", "position_charge_depuis_palier_gauche_m", "Requise pour les réactions exactes de paliers.")
+        else:
+            _push_inconnue(rapport, "partielles", "reactions_paliers", "Nécessite entre_axe_paliers_m et force radiale bielle.")
+
+        if rapport["reactions_paliers"] and _is_finite(d_j) and _is_finite(L_j):
+            Rg = abs(float(rapport["reactions_paliers"]["reaction_gauche_N"]))
+            Rd = abs(float(rapport["reactions_paliers"]["reaction_droite_N"]))
+            rapport.setdefault("pressions_contact", {})
+            rapport["pressions_contact"]["journal_gauche"] = {
+                "force_N": Rg,
+                "diametre_m": float(d_j),
+                "largeur_portee_m": float(L_j),
+                "pression_moyenne_pa": Rg / (float(d_j) * float(L_j)),
+            }
+            rapport["pressions_contact"]["journal_droit"] = {
+                "force_N": Rd,
+                "diametre_m": float(d_j),
+                "largeur_portee_m": float(L_j),
+                "pression_moyenne_pa": Rd / (float(d_j) * float(L_j)),
+            }
+
+        if all(_is_finite(v) for v in (self.epaisseur_joue_m, self.largeur_joue_m, self.entraxe_journal_maneton_m, d_j, d_m)):
+            h = float(self.entraxe_journal_maneton_m) - 0.5 * (float(d_j) + float(d_m))
+            if h > 0.0:
+                nb = int(self.nb_joues) if isinstance(self.nb_joues, int) and self.nb_joues > 0 else 2
+                V_une = float(self.epaisseur_joue_m) * float(self.largeur_joue_m) * h
+                rapport["joues"] = {
+                    "epaisseur_joue_m": float(self.epaisseur_joue_m),
+                    "largeur_joue_m": float(self.largeur_joue_m),
+                    "hauteur_web_m": h,
+                    "nb_joues": nb,
+                    "volume_total_modele_m3": nb * V_une,
+                    "debord_joue_m": self.debord_joue_m,
+                    "rayon_conge_joue_m": self.rayon_conge_joue_m,
+                    "chanfrein_joue_m": self.chanfrein_joue_m,
+                    "note": "Modèle volumique prismatique pour les joues.",
+                }
+                if _is_finite(rho):
+                    rapport["joues"]["masse_totale_modele_kg"] = float(rho) * nb * V_une
+            else:
+                _push_inconnue(rapport, "partielles", "joues", "L'entraxe journal-maneton fourni est incompatible avec les diamètres.")
+        else:
+            _push_inconnue(rapport, "partielles", "joues", "Nécessite épaisseur, largeur et entraxe réel des joues.")
+
+        if _is_finite(r) and _is_finite(self.rayon_cg_contrepoids_m) and _is_finite(self.coefficient_equilibrage):
+            if _is_finite(self.masse_tournante_equilibree_kg) or _is_finite(self.masse_alternative_kg):
+                m_eq = float(self.masse_tournante_equilibree_kg or 0.0) + float(self.fraction_masse_alternative_equilibree or 0.0) * float(self.masse_alternative_kg or 0.0)
+                moment_cible = float(self.coefficient_equilibrage) * m_eq * float(r)
+                m_cw = moment_cible / float(self.rayon_cg_contrepoids_m)
+                rapport["equilibrage"] = {
+                    "masse_equivalente_a_equilibrer_kg": m_eq,
+                    "coefficient_equilibrage": float(self.coefficient_equilibrage),
+                    "moment_equilibrage_cible_kg_m": moment_cible,
+                    "rayon_cg_contrepoids_m": float(self.rayon_cg_contrepoids_m),
+                    "masse_contrepoids_requise_kg": m_cw,
+                }
+                if _is_finite(self.masse_contrepoids_existante_kg):
+                    resid = float(self.masse_contrepoids_existante_kg) * float(self.rayon_cg_contrepoids_m) - moment_cible
+                    rapport["equilibrage"]["masse_contrepoids_existante_kg"] = float(self.masse_contrepoids_existante_kg)
+                    rapport["equilibrage"]["balourd_residuel_kg_m"] = resid
+            else:
+                _push_inconnue(rapport, "partielles", "equilibrage", "Nécessite les masses tournante et/ou alternative.")
+        else:
+            _push_inconnue(rapport, "partielles", "contrepoids", "Nécessite rayon manivelle, rayon CG contrepoids et coefficient d'équilibrage.")
+
+        if _is_finite(d_j):
+            Mmax = self.moment_flexion_max_Nm if _is_finite(self.moment_flexion_max_Nm) else rec.get("moment_flexion_max_Nm")
+            Mmin = self.moment_flexion_min_Nm
+            if not _is_finite(self.moment_flexion_moyen_Nm) and not _is_finite(self.moment_flexion_alterne_Nm) and _is_finite(Mmax) and _is_finite(Mmin):
+                M_m = 0.5 * (float(Mmax) + float(Mmin))
+                M_a = 0.5 * (float(Mmax) - float(Mmin))
+            else:
+                M_m = self.moment_flexion_moyen_Nm
+                M_a = self.moment_flexion_alterne_Nm
+
+            Tmax = self.couple_max_Nm if _is_finite(self.couple_max_Nm) else rec.get("couple_max_Nm")
+            Tmin = self.couple_min_Nm
+            if not _is_finite(self.couple_moyen_Nm) and not _is_finite(self.couple_alterne_Nm) and _is_finite(Tmax) and _is_finite(Tmin):
+                T_m = 0.5 * (float(Tmax) + float(Tmin))
+                T_a = 0.5 * (float(Tmax) - float(Tmin))
+            else:
+                T_m = self.couple_moyen_Nm
+                T_a = self.couple_alterne_Nm
+
+            if all(_is_finite(v) for v in (M_m, M_a, T_m, T_a, Sf)) and (_is_finite(Rm) or _is_finite(Re)):
+                sigma_m = float(self.Kt_flexion) * _sigma_flexion_max(float(M_m), float(d_j))
+                sigma_a = float(self.Kt_flexion) * _sigma_flexion_max(float(M_a), float(d_j))
+                tau_m = float(self.Kt_torsion) * _tau_torsion_max(float(T_m), float(d_j))
+                tau_a = float(self.Kt_torsion) * _tau_torsion_max(float(T_a), float(d_j))
+                sigma_vm_m = _von_mises_sigma_tau(sigma_m, tau_m)
+                sigma_vm_a = _von_mises_sigma_tau(sigma_a, tau_a)
+                Se_corr = float(Sf) * float(self.facteur_surface_fatigue) * float(self.facteur_taille_fatigue) * float(self.facteur_fiabilite_fatigue) * float(self.facteur_temperature_fatigue)
+                rapport["fatigue"] = {
+                    "section_reference": "journal_principal",
+                    "diametre_reference_m": float(d_j),
+                    "sigma_von_mises_moyenne_pa": sigma_vm_m,
+                    "sigma_von_mises_alternee_pa": sigma_vm_a,
+                    "limite_endurance_corrigee_pa": Se_corr,
+                    "Kt_flexion": float(self.Kt_flexion),
+                    "Kt_torsion": float(self.Kt_torsion),
+                    "goodman_utilisation": (_goodman(sigma_vm_a, sigma_vm_m, Se_corr, float(Rm)) if _is_finite(Rm) else None),
+                    "soderberg_utilisation": (_soderberg(sigma_vm_a, sigma_vm_m, Se_corr, float(Re)) if _is_finite(Re) else None),
+                    "traitement_thermique": self.traitement_thermique,
+                }
+            else:
+                _push_inconnue(rapport, "partielles", "fatigue_vilebrequin", "Nécessite moments/couples moyens et alternés, endurance corrigée et matériau.")
+        else:
+            _push_inconnue(rapport, "partielles", "fatigue_vilebrequin", "Nécessite un diamètre de section de référence.")
+
+        if all(_is_finite(v) for v in (self.raideur_torsion_equivalente_Nm_rad, self.inertie_amont_kg_m2, self.inertie_aval_kg_m2)):
+            tv = _frequence_propre_torsion_2_masses(float(self.raideur_torsion_equivalente_Nm_rad), float(self.inertie_amont_kg_m2), float(self.inertie_aval_kg_m2))
+            if _is_finite(rpm) and _is_finite(self.ordre_excitation):
+                fexc = float(self.ordre_excitation) * float(rpm) / 60.0
+                tv["frequence_excitation_hz"] = fexc
+                tv["ratio_excitation_sur_mode"] = fexc / tv["frequence_hz"] if tv["frequence_hz"] > 0.0 else None
+            rapport["torsion_vibratoire"] = tv
+        else:
+            _push_inconnue(rapport, "partielles", "torsion_vibratoire", "Nécessite deux inerties et une raideur torsionnelle équivalente.")
+
+        _dedup_inconnues(rapport)
+        if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
+            raise ValueError(
+                "ArbreVilbrequinFine(strict=True) : des inconnues restent.\n"
+                f"Impossibles: {rapport['inconnues']['impossibles']}\n"
+                f"Partielles: {rapport['inconnues']['partielles']}"
+            )
         return rapport
 
 
@@ -1191,14 +1391,23 @@ if __name__ == "__main__":
                 },
             }
 
-    av = ArbreVilbrequin(
+    av = ArbreVilbrequinFine(
         roulement_aiguille=RoulementAiguilleMock(),
         course_m=0.085,
         couple_max_Nm=134.0,
         limite_elastique_pa=800e6,
+        resistance_traction_pa=950e6,
+        limite_fatigue_pa=420e6,
         densite_kg_m3=7800.0,
         facteur_securite=2.0,
         nb_journaux_principaux=2,
+        entre_axe_paliers_m=0.090,
+        position_charge_depuis_palier_gauche_m=0.045,
+        force_radiale_bielle_N=12000.0,
+        diametre_journal_principal_m=0.030,
+        diametre_maneton_m=0.030,
+        largeur_portee_journal_m=0.017,
+        largeur_portee_maneton_m=0.016,
     )
 
     from pprint import pprint
