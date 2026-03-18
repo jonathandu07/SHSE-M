@@ -2212,7 +2212,1398 @@ La version suivante du dossier devra comprendre :
 * critères succès / échec ;
 * corrélation calcul / essai.
 
+
 ---
 
+# 37. Batterie de traction et de stockage — intégration système complète
+
+Dans le cadre du système STHO-ME, la batterie n’est pas conçue au niveau électrochimique interne.
+Le programme ne dimensionne pas la chimie de l’accumulateur, mais il doit dimensionner **son intégration système**, à partir de cellules lithium-ion du commerce.
+
+La batterie constitue :
+
+* une réserve d’énergie ;
+* un tampon de puissance ;
+* un organe d’absorption des transitoires ;
+* un élément de stabilisation du fonctionnement global ;
+* un sous-système critique pour la sûreté électrique et thermique.
+
+Le programme doit donc calculer :
+
+* l’énergie utile à embarquer ;
+* la puissance instantanée à fournir et à absorber ;
+* la tension bus visée ;
+* le nombre de cellules en série ;
+* le nombre de cellules en parallèle ;
+* la masse batterie ;
+* le volume batterie ;
+* les courants maximaux ;
+* les pertes Joule ;
+* les contraintes thermiques ;
+* la compatibilité avec BMS, alternateur et électronique de puissance.
+
+---
+
+## 37.1 Rôle fonctionnel de la batterie dans l’architecture STHO-ME
+
+La batterie ne doit pas être considérée comme un simple réservoir d’énergie, mais comme un organe actif du fonctionnement hybride.
+
+Ses fonctions principales sont :
+
+### FB1 — Fournir l’énergie de traction ou d’usage
+
+La batterie doit pouvoir alimenter les charges lorsque le générateur thermo-hybride n’est pas en fonctionnement ou lorsque la demande instantanée dépasse la puissance générée.
+
+### FB2 — Absorber les variations rapides de puissance
+
+La batterie doit amortir les appels de courant transitoires, les crêtes de puissance et les variations de charge.
+
+### FB3 — Permettre le fonctionnement intermittent du générateur
+
+Le STHO-ME pouvant fonctionner par séquences plutôt qu’en continu, la batterie doit assurer la continuité énergétique entre les phases de production.
+
+### FB4 — Recevoir l’énergie de recharge
+
+La batterie doit accepter une recharge pilotée par l’alternateur dans les limites imposées par la chimie, le BMS, la température et la stratégie énergétique.
+
+### FB5 — Participer à la sûreté du système
+
+La batterie, via son BMS et son architecture physique, doit contribuer à la limitation des risques :
+
+* surtension ;
+* sous-tension ;
+* surintensité ;
+* surcharge ;
+* surchauffe ;
+* emballement thermique.
+
+---
+
+# 38. Grandeurs de base à définir pour la batterie
+
+Le programme doit exiger ou calculer les grandeurs suivantes.
+
+## 38.1 Tension nominale cellule
+
+$$
+U_{\text{cell,nom}}
+$$
+
+## 38.2 Tension maximale cellule
+
+$$
+U_{\text{cell,max}}
+$$
+
+## 38.3 Tension minimale cellule
+
+$$
+U_{\text{cell,min}}
+$$
+
+## 38.4 Capacité unitaire cellule
+
+$$
+C_{\text{cell}}
+$$
+
+en Ah.
+
+## 38.5 Énergie unitaire cellule
+
+$$
+E_{\text{cell}} = U_{\text{cell,nom}} \cdot C_{\text{cell}}
+$$
+
+## 38.6 Masse unitaire cellule
+
+$$
+m_{\text{cell}}
+$$
+
+## 38.7 Résistance interne unitaire cellule
+
+$$
+R_{\text{cell}}
+$$
+
+## 38.8 Courant continu maximal cellule
+
+$$
+I_{\text{cell,max,cont}}
+$$
+
+## 38.9 Courant de pointe maximal cellule
+
+$$
+I_{\text{cell,max,peak}}
+$$
+
+## 38.10 Température minimale de fonctionnement
+
+$$
+T_{\text{cell,min}}
+$$
+
+## 38.11 Température maximale de fonctionnement
+
+$$
+T_{\text{cell,max}}
+$$
+
+---
+
+# 39. Dimensionnement tension du pack
+
+Le choix de la tension bus est structurant car il conditionne :
+
+* le courant ;
+* la section des câbles ;
+* les pertes Joule ;
+* la compatibilité alternateur ;
+* la compatibilité électronique de puissance ;
+* la sécurité électrique.
+
+## 39.1 Tension nominale du pack
+
+$$
+U_{\text{pack,nom}} = N_s \cdot U_{\text{cell,nom}}
+$$
+
+où :
+
+* $N_s$ = nombre de cellules en série.
+
+## 39.2 Tension maximale du pack
+
+$$
+U_{\text{pack,max}} = N_s \cdot U_{\text{cell,max}}
+$$
+
+## 39.3 Tension minimale du pack
+
+$$
+U_{\text{pack,min}} = N_s \cdot U_{\text{cell,min}}
+$$
+
+## 39.4 Nombre de cellules en série
+
+À partir d’une tension bus cible :
+
+$$
+N_s = \frac{U_{\text{bus,cible}}}{U_{\text{cell,nom}}}
+$$
+
+En pratique :
+
+$$
+N_s = \text{arrondi entier compatible}
+$$
+
+avec vérification sur la plage réelle :
+
+$$
+U_{\text{pack,min}} \le U_{\text{bus,fonctionnel}} \le U_{\text{pack,max}}
+$$
+
+---
+
+# 40. Dimensionnement capacité et énergie du pack
+
+## 40.1 Capacité totale du pack
+
+Pour des branches parallèles :
+
+$$
+C_{\text{pack}} = N_p \cdot C_{\text{cell}}
+$$
+
+où :
+
+* $N_p$ = nombre de cellules en parallèle.
+
+## 40.2 Énergie nominale du pack
+
+$$
+E_{\text{pack}} = U_{\text{pack,nom}} \cdot C_{\text{pack}}
+$$
+
+## 40.3 Énergie utile réellement exploitable
+
+Le pack ne doit pas être utilisé sur 100 % de sa capacité théorique.
+On introduit une profondeur de décharge admissible :
+
+$$
+DoD
+$$
+
+Alors :
+
+$$
+E_{\text{utile}} = E_{\text{pack}} \cdot DoD
+$$
+
+avec en pratique :
+
+* usage conservateur : $DoD = 0.7$ à $0.8$ ;
+* usage plus agressif : à valider selon cellules choisies.
+
+## 40.4 Nombre de cellules en parallèle
+
+$$
+N_p = \frac{C_{\text{pack}}}{C_{\text{cell}}}
+$$
+
+ou encore, à partir d’une énergie cible :
+
+$$
+N_p = \frac{E_{\text{utile,cible}}}{N_s \cdot U_{\text{cell,nom}} \cdot C_{\text{cell}} \cdot DoD}
+$$
+
+---
+
+# 41. Nombre total de cellules, masse et volume batterie
+
+## 41.1 Nombre total de cellules
+
+$$
+N_{\text{tot}} = N_s \cdot N_p
+$$
+
+## 41.2 Masse brute des cellules
+
+$$
+m_{\text{cellules}} = N_{\text{tot}} \cdot m_{\text{cell}}
+$$
+
+## 41.3 Masse pack estimée
+
+La masse totale batterie n’est pas limitée à la masse des cellules.
+Il faut intégrer :
+
+* interconnexions ;
+* structure ;
+* enveloppe ;
+* refroidissement ;
+* capteurs ;
+* BMS ;
+* protections.
+
+On introduit un coefficient d’intégration :
+
+$$
+K_{m,\text{pack}} > 1
+$$
+
+Alors :
+
+$$
+m_{\text{pack}} = K_{m,\text{pack}} \cdot m_{\text{cellules}}
+$$
+
+## 41.4 Volume pack estimé
+
+De même :
+
+$$
+V_{\text{pack}} = K_{V,\text{pack}} \cdot N_{\text{tot}} \cdot V_{\text{cell}}
+$$
+
+où $K_{V,\text{pack}}$ tient compte de l’intégration réelle.
+
+---
+
+# 42. Courants et puissances batterie
+
+## 42.1 Courant demandé par la charge
+
+$$
+I = \frac{P}{U}
+$$
+
+En régime pack :
+
+$$
+I_{\text{pack}} = \frac{P_{\text{pack}}}{U_{\text{pack}}}
+$$
+
+## 42.2 Courant par cellule
+
+Dans une architecture parallèle idéale :
+
+$$
+I_{\text{cell}} = \frac{I_{\text{pack}}}{N_p}
+$$
+
+## 42.3 Condition de tenue en courant continu
+
+$$
+I_{\text{cell}} \le I_{\text{cell,max,cont}}
+$$
+
+## 42.4 Condition de tenue en pointe
+
+$$
+I_{\text{cell,peak}} \le I_{\text{cell,max,peak}}
+$$
+
+## 42.5 Puissance maximale délivrable par le pack
+
+$$
+P_{\text{pack,max}} = U_{\text{pack}} \cdot I_{\text{pack,max}}
+$$
+
+avec :
+
+$$
+I_{\text{pack,max}} = N_p \cdot I_{\text{cell,max}}
+$$
+
+---
+
+# 43. Contraintes spécifiques de l’architecture hybride STHO-ME
+
+Dans ton architecture, le générateur peut ne fonctionner qu’une fraction du temps total.
+La batterie doit donc couvrir :
+
+* les phases sans génération ;
+* les transitoires ;
+* les appels de puissance ;
+* les écarts entre production moyenne et demande instantanée.
+
+## 43.1 Puissance instantanée à fournir ou absorber
+
+Si le générateur fonctionne sur une fraction $\beta$ du temps :
+
+$$
+P_{\text{gén,inst}} = \frac{P_{\text{usage}} + P_{\text{recharge}}}{\beta}
+$$
+
+Pour $\beta = 0.5$ :
+
+$$
+P_{\text{gén,inst}} = 2,(P_{\text{usage}} + P_{\text{recharge}})
+$$
+
+La batterie doit alors être dimensionnée pour :
+
+* accepter cette recharge instantanée quand le générateur fonctionne ;
+* fournir seule les besoins hors phase de génération.
+
+## 43.2 Énergie minimale tampon
+
+Si la batterie doit tenir une durée autonome sans génération :
+
+$$
+t_{\text{aut}}
+$$
+
+alors :
+
+$$
+E_{\text{tampon}} = P_{\text{usage,moy}} \cdot t_{\text{aut}}
+$$
+
+En tenant compte du rendement électrique global :
+
+$$
+E_{\text{tampon,réel}} = \frac{P_{\text{usage,moy}} \cdot t_{\text{aut}}}{\eta_{\text{elec}}}
+$$
+
+---
+
+# 44. Pertes Joule et échauffement batterie
+
+## 44.1 Résistance interne équivalente du pack
+
+Pour une architecture simple avec $N_s$ séries et $N_p$ parallèles :
+
+$$
+R_{\text{pack}} = N_s \cdot \frac{R_{\text{cell}}}{N_p}
+$$
+
+## 44.2 Pertes Joule du pack
+
+$$
+P_J = R_{\text{pack}} \cdot I_{\text{pack}}^2
+$$
+
+## 44.3 Pertes Joule par cellule
+
+$$
+P_{J,\text{cell}} = R_{\text{cell}} \cdot I_{\text{cell}}^2
+$$
+
+## 44.4 Condition thermique générale
+
+La température du pack doit vérifier :
+
+$$
+T_{\text{pack}} < T_{\text{cell,max}}
+$$
+
+et :
+
+$$
+T_{\text{pack}} > T_{\text{cell,min}}
+$$
+
+en fonctionnement utile.
+
+## 44.5 Besoin de refroidissement batterie
+
+Si les pertes sont significatives :
+
+$$
+\dot Q_{\text{batt}} \approx P_J
+$$
+
+et la surface ou le circuit de refroidissement doit satisfaire :
+
+$$
+A_{\text{éch,batt}} \ge \frac{\dot Q_{\text{batt}}}{h \Delta T}
+$$
+
+---
+
+# 45. Rendement batterie et rendement de charge
+
+## 45.1 Rendement de décharge
+
+$$
+\eta_{\text{décharge}} = \frac{E_{\text{utile,délivrée}}}{E_{\text{extraite chimiquement}}}
+$$
+
+## 45.2 Rendement de charge
+
+$$
+\eta_{\text{charge}} = \frac{E_{\text{stockée}}}{E_{\text{reçue}}}
+$$
+
+## 45.3 Rendement aller-retour
+
+$$
+\eta_{\text{RT}} = \eta_{\text{charge}} \cdot \eta_{\text{décharge}}
+$$
+
+Le programme doit intégrer ce rendement dans les bilans énergétiques complets.
+
+---
+
+# 46. État de charge, fenêtre utile et stratégie d’exploitation
+
+La batterie ne doit pas être exploitée entre 0 % et 100 % de SOC en usage normal, sauf justification explicite.
+
+## 46.1 État de charge
+
+$$
+SOC = \frac{Q_{\text{restante}}}{Q_{\text{nominale}}}
+$$
+
+## 46.2 Fenêtre utile recommandée
+
+Le programme doit permettre de définir :
+
+* $SOC_{\min}$ ;
+* $SOC_{\max}$.
+
+L’énergie utile devient alors :
+
+$$
+E_{\text{utile}} = E_{\text{pack}} \cdot (SOC_{\max} - SOC_{\min})
+$$
+
+## 46.3 Conséquence système
+
+Plus la fenêtre SOC utile est réduite :
+
+* meilleure durée de vie ;
+* meilleure sécurité ;
+* mais énergie réellement disponible plus faible.
+
+---
+
+# 47. BMS — fonctions minimales obligatoires
+
+Le BMS doit être traité comme un organe obligatoire du système.
+
+## 47.1 Fonctions minimales
+
+Le BMS doit assurer :
+
+* mesure tension cellule ou groupe ;
+* mesure courant pack ;
+* estimation SOC ;
+* protection surtension ;
+* protection sous-tension ;
+* protection surintensité ;
+* protection température ;
+* équilibrage ;
+* coupure sécurité.
+
+## 47.2 Condition de compatibilité système
+
+Le programme doit vérifier :
+
+$$
+I_{\text{charge}} < I_{\text{BMS,max,charge}}
+$$
+
+$$
+I_{\text{décharge}} < I_{\text{BMS,max,décharge}}
+$$
+
+$$
+U_{\text{pack,max}} < U_{\text{BMS,max}}
+$$
+
+---
+
+# 48. Compatibilité batterie / alternateur / électronique de puissance
+
+Le dimensionnement batterie ne peut pas être isolé du reste du système.
+
+## 48.1 Compatibilité tension de charge
+
+La tension de sortie régulée doit vérifier :
+
+$$
+U_{\text{charge}} \le U_{\text{pack,max autorisé}}
+$$
+
+## 48.2 Compatibilité courant de charge
+
+$$
+I_{\text{charge}} \le I_{\text{charge,max pack}}
+$$
+
+## 48.3 Compatibilité puissance instantanée
+
+$$
+P_{\text{charge}} = U_{\text{pack}} \cdot I_{\text{charge}}
+$$
+
+Le système générateur ne doit pas imposer à la batterie une puissance de charge supérieure à ce qu’elle peut absorber durablement.
+
+---
+
+# 49. Contraintes de sécurité batterie
+
+## 49.1 Contraintes électriques
+
+Le système doit éviter :
+
+* court-circuit ;
+* inversion polarité ;
+* surtension ;
+* sous-tension ;
+* surintensité.
+
+## 49.2 Contraintes thermiques
+
+Le système doit éviter :
+
+* points chauds locaux ;
+* gradient thermique excessif ;
+* absence de dissipation ;
+* recharge à température inadaptée.
+
+## 49.3 Contraintes mécaniques
+
+Le pack doit résister :
+
+* aux vibrations ;
+* aux chocs ;
+* aux efforts inertiels ;
+* aux efforts de montage ;
+* à la dilatation différentielle.
+
+## 49.4 Contraintes d’intégration
+
+Le pack doit rester compatible avec :
+
+* volume disponible ;
+* masse admissible ;
+* refroidissement disponible ;
+* accessibilité maintenance ;
+* protection incendie / isolement.
+
+---
+
+# 50. Critères d’acceptation technique de la batterie intégrée
+
+La batterie intégrée au système ne peut être considérée conforme que si :
+
+## 50.1 Critère énergétique
+
+$$
+E_{\text{utile}} \ge E_{\text{besoin mission}}
+$$
+
+## 50.2 Critère puissance
+
+$$
+P_{\text{pack,max}} \ge P_{\text{appel,max}}
+$$
+
+## 50.3 Critère courant cellule
+
+$$
+I_{\text{cell}} \le I_{\text{cell,max admissible}}
+$$
+
+## 50.4 Critère thermique
+
+$$
+T_{\text{pack,max}} < T_{\text{cell,max}}
+$$
+
+## 50.5 Critère tension
+
+$$
+U_{\text{pack,min}} \le U_{\text{système requis}} \le U_{\text{pack,max}}
+$$
+
+## 50.6 Critère masse
+
+$$
+m_{\text{pack}} \le m_{\text{pack,max admissible}}
+$$
+
+---
+
+# 51. Sorties minimales du programme sur la batterie
+
+Le logiciel doit fournir automatiquement :
+
+* type de cellule utilisé en entrée ;
+* nombre de cellules en série ;
+* nombre de cellules en parallèle ;
+* nombre total de cellules ;
+* tension nominale pack ;
+* tension max pack ;
+* tension min pack ;
+* capacité pack ;
+* énergie pack ;
+* énergie utile ;
+* courant max demandé ;
+* courant par cellule ;
+* pertes Joule ;
+* masse estimée pack ;
+* volume estimé pack ;
+* avertissements BMS ;
+* avertissements thermiques ;
+* avertissements de compatibilité charge.
+
+---
+
+# 52. Hypothèses et limites de validité de cette modélisation batterie
+
+Cette modélisation est valide pour un **pré-dimensionnement système**.
+Elle ne remplace pas :
+
+* une modélisation électrochimique fine ;
+* une modélisation thermique 3D du pack ;
+* une étude détaillée d’équilibrage ;
+* une étude de sûreté batterie complète ;
+* une validation expérimentale sur cellules réelles.
+
+Le programme doit donc explicitement distinguer :
+
+* les calculs fermes ;
+* les estimations ;
+* les inconnues bloquantes ;
+* les inconnues à valider par essais.
 
 
+
+---
+
+# 53. Alternateur — intégration système complète
+
+Dans le cadre du système STHO-ME, l’alternateur est l’organe de conversion entre la puissance mécanique fournie par la chaîne thermo-oscillatoire et la puissance électrique utile au bus continu, à la batterie et aux auxiliaires.
+
+L’alternateur ne doit pas être considéré comme un composant isolé, mais comme un sous-système couplé :
+
+* à la cinématique du vilebrequin ;
+* au régime réel de fonctionnement ;
+* au couple disponible ;
+* à la stratégie de recharge ;
+* à la batterie ;
+* à l’électronique de conversion ;
+* au refroidissement ;
+* au pilotage énergétique global.
+
+Le programme doit donc dimensionner ou vérifier :
+
+* la puissance électrique utile ;
+* la puissance mécanique à fournir ;
+* le couple résistant induit ;
+* la vitesse de rotation de fonctionnement ;
+* la plage de rendement ;
+* les pertes ;
+* les contraintes thermiques ;
+* la compatibilité avec le bus DC et la batterie ;
+* la compatibilité avec le mode de fonctionnement intermittent du STHO-ME.
+
+---
+
+# 54. Rôle fonctionnel de l’alternateur dans l’architecture STHO-ME
+
+## FA1 — Convertir la puissance mécanique en puissance électrique
+
+L’alternateur doit convertir une puissance mécanique issue de l’arbre en puissance électrique exploitable.
+
+## FA2 — Alimenter le bus électrique
+
+L’alternateur doit permettre l’alimentation du bus continu ou du système de conversion.
+
+## FA3 — Recharger la batterie
+
+L’alternateur doit fournir une puissance suffisante pour assurer la recharge dans les limites imposées par la batterie et le BMS.
+
+## FA4 — Stabiliser la chaîne énergétique
+
+Par l’intermédiaire de l’électronique de puissance, l’alternateur doit permettre une gestion stable de la puissance électrique malgré les variations mécaniques.
+
+## FA5 — Limiter les pertes et l’échauffement
+
+L’alternateur doit fonctionner dans une plage de vitesse et de charge compatible avec son rendement et sa tenue thermique.
+
+---
+
+# 55. Grandeurs fondamentales de l’alternateur
+
+Le programme doit permettre d’entrer, d’estimer ou de vérifier les grandeurs suivantes.
+
+## 55.1 Puissance électrique nominale utile
+
+$$
+P_{\text{elec,nom}}
+$$
+
+## 55.2 Puissance électrique maximale
+
+$$
+P_{\text{elec,max}}
+$$
+
+## 55.3 Tension de sortie nominale
+
+$$
+U_{\text{alt}}
+$$
+
+## 55.4 Courant nominal
+
+$$
+I_{\text{alt,nom}}
+$$
+
+## 55.5 Courant maximal
+
+$$
+I_{\text{alt,max}}
+$$
+
+## 55.6 Rendement alternateur
+
+$$
+\eta_{\text{gen}}
+$$
+
+## 55.7 Vitesse de rotation nominale
+
+$$
+N_{\text{alt,nom}}
+$$
+
+## 55.8 Vitesse de rotation minimale utile
+
+$$
+N_{\text{alt,min}}
+$$
+
+## 55.9 Vitesse de rotation maximale admissible
+
+$$
+N_{\text{alt,max}}
+$$
+
+## 55.10 Couple résistant alternateur
+
+$$
+T_{\text{alt}}
+$$
+
+## 55.11 Température maximale admissible alternateur
+
+$$
+T_{\text{alt,max}}
+$$
+
+---
+
+# 56. Chaîne de conversion énergétique de l’alternateur
+
+La chaîne de conversion complète s’écrit :
+
+$$
+P_{\text{méc,entrée}} \rightarrow P_{\text{elec,brute}} \rightarrow P_{\text{elec,convertie}} \rightarrow P_{\text{bus}} \rightarrow P_{\text{charge}}
+$$
+
+avec des pertes à chaque étage.
+
+## 56.1 Puissance électrique brute générée
+
+$$
+P_{\text{elec,brute}} = \eta_{\text{gen}} \cdot P_{\text{méc,entrée}}
+$$
+
+## 56.2 Puissance disponible après conversion électronique
+
+Si l’électronique de redressement et de conversion a un rendement $\eta_{\text{conv}}$ :
+
+$$
+P_{\text{bus}} = \eta_{\text{conv}} \cdot P_{\text{elec,brute}}
+$$
+
+## 56.3 Puissance utile réellement disponible pour la batterie ou les charges
+
+$$
+P_{\text{utile}} = \eta_{\text{charge}} \cdot P_{\text{bus}}
+$$
+
+Donc :
+
+$$
+P_{\text{utile}} = \eta_{\text{gen}} \cdot \eta_{\text{conv}} \cdot \eta_{\text{charge}} \cdot P_{\text{méc,entrée}}
+$$
+
+---
+
+# 57. Puissance mécanique requise à l’arbre
+
+L’alternateur impose une puissance mécanique minimale à fournir.
+
+## 57.1 Cas général
+
+$$
+P_{\text{méc,req}} = \frac{P_{\text{utile}}}{\eta_{\text{gen}} \cdot \eta_{\text{conv}} \cdot \eta_{\text{charge}}}
+$$
+
+## 57.2 Cas de simple alimentation électrique sans charge batterie
+
+$$
+P_{\text{méc,req}} = \frac{P_{\text{bus}}}{\eta_{\text{gen}} \cdot \eta_{\text{conv}}}
+$$
+
+## 57.3 Cas nominal du STHO-ME
+
+Si l’alternateur doit à la fois :
+
+* alimenter la charge utile ;
+* et recharger la batterie ;
+
+alors :
+
+$$
+P_{\text{utile,total}} = P_{\text{usage}} + P_{\text{recharge}}
+$$
+
+et donc :
+
+$$
+P_{\text{méc,req}} = \frac{P_{\text{usage}} + P_{\text{recharge}}}{\eta_{\text{gen}} \cdot \eta_{\text{conv}} \cdot \eta_{\text{charge}}}
+$$
+
+---
+
+# 58. Couple résistant imposé par l’alternateur
+
+Le couple résistant est une grandeur essentielle car il charge directement le vilebrequin, l’arbre et la chaîne mécanique.
+
+## 58.1 Vitesse angulaire
+
+$$
+\omega_{\text{alt}} = \frac{2\pi N_{\text{alt}}}{60}
+$$
+
+## 58.2 Couple résistant alternateur
+
+$$
+T_{\text{alt}} = \frac{P_{\text{méc,req}}}{\omega_{\text{alt}}}
+$$
+
+## 58.3 Influence directe sur la mécanique système
+
+Plus $N_{\text{alt}}$ est faible, plus le couple résistant demandé est élevé à puissance constante.
+Cette relation est fondamentale dans le choix :
+
+* du rapport de transmission ;
+* du régime moteur ;
+* de la géométrie arbre / clavette / roulements ;
+* de l’inertie nécessaire au lissage.
+
+---
+
+# 59. Compatibilité vitesse entre alternateur et moteur
+
+L’alternateur n’est généralement pas libre de fonctionner à n’importe quelle vitesse.
+Le programme doit donc vérifier la compatibilité entre :
+
+* le régime du moteur thermo-hybride ;
+* le régime de l’arbre ;
+* le régime optimal de l’alternateur ;
+* le rapport de transmission éventuel.
+
+## 59.1 Cas entraînement direct
+
+Si l’alternateur est directement accouplé à l’arbre :
+
+$$
+N_{\text{alt}} = N_{\text{arbre}}
+$$
+
+## 59.2 Cas entraînement par rapport mécanique
+
+Si un rapport mécanique $i$ est utilisé :
+
+$$
+N_{\text{alt}} = i \cdot N_{\text{arbre}}
+$$
+
+## 59.3 Condition de fonctionnement utile
+
+$$
+N_{\text{alt,min}} \le N_{\text{alt}} \le N_{\text{alt,max}}
+$$
+
+## 59.4 Condition de fonctionnement nominal optimisé
+
+L’idéal est que le point nominal de fonctionnement du STHO-ME amène l’alternateur dans une zone où :
+
+* le rendement est élevé ;
+* la tension régulée est stable ;
+* l’échauffement reste maîtrisé.
+
+---
+
+# 60. Tension, courant et puissance électrique de sortie
+
+## 60.1 Relation de base
+
+$$
+P_{\text{elec}} = U_{\text{alt}} \cdot I_{\text{alt}}
+$$
+
+Pour un système alternatif triphasé, cette expression doit être adaptée à la topologie réelle, mais le programme peut travailler à ce niveau en puissance équivalente utile.
+
+## 60.2 Courant nominal
+
+$$
+I_{\text{alt,nom}} = \frac{P_{\text{elec,nom}}}{U_{\text{alt}}}
+$$
+
+## 60.3 Courant maximal
+
+$$
+I_{\text{alt,max}} = \frac{P_{\text{elec,max}}}{U_{\text{alt}}}
+$$
+
+## 60.4 Vérification de compatibilité conversion
+
+Le système doit vérifier :
+
+$$
+U_{\text{alt}} \rightarrow U_{\text{bus}}
+$$
+
+via l’électronique de redressement et de régulation, avec maintien d’une plage exploitable pour la charge batterie et les auxiliaires.
+
+---
+
+# 61. Pertes alternateur
+
+L’alternateur dissipe une partie de la puissance mécanique en pertes thermiques.
+
+## 61.1 Pertes globales
+
+$$
+P_{\text{pertes,alt}} = P_{\text{méc,entrée}} - P_{\text{elec,brute}}
+$$
+
+ou encore :
+
+$$
+P_{\text{pertes,alt}} = P_{\text{méc,entrée}} \cdot (1-\eta_{\text{gen}})
+$$
+
+## 61.2 Origine physique des pertes
+
+Les pertes peuvent être décomposées en :
+
+* pertes cuivre ;
+* pertes fer ;
+* pertes mécaniques ;
+* pertes ventilation ;
+* pertes électroniques internes éventuelles.
+
+## 61.3 Modèle simplifié exploitable par le programme
+
+À défaut de modèle détaillé :
+
+$$
+P_{\text{pertes,alt}} = P_{\text{fixes}} + P_{\text{variables}}
+$$
+
+avec :
+
+$$
+P_{\text{variables}} \propto I^2
+$$
+
+si on veut intégrer une première dépendance au courant.
+
+---
+
+# 62. Contraintes thermiques alternateur
+
+## 62.1 Bilan thermique simplifié
+
+En première approche, la puissance thermique à dissiper vaut :
+
+$$
+\dot Q_{\text{alt}} \approx P_{\text{pertes,alt}}
+$$
+
+## 62.2 Surface d’échange minimale
+
+$$
+A_{\text{éch,alt}} \ge \frac{\dot Q_{\text{alt}}}{h \Delta T}
+$$
+
+## 62.3 Condition thermique générale
+
+$$
+T_{\text{alt}} < T_{\text{alt,max}}
+$$
+
+## 62.4 Refroidissement
+
+Le programme doit permettre de distinguer :
+
+* convection naturelle ;
+* convection forcée air ;
+* refroidissement liquide ;
+* couplage thermique avec masse métallique du système.
+
+## 62.5 Impact sur le rendement
+
+L’échauffement excessif peut entraîner :
+
+* baisse du rendement ;
+* dégradation isolation ;
+* dérive électrique ;
+* réduction durée de vie.
+
+---
+
+# 63. Compatibilité alternateur / batterie / BMS
+
+L’alternateur ne doit jamais être dimensionné indépendamment de la batterie et du système de charge.
+
+## 63.1 Compatibilité de tension
+
+La tension de sortie régulée du système doit satisfaire :
+
+$$
+U_{\text{charge}} \le U_{\text{pack,max admissible}}
+$$
+
+et :
+
+$$
+U_{\text{charge}} \ge U_{\text{niveau requis pour recharge}}
+$$
+
+## 63.2 Compatibilité de courant
+
+$$
+I_{\text{charge}} \le I_{\text{pack,max,charge}}
+$$
+
+et :
+
+$$
+I_{\text{charge}} \le I_{\text{BMS,max,charge}}
+$$
+
+## 63.3 Compatibilité de puissance
+
+$$
+P_{\text{charge}} = U_{\text{pack}} \cdot I_{\text{charge}}
+$$
+
+L’alternateur ne doit pas imposer un régime de charge impossible à absorber thermiquement ou électriquement par la batterie.
+
+---
+
+# 64. Cas particulier du fonctionnement intermittent du STHO-ME
+
+Dans l’architecture STHO-ME, le générateur peut ne pas fonctionner en permanence.
+Cela modifie fortement la contrainte alternateur.
+
+## 64.1 Puissance électrique instantanée imposée
+
+Si le générateur ne fonctionne que sur une fraction $\beta$ du temps :
+
+$$
+P_{\text{alt,inst}} = \frac{P_{\text{usage}} + P_{\text{recharge}}}{\beta}
+$$
+
+Cas particulier pour :
+
+$$
+\beta = 0.5
+$$
+
+alors :
+
+$$
+P_{\text{alt,inst}} = 2,(P_{\text{usage}} + P_{\text{recharge}})
+$$
+
+## 64.2 Conséquences directes
+
+L’alternateur doit alors être vérifié sur :
+
+* puissance de pointe ;
+* courant de pointe ;
+* couple résistant de pointe ;
+* échauffement de pointe ;
+* vitesse nécessaire ;
+* compatibilité avec la chaîne mécanique.
+
+---
+
+# 65. Stratégie de dimensionnement de l’alternateur
+
+Le programme doit permettre deux approches.
+
+## 65.1 Approche par puissance cible
+
+Entrée :
+
+$$
+P_{\text{elec,cible}}
+$$
+
+Le programme calcule :
+
+* puissance mécanique requise ;
+* couple résistant ;
+* courant nominal ;
+* compatibilité thermique.
+
+## 65.2 Approche par alternateur existant
+
+Entrées :
+
+* puissance nominale ;
+* rendement ;
+* plage de vitesse ;
+* tension ;
+* courant ;
+* masse.
+
+Le programme vérifie :
+
+* compatibilité avec le moteur ;
+* compatibilité avec le bus ;
+* compatibilité avec la batterie ;
+* compatibilité avec le refroidissement.
+
+---
+
+# 66. Masse et intégration physique de l’alternateur
+
+Le programme doit intégrer l’effet de l’alternateur sur :
+
+* masse totale système ;
+* encombrement ;
+* inertie tournante éventuelle ;
+* porte-à-faux ;
+* montage mécanique ;
+* refroidissement ;
+* maintenance.
+
+## 66.1 Masse alternateur
+
+$$
+m_{\text{alt}}
+$$
+
+## 66.2 Densité de puissance massique
+
+$$
+\rho_{P,m} = \frac{P_{\text{elec,nom}}}{m_{\text{alt}}}
+$$
+
+## 66.3 Densité de puissance volumique
+
+$$
+\rho_{P,V} = \frac{P_{\text{elec,nom}}}{V_{\text{alt}}}
+$$
+
+Ces ratios sont utiles pour comparer plusieurs solutions.
+
+---
+
+# 67. Contraintes mécaniques induites par l’alternateur
+
+## 67.1 Effort tangent équivalent sur arbre
+
+Si le couple est transmis sur un rayon effectif $r$ :
+
+$$
+F_t = \frac{T_{\text{alt}}}{r}
+$$
+
+## 67.2 Vérification clavette / accouplement
+
+L’organe de transmission entre arbre et alternateur doit vérifier :
+
+* cisaillement ;
+* pression de contact ;
+* tenue fatigue ;
+* absence de glissement.
+
+## 67.3 Vérification roulements support alternateur
+
+Les roulements supportant l’alternateur ou l’arbre associé doivent être vérifiés en charge radiale et éventuellement axiale selon l’architecture.
+
+---
+
+# 68. Rendement réel de la chaîne alternateur
+
+Le rendement global de conversion côté génération doit être traité comme un produit de rendements.
+
+## 68.1 Rendement partiel
+
+$$
+\eta_{\text{génération}} = \eta_{\text{gen}} \cdot \eta_{\text{conv}}
+$$
+
+## 68.2 Rendement jusqu’à la batterie
+
+$$
+\eta_{\text{gén}\rightarrow \text{pack}} = \eta_{\text{gen}} \cdot \eta_{\text{conv}} \cdot \eta_{\text{charge}}
+$$
+
+## 68.3 Conséquence de calcul
+
+Pour délivrer une puissance utile donnée, la chaîne mécanique doit toujours fournir davantage :
+
+$$
+P_{\text{méc,req}} > P_{\text{utile}}
+$$
+
+Cette différence doit être comptabilisée dans le bilan carburant, le bilan thermique et le dimensionnement mécanique.
+
+---
+
+# 69. Critères d’acceptation technique de l’alternateur intégré
+
+L’alternateur ne peut être considéré comme conforme que si tous les critères suivants sont satisfaits.
+
+## 69.1 Critère puissance
+
+$$
+P_{\text{elec,max}} \ge P_{\text{usage}} + P_{\text{recharge}}
+$$
+
+ou, en fonctionnement intermittent, sur la puissance instantanée imposée.
+
+## 69.2 Critère couple
+
+$$
+T_{\text{moteur disponible}} \ge T_{\text{alt}} + T_{\text{autres charges}}
+$$
+
+## 69.3 Critère vitesse
+
+$$
+N_{\text{alt,min}} \le N_{\text{alt,fonctionnement}} \le N_{\text{alt,max}}
+$$
+
+## 69.4 Critère thermique
+
+$$
+T_{\text{alt}} < T_{\text{alt,max}}
+$$
+
+## 69.5 Critère électrique
+
+$$
+U_{\text{sortie}} \in \text{plage compatible bus et batterie}
+$$
+
+et :
+
+$$
+I_{\text{sortie}} \le I_{\text{alt,max}}
+$$
+
+## 69.6 Critère rendement
+
+Le point de fonctionnement retenu doit se situer dans une zone de rendement acceptable par rapport à l’objectif système.
+
+---
+
+# 70. Sorties minimales du programme sur l’alternateur
+
+Le logiciel doit générer automatiquement :
+
+* puissance utile requise ;
+* puissance mécanique requise ;
+* vitesse alternateur ;
+* couple résistant alternateur ;
+* courant nominal ;
+* courant maximal ;
+* tension de sortie ;
+* rendement alternateur ;
+* rendement chaîne génération ;
+* pertes thermiques ;
+* puissance à dissiper ;
+* avertissements de compatibilité vitesse ;
+* avertissements de compatibilité batterie ;
+* avertissements de compatibilité BMS ;
+* avertissements thermiques ;
+* niveau de validité du calcul.
+
+---
+
+# 71. Hypothèses et limites de validité de cette modélisation alternateur
+
+La présente modélisation est valable pour un pré-dimensionnement système.
+Elle ne remplace pas :
+
+* les courbes constructeur ;
+* les cartes rendement / vitesse / charge ;
+* la modélisation électromagnétique détaillée ;
+* l’étude d’isolation ;
+* l’étude vibratoire rotor ;
+* la validation thermique réelle.
+
+Le programme doit distinguer explicitement :
+
+* les calculs fermes ;
+* les estimations de pré-dimensionnement ;
+* les données imposées par constructeur ;
+* les inconnues bloquantes ;
+* les inconnues nécessitant essais.
+
+---
+
+Si tu veux, la suite logique est de faire **la partie électronique de puissance / redressement / bus DC**, parce que c’est le maillon direct entre l’alternateur et la batterie.
