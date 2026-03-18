@@ -636,5 +636,640 @@ Mais ton dossier système doit encore verrouiller :
 
 ## cycle réel complet
 
+
 ---
 
+# 11. VARIABLES D’ENTRÉE STRUCTURÉES ET HIÉRARCHISÉES DU PROGRAMME
+
+Le programme ne doit jamais accepter des variables isolées sans hiérarchie physique.
+
+Chaque variable doit appartenir à une famille de calcul.
+
+---
+
+# 11.1 Bloc thermique primaire
+
+## Température côté chaud
+
+[
+T_h
+]
+
+avec :
+
+[
+T_h > T_c
+]
+
+et :
+
+[
+T_h < T_{limite\ matériau}
+]
+
+---
+
+## Température côté froid
+
+[
+T_c
+]
+
+---
+
+## Gradient thermique disponible
+
+\Delta T = T_h - T_c
+
+Condition minimale d’exploitation :
+
+[
+\Delta T > 40K
+]
+
+Sous ce seuil :
+
+rendement fortement dégradé.
+
+---
+
+## Flux thermique incident
+
+[
+\dot Q_{in}
+]
+
+---
+
+## Flux thermique récupérable sur échappement
+
+[
+\dot Q_{ech} = \dot m_{gaz} \times C_p \times (T_{gaz}-T_h)
+]
+
+avec :
+
+[
+C_p \approx 1000\ J/kg.K
+]
+
+---
+
+## Flux thermique récupérable sur composants internes
+
+[
+\dot Q_{comp}
+]
+
+issus :
+
+* alternateur,
+* électronique,
+* frottements,
+* boîte mécanique.
+
+---
+
+## Flux total utile
+
+[
+\dot Q_{utile} = \dot Q_{comb} + \dot Q_{ech} + \dot Q_{comp}
+]
+
+---
+
+---
+
+# 11.2 Bloc géométrique moteur complet
+
+---
+
+## Diamètre piston
+
+[
+D
+]
+
+---
+
+## Rayon piston
+
+[
+R = \frac{D}{2}
+]
+
+---
+
+## Surface utile piston
+
+S = \frac{\pi D^2}{4}
+
+---
+
+## Course utile
+
+[
+C
+]
+
+---
+
+## Volume balayé exact
+
+V_b = S \times C
+
+---
+
+## Volume mort
+
+[
+V_m
+]
+
+Obligatoire :
+
+[
+V_m > 0
+]
+
+---
+
+## Cylindrée réelle
+
+[
+V_t = V_b + V_m
+]
+
+---
+
+## Rapport volumétrique réel
+
+[
+r_v = \frac{V_t}{V_m}
+]
+
+---
+
+---
+
+# 11.3 Bloc pression interne réelle
+
+---
+
+## Pression minimale
+
+[
+P_{min}
+]
+
+---
+
+## Pression maximale
+
+[
+P_{max}
+]
+
+---
+
+## Pression moyenne effective
+
+[
+P_{me}
+]
+
+avec :
+
+[
+P_{min} < P_{me} < P_{max}
+]
+
+---
+
+## Rapport de pression
+
+[
+r_p = \frac{P_{max}}{P_{min}}
+]
+
+---
+
+## Force instantanée piston
+
+[
+F = P \times S
+]
+
+---
+
+## Force maximale réelle
+
+[
+F_{max} = P_{max} \times S
+]
+
+---
+
+---
+
+# 12. CINÉMATIQUE COMPLÈTE RÉELLE
+
+---
+
+## Régime moteur
+
+[
+N
+]
+
+---
+
+## Fréquence réelle
+
+[
+f = \frac{N}{60}
+]
+
+---
+
+## Pulsation réelle
+
+\omega = \frac{2\pi N}{60}
+
+---
+
+## Vitesse linéaire piston
+
+[
+V_p = 2 \times C \times f
+]
+
+---
+
+## Accélération piston max
+
+[
+a = \omega^2 \times R
+]
+
+---
+
+## Effort inertiel
+
+[
+F_i = m \times a
+]
+
+---
+
+## Effort total bielle
+
+[
+F_t = F + F_i
+]
+
+---
+
+---
+
+# 13. TRAVAIL THERMODYNAMIQUE RÉEL
+
+---
+
+## Travail élémentaire cycle
+
+[
+W = \int P dV
+]
+
+---
+
+## Approximation industrielle
+
+[
+W = P_{me} \times V_b
+]
+
+---
+
+## Puissance mécanique instantanée
+
+[
+P_m = W \times f
+]
+
+---
+
+## Couple moteur réel
+
+[
+C_m = \frac{P_m}{\omega}
+]
+
+---
+
+---
+
+# 14. DIMENSIONNEMENT STRUCTUREL DURCI
+
+---
+
+# Arbre
+
+---
+
+## Contrainte torsion
+
+[
+\tau = \frac{16C}{\pi d^3}
+]
+
+---
+
+## Diamètre arbre corrigé sécurité
+
+[
+d = \left(\frac{16C \times K_s}{\pi \tau_{adm}}\right)^{1/3}
+]
+
+avec :
+
+[
+K_s = 2\ à\ 3
+]
+
+---
+
+---
+
+# Flexion combinée
+
+[
+\sigma = \frac{32M}{\pi d^3}
+]
+
+---
+
+## Von Mises réel
+
+[
+\sigma_{vm} = \sqrt{\sigma^2 + 3\tau^2}
+]
+
+Condition :
+
+[
+\sigma_{vm} < \sigma_{adm}
+]
+
+---
+
+---
+
+# 15. BIELLE — VERSION INDUSTRIELLE
+
+---
+
+## Compression réelle
+
+[
+\sigma = \frac{F_t}{A}
+]
+
+---
+
+## Flambage Euler réel
+
+[
+F_{cr} = \frac{\pi^2 E I}{(K L)^2}
+]
+
+---
+
+Condition :
+
+[
+F_t < \frac{F_{cr}}{2}
+]
+
+---
+
+---
+
+# 16. BATTERIE — INTÉGRATION SYSTÈME COMPLÈTE
+
+Puisque cellules commerce :
+
+on dimensionne uniquement architecture.
+
+---
+
+## Tension bus
+
+[
+U_{bus}
+]
+
+---
+
+## Nombre série
+
+[
+N_s = \frac{U_{bus}}{U_{cell}}
+]
+
+---
+
+## Nombre parallèle
+
+[
+N_p = \frac{C_{tot}}{C_{cell}}
+]
+
+---
+
+## Énergie batterie
+
+[
+E = U_{bus} \times C_{tot}
+]
+
+---
+
+## Courant instantané max
+
+[
+I = \frac{P}{U}
+]
+
+---
+
+## Vérification thermique batterie
+
+[
+P_{joule} = R I^2
+]
+
+---
+
+---
+
+# 17. CONTRAINTE MAJEURE DE TON CONCEPT HYBRIDE
+
+Puisque moteur fonctionne 50% du temps :
+
+---
+
+## Puissance instantanée imposée
+
+P_{instant} = 2(P_{traction}+P_{recharge})
+
+---
+
+C’est la formule fondamentale de ton architecture.
+
+Elle gouverne :
+
+* dimension moteur,
+* alternateur,
+* refroidissement,
+* section arbre.
+
+---
+
+---
+
+# 18. REFROIDISSEMENT INDUSTRIEL RÉEL
+
+---
+
+## Puissance perdue
+
+[
+P_{pertes} = P_{entrée} - P_{utile}
+]
+
+---
+
+## Surface échange thermique
+
+[
+A = \frac{Q}{h \Delta T}
+]
+
+---
+
+## Si refroidissement forcé :
+
+[
+h = 50\ à\ 300
+]
+
+---
+
+## Si convection naturelle :
+
+[
+h = 5\ à\ 15
+]
+
+---
+
+---
+
+# 19. RENDEMENT GLOBAL RÉALISTE
+
+---
+
+## Rendement thermique théorique plafond
+
+[
+\eta = 1 - \frac{T_c}{T_h}
+]
+
+---
+
+## Rendement réel machine
+
+[
+\eta_{réel} = \eta_{Carnot} \times \eta_{mécanique} \times \eta_{alternateur}
+]
+
+---
+
+Ton système réel doit viser :
+
+---
+
+## réaliste :
+
+[
+25% à 35%
+]
+
+---
+
+## très ambitieux :
+
+[
+35% à 42%
+]
+
+---
+
+Au-delà :
+
+il faut validation expérimentale lourde.
+
+---
+
+---
+
+# 20. TABLEAU DES COEFFICIENTS OBLIGATOIRES
+
+Toujours imposer :
+
+---
+
+## sécurité mécanique
+
+[
+K_s = 2\ à\ 3
+]
+
+---
+
+## sécurité thermique
+
+[
+K_t = 1.3
+]
+
+---
+
+## sécurité électrique
+
+[
+K_e = 1.25
+]
+
+---
+
+---
+
+# 21. CE QU’UN DOSSIER INDUSTRIEL DOIT AJOUTER ENSUITE
+
+Encore absent :
+
+---
+
+* fatigue Wöhler,
+* dilatations différentielles,
+* jeux piston/cylindre,
+* rugosité,
+* rendement roulements,
+* pertes segmentation,
+* inerties tournantes complètes,
+* spectre vibratoire.
+
+---
