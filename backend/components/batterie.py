@@ -1,8 +1,8 @@
 # backend/components/batterie.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import asdict, dataclass, is_dataclass
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 import math
 
 # ============================================================
@@ -63,7 +63,7 @@ except Exception:
         calcul_puissance_charge_requise,
     )
 
-# electrolyte_solide.py (NOUVEAU)
+# electrolyte_solide.py
 try:
     from backend.modules.batterie.electrolyte_solide import (
         ElectrolyteSolide,
@@ -79,6 +79,44 @@ except Exception:
         PackSolide,
         Options as ElectrolyteOptions,
         evaluer_electrolyte_solide,
+    )
+
+# dimensionner_pack_cellules.py
+try:
+    from backend.modules.batterie.dimensionner_pack_cellules import (
+        Cellule as CellulePack,
+        PertesPassivesPack,
+        ModeleThermiquePack,
+        ContraintesPack,
+        DimensionnementPack,
+        dimensionner_pack_cellules,
+    )
+except Exception:
+    from backend.modules.batterie.dimensionner_pack_cellules import (  # type: ignore
+        Cellule as CellulePack,
+        PertesPassivesPack,
+        ModeleThermiquePack,
+        ContraintesPack,
+        DimensionnementPack,
+        dimensionner_pack_cellules,
+    )
+
+# scraping_cellules_batterie.py
+try:
+    from backend.modules.batterie.scraping_cellules_batterie import (
+        CelluleCommerciale,
+        collecter_catalogue_cellules,
+        classer_candidats_pre_dimensionnement,
+        exigences_pour_cellule_complete,
+        cellule_vers_dict,
+    )
+except Exception:
+    from backend.modules.batterie.scraping_cellules_batterie import (  # type: ignore
+        CelluleCommerciale,
+        collecter_catalogue_cellules,
+        classer_candidats_pre_dimensionnement,
+        exigences_pour_cellule_complete,
+        cellule_vers_dict,
     )
 
 
@@ -148,6 +186,20 @@ def _require_int_pos(name: str, x: Any) -> int:
     return x
 
 
+def _serialize_obj(x: Any) -> Any:
+    if x is None:
+        return None
+    if hasattr(x, "en_dict") and callable(x.en_dict):
+        return x.en_dict()
+    if is_dataclass(x):
+        return asdict(x)
+    if isinstance(x, dict):
+        return {k: _serialize_obj(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_serialize_obj(v) for v in x]
+    return x
+
+
 # ============================================================
 # Composant Batterie
 # ============================================================
@@ -157,25 +209,27 @@ class Batterie:
     """
     Dimensionnement "pack batterie" basé sur tes modules.
 
-    Règle :
-      - on ne calcule que si les entrées nécessaires existent.
-      - sinon : inconnue (partielle ou impossible) avec justification.
-      - aucune “valeur implicite” : pas de constante métier cachée.
+    Règles :
+      - on ne calcule que si les entrées nécessaires existent ;
+      - sinon : inconnue (partielle ou impossible) avec justification ;
+      - aucune valeur implicite : pas de constante métier cachée ;
+      - le catalogue commercial sert au pré-dimensionnement ;
+      - le dimensionnement fin strict exige une `CellulePack` complète.
     """
 
     # Fenêtre SOC utilisable (0 < w <= 1)
     fenetre_soc: float = 0.8
 
-    # Densité énergétique (kWh/kg) au niveau pack (pas cellule)
+    # Densité énergétique au niveau pack (kWh/kg)
     densite_energetique_kwh_kg: Optional[float] = None
 
-    # Charge (si tu connais ton chargeur / alternateur)
+    # Charge
     rendement_charge: float = 0.90
     puissance_charge_kw: Optional[float] = None
 
-    # Électrique pack (optionnel, utile pour I, Ah, C-rate)
+    # Électrique pack
     tension_nominale_v: Optional[float] = None
-    tension_charge_v: Optional[float] = None  # tension approx côté pack pendant charge (si connue)
+    tension_charge_v: Optional[float] = None
 
     def analyser_dimensionnement(
         self,
@@ -184,7 +238,7 @@ class Batterie:
         distance_km: Optional[float] = None,
         conso_kwh_km: Optional[float] = None,
 
-        # 2) Alternative : conso dérivée de puissance+vitesse moyenne (si dispo)
+        # 2) Alternative : conso dérivée de puissance+vitesse moyenne
         puissance_moyenne_kw: Optional[float] = None,
         vitesse_moyenne_kmh: Optional[float] = None,
 
@@ -199,7 +253,7 @@ class Batterie:
         energie_utile_imposee_kwh: Optional[float] = None,
 
         # 6) Agrégation des contraintes d'énergie utile :
-        #    - "max" : même logique que choisir_energie_utile_finale (module)
+        #    - "max" : même logique que choisir_energie_utile_finale
         #    - "somme" : additionne les contraintes disponibles
         mode_aggregation_energie: str = "max",
 
@@ -213,7 +267,7 @@ class Batterie:
         nb_series: Optional[int] = None,
         nb_parallele: Optional[int] = None,
 
-        # (Cellule) paramètres requis pour relier pack->cellule
+        # (Cellule) paramètres requis pour relier pack->cellule (modèle simple électrolyte)
         tension_cellule_v: Optional[float] = None,
         capacite_cellule_ah: Optional[float] = None,
         courant_cellule_max_a: Optional[float] = None,
@@ -224,13 +278,31 @@ class Batterie:
         surface_active_m2: Optional[float] = None,
         resistance_interface_ohm: Optional[float] = None,
 
-        # (Pack) puissances pour l'analyse electrolyte (si absentes, on réutilise puissance_moyenne_kw / puissance_pic_kw)
+        # (Pack) puissances pour l'analyse electrolyte / dimensionnement fin
         puissance_pack_continue_kw: Optional[float] = None,
         puissance_pack_pic_kw: Optional[float] = None,
         rendement_chaine: Optional[float] = None,
 
         # (Options) electrolyte_solide
         electrolyte_strict: bool = False,
+
+        # 9) Catalogue cellules commerciales / pré-dimensionnement
+        activer_catalogue_cellules: bool = False,
+        catalogue_cellules: Optional[Sequence[CelluleCommerciale]] = None,
+        catalogue_top_n: int = 5,
+        catalogue_sleep_s: float = 0.0,
+
+        # 10) Dimensionnement fin strict
+        activer_dimensionnement_fin: bool = False,
+        cellule_pack: Optional[CellulePack] = None,
+        energie_nominale_cible_pack_kwh: Optional[float] = None,
+        tension_bus_min_v: Optional[float] = None,
+        tension_bus_max_v: Optional[float] = None,
+        tension_nominale_cible_pack_v: Optional[float] = None,
+        pertes_passives_pack: Optional[PertesPassivesPack] = None,
+        modele_thermique_pack: Optional[ModeleThermiquePack] = None,
+        nb_series_min_dim: Optional[int] = None,
+        nb_series_max_dim: Optional[int] = None,
     ) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "entrees": {},
@@ -239,6 +311,8 @@ class Batterie:
             "charge": {},
             "electrique": {},
             "electrolyte_solide": {},
+            "catalogue_cellules": {},
+            "dimensionnement_fin": {},
             "hypotheses": [],
             "unites": {},
             "inconnues": {"impossibles": [], "partielles": []},
@@ -252,6 +326,9 @@ class Batterie:
 
         if mode_aggregation_energie not in ("max", "somme"):
             raise ValueError("mode_aggregation_energie doit être 'max' ou 'somme'.")
+
+        if catalogue_top_n <= 0:
+            raise ValueError("catalogue_top_n doit être > 0.")
 
         rapport["entrees"] = {
             "fenetre_soc": w,
@@ -285,6 +362,21 @@ class Batterie:
             "puissance_pack_pic_kw": puissance_pack_pic_kw,
             "rendement_chaine": rendement_chaine,
             "electrolyte_strict": electrolyte_strict,
+            # catalogue
+            "activer_catalogue_cellules": activer_catalogue_cellules,
+            "catalogue_top_n": catalogue_top_n,
+            "catalogue_sleep_s": catalogue_sleep_s,
+            # dimensionnement fin
+            "activer_dimensionnement_fin": activer_dimensionnement_fin,
+            "cellule_pack": None if cellule_pack is None else getattr(cellule_pack, "reference", "CellulePack"),
+            "energie_nominale_cible_pack_kwh": energie_nominale_cible_pack_kwh,
+            "tension_bus_min_v": tension_bus_min_v,
+            "tension_bus_max_v": tension_bus_max_v,
+            "tension_nominale_cible_pack_v": tension_nominale_cible_pack_v,
+            "pertes_passives_pack": _serialize_obj(pertes_passives_pack),
+            "modele_thermique_pack": _serialize_obj(modele_thermique_pack),
+            "nb_series_min_dim": nb_series_min_dim,
+            "nb_series_max_dim": nb_series_max_dim,
         }
 
         rapport["unites"] = {
@@ -297,7 +389,6 @@ class Batterie:
             "courant_*": "A",
             "capacite_Ah": "Ah",
             "C_rate_*": "h^-1",
-            # electrolyte solide
             "asr": "ohm*m^2",
             "R_cell": "ohm",
             "P_pertes": "W",
@@ -323,7 +414,7 @@ class Batterie:
                     conso_derivee = float(calcul_conso_kwh_km_depuis_puissance_vitesse(Pm, vm))
                     E_trajet = float(calcul_energie_utile_trajet(d, conso_derivee))
                     rapport["hypotheses"].append(
-                        "conso_kwh_km dérivée via P_moy/v_moy (valable si P_moyenne_kw correspond bien à la puissance électrique pack sur la phase considérée)."
+                        "conso_kwh_km dérivée via P_moy/v_moy (valable si puissance_moyenne_kw représente bien la puissance électrique pack sur la phase considérée)."
                     )
                 else:
                     _push_inconnue(
@@ -391,7 +482,7 @@ class Batterie:
             else:
                 E_u_final = float(sum(energies_candidates))
                 rapport["hypotheses"].append(
-                    "E_utile_finale obtenue par SOMME des contraintes disponibles (choix de dimensionnement)."
+                    "E_utile_finale obtenue par SOMME des contraintes disponibles (choix explicite de dimensionnement)."
                 )
         else:
             _push_inconnue(
@@ -544,12 +635,9 @@ class Batterie:
         # 9) Électrolyte solide : exploiter au max ce qui est fourni
         # ------------------------------------------------------------
         if activer_electrolyte_solide:
-            # Puissances pour l'analyse electrolyte : priorité aux args dédiés,
-            # sinon on réutilise puissance_moyenne_kw / puissance_pic_kw déjà présents.
             P_cont_kw = puissance_pack_continue_kw if puissance_pack_continue_kw is not None else puissance_moyenne_kw
             P_pic_kw = puissance_pack_pic_kw if puissance_pack_pic_kw is not None else puissance_pic_kw
 
-            # Construction des objets d'entrée (aucune valeur inventée)
             elec = ElectrolyteSolide(
                 conductivite_ionique_s_m=conductivite_ionique_s_m,
                 epaisseur_m=epaisseur_electrolyte_m,
@@ -572,30 +660,12 @@ class Batterie:
 
             try:
                 rep = evaluer_electrolyte_solide(elec, cell, pack_obj, opts=opts)
-                # asdict n'est pas utilisé ici pour éviter d'importer dataclasses.asdict inutilement
                 rapport["electrolyte_solide"] = {
-                    "resistance_electrolyte_ohm_par_cell": rep.resistance_electrolyte_ohm_par_cell,
-                    "asr_ohm_m2": rep.asr_ohm_m2,
-                    "resistance_totale_ohm_par_cell": rep.resistance_totale_ohm_par_cell,
-                    "tension_pack_v": rep.tension_pack_v,
-                    "capacite_pack_ah": rep.capacite_pack_ah,
-                    "courant_pack_continu_a": rep.courant_pack_continu_a,
-                    "courant_pack_pic_a": rep.courant_pack_pic_a,
-                    "courant_cell_continu_a": rep.courant_cell_continu_a,
-                    "courant_cell_pic_a": rep.courant_cell_pic_a,
-                    "chute_tension_cell_continu_v": rep.chute_tension_cell_continu_v,
-                    "chute_tension_cell_pic_v": rep.chute_tension_cell_pic_v,
-                    "pertes_joule_cell_continu_w": rep.pertes_joule_cell_continu_w,
-                    "pertes_joule_cell_pic_w": rep.pertes_joule_cell_pic_w,
-                    "pertes_joule_pack_continu_w": rep.pertes_joule_pack_continu_w,
-                    "pertes_joule_pack_pic_w": rep.pertes_joule_pack_pic_w,
-                    "depassement_courant_max_continu": rep.depassement_courant_max_continu,
-                    "depassement_courant_max_pic": rep.depassement_courant_max_pic,
-                    "inconnues": list(rep.inconnues or []),
+                    "active": True,
+                    "rapport": _serialize_obj(rep),
                 }
             except Exception as e:
-                # On ne masque pas l'erreur si strict=True côté module, mais ici on la reporte proprement
-                rapport["electrolyte_solide"] = {"erreur": str(e)}
+                rapport["electrolyte_solide"] = {"active": True, "erreur": str(e)}
                 _push_inconnue(
                     rapport,
                     "partielles",
@@ -606,7 +676,196 @@ class Batterie:
             rapport["electrolyte_solide"] = {"active": False}
 
         # ------------------------------------------------------------
-        # 10) Inconnues réellement impossibles sans techno/mesures
+        # 10) Catalogue cellules commerciales : pré-dimensionnement
+        # ------------------------------------------------------------
+        if activer_catalogue_cellules:
+            e_nom_cible_catalogue = (
+                _require_positive("energie_nominale_cible_pack_kwh", energie_nominale_cible_pack_kwh, strict=False)
+                if energie_nominale_cible_pack_kwh is not None
+                else E_batt_tot
+            )
+
+            v_nom_cible_catalogue = (
+                _require_positive("tension_nominale_cible_pack_v", tension_nominale_cible_pack_v, strict=True)
+                if tension_nominale_cible_pack_v is not None
+                else (
+                    _require_positive("tension_nominale_v", self.tension_nominale_v, strict=True)
+                    if self.tension_nominale_v is not None
+                    else None
+                )
+            )
+
+            if e_nom_cible_catalogue is None:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "catalogue_cellules",
+                    "Pré-dimensionnement catalogue calculable si energie_nominale_cible_pack_kwh est fournie, ou si capacite_totale_kwh a été déterminée.",
+                )
+                rapport["catalogue_cellules"] = {"active": True, "candidats": []}
+            elif v_nom_cible_catalogue is None:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "catalogue_cellules",
+                    "Pré-dimensionnement catalogue calculable si tension_nominale_cible_pack_v est fournie, ou si Batterie.tension_nominale_v est connue.",
+                )
+                rapport["catalogue_cellules"] = {"active": True, "candidats": []}
+            else:
+                try:
+                    cells: Sequence[CelluleCommerciale]
+                    if catalogue_cellules is not None:
+                        cells = catalogue_cellules
+                        rapport["hypotheses"].append("Catalogue cellules fourni par l'appelant : aucune collecte HTTP déclenchée.")
+                    else:
+                        cells = collecter_catalogue_cellules(sleep_s=float(catalogue_sleep_s))
+                        rapport["hypotheses"].append(
+                            "Catalogue cellules collecté via les URLs explicites du module de scraping ; seules des valeurs publiées ou directement déductibles sont retenues."
+                        )
+
+                    candidats = classer_candidats_pre_dimensionnement(
+                        cellules=cells,
+                        energie_nominale_cible_kwh=e_nom_cible_catalogue,
+                        tension_pack_nominale_cible_v=v_nom_cible_catalogue,
+                        puissance_continue_kw=puissance_pack_continue_kw if puissance_pack_continue_kw is not None else puissance_moyenne_kw,
+                        puissance_pic_kw=puissance_pack_pic_kw if puissance_pack_pic_kw is not None else puissance_pic_kw,
+                    )
+
+                    top = candidats[:catalogue_top_n]
+                    top_serialized: List[Dict[str, Any]] = []
+                    for predim in top:
+                        src = next((c for c in cells if c.specs.reference == predim.reference), None)
+                        besoins = [] if src is None else exigences_pour_cellule_complete(src.specs)
+                        top_serialized.append(
+                            {
+                                "pre_dimensionnement": _serialize_obj(predim),
+                                "cellule_catalogue": None if src is None else cellule_vers_dict(src),
+                                "besoins_dimensionnement_fin": besoins,
+                            }
+                        )
+
+                    rapport["catalogue_cellules"] = {
+                        "active": True,
+                        "energie_nominale_cible_pack_kwh": e_nom_cible_catalogue,
+                        "tension_nominale_cible_pack_v": v_nom_cible_catalogue,
+                        "nb_candidats": len(candidats),
+                        "candidats": top_serialized,
+                    }
+
+                    if len(top) == 0:
+                        _push_inconnue(
+                            rapport,
+                            "partielles",
+                            "catalogue_cellules",
+                            "Aucun candidat commercial n'a pu être pré-dimensionné avec les données actuellement extraites.",
+                        )
+                except Exception as e:
+                    rapport["catalogue_cellules"] = {"active": True, "erreur": str(e), "candidats": []}
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "catalogue_cellules",
+                        f"Échec de la collecte / du pré-dimensionnement catalogue: {e}",
+                    )
+        else:
+            rapport["catalogue_cellules"] = {"active": False}
+
+        # ------------------------------------------------------------
+        # 11) Dimensionnement fin strict : Ns/Np, tension sous charge, pertes Joule
+        # ------------------------------------------------------------
+        if activer_dimensionnement_fin:
+            e_nom_cible_fin = (
+                _require_positive("energie_nominale_cible_pack_kwh", energie_nominale_cible_pack_kwh, strict=False)
+                if energie_nominale_cible_pack_kwh is not None
+                else E_batt_tot
+            )
+
+            P_cont_fin = puissance_pack_continue_kw if puissance_pack_continue_kw is not None else puissance_moyenne_kw
+            P_pic_fin = puissance_pack_pic_kw if puissance_pack_pic_kw is not None else puissance_pic_kw
+
+            if cellule_pack is None:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "dimensionnement_fin",
+                    "Le dimensionnement fin strict exige une `CellulePack` complète (points OCV/résistance/courants fournis explicitement).",
+                )
+                rapport["dimensionnement_fin"] = {"active": True, "erreur": "cellule_pack manquante"}
+            elif e_nom_cible_fin is None:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "dimensionnement_fin",
+                    "Calculable si energie_nominale_cible_pack_kwh est fournie, ou si capacite_totale_kwh a été déterminée.",
+                )
+                rapport["dimensionnement_fin"] = {"active": True, "erreur": "energie_nominale_cible_pack_kwh manquante"}
+            elif tension_bus_min_v is None or tension_bus_max_v is None:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "dimensionnement_fin",
+                    "Calculable si tension_bus_min_v et tension_bus_max_v sont fournis explicitement.",
+                )
+                rapport["dimensionnement_fin"] = {"active": True, "erreur": "tension_bus_min_v/tension_bus_max_v manquantes"}
+            elif P_cont_fin is None or P_pic_fin is None:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "dimensionnement_fin",
+                    "Calculable si puissance continue et puissance de pic pack sont fournies (directement ou via puissance_moyenne_kw/puissance_pic_kw).",
+                )
+                rapport["dimensionnement_fin"] = {"active": True, "erreur": "puissances pack manquantes"}
+            else:
+                try:
+                    contraintes = ContraintesPack(
+                        energie_nominale_cible_kwh=float(e_nom_cible_fin),
+                        tension_bus_min_v=_require_positive("tension_bus_min_v", tension_bus_min_v, strict=True),
+                        tension_bus_max_v=_require_positive("tension_bus_max_v", tension_bus_max_v, strict=True),
+                        puissance_continue_kw=_require_positive("puissance_continue_pack_kw", P_cont_fin, strict=False),
+                        puissance_pic_kw=_require_positive("puissance_pic_pack_kw", P_pic_fin, strict=False),
+                        tension_nominale_cible_v=(
+                            _require_positive("tension_nominale_cible_pack_v", tension_nominale_cible_pack_v, strict=True)
+                            if tension_nominale_cible_pack_v is not None
+                            else (
+                                _require_positive("tension_nominale_v", self.tension_nominale_v, strict=True)
+                                if self.tension_nominale_v is not None
+                                else None
+                            )
+                        ),
+                        duree_regime_continu_s=None,
+                        duree_pic_s=duree_pic_s if duree_pic_s is None else _require_positive("duree_pic_s", duree_pic_s, strict=True),
+                    )
+
+                    dim = dimensionner_pack_cellules(
+                        cellule=cellule_pack,
+                        contraintes=contraintes,
+                        pertes_passives=pertes_passives_pack,
+                        modele_thermique=modele_thermique_pack,
+                        nb_series_min=nb_series_min_dim,
+                        nb_series_max=nb_series_max_dim,
+                    )
+                    dim_dict = dim.en_dict()
+                    rapport["dimensionnement_fin"] = {
+                        "active": True,
+                        "rapport": dim_dict,
+                    }
+
+                    # Si le dimensionnement fin a réussi, on peut enrichir le résumé synthétique.
+                    rapport["dimensionnement"]["capacite_totale_kwh_dimensionnement_fin"] = dim_dict.get("energie_nominale_pack_kwh")
+                    rapport["dimensionnement"]["masse_batterie_kg_dimensionnement_fin"] = dim_dict.get("masse_totale_pack_kg")
+                except Exception as e:
+                    rapport["dimensionnement_fin"] = {"active": True, "erreur": str(e)}
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "dimensionnement_fin",
+                        f"Échec du dimensionnement fin strict: {e}",
+                    )
+        else:
+            rapport["dimensionnement_fin"] = {"active": False}
+
+        # ------------------------------------------------------------
+        # 12) Inconnues réellement impossibles sans techno/mesures
         # ------------------------------------------------------------
         _push_inconnue(
             rapport,
@@ -617,15 +876,18 @@ class Batterie:
         _push_inconnue(
             rapport,
             "impossibles",
-            "thermique pack (refroidissement)",
-            "Impossible sans architecture pack, résistances internes, conditions ambiantes, profils charge/décharge.",
-        )
-        _push_inconnue(
-            rapport,
-            "impossibles",
             "courbe CC/CV et taper fin de charge",
-            "Le calcul de temps de charge est à puissance constante (modèle simple).",
+            "Le calcul de temps de charge reste un modèle à puissance constante.",
         )
+
+        # Le thermique pack est impossible au niveau global si on n'a pas de modèle fin.
+        if modele_thermique_pack is None:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "thermique pack (refroidissement)",
+                "Impossible sans architecture pack, résistances internes, modèle thermique, conditions ambiantes et profils charge/décharge.",
+            )
 
         _dedup_inconnues(rapport)
         return rapport
