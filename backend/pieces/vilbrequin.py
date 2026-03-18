@@ -79,7 +79,6 @@ def _try_call(obj: Any, method_name: str) -> Optional[Dict[str, Any]]:
             out = fn(strict=False) if method_name == "analyser" else fn()
             return out if isinstance(out, dict) else None
         except TypeError:
-            # certains modules utilisent calculer(strict=...)
             try:
                 out = fn(strict=False)
                 return out if isinstance(out, dict) else None
@@ -92,6 +91,20 @@ def _try_call(obj: Any, method_name: str) -> Optional[Dict[str, Any]]:
 
 def _push_inconnue(rapport: Dict[str, Any], kind: str, nom: str, raison: str) -> None:
     rapport.setdefault("inconnues", {}).setdefault(kind, []).append({"nom": nom, "raison": raison})
+
+
+def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
+    inc = rapport.setdefault("inconnues", {})
+    for kind in ("impossibles", "partielles"):
+        items = inc.get(kind, []) or []
+        seen = set()
+        out = []
+        for it in items:
+            key = (str(it.get("nom", "")), str(it.get("raison", "")))
+            if key not in seen:
+                seen.add(key)
+                out.append(it)
+        inc[kind] = out
 
 
 # =============================================================================
@@ -121,7 +134,6 @@ def _resoudre_materiau(
     Sf = float(limite_fatigue_pa) if _is_finite(limite_fatigue_pa) else None
 
     if materiau_cle:
-        # imports robustes (ta structure peut varier)
         candidates = [
             "backend.ensemble.materiaux",
             "backend.materiaux",
@@ -191,12 +203,10 @@ def _module_compressibilite_K(E: float, nu: float) -> float:
 
 
 def _moment_polaire_section(d_m: float) -> float:
-    # J = π d^4 / 32
     return (math.pi * (d_m ** 4)) / 32.0
 
 
 def _raideur_torsion_segment(G_pa: float, J_m4: float, L_m: float) -> float:
-    # k = GJ/L (N·m/rad)
     return (G_pa * J_m4) / L_m
 
 
@@ -218,28 +228,23 @@ class Vilbrequin:
     - les modèles (volumes = cylindres, inerties = formules analytiques) sont explicites.
     """
 
-    # Liens vers autres pièces
-    arbre: Optional[Any] = None              # idéalement backend.pieces.arbre_vilbrequin.ArbreVilbrequin
+    arbre: Optional[Any] = None
     cylindre: Optional[Any] = None
     piston: Optional[Any] = None
     bielle: Optional[Any] = None
     deplaceur: Optional[Any] = None
-    systeme_complet: Optional[Any] = None    # optionnel (si tu veux récupérer couple/rpm)
-    moteur_thermique: Optional[Any] = None   # Source absolue d'architecture
+    systeme_complet: Optional[Any] = None
+    moteur_thermique: Optional[Any] = None
 
-    # Architecture (aucune hypothèse automatique si MoteurThermique présent)
-    nb_manetons: Optional[int] = None                 # Bypass manuel
-    nb_journaux_principaux: Optional[int] = None      # Bypass manuel
+    nb_manetons: Optional[int] = None
+    nb_journaux_principaux: Optional[int] = None
 
-    # Offsets / cinématique
-    course_m: Optional[float] = None                  # sinon depuis cylindre ou arbre
-    rpm: Optional[float] = None                       # sinon depuis arbre ou systeme
+    course_m: Optional[float] = None
+    rpm: Optional[float] = None
 
-    # Charges globales (si connues)
-    couple_max_Nm: Optional[float] = None             # sinon depuis arbre / systeme
-    moment_flexion_max_Nm: Optional[float] = None     # sinon depuis arbre (si dispo)
+    couple_max_Nm: Optional[float] = None
+    moment_flexion_max_Nm: Optional[float] = None
 
-    # Matériau (overrides), sinon materiau_cle
     materiau_cle: Optional[str] = None
     densite_kg_m3: Optional[float] = None
     limite_elastique_pa: Optional[float] = None
@@ -248,16 +253,12 @@ class Vilbrequin:
     resistance_traction_pa: Optional[float] = None
     limite_fatigue_pa: Optional[float] = None
 
-    # Sécurité
     facteur_securite: float = 2.0
 
-    # Paramètres de volumétrie globale optionnels (pour aller au-delà "journaux + manetons")
-    # -> sans ces données, on ne calcule pas webs/contrepoids.
     volume_webs_total_m3: Optional[float] = None
     volume_contrepoids_total_m3: Optional[float] = None
 
-    # Paramètres de raideur torsionnelle globale (si tu veux un k_total)
-    longueur_torsion_equivalente_m: Optional[float] = None  # L_eq
+    longueur_torsion_equivalente_m: Optional[float] = None
 
     def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
@@ -277,9 +278,6 @@ class Vilbrequin:
             "notes_modele": [],
         }
 
-        # ---------------------------------------------------------------------
-        # 1) Rapports des autres pièces (si disponibles)
-        # ---------------------------------------------------------------------
         rep_arbre = _try_call(self.arbre, "analyser") if self.arbre is not None else None
         rep_cyl = _try_call(self.cylindre, "analyser") if self.cylindre is not None else None
         rep_dep = _try_call(self.deplaceur, "analyser") if self.deplaceur is not None else None
@@ -296,17 +294,12 @@ class Vilbrequin:
             "moteur_thermique": bool(rep_mt) or bool(self.moteur_thermique),
         }
 
-        # ---------------------------------------------------------------------
-        # 2) Cinématique (course -> rayon manivelle)
-        # ---------------------------------------------------------------------
         course = self.course_m
         if course is None:
-            # priorité arbre puis cylindre puis deplaceur
             course = _dig(rep_arbre, "entrees", "course_m")
             if course is None and isinstance(rep_arbre, dict):
                 rayon_src = _dig(rep_arbre, "geometrie", "rayon_manivelle_m")
                 if _is_finite(rayon_src):
-                    # le rapport "arbre_vilbrequin" fournit directement le rayon
                     course = 2.0 * float(rayon_src)
                     rapport["cinematique"]["rayon_manivelle_m_source_arbre"] = float(rayon_src)
 
@@ -335,7 +328,6 @@ class Vilbrequin:
                 "Requis pour rayon manivelle, inertie des manetons (offset) et couples <-> forces.",
             )
 
-        # rpm
         rpm = self.rpm
         if rpm is None:
             rpm = _get(self.arbre, "rpm")
@@ -347,19 +339,15 @@ class Vilbrequin:
             rpm = _req_pos("rpm", rpm, strictly=False)
             rapport["cinematique"]["rpm"] = rpm
 
-        # couple max
         T = self.couple_max_Nm
         if T is None:
             T = _get(self.arbre, "couple_max_Nm")
             if T is None and isinstance(rep_arbre, dict):
                 T = _dig(rep_arbre, "entrees", "couple_max_Nm")
-                if T is None:
-                    T = _dig(rep_arbre, "entrees", "couple_max_Nm")
         if T is not None:
             T = _req_pos("couple_max_Nm", T, strictly=False)
             rapport["cinematique"]["couple_max_Nm"] = T
 
-        # moment flexion max (si fourni)
         Mmax = self.moment_flexion_max_Nm
         if Mmax is None:
             Mmax = _get(self.arbre, "moment_flexion_max_Nm")
@@ -369,9 +357,6 @@ class Vilbrequin:
             Mmax = _req_pos("moment_flexion_max_Nm", Mmax, strictly=False)
             rapport["cinematique"]["moment_flexion_max_Nm"] = Mmax
 
-        # ---------------------------------------------------------------------
-        # 3) Matériau (résolution)
-        # ---------------------------------------------------------------------
         mat_key = self.materiau_cle or _get(self.arbre, "materiau_cle")
         if mat_key is None and isinstance(rep_arbre, dict):
             mat_key = _dig(rep_arbre, "entrees", "materiau_cle")
@@ -408,9 +393,6 @@ class Vilbrequin:
         if rho is not None and E is not None:
             rapport["proprietes_derivees"]["rigidite_specifique_E_sur_rho"] = E / rho
 
-        # ---------------------------------------------------------------------
-        # 4) Géométrie de base (depuis ArbreVilbrequin)
-        # ---------------------------------------------------------------------
         d_journal = _get(self.arbre, "diametre_journal_principal_m")
         L_journal = _get(self.arbre, "largeur_portee_journal_m")
         d_maneton = _get(self.arbre, "diametre_maneton_m")
@@ -426,7 +408,6 @@ class Vilbrequin:
             if L_maneton is None:
                 L_maneton = _dig(rep_arbre, "geometrie", "largeur_portee_maneton_m")
 
-        # fallback depuis bielle (si fournis explicitement)
         if d_maneton is None and self.bielle is not None:
             d_maneton = _get(self.bielle, "diametre_maneton_m")
         if L_maneton is None and self.bielle is not None:
@@ -477,7 +458,6 @@ class Vilbrequin:
                 "Requis pour volume/mass manetons (largeur de la portée).",
             )
 
-        # Comptages (Architecture centralisée)
         nJ = self.nb_journaux_principaux
         nM = self.nb_manetons
 
@@ -511,9 +491,6 @@ class Vilbrequin:
                 "Requis pour totaux (volume/masse/inerties globales) à partir des portées.",
             )
 
-        # ---------------------------------------------------------------------
-        # 5) Volumes & masses (modèles explicites)
-        # ---------------------------------------------------------------------
         Vj = Vm = None
         if d_journal is not None and L_journal is not None:
             Vj = _volume_cylindre(d_journal, L_journal)
@@ -533,7 +510,6 @@ class Vilbrequin:
             mm = _masse_volume(rho, Vm)
             rapport["masses"]["maneton_unitaire_kg"] = mm
 
-        # Totaux partiels (journaux + manetons) si nJ/nM fournis
         if nJ is not None and Vj is not None:
             rapport["volumes"]["journaux_total_m3"] = nJ * Vj
         if nM is not None and Vm is not None:
@@ -544,7 +520,6 @@ class Vilbrequin:
         if rho is not None and nM is not None and Vm is not None:
             rapport["masses"]["manetons_total_kg"] = rho * (nM * Vm)
 
-        # Webs / contrepoids : seulement si volumes explicites fournis
         V_webs = self.volume_webs_total_m3
         V_cw = self.volume_contrepoids_total_m3
         if V_webs is not None:
@@ -573,7 +548,6 @@ class Vilbrequin:
                 "Requis pour masse globale (contrepoids) si tu veux un vilbrequin complet.",
             )
 
-        # Masse globale (si tout est connu)
         if rho is not None:
             V_sum = 0.0
             have_any = False
@@ -593,17 +567,12 @@ class Vilbrequin:
                 rapport["volumes"]["volume_total_modele_m3"] = V_sum
                 rapport["masses"]["masse_totale_modele_kg"] = rho * V_sum
 
-        # ---------------------------------------------------------------------
-        # 6) Inerties (autour de l'axe du vilbrequin) — modèle minimal explicite
-        # ---------------------------------------------------------------------
-        # Journaux : axe confondu -> I = 1/2 m r²
         if mj is not None and d_journal is not None:
             Ij = _inertie_polaire_cylindre_autour_axe(mj, d_journal)
             rapport["inerties"]["journal_principal_unitaire_kg_m2"] = Ij
             if nJ is not None:
                 rapport["inerties"]["journaux_total_kg_m2"] = nJ * Ij
 
-        # Manetons : axe parallèle décalé de r (rayon manivelle) -> I_total = I_axe_maneton + m*r²
         if mm is not None and d_maneton is not None:
             I_pin_axis = _inertie_polaire_cylindre_autour_axe(mm, d_maneton)
             rapport["inerties"]["maneton_unitaire_autour_son_axe_kg_m2"] = I_pin_axis
@@ -620,7 +589,6 @@ class Vilbrequin:
                     "Requis pour inertie des manetons autour de l'axe vilbrequin (décalage).",
                 )
 
-        # Inertie globale modèle (si composants connus)
         I_total = 0.0
         have_I = False
         if "journaux_total_kg_m2" in rapport["inerties"]:
@@ -636,16 +604,12 @@ class Vilbrequin:
                 "Webs/contrepoids non inclus sans géométrie/volumes + position radiale."
             )
 
-        # ---------------------------------------------------------------------
-        # 7) Raideur torsionnelle (si G et longueurs connues)
-        # ---------------------------------------------------------------------
         FS = _req_pos("facteur_securite", self.facteur_securite)
         if E is not None and nu is not None:
             G = _module_cisaillement_G(E, nu)
         else:
             G = None
 
-        # raideur locale sur un journal type (k = GJ/L)
         if G is not None and d_journal is not None and L_journal is not None:
             J = _moment_polaire_section(d_journal)
             k = _raideur_torsion_segment(G, J, L_journal)
@@ -653,7 +617,6 @@ class Vilbrequin:
         elif G is None:
             _push_inconnue(rapport, "partielles", "G_pa", "Requis pour raideur torsionnelle (nécessite E et ν).")
 
-        # raideur globale équivalente : nécessite une longueur torsionnelle équivalente
         L_eq = self.longueur_torsion_equivalente_m
         if L_eq is not None:
             L_eq = _req_pos("longueur_torsion_equivalente_m", L_eq)
@@ -673,9 +636,6 @@ class Vilbrequin:
                 "Requis pour une raideur torsionnelle globale équivalente.",
             )
 
-        # ---------------------------------------------------------------------
-        # 8) Contraintes (modèle explicite minimal : torsion + flexion si Mmax fourni)
-        # ---------------------------------------------------------------------
         def tau_torsion_max(T_Nm: float, d_m: float) -> float:
             return (16.0 * T_Nm) / (math.pi * (d_m ** 3))
 
@@ -728,9 +688,6 @@ class Vilbrequin:
                 "Requise pour contrainte admissible et marges.",
             )
 
-        # ---------------------------------------------------------------------
-        # 9) Dépendances masse (piston/bielle) — sans inventer de facteurs de répartition
-        # ---------------------------------------------------------------------
         if isinstance(rep_pis, dict):
             m_pis = _dig(rep_pis, "resultats", "masse_piston_kg")
             if _is_finite(m_pis):
@@ -744,7 +701,6 @@ class Vilbrequin:
                     "Masse bielle : modèle de la bielle (CorpsBielle) ne couvre que le fût (têtes non modélisées)."
                 )
 
-        # Entrées
         rapport["entrees"] = {
             "nb_manetons": self.nb_manetons,
             "nb_journaux_principaux": self.nb_journaux_principaux,
@@ -763,6 +719,7 @@ class Vilbrequin:
             "facteur_securite": self.facteur_securite,
         }
 
+        _dedup_inconnues(rapport)
         if strict:
             essentiels = [
                 ("densite_kg_m3", rho),
@@ -780,8 +737,63 @@ class Vilbrequin:
         return rapport
 
 
+try:
+    from backend.pieces.arbre_vilbrequin_fine import ArbreVilbrequinFine
+except Exception:
+    try:
+        from arbre_vilbrequin_fine import ArbreVilbrequinFine  # type: ignore
+    except Exception:
+        ArbreVilbrequinFine = None  # type: ignore
+
+
+@dataclass
+class VilbrequinFine(Vilbrequin):
+    """
+    Variante agrégée du vilbrequin qui récupère, quand disponible, les résultats
+    fins portés par `ArbreVilbrequinFine` : réactions de paliers, joues,
+    équilibrage, fatigue et torsion vibratoire.
+    """
+
+    arbre: Optional[Any] = None
+
+    def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
+        rapport = super().analyser(strict=False)
+
+        if ArbreVilbrequinFine is not None and isinstance(self.arbre, ArbreVilbrequinFine):
+            ra = self.arbre.analyser(strict=False)
+        elif self.arbre is not None and hasattr(self.arbre, "analyser"):
+            try:
+                ra = self.arbre.analyser(strict=False)
+            except Exception:
+                ra = None
+        else:
+            ra = None
+
+        if isinstance(ra, dict):
+            for key in ("reactions_paliers", "joues", "equilibrage", "fatigue", "torsion_vibratoire", "pressions_contact"):
+                if key in ra:
+                    rapport[key] = ra[key]
+            rapport.setdefault("sources", {})
+            rapport["sources"]["modele_fin_vilebrequin"] = "arbre_vilbrequin_fine"
+        else:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "modele_fin_vilebrequin",
+                "Fournir un arbre compatible pour agréger les réactions, l'équilibrage, la fatigue et la torsion vibratoire.",
+            )
+
+        _dedup_inconnues(rapport)
+        if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
+            raise ValueError(
+                "VilbrequinFine(strict=True) : des inconnues restent.\n"
+                f"Impossibles: {rapport['inconnues']['impossibles']}\n"
+                f"Partielles: {rapport['inconnues']['partielles']}"
+            )
+        return rapport
+
+
 if __name__ == "__main__":  # pragma: no cover
-    # Démo minimale : valide juste l'import + la production d'un rapport "inconnues" si rien n'est fourni.
     from pprint import pprint
     vb = Vilbrequin()
     pprint(vb.analyser(strict=False))
