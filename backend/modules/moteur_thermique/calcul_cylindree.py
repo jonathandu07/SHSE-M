@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, TypedDict, Union
-
+from typing import Callable
 import numpy as np
 
 Number = Union[int, float]
@@ -1520,3 +1520,362 @@ __all__ = [
     "evaluer_plusieurs_cas_charge_cylindre",
     "calculer_cylindre_complet",
 ]
+
+
+def _extraire_kwargs_mode_depuis_cas_charge(cas: CasChargePression) -> Dict[str, Any]:
+    """
+    Transforme un CasChargePression en kwargs compatibles avec construire_pression_cylindre(...).
+    Aucune hypothèse supplémentaire n'est inventée.
+    """
+    out: Dict[str, Any] = {"mode": cas.mode}
+
+    if cas.mode == "csv":
+        out["courbe_mesuree"] = cas.courbe_mesuree
+    elif cas.mode == "tableau":
+        out["theta_tableau_deg"] = cas.theta_deg
+        out["pression_tableau_pa"] = cas.pression_pa
+    elif cas.mode == "wiebe":
+        out["parametres_wiebe"] = cas.modele_wiebe
+    elif cas.mode == "enveloppe":
+        out.update(
+            {
+                "pression_constante_pa": cas.pression_constante_pa,
+                "pression_max_pa": cas.pression_max_pa,
+                "angle_pic_deg": cas.angle_pic_deg,
+                "largeur_pic_deg": cas.largeur_pic_deg,
+                "pression_admission_pa": cas.pression_admission_pa,
+                "pression_echappement_pa": cas.pression_echappement_pa,
+                "forme_pic": cas.forme_pic,
+            }
+        )
+    else:
+        raise ValueError(f"mode de cas de charge inconnu: {cas.mode!r}")
+
+    return out
+
+
+def construire_loi_pression_cycle_mecanique(
+    theta_deg: ArrayLike,
+    *,
+    mode: ModelePression,
+    alesage_m: Optional[Number] = None,
+    course_m: Optional[Number] = None,
+    longueur_bielle_m: Optional[Number] = None,
+    axe_decale_m: Number = 0.0,
+    courbe_mesuree: Optional[CourbePressionMesuree] = None,
+    theta_tableau_deg: Optional[ArrayLike] = None,
+    pression_tableau_pa: Optional[ArrayLike] = None,
+    parametres_wiebe: Optional[ParametresWiebe] = None,
+    pression_constante_pa: Optional[Number] = None,
+    pression_max_pa: Optional[Number] = None,
+    angle_pic_deg: Number = 5.0,
+    largeur_pic_deg: Number = 18.0,
+    pression_admission_pa: Number = 101325.0,
+    pression_echappement_pa: Number = 101325.0,
+    forme_pic: Literal["gaussienne", "triangle"] = "gaussienne",
+) -> Dict[str, Any]:
+    """
+    Construit une loi de pression directement réutilisable par cycle_mecanique.py.
+
+    Retour :
+    {
+        "theta_deg": np.ndarray,
+        "p_pa": np.ndarray,
+        "mode": str,
+        "pression_min_pa": float,
+        "pression_max_pa": float,
+        "pression_moyenne_pa": float,
+    }
+    """
+    arr_theta_deg = _as_1d_float_array("theta_deg", theta_deg)
+
+    details = construire_pression_cylindre(
+        arr_theta_deg,
+        mode=mode,
+        alesage_m=alesage_m,
+        course_m=course_m,
+        longueur_bielle_m=longueur_bielle_m,
+        axe_decale_m=axe_decale_m,
+        courbe_mesuree=courbe_mesuree,
+        theta_tableau_deg=theta_tableau_deg,
+        pression_tableau_pa=pression_tableau_pa,
+        parametres_wiebe=parametres_wiebe,
+        pression_constante_pa=pression_constante_pa,
+        pression_max_pa=pression_max_pa,
+        angle_pic_deg=angle_pic_deg,
+        largeur_pic_deg=largeur_pic_deg,
+        pression_admission_pa=pression_admission_pa,
+        pression_echappement_pa=pression_echappement_pa,
+        forme_pic=forme_pic,
+        return_details=True,
+    )
+    assert isinstance(details, dict)
+
+    p = np.asarray(details["pression_pa"], dtype=float)
+    return {
+        "theta_deg": arr_theta_deg.copy(),
+        "p_pa": p,
+        "mode": str(details.get("mode", mode)),
+        "pression_min_pa": float(np.min(p)),
+        "pression_max_pa": float(np.max(p)),
+        "pression_moyenne_pa": float(np.mean(p)),
+    }
+
+
+def calculer_cycle_mecanique_depuis_modele_pression(
+    *,
+    alesage_m: Number,
+    course_m: Number,
+    longueur_bielle_m: Number,
+    nombre_cylindres: int,
+    ordre_allumage: Union[str, Sequence[int]],
+    regime_tr_min: Number,
+    masse_alternative_kg: Number,
+    mode_pression: ModelePression,
+    taux_compression: Optional[Number] = None,
+    volume_mort_m3: Optional[Number] = None,
+    masse_tournante_equivalente_kg: Number = 0.0,
+    axe_decale_m: Number = 0.0,
+    pression_reference_pa: Number = 101325.0,
+    temperature_gaz_utile_k: Optional[Number] = None,
+    pas_angle_deg: Number = 1.0,
+    n_polytropique_compression: Number = 1.32,
+    n_polytropique_detente: Number = 1.25,
+    rayon_maneton_m: Optional[Number] = None,
+    courbe_mesuree: Optional[CourbePressionMesuree] = None,
+    theta_tableau_deg: Optional[ArrayLike] = None,
+    pression_tableau_pa: Optional[ArrayLike] = None,
+    parametres_wiebe: Optional[ParametresWiebe] = None,
+    pression_constante_pa: Optional[Number] = None,
+    pression_max_pa: Optional[Number] = None,
+    angle_pic_deg: Number = 5.0,
+    largeur_pic_deg: Number = 18.0,
+    pression_admission_pa: Number = 101325.0,
+    pression_echappement_pa: Number = 101325.0,
+    forme_pic: Literal["gaussienne", "triangle"] = "gaussienne",
+) -> Dict[str, Any]:
+    """
+    Pont explicite entre :
+    - les modèles de pression de ce module
+    - et le calcul mécanique détaillé de cycle_mecanique.py
+
+    Aucune loi de pression implicite n'est inventée : il faut fournir mode_pression
+    et ses paramètres associés.
+    """
+    try:
+        from backend.modules.moteur_thermique.cycle_mecanique import (
+            CycleMecaniqueParams,
+            calculer_cycle_mecanique,
+        )
+    except Exception as exc:
+        raise ImportError(
+            "cycle_mecanique.py est requis pour calculer le cycle mécanique depuis le modèle de pression."
+        ) from exc
+
+    B = _req_pos("alesage_m", alesage_m, strictly=True)
+    S = _req_pos("course_m", course_m, strictly=True)
+    L = _req_pos("longueur_bielle_m", longueur_bielle_m, strictly=True)
+    N = _req_int_ge("nombre_cylindres", nombre_cylindres, 1)
+    rpm = _req_pos("regime_tr_min", regime_tr_min, strictly=True)
+    m_alt = _req_pos("masse_alternative_kg", masse_alternative_kg, strictly=False)
+    m_rot = _req_pos("masse_tournante_equivalente_kg", masse_tournante_equivalente_kg, strictly=False)
+    p_ref = _req_pos("pression_reference_pa", pression_reference_pa, strictly=False)
+    step = _req_pos("pas_angle_deg", pas_angle_deg, strictly=True)
+    ncomp = _req_pos("n_polytropique_compression", n_polytropique_compression, strictly=True)
+    ndet = _req_pos("n_polytropique_detente", n_polytropique_detente, strictly=True)
+
+    if temperature_gaz_utile_k is not None:
+        _req_pos("temperature_gaz_utile_k", temperature_gaz_utile_k, strictly=True)
+    if rayon_maneton_m is not None:
+        _req_pos("rayon_maneton_m", rayon_maneton_m, strictly=True)
+
+    Vd = calcul_cylindree_unitaire(B, S, allow_zero=False, return_details=False)
+    assert isinstance(Vd, float)
+
+    CR: Optional[float] = None
+    if taux_compression is not None:
+        CR = _req_finite("taux_compression", taux_compression)
+        if CR <= 1.0:
+            raise ValueError("taux_compression doit être > 1.")
+    elif volume_mort_m3 is not None:
+        CR = calcul_taux_compression(Vd, volume_mort_m3)
+
+    if CR is None:
+        raise ValueError("Il faut fournir soit taux_compression, soit volume_mort_m3.")
+
+    theta_deg = _theta_cycle_720(step)
+    loi = construire_loi_pression_cycle_mecanique(
+        theta_deg,
+        mode=mode_pression,
+        alesage_m=B,
+        course_m=S,
+        longueur_bielle_m=L,
+        axe_decale_m=axe_decale_m,
+        courbe_mesuree=courbe_mesuree,
+        theta_tableau_deg=theta_tableau_deg,
+        pression_tableau_pa=pression_tableau_pa,
+        parametres_wiebe=parametres_wiebe,
+        pression_constante_pa=pression_constante_pa,
+        pression_max_pa=pression_max_pa,
+        angle_pic_deg=angle_pic_deg,
+        largeur_pic_deg=largeur_pic_deg,
+        pression_admission_pa=pression_admission_pa,
+        pression_echappement_pa=pression_echappement_pa,
+        forme_pic=forme_pic,
+    )
+
+    params = CycleMecaniqueParams(
+        alesage_m=B,
+        course_m=S,
+        longueur_bielle_m=L,
+        nombre_cylindres=N,
+        ordre_allumage=ordre_allumage,
+        regime_tr_min=rpm,
+        masse_alternative_kg=m_alt,
+        masse_tournante_equivalente_kg=m_rot,
+        axe_decale_m=float(axe_decale_m),
+        rapport_volumetrique=float(CR),
+        loi_pression_cylindre={"theta_deg": loi["theta_deg"], "p_pa": loi["p_pa"]},
+        pression_admission_pa=float(pression_admission_pa),
+        pression_echappement_pa=float(pression_echappement_pa),
+        pression_reference_pa=p_ref,
+        temperature_gaz_utile_k=float(temperature_gaz_utile_k) if temperature_gaz_utile_k is not None else None,
+        pas_angle_deg=step,
+        n_polytropique_compression=float(ncomp),
+        n_polytropique_detente=float(ndet),
+        rayon_maneton_m=float(rayon_maneton_m) if rayon_maneton_m is not None else None,
+    )
+
+    cycle = calculer_cycle_mecanique(params)
+
+    return {
+        "entrees": {
+            "alesage_m": B,
+            "course_m": S,
+            "longueur_bielle_m": L,
+            "nombre_cylindres": N,
+            "ordre_allumage": ordre_allumage,
+            "regime_tr_min": rpm,
+            "masse_alternative_kg": m_alt,
+            "masse_tournante_equivalente_kg": m_rot,
+            "taux_compression": float(CR),
+            "mode_pression": mode_pression,
+        },
+        "loi_pression": loi,
+        "cycle": cycle.as_dict(),
+    }
+
+
+def calculer_cycle_mecanique_depuis_cas_charge(
+    *,
+    alesage_m: Number,
+    course_m: Number,
+    longueur_bielle_m: Number,
+    nombre_cylindres: int,
+    ordre_allumage: Union[str, Sequence[int]],
+    masse_alternative_kg: Number,
+    cas: CasChargePression,
+    taux_compression: Optional[Number] = None,
+    volume_mort_m3: Optional[Number] = None,
+    masse_tournante_equivalente_kg: Number = 0.0,
+    axe_decale_m: Number = 0.0,
+    pression_reference_pa: Number = 101325.0,
+    pas_angle_deg: Number = 1.0,
+    rayon_maneton_m: Optional[Number] = None,
+) -> Dict[str, Any]:
+    """
+    Variante pratique : réutilise directement un CasChargePression.
+    """
+    kwargs_mode = _extraire_kwargs_mode_depuis_cas_charge(cas)
+
+    return calculer_cycle_mecanique_depuis_modele_pression(
+        alesage_m=alesage_m,
+        course_m=course_m,
+        longueur_bielle_m=longueur_bielle_m,
+        nombre_cylindres=nombre_cylindres,
+        ordre_allumage=ordre_allumage,
+        regime_tr_min=cas.regime_tr_min,
+        masse_alternative_kg=masse_alternative_kg,
+        mode_pression=cas.mode,
+        taux_compression=taux_compression,
+        volume_mort_m3=volume_mort_m3,
+        masse_tournante_equivalente_kg=masse_tournante_equivalente_kg,
+        axe_decale_m=axe_decale_m,
+        pression_reference_pa=pression_reference_pa,
+        temperature_gaz_utile_k=cas.temperature_gaz_k,
+        pas_angle_deg=pas_angle_deg,
+        rayon_maneton_m=rayon_maneton_m,
+        **kwargs_mode,
+    )
+
+
+def evaluer_cycles_mecaniques_pour_cas_charge(
+    *,
+    alesage_m: Number,
+    course_m: Number,
+    longueur_bielle_m: Number,
+    nombre_cylindres: int,
+    ordre_allumage: Union[str, Sequence[int]],
+    masse_alternative_kg: Number,
+    cas_de_charge: Sequence[CasChargePression],
+    taux_compression: Optional[Number] = None,
+    volume_mort_m3: Optional[Number] = None,
+    masse_tournante_equivalente_kg: Number = 0.0,
+    axe_decale_m: Number = 0.0,
+    pression_reference_pa: Number = 101325.0,
+    pas_angle_deg: Number = 1.0,
+    rayon_maneton_m: Optional[Number] = None,
+) -> Dict[str, Any]:
+    if not cas_de_charge:
+        raise ValueError("cas_de_charge ne peut pas être vide.")
+
+    resultats: Dict[str, Dict[str, Any]] = {}
+    pire_couple = {"cas": None, "valeur": -float("inf")}
+    pire_reaction = {"cas": None, "valeur": -float("inf")}
+    pire_force_laterale = {"cas": None, "valeur": -float("inf")}
+
+    for cas in cas_de_charge:
+        res = calculer_cycle_mecanique_depuis_cas_charge(
+            alesage_m=alesage_m,
+            course_m=course_m,
+            longueur_bielle_m=longueur_bielle_m,
+            nombre_cylindres=nombre_cylindres,
+            ordre_allumage=ordre_allumage,
+            masse_alternative_kg=masse_alternative_kg,
+            cas=cas,
+            taux_compression=taux_compression,
+            volume_mort_m3=volume_mort_m3,
+            masse_tournante_equivalente_kg=masse_tournante_equivalente_kg,
+            axe_decale_m=axe_decale_m,
+            pression_reference_pa=pression_reference_pa,
+            pas_angle_deg=pas_angle_deg,
+            rayon_maneton_m=rayon_maneton_m,
+        )
+        resultats[cas.nom] = res
+
+        cycle = res["cycle"]
+        env = cycle["enveloppes"]
+
+        couple_max = float(env["T_inst_Nm"]["max"])
+        reaction_max = max(
+            float(env["R_palier_1_N"]["max"]),
+            float(env["R_palier_2_N"]["max"]),
+        )
+        force_laterale_max = float(env["F_laterale_piston_N"]["max"])
+
+        if couple_max > pire_couple["valeur"]:
+            pire_couple = {"cas": cas.nom, "valeur": couple_max}
+        if reaction_max > pire_reaction["valeur"]:
+            pire_reaction = {"cas": cas.nom, "valeur": reaction_max}
+        if force_laterale_max > pire_force_laterale["valeur"]:
+            pire_force_laterale = {"cas": cas.nom, "valeur": force_laterale_max}
+
+    return {
+        "cas": resultats,
+        "cas_dimensionnant_couple": pire_couple["cas"],
+        "couple_max_dimensionnant_nm": pire_couple["valeur"],
+        "cas_dimensionnant_reaction_palier": pire_reaction["cas"],
+        "reaction_palier_dimensionnante_n": pire_reaction["valeur"],
+        "cas_dimensionnant_force_laterale": pire_force_laterale["cas"],
+        "force_laterale_dimensionnante_n": pire_force_laterale["valeur"],
+    }
