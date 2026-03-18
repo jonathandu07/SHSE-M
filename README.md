@@ -3604,6 +3604,745 @@ Le programme doit distinguer explicitement :
 * les inconnues bloquantes ;
 * les inconnues nécessitant essais.
 
+
 ---
 
-Si tu veux, la suite logique est de faire **la partie électronique de puissance / redressement / bus DC**, parce que c’est le maillon direct entre l’alternateur et la batterie.
+# 72. Électronique de puissance, redressement et bus continu — intégration système complète
+
+Dans l’architecture STHO-ME, l’électronique de puissance constitue le sous-système d’interface entre :
+
+* l’alternateur ;
+* le bus continu ;
+* la batterie ;
+* les charges auxiliaires ;
+* les éventuels convertisseurs secondaires.
+
+Elle ne doit pas être considérée comme un simple accessoire électrique, mais comme un organe structurant du système énergétique, car elle conditionne :
+
+* la stabilité de la tension ;
+* la qualité de conversion ;
+* la recharge batterie ;
+* la protection des composants ;
+* le rendement électrique global ;
+* le comportement transitoire du système.
+
+Le programme doit donc permettre de **dimensionner ou vérifier** :
+
+* la tension du bus continu ;
+* le courant du bus ;
+* la puissance traversant les étages de conversion ;
+* les pertes de conversion ;
+* les besoins de filtrage ;
+* les contraintes thermiques ;
+* la compatibilité tension/courant avec la batterie et l’alternateur ;
+* les limites de fonctionnement des semi-conducteurs ;
+* la logique de protection.
+
+---
+
+# 73. Rôle fonctionnel de l’électronique de puissance dans le STHO-ME
+
+## FE1 — Redresser la puissance issue de l’alternateur
+
+Si l’alternateur fournit une tension alternative, l’électronique doit convertir cette tension en tension continue exploitable.
+
+## FE2 — Stabiliser le bus continu
+
+Le bus DC doit rester dans une plage admissible malgré :
+
+* les variations de régime alternateur ;
+* les variations de charge ;
+* les séquences intermittentes de production ;
+* les transitoires batterie.
+
+## FE3 — Adapter la puissance à la batterie
+
+Le système doit convertir la puissance disponible sur le bus en une puissance de charge compatible avec :
+
+* la tension batterie ;
+* le courant admissible ;
+* le BMS ;
+* la stratégie énergétique.
+
+## FE4 — Alimenter les auxiliaires
+
+L’électronique doit permettre l’alimentation des charges annexes à partir du bus continu ou via convertisseurs dédiés.
+
+## FE5 — Assurer la protection électrique
+
+L’électronique doit protéger le système contre :
+
+* surtension ;
+* sous-tension ;
+* surintensité ;
+* surchauffe ;
+* inversion ;
+* court-circuit ;
+* transitoires destructeurs.
+
+---
+
+# 74. Architecture fonctionnelle minimale du sous-système électrique
+
+Le programme doit pouvoir représenter, à minima, la chaîne suivante :
+
+$$
+\text{Alternateur} \rightarrow \text{Redressement} \rightarrow \text{Filtrage} \rightarrow \text{Bus DC} \rightarrow \text{Conversion / régulation} \rightarrow \text{Batterie + Charges}
+$$
+
+Selon l’architecture réelle, il peut s’agir :
+
+* d’un simple redresseur + filtrage ;
+* d’un redresseur + convertisseur DC/DC ;
+* d’un ensemble à conversion pilotée ;
+* d’un système multi-bus avec conversions secondaires.
+
+Le programme ne doit pas imposer une topologie non définie ; il doit seulement calculer ce qui est déductible de la topologie explicitement choisie.
+
+---
+
+# 75. Grandeurs fondamentales du bus continu
+
+Le bus continu est la grandeur centrale de l’architecture électrique.
+
+## 75.1 Tension nominale du bus
+
+$$
+U_{\text{bus,nom}}
+$$
+
+## 75.2 Tension minimale admissible du bus
+
+$$
+U_{\text{bus,min}}
+$$
+
+## 75.3 Tension maximale admissible du bus
+
+$$
+U_{\text{bus,max}}
+$$
+
+## 75.4 Courant nominal du bus
+
+$$
+I_{\text{bus,nom}}
+$$
+
+## 75.5 Courant maximal du bus
+
+$$
+I_{\text{bus,max}}
+$$
+
+## 75.6 Puissance nominale transitant sur le bus
+
+$$
+P_{\text{bus,nom}} = U_{\text{bus,nom}} \cdot I_{\text{bus,nom}}
+$$
+
+## 75.7 Puissance maximale transitant sur le bus
+
+$$
+P_{\text{bus,max}} = U_{\text{bus}} \cdot I_{\text{bus,max}}
+$$
+
+Le programme doit vérifier la cohérence entre :
+
+* la puissance fournie par l’alternateur ;
+* la puissance appelée par les charges ;
+* la puissance absorbée par la batterie ;
+* la capacité thermique et électrique des composants du bus.
+
+---
+
+# 76. Redressement de la tension issue de l’alternateur
+
+Le redressement ne doit pas être traité comme idéal si des pertes doivent être prises en compte.
+
+## 76.1 Puissance d’entrée du redresseur
+
+$$
+P_{\text{red,in}}
+$$
+
+## 76.2 Rendement du redresseur
+
+$$
+\eta_{\text{red}}
+$$
+
+## 76.3 Puissance de sortie du redresseur
+
+$$
+P_{\text{red,out}} = \eta_{\text{red}} \cdot P_{\text{red,in}}
+$$
+
+## 76.4 Pertes du redresseur
+
+$$
+P_{\text{red,pertes}} = P_{\text{red,in}} - P_{\text{red,out}}
+$$
+
+ou encore :
+
+$$
+P_{\text{red,pertes}} = P_{\text{red,in}}\cdot (1-\eta_{\text{red}})
+$$
+
+## 76.5 Condition de compatibilité du redressement
+
+La tension redressée disponible doit être compatible avec la suite de la chaîne :
+
+$$
+U_{\text{red,out}} \in \text{plage exploitable par le bus ou le convertisseur aval}
+$$
+
+Le programme ne doit pas inventer la forme exacte d’onde ou la loi précise de redressement si la topologie n’est pas imposée.
+
+---
+
+# 77. Filtrage du bus continu
+
+Après redressement, la tension du bus peut nécessiter un filtrage pour limiter l’ondulation.
+
+## 77.1 Tension moyenne bus
+
+$$
+U_{\text{bus,moy}}
+$$
+
+## 77.2 Ondulation admissible du bus
+
+$$
+\Delta U_{\text{bus}}
+$$
+
+## 77.3 Taux d’ondulation relatif
+
+$$
+\delta_U = \frac{\Delta U_{\text{bus}}}{U_{\text{bus,moy}}}
+$$
+
+Le taux d’ondulation admissible doit être défini comme entrée de conception ou comme exigence système.
+
+## 77.4 Capacité de filtrage
+
+Si la topologie impose un condensateur de lissage, la valeur de capacité nécessaire dépend :
+
+* du courant ;
+* de la fréquence d’ondulation ;
+* de l’ondulation admissible ;
+* de la topologie de redressement.
+
+En pré-dimensionnement, le programme ne doit calculer une capacité de filtrage que si les variables suivantes sont connues :
+
+* courant de bus ;
+* fréquence d’ondulation ;
+* ondulation admissible ;
+* topologie de filtrage.
+
+Sans ces données, il doit signaler l’inconnue sans inventer.
+
+---
+
+# 78. Convertisseur DC/DC — rôle et modélisation
+
+Si la tension issue du redressement n’est pas directement compatible avec la batterie ou les charges, un convertisseur DC/DC est requis.
+
+## 78.1 Puissance d’entrée du convertisseur
+
+$$
+P_{\text{conv,in}}
+$$
+
+## 78.2 Rendement du convertisseur
+
+$$
+\eta_{\text{conv}}
+$$
+
+## 78.3 Puissance de sortie du convertisseur
+
+$$
+P_{\text{conv,out}} = \eta_{\text{conv}} \cdot P_{\text{conv,in}}
+$$
+
+## 78.4 Pertes du convertisseur
+
+$$
+P_{\text{conv,pertes}} = P_{\text{conv,in}} - P_{\text{conv,out}}
+$$
+
+## 78.5 Compatibilité tension
+
+Le convertisseur doit assurer :
+
+$$
+U_{\text{sortie conv}} \in \text{plage admissible du sous-système alimenté}
+$$
+
+## 78.6 Compatibilité courant
+
+Le convertisseur doit satisfaire :
+
+$$
+I_{\text{sortie conv}} \le I_{\text{conv,max}}
+$$
+
+## 78.7 Nature du convertisseur
+
+Le programme doit pouvoir accepter explicitement, selon architecture choisie :
+
+* abaisseur ;
+* élévateur ;
+* abaisseur-élévateur ;
+* bidirectionnel.
+
+Il ne doit pas choisir automatiquement une topologie si l’utilisateur ne l’a pas définie.
+
+---
+
+# 79. Compatibilité entre bus continu et batterie
+
+La batterie ne doit jamais être reliée au bus sans vérification stricte des grandeurs électriques.
+
+## 79.1 Condition de tension de charge
+
+La tension appliquée à la batterie doit respecter :
+
+$$
+U_{\text{charge}} \le U_{\text{pack,max admissible}}
+$$
+
+et :
+
+$$
+U_{\text{charge}} \ge U_{\text{seuil minimal de charge}}
+$$
+
+## 79.2 Condition de courant de charge
+
+$$
+I_{\text{charge}} \le I_{\text{pack,max,charge}}
+$$
+
+et :
+
+$$
+I_{\text{charge}} \le I_{\text{BMS,max,charge}}
+$$
+
+## 79.3 Condition de puissance de charge
+
+$$
+P_{\text{charge}} = U_{\text{pack}} \cdot I_{\text{charge}}
+$$
+
+Le programme doit vérifier que la chaîne alternateur → redressement → conversion peut fournir cette puissance sans dépasser les limites thermiques et électriques.
+
+---
+
+# 80. Compatibilité entre bus continu et charges auxiliaires
+
+Les charges auxiliaires ne doivent pas être modélisées comme une grandeur abstraite unique si le détail est disponible.
+
+Le programme doit pouvoir distinguer :
+
+* charges permanentes ;
+* charges intermittentes ;
+* charges critiques ;
+* charges secondaires.
+
+## 80.1 Puissance auxiliaire totale
+
+$$
+P_{\text{aux,tot}} = \sum_i P_{\text{aux},i}
+$$
+
+## 80.2 Courant auxiliaire total
+
+$$
+I_{\text{aux,tot}} = \frac{P_{\text{aux,tot}}}{U_{\text{bus}}}
+$$
+
+## 80.3 Condition de disponibilité de puissance
+
+Le système doit vérifier :
+
+$$
+P_{\text{bus,disponible}} \ge P_{\text{aux,tot}} + P_{\text{charge batterie}} + P_{\text{autres usages}}
+$$
+
+---
+
+# 81. Bilan de puissance de la chaîne électronique
+
+La chaîne complète doit satisfaire un bilan énergétique cohérent.
+
+## 81.1 Puissance mécanique fournie à l’alternateur
+
+$$
+P_{\text{méc}}
+$$
+
+## 81.2 Puissance électrique brute générée
+
+$$
+P_{\text{gen}} = \eta_{\text{gen}} \cdot P_{\text{méc}}
+$$
+
+## 81.3 Puissance après redressement
+
+$$
+P_{\text{red}} = \eta_{\text{red}} \cdot P_{\text{gen}}
+$$
+
+## 81.4 Puissance après conversion DC/DC éventuelle
+
+$$
+P_{\text{dc}} = \eta_{\text{conv}} \cdot P_{\text{red}}
+$$
+
+## 81.5 Puissance réellement injectée vers la batterie
+
+$$
+P_{\text{pack,in}} = \eta_{\text{charge}} \cdot P_{\text{dc}}
+$$
+
+## 81.6 Rendement global de la chaîne électrique
+
+$$
+\eta_{\text{chaine elec}} = \eta_{\text{gen}} \cdot \eta_{\text{red}} \cdot \eta_{\text{conv}} \cdot \eta_{\text{charge}}
+$$
+
+Si un étage n’existe pas dans l’architecture retenue, son rendement n’est pas pris en compte.
+
+---
+
+# 82. Courants de bus et sections conductrices
+
+Le bus continu et ses interconnexions doivent être dimensionnés à partir des courants réels.
+
+## 82.1 Courant bus
+
+$$
+I_{\text{bus}} = \frac{P_{\text{bus}}}{U_{\text{bus}}}
+$$
+
+## 82.2 Condition de vérification
+
+Le programme doit comparer :
+
+* courant nominal ;
+* courant maximal ;
+* courant transitoire ;
+* courant de défaut si défini.
+
+## 82.3 Conducteurs et barres de bus
+
+Le programme peut vérifier la densité de courant uniquement si les données suivantes sont fournies :
+
+* section conductrice ;
+* matériau conducteur ;
+* mode de refroidissement ;
+* température admissible.
+
+Sans ces données, il doit signaler que la vérification thermique des conducteurs reste partielle.
+
+---
+
+# 83. Pertes Joule dans le bus et les liaisons
+
+## 83.1 Résistance équivalente d’une liaison
+
+$$
+R_{\text{liaison}}
+$$
+
+## 83.2 Pertes Joule
+
+$$
+P_J = R_{\text{liaison}} \cdot I^2
+$$
+
+## 83.3 Chute de tension
+
+$$
+\Delta U = R_{\text{liaison}} \cdot I
+$$
+
+## 83.4 Condition de compatibilité
+
+La chute de tension totale du bus doit rester compatible avec :
+
+* la plage de fonctionnement des convertisseurs ;
+* la tension minimale batterie ;
+* la stabilité du bus ;
+* les exigences des charges alimentées.
+
+---
+
+# 84. Contraintes thermiques de l’électronique de puissance
+
+Les composants de puissance dissipent une partie de l’énergie sous forme thermique.
+
+## 84.1 Puissance thermique à dissiper
+
+Pour chaque étage :
+
+$$
+\dot Q \approx P_{\text{pertes}}
+$$
+
+## 84.2 Condition thermique composant
+
+$$
+T_{\text{jonction}} < T_{\text{jonction,max}}
+$$
+
+## 84.3 Condition thermique boîtier
+
+$$
+T_{\text{boîtier}} < T_{\text{boîtier,max}}
+$$
+
+## 84.4 Condition thermique environnement
+
+$$
+T_{\text{amb}} < T_{\text{amb,max admissible}}
+$$
+
+## 84.5 Besoin de refroidissement
+
+Le système de dissipation doit être vérifié à partir :
+
+* des pertes ;
+* de la résistance thermique composant-radiateur ;
+* de la résistance thermique radiateur-air ou radiateur-liquide ;
+* de la température ambiante ;
+* de la température maximale admissible.
+
+Le programme ne doit pas inventer un dissipateur ni une résistance thermique si elles ne sont pas données ou déductibles.
+
+---
+
+# 85. Protections électriques minimales obligatoires
+
+Le sous-système électronique doit être conçu avec une logique de protection explicite.
+
+## 85.1 Protection surtension
+
+Condition de déclenchement si :
+
+$$
+U_{\text{bus}} > U_{\text{bus,max}}
+$$
+
+## 85.2 Protection sous-tension
+
+Condition de déclenchement si :
+
+$$
+U_{\text{bus}} < U_{\text{bus,min}}
+$$
+
+## 85.3 Protection surintensité
+
+Condition de déclenchement si :
+
+$$
+I > I_{\text{max admissible}}
+$$
+
+## 85.4 Protection thermique
+
+Condition de déclenchement si :
+
+$$
+T > T_{\text{max admissible}}
+$$
+
+## 85.5 Protection court-circuit
+
+Le système doit prévoir une stratégie de coupure ou d’isolement en cas de défaut brutal.
+
+Le programme peut seulement vérifier cette fonction si l’architecture de protection a été explicitement définie.
+
+---
+
+# 86. Compatibilité avec le fonctionnement intermittent du STHO-ME
+
+Le caractère intermittent de la génération impose des contraintes particulières à l’électronique de puissance.
+
+## 86.1 Variation temporelle de la puissance disponible
+
+Le programme doit pouvoir traiter une puissance alternateur non constante :
+
+$$
+P_{\text{gen}} = P_{\text{gen}}(t)
+$$
+
+## 86.2 Conséquence sur le bus
+
+Le bus continu doit rester stable malgré :
+
+* démarrage génération ;
+* arrêt génération ;
+* variations de régime ;
+* variation de couple ;
+* bascule charge / recharge.
+
+## 86.3 Condition d’absorption transitoire
+
+La combinaison bus + batterie + conversion doit pouvoir absorber les écarts temporaires entre :
+
+$$
+P_{\text{disponible}}(t)
+$$
+
+et
+
+$$
+P_{\text{demandée}}(t)
+$$
+
+sans sortir des plages de sécurité.
+
+---
+
+# 87. Stratégie de dimensionnement du sous-système électronique
+
+Le programme doit permettre deux approches.
+
+## 87.1 Approche par besoin système
+
+Entrées :
+
+* tension bus cible ;
+* puissance charge ;
+* puissance recharge ;
+* plage tension batterie ;
+* caractéristiques alternateur ;
+* rendements.
+
+Sorties :
+
+* puissance par étage ;
+* courants ;
+* pertes ;
+* contraintes thermiques ;
+* compatibilité globale.
+
+## 87.2 Approche par composants existants
+
+Entrées :
+
+* redresseur défini ;
+* convertisseur défini ;
+* limites tension/courant ;
+* rendement ;
+* température ;
+* résistance thermique.
+
+Sorties :
+
+* conformité ou non-conformité ;
+* marges ;
+* points bloquants ;
+* besoins de refroidissement.
+
+---
+
+# 88. Critères d’acceptation technique du sous-système électronique
+
+L’électronique de puissance intégrée au STHO-ME ne peut être considérée conforme que si les conditions suivantes sont satisfaites.
+
+## 88.1 Critère tension bus
+
+$$
+U_{\text{bus,min}} \le U_{\text{bus,fonctionnement}} \le U_{\text{bus,max}}
+$$
+
+## 88.2 Critère courant
+
+$$
+I_{\text{fonctionnement}} \le I_{\text{max composant}}
+$$
+
+## 88.3 Critère puissance
+
+$$
+P_{\text{transit}} \le P_{\text{max admissible étage}}
+$$
+
+## 88.4 Critère thermique
+
+$$
+T_{\text{fonctionnement}} < T_{\text{max admissible}}
+$$
+
+## 88.5 Critère batterie
+
+La puissance délivrée à la batterie doit être compatible avec :
+
+* tension pack ;
+* courant de charge ;
+* BMS ;
+* température.
+
+## 88.6 Critère rendement
+
+Le rendement global de la chaîne électrique doit rester compatible avec l’objectif énergétique du système.
+
+---
+
+# 89. Sorties minimales du programme sur l’électronique de puissance
+
+Le logiciel doit fournir automatiquement :
+
+* tension nominale bus ;
+* tension min bus ;
+* tension max bus ;
+* courant nominal bus ;
+* courant max bus ;
+* puissance par étage ;
+* rendement par étage ;
+* rendement global chaîne électrique ;
+* pertes redressement ;
+* pertes conversion ;
+* pertes liaisons ;
+* chute de tension bus ;
+* puissance dissipée totale ;
+* avertissements thermiques ;
+* avertissements tension ;
+* avertissements courant ;
+* avertissements compatibilité batterie ;
+* avertissements compatibilité alternateur ;
+* niveau de validité du calcul.
+
+---
+
+# 90. Hypothèses et limites de validité de cette modélisation
+
+La présente modélisation est valable pour du **pré-dimensionnement système** et de la **vérification d’architecture**.
+
+Elle ne remplace pas :
+
+* le dimensionnement détaillé des semi-conducteurs ;
+* la simulation SPICE ;
+* la modélisation CEM ;
+* l’étude des commandes PWM ;
+* l’étude détaillée des filtres ;
+* la validation thermique composants ;
+* la qualification des protections.
+
+Le programme doit distinguer explicitement :
+
+* les calculs fermes ;
+* les calculs conditionnels ;
+* les estimations dépendantes de composants non définis ;
+* les inconnues bloquantes ;
+* les vérifications à reporter sur prototype ou sur composants réels.
+
+---
