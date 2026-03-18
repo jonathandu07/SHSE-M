@@ -174,6 +174,16 @@ try:
 except Exception:
     _ARCHI_OK = False
 
+# ============================================================
+# Imports pièce piston (optionnel)
+# ============================================================
+try:
+    from backend.pieces.piston import Piston as PiecePiston  # type: ignore
+except Exception:
+    try:
+        from pieces.piston import Piston as PiecePiston  # type: ignore
+    except Exception:
+        PiecePiston = None  # type: ignore
 
 # ============================================================
 # Helpers
@@ -463,6 +473,41 @@ def _to_jsonable(value: Any) -> Any:
     return value
 
 
+def _resoudre_rapport_piston_source(piston: Optional[Any], rapport_piston: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if isinstance(rapport_piston, dict):
+        return rapport_piston
+    if piston is None:
+        return None
+    if isinstance(piston, dict):
+        return piston
+    if hasattr(piston, "analyser") and callable(getattr(piston, "analyser")):
+        try:
+            rep = piston.analyser(strict=False)  # type: ignore
+            return rep if isinstance(rep, dict) else None
+        except Exception:
+            return None
+    return None
+
+
+def _extraire_masses_depuis_rapport_piston(rapport_piston: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {
+        "masse_corps_piston_kg": None,
+        "masse_axe_kg": None,
+        "masse_joints_kg": None,
+        "masse_segments_kg": None,
+        "masse_bielle_alternative_kg": None,
+        "masse_alternative_calculee_kg": None,
+        "masse_alternative_totale_avec_bielle_kg": None,
+        "centre_gravite_depuis_face_tete_m": None,
+    }
+    if not isinstance(rapport_piston, dict):
+        return out
+    masses = rapport_piston.get("masses", {}) if isinstance(rapport_piston.get("masses", {}), dict) else {}
+    for k in list(out.keys()):
+        out[k] = masses.get(k)
+    return out
+
+
 # ============================================================
 # Composant moteur thermique (calcul + définition)
 # ============================================================
@@ -513,6 +558,10 @@ class MoteurThermique:
     longueur_bielle_m: Optional[float] = None
     rayon_manivelle_m: Optional[float] = None
     masse_alternative_kg: Optional[float] = None
+    piston: Optional[Any] = None
+    masse_bielle_kg: Optional[float] = None
+    fraction_bielle_alternative: Optional[float] = None
+    preferer_masse_issue_piston: bool = True
 
     # --- Dimensionnement cylindre / matériau ---
     contrainte_admissible_pa: Optional[float] = None
@@ -619,6 +668,50 @@ class MoteurThermique:
             return None
         Vd_unit = float(calcul_cylindree_unitaire(self.alesage_m, self.course_m))
         return float(calcul_taux_compression(Vd_unit, self.volume_mort_nominal_m3))
+
+    def resoudre_masse_alternative_effective(
+        self,
+        *,
+        piston: Optional[Any] = None,
+        rapport_piston: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        rapport_src = _resoudre_rapport_piston_source(piston if piston is not None else self.piston, rapport_piston)
+        masses_piston = _extraire_masses_depuis_rapport_piston(rapport_src)
+        out: Dict[str, Any] = {
+            "source": None,
+            "rapport_piston_disponible": rapport_src is not None,
+            "masses_piston": masses_piston,
+            "masse_alternative_effective_kg": None,
+            "ecart_vs_entree_masse_alternative_kg": None,
+            "notes": [],
+            "inconnues": [],
+        }
+
+        masse_calculee_piston = masses_piston.get("masse_alternative_totale_avec_bielle_kg")
+        if masse_calculee_piston is None:
+            masse_calculee_piston = masses_piston.get("masse_alternative_calculee_kg")
+            if masse_calculee_piston is not None and self.masse_bielle_kg is not None and self.fraction_bielle_alternative is not None:
+                masse_calculee_piston = float(masse_calculee_piston) + float(self.masse_bielle_kg) * float(self.fraction_bielle_alternative)
+                out["notes"].append("Fraction alternative de bielle ajoutée côté moteur à la masse issue du piston.")
+
+        masse_explicit = self.masse_alternative_kg
+
+        if self.preferer_masse_issue_piston and masse_calculee_piston is not None:
+            out["source"] = "piston"
+            out["masse_alternative_effective_kg"] = float(masse_calculee_piston)
+        elif masse_explicit is not None:
+            out["source"] = "entree_moteur"
+            out["masse_alternative_effective_kg"] = float(masse_explicit)
+        elif masse_calculee_piston is not None:
+            out["source"] = "piston"
+            out["masse_alternative_effective_kg"] = float(masse_calculee_piston)
+        else:
+            out["inconnues"].append("masse alternative effective")
+
+        if masse_explicit is not None and masse_calculee_piston is not None:
+            out["ecart_vs_entree_masse_alternative_kg"] = float(masse_calculee_piston) - float(masse_explicit)
+
+        return out
 
     # ============================================================
     # DÉFINITION DU MOTEUR PAR LE CALCUL (aucune invention)
@@ -1205,6 +1298,8 @@ class MoteurThermique:
         *,
         rpm: Optional[float] = None,
         ordre_allumage: Optional[OrdreAllumageType] = None,
+        piston: Optional[Any] = None,
+        rapport_piston: Optional[Dict[str, Any]] = None,
         taux_compression: Optional[float] = None,
         volume_mort_m3: Optional[float] = None,
         loi_pression_cylindre: Optional[Any] = None,
@@ -1240,6 +1335,9 @@ class MoteurThermique:
             "notes_modele": [],
         }
 
+        masse_alt_resolue = self.resoudre_masse_alternative_effective(piston=piston, rapport_piston=rapport_piston)
+        masse_alt_eff = masse_alt_resolue.get("masse_alternative_effective_kg")
+
         rpm_val = rpm if rpm is not None else self.rpm_nominal
         ordre_val = ordre_allumage if ordre_allumage is not None else self.ordre_allumage
         cr = taux_compression if taux_compression is not None else self.taux_compression_effectif
@@ -1260,14 +1358,17 @@ class MoteurThermique:
             "nombre_cylindres": self.nombre_cylindres,
             "ordre_allumage": ordre_val,
             "masse_alternative_kg": self.masse_alternative_kg,
+            "masse_alternative_effective_kg": masse_alt_eff,
+            "piston_fournit": piston is not None or self.piston is not None or rapport_piston is not None,
             "taux_compression": cr,
             "volume_mort_m3": vc,
             "pas_angle_deg": pas_angle_deg,
             "modules_cycle_disponibles": _CYCLE_OK,
             "mode_pression": mode_pression,
-            "cas_charge": cas_charge.nom if cas_charge is not None else None,
+            "cas_charge": cas_charge.nom if cas_charge is not None and hasattr(cas_charge, "nom") else None,
             "cas_de_charge_count": len(cas_de_charge) if cas_de_charge is not None else 0,
         }
+        rapport["synthese"]["masse_alternative_resolution"] = masse_alt_resolue
 
         if not _CYCLE_OK:
             _push_inconnue(
@@ -1285,8 +1386,8 @@ class MoteurThermique:
             _push_inconnue(rapport, "impossibles", "course_m", "Requis pour le cycle mécanique.")
         if self.longueur_bielle_m is None:
             _push_inconnue(rapport, "impossibles", "longueur_bielle_m", "Requis pour le cycle mécanique.")
-        if self.masse_alternative_kg is None:
-            _push_inconnue(rapport, "impossibles", "masse_alternative_kg", "Requis pour le cycle mécanique.")
+        if masse_alt_eff is None:
+            _push_inconnue(rapport, "impossibles", "masse_alternative_effective_kg", "Requise pour le cycle mécanique, fournie soit directement, soit via le module piston.")
 
         ordre_norm = None
         try:
@@ -1328,7 +1429,7 @@ class MoteurThermique:
                         longueur_bielle_m=float(self.longueur_bielle_m),
                         nombre_cylindres=int(self.nombre_cylindres),
                         ordre_allumage=tuple(ordre_norm),
-                        masse_alternative_kg=float(self.masse_alternative_kg),
+                        masse_alternative_kg=float(masse_alt_eff),
                         cas_de_charge=cas_de_charge,
                         taux_compression=cr,
                         volume_mort_m3=vc,
@@ -1342,6 +1443,7 @@ class MoteurThermique:
                         res = _to_jsonable(res)
                     rapport["cycle"] = res
                     rapport["synthese"] = {
+                        **rapport["synthese"],
                         "cas_dimensionnant_couple": res.get("cas_dimensionnant_couple"),
                         "couple_max_dimensionnant_nm": res.get("couple_max_dimensionnant_nm"),
                         "cas_dimensionnant_reaction_palier": res.get("cas_dimensionnant_reaction_palier"),
@@ -1360,7 +1462,7 @@ class MoteurThermique:
                         longueur_bielle_m=float(self.longueur_bielle_m),
                         nombre_cylindres=int(self.nombre_cylindres),
                         ordre_allumage=tuple(ordre_norm),
-                        masse_alternative_kg=float(self.masse_alternative_kg),
+                        masse_alternative_kg=float(masse_alt_eff),
                         cas=cas_charge,
                         taux_compression=cr,
                         volume_mort_m3=vc,
@@ -1375,6 +1477,7 @@ class MoteurThermique:
                     rapport["cycle"] = res
                     cycle_dict = res.get("cycle", {})
                     rapport["synthese"] = {
+                        **rapport["synthese"],
                         "statistiques_cycle": cycle_dict.get("statistiques_cycle"),
                         "enveloppes": cycle_dict.get("enveloppes"),
                         "rapport_lambda": cycle_dict.get("extras", {}).get("rapport_lambda"),
@@ -1392,7 +1495,7 @@ class MoteurThermique:
                     nombre_cylindres=int(self.nombre_cylindres),
                     ordre_allumage=tuple(ordre_norm),
                     regime_tr_min=float(_require_positive("rpm", rpm_val, strictly=True)),
-                    masse_alternative_kg=float(self.masse_alternative_kg),
+                    masse_alternative_kg=float(masse_alt_eff),
                     mode_pression=mode_pression,
                     taux_compression=cr,
                     volume_mort_m3=vc,
@@ -1420,6 +1523,7 @@ class MoteurThermique:
                 rapport["cycle"] = res
                 cycle_dict = res.get("cycle", {})
                 rapport["synthese"] = {
+                    **rapport["synthese"],
                     "statistiques_cycle": cycle_dict.get("statistiques_cycle"),
                     "enveloppes": cycle_dict.get("enveloppes"),
                     "rapport_lambda": cycle_dict.get("extras", {}).get("rapport_lambda"),
@@ -1460,7 +1564,7 @@ class MoteurThermique:
             "nombre_cylindres": int(self.nombre_cylindres),
             "ordre_allumage": tuple(ordre_norm),
             "regime_tr_min": float(_require_positive("rpm", rpm_val, strictly=True)),
-            "masse_alternative_kg": float(self.masse_alternative_kg),
+            "masse_alternative_kg": float(masse_alt_eff),
             "rapport_volumetrique": float(_require_positive("rapport_volumetrique", cr, strictly=True)),
             "pas_angle_deg": float(_require_positive("pas_angle_deg", pas_angle_deg, strictly=True)),
         }
@@ -1469,15 +1573,38 @@ class MoteurThermique:
             params_kwargs["loi_pression_cylindre"] = loi_pression_cylindre
         if modele_combustion is not None:
             params_kwargs["modele_combustion"] = modele_combustion
-        if axe_eff != 0.0:
-            params_kwargs["axe_decale_m"] = float(_require_finite("axe_decale_m", axe_eff))
+        if axe_decale_m is not None:
+            params_kwargs["axe_decale_m"] = float(_require_finite("axe_decale_m", axe_decale_m))
+        elif self.axe_decale_m != 0.0:
+            params_kwargs["axe_decale_m"] = float(self.axe_decale_m)
+
         if mt_eff != 0.0:
             params_kwargs["masse_tournante_equivalente_kg"] = float(_require_positive("masse_tournante_equivalente_kg", mt_eff, strictly=False))
-        params_kwargs["pression_admission_pa"] = float(_require_positive("pression_admission_pa", p_adm_eff, strictly=False))
-        params_kwargs["pression_echappement_pa"] = float(_require_positive("pression_echappement_pa", p_ech_eff, strictly=False))
-        params_kwargs["pression_reference_pa"] = float(_require_positive("pression_reference_pa", p_ref_eff, strictly=False))
-        params_kwargs["n_polytropique_compression"] = float(_require_positive("n_polytropique_compression", ncomp_eff, strictly=True))
-        params_kwargs["n_polytropique_detente"] = float(_require_positive("n_polytropique_detente", ndet_eff, strictly=True))
+
+        if pression_admission_pa is not None:
+            params_kwargs["pression_admission_pa"] = float(_require_positive("pression_admission_pa", pression_admission_pa, strictly=False))
+        elif self.pression_admission_pa is not None:
+            params_kwargs["pression_admission_pa"] = float(_require_positive("pression_admission_pa", self.pression_admission_pa, strictly=False))
+
+        if pression_echappement_pa is not None:
+            params_kwargs["pression_echappement_pa"] = float(_require_positive("pression_echappement_pa", pression_echappement_pa, strictly=False))
+        elif self.pression_echappement_pa is not None:
+            params_kwargs["pression_echappement_pa"] = float(_require_positive("pression_echappement_pa", self.pression_echappement_pa, strictly=False))
+
+        if pression_reference_pa is not None:
+            params_kwargs["pression_reference_pa"] = float(_require_positive("pression_reference_pa", pression_reference_pa, strictly=False))
+        elif self.pression_reference_pa is not None:
+            params_kwargs["pression_reference_pa"] = float(_require_positive("pression_reference_pa", self.pression_reference_pa, strictly=False))
+
+        if n_polytropique_compression is not None:
+            params_kwargs["n_polytropique_compression"] = float(_require_positive("n_polytropique_compression", n_polytropique_compression, strictly=True))
+        elif self.n_polytropique_compression is not None:
+            params_kwargs["n_polytropique_compression"] = float(_require_positive("n_polytropique_compression", self.n_polytropique_compression, strictly=True))
+
+        if n_polytropique_detente is not None:
+            params_kwargs["n_polytropique_detente"] = float(_require_positive("n_polytropique_detente", n_polytropique_detente, strictly=True))
+        elif self.n_polytropique_detente is not None:
+            params_kwargs["n_polytropique_detente"] = float(_require_positive("n_polytropique_detente", self.n_polytropique_detente, strictly=True))
 
         if rayon_maneton_m is not None:
             params_kwargs["rayon_maneton_m"] = float(_require_positive("rayon_maneton_m", rayon_maneton_m, strictly=True))
@@ -1492,6 +1619,7 @@ class MoteurThermique:
 
         rapport["cycle"] = resultat_dict
         rapport["synthese"] = {
+            **rapport["synthese"],
             "statistiques_cycle": resultat_dict.get("statistiques_cycle"),
             "enveloppes": resultat_dict.get("enveloppes"),
             "rapport_lambda": resultat_dict.get("extras", {}).get("rapport_lambda"),
@@ -1504,10 +1632,13 @@ class MoteurThermique:
     # ============================================================
     # ANALYSE POINT DE FONCTIONNEMENT
     # ============================================================
+
     def analyser_point_de_fonctionnement(
         self,
         *,
         rpm: Optional[float] = None,
+        piston: Optional[Any] = None,
+        rapport_piston: Optional[Dict[str, Any]] = None,
         pression_moyenne_effective_pa: Optional[float] = None,
         pression_cylindre_pa: Optional[float] = None,
         angle_vilebrequin_deg: Optional[float] = None,
@@ -1555,6 +1686,9 @@ class MoteurThermique:
         pme_effective = pression_moyenne_effective_pa if pression_moyenne_effective_pa is not None else self.pme_nominale_pa
         pression_max_effective = pression_max_pa if pression_max_pa is not None else self.pression_max_pa
 
+        masse_alt_resolue = self.resoudre_masse_alternative_effective(piston=piston, rapport_piston=rapport_piston)
+        masse_alt_eff = masse_alt_resolue.get("masse_alternative_effective_kg")
+
         rapport["entrees"].update(
             {
                 "rpm": rpm_effectif,
@@ -1573,8 +1707,11 @@ class MoteurThermique:
                 "taux_compression_effectif": self.taux_compression_effectif,
                 "volume_mort_effectif_m3": self.volume_mort_effectif_m3,
                 "ordre_allumage": self.ordre_allumage,
+                "masse_alternative_effective_kg": masse_alt_eff,
+                "piston_fournit": piston is not None or self.piston is not None or rapport_piston is not None,
             }
         )
+        rapport["conception"]["masse_alternative_resolution"] = masse_alt_resolue
 
         Vd_unit: Optional[float] = None
         Vd_tot: Optional[float] = None
@@ -1705,7 +1842,7 @@ class MoteurThermique:
             rapport["notes_modele"].append("rayon_manivelle_m approx = course/2 (si non fourni).")
 
         if (
-            self.masse_alternative_kg is not None
+            masse_alt_eff is not None
             and r_manivelle is not None
             and rpm_effectif is not None
             and self.longueur_bielle_m is not None
@@ -1713,7 +1850,7 @@ class MoteurThermique:
         ):
             F_inertie = float(
                 calcul_force_inertie_alternative(
-                    masse_alternative_kg=self.masse_alternative_kg,
+                    masse_alternative_kg=masse_alt_eff,
                     rayon_manivelle_m=r_manivelle,
                     vitesse_rotation_tr_min=_require_positive("rpm", rpm_effectif, strictly=False),
                     longueur_bielle_m=self.longueur_bielle_m,
