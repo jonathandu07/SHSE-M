@@ -1,12 +1,13 @@
 # backend/modules/moteur_thermique/calcul_cylindree.py
+
 from __future__ import annotations
 
 import csv
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, TypedDict, Union
-from typing import Callable
+from typing import Any, Dict, List, Literal, Optional, Sequence, TypedDict, Union
+
 import numpy as np
 
 Number = Union[int, float]
@@ -860,6 +861,7 @@ def calcul_pression_cylindre_modele_wiebe(
             "theta_combustion_debut_deg": theta0,
             "theta_combustion_fin_deg": theta_end,
             "modele_volume": vol_details["modele_volume"],
+            "mode": "wiebe",
         }
     return p
 
@@ -1492,42 +1494,17 @@ def calculer_cylindre_complet(
     return res
 
 
-__all__ = [
-    "CourbePressionMesuree",
-    "ParametresWiebe",
-    "CasChargePression",
-    "aire_disque_depuis_diametre",
-    "rayon_depuis_diametre",
-    "verifier_hypothese_paroi_mince",
-    "calcul_cylindree_unitaire",
-    "calcul_cylindree_totale",
-    "calcul_volume_mort",
-    "calcul_taux_compression",
-    "calcul_ratio_alesage_course",
-    "calcul_volume_cylindre_vs_angle",
-    "calcul_force_gaz",
-    "calcul_force_gaz_vs_angle",
-    "calcul_epaisseur_cylindre_mince",
-    "calcul_epaisseur_cylindre_lame",
-    "calcul_epaisseur_paroi_depuis_alesage",
-    "charger_courbe_pression_csv",
-    "calcul_pression_cylindre_modele_wiebe",
-    "calcul_pression_cylindre_enveloppe",
-    "construire_pression_cylindre",
-    "ResultatPressionCase",
-    "ResultatCylindre",
-    "evaluer_cas_charge_cylindre",
-    "evaluer_plusieurs_cas_charge_cylindre",
-    "calculer_cylindre_complet",
-]
-
+# =============================================================================
+# Ponts vers cycle_mecanique.py
+# =============================================================================
 
 def _extraire_kwargs_mode_depuis_cas_charge(cas: CasChargePression) -> Dict[str, Any]:
     """
-    Transforme un CasChargePression en kwargs compatibles avec construire_pression_cylindre(...).
-    Aucune hypothèse supplémentaire n'est inventée.
+    Transforme un CasChargePression en kwargs compatibles avec
+    calculer_cycle_mecanique_depuis_modele_pression(...),
+    hors mode_pression qui est déjà passé explicitement.
     """
-    out: Dict[str, Any] = {"mode": cas.mode}
+    out: Dict[str, Any] = {}
 
     if cas.mode == "csv":
         out["courbe_mesuree"] = cas.courbe_mesuree
@@ -1856,19 +1833,25 @@ def evaluer_cycles_mecaniques_pour_cas_charge(
         cycle = res["cycle"]
         env = cycle["enveloppes"]
 
-        couple_max = float(env["T_inst_Nm"]["max"])
+        couple_abs_max = max(
+            abs(float(env["T_inst_Nm"]["min"])),
+            abs(float(env["T_inst_Nm"]["max"])),
+        )
         reaction_max = max(
             float(env["R_palier_1_N"]["max"]),
             float(env["R_palier_2_N"]["max"]),
         )
-        force_laterale_max = float(env["F_laterale_piston_N"]["max"])
+        force_laterale_abs_max = max(
+            abs(float(env["F_laterale_piston_N"]["min"])),
+            abs(float(env["F_laterale_piston_N"]["max"])),
+        )
 
-        if couple_max > pire_couple["valeur"]:
-            pire_couple = {"cas": cas.nom, "valeur": couple_max}
+        if couple_abs_max > pire_couple["valeur"]:
+            pire_couple = {"cas": cas.nom, "valeur": couple_abs_max}
         if reaction_max > pire_reaction["valeur"]:
             pire_reaction = {"cas": cas.nom, "valeur": reaction_max}
-        if force_laterale_max > pire_force_laterale["valeur"]:
-            pire_force_laterale = {"cas": cas.nom, "valeur": force_laterale_max}
+        if force_laterale_abs_max > pire_force_laterale["valeur"]:
+            pire_force_laterale = {"cas": cas.nom, "valeur": force_laterale_abs_max}
 
     return {
         "cas": resultats,
@@ -1879,3 +1862,39 @@ def evaluer_cycles_mecaniques_pour_cas_charge(
         "cas_dimensionnant_force_laterale": pire_force_laterale["cas"],
         "force_laterale_dimensionnante_n": pire_force_laterale["valeur"],
     }
+
+
+__all__ = [
+    "CourbePressionMesuree",
+    "ParametresWiebe",
+    "CasChargePression",
+    "ModeleParoi",
+    "ModelePression",
+    "ResultatPressionCase",
+    "ResultatCylindre",
+    "aire_disque_depuis_diametre",
+    "rayon_depuis_diametre",
+    "verifier_hypothese_paroi_mince",
+    "calcul_cylindree_unitaire",
+    "calcul_cylindree_totale",
+    "calcul_volume_mort",
+    "calcul_taux_compression",
+    "calcul_ratio_alesage_course",
+    "calcul_volume_cylindre_vs_angle",
+    "calcul_force_gaz",
+    "calcul_force_gaz_vs_angle",
+    "calcul_epaisseur_cylindre_mince",
+    "calcul_epaisseur_cylindre_lame",
+    "calcul_epaisseur_paroi_depuis_alesage",
+    "charger_courbe_pression_csv",
+    "calcul_pression_cylindre_modele_wiebe",
+    "calcul_pression_cylindre_enveloppe",
+    "construire_pression_cylindre",
+    "evaluer_cas_charge_cylindre",
+    "evaluer_plusieurs_cas_charge_cylindre",
+    "calculer_cylindre_complet",
+    "construire_loi_pression_cycle_mecanique",
+    "calculer_cycle_mecanique_depuis_modele_pression",
+    "calculer_cycle_mecanique_depuis_cas_charge",
+    "evaluer_cycles_mecaniques_pour_cas_charge",
+]
