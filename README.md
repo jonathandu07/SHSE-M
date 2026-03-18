@@ -1257,19 +1257,962 @@ K_e = 1.25
 
 ---
 
-# 21. CE QU’UN DOSSIER INDUSTRIEL DOIT AJOUTER ENSUITE
+Voici une **suite harmonisée, densifiée et renumérotée proprement** pour s’enchaîner avec ton dossier sans casser la logique.
+J’ai aussi corrigé plusieurs points implicites :
 
-Encore absent :
+* suppression du doublon de numérotation à partir du second “11” ;
+* homogénéisation des notations ;
+* distinction plus claire entre **grandeurs d’entrée**, **grandeurs calculées**, **contraintes de vérification** ;
+* ajout des **plages de validité**, **marges de sécurité**, **hypothèses physiques** et **critères de conception système**.
+
+Tu peux donc ajouter cette suite **après ta section 20 actuelle**, en remplaçant le bloc doublonné.
+
+---
+
+# 21. Variables d’entrée structurées et hiérarchisées du programme
+
+Le programme de conception ne doit jamais manipuler des variables isolées sans rattachement à un sous-système physique identifié.
+Chaque variable d’entrée doit appartenir à une famille de calcul cohérente :
+
+* thermique ;
+* géométrique ;
+* pressive ;
+* cinématique ;
+* mécanique ;
+* électrique ;
+* énergétique ;
+* matériaux ;
+* contrôle.
+
+Toutes les entrées doivent être contrôlées avant calcul par :
+
+* test de positivité ;
+* test de cohérence dimensionnelle ;
+* test de domaine physique ;
+* test de compatibilité inter-variables.
 
 ---
 
-* fatigue Wöhler,
-* dilatations différentielles,
-* jeux piston/cylindre,
-* rugosité,
-* rendement roulements,
-* pertes segmentation,
-* inerties tournantes complètes,
-* spectre vibratoire.
+## 21.1 Bloc thermique primaire
+
+### Température côté chaud
+
+$$
+T_h
+$$
+
+Condition :
+
+$$
+T_h > T_c
+$$
+
+et :
+
+$$
+T_h < T_{\text{limite matériau}}
+$$
+
+### Température côté froid
+
+$$
+T_c
+$$
+
+### Gradient thermique disponible
+
+$$
+\Delta T = T_h - T_c
+$$
+
+Condition minimale d’exploitation recommandée :
+
+$$
+\Delta T > 40\ \text{K}
+$$
+
+Sous ce seuil, le fonctionnement devient peu pertinent du point de vue énergétique, sauf architecture très spécialisée.
+
+### Flux thermique de combustion
+
+$$
+\dot Q_{\text{comb}} = \dot m_f \cdot PCI
+$$
+
+avec :
+
+* $\dot m_f$ : débit massique carburant ;
+* $PCI$ : pouvoir calorifique inférieur.
+
+### Flux thermique récupérable sur les gaz d’échappement
+
+$$
+\dot Q_{\text{éch}} = \dot m_{\text{gaz}} \cdot c_p \cdot (T_{\text{gaz,in}} - T_{\text{gaz,out}})\cdot \varepsilon_{\text{hx}}
+$$
+
+avec :
+
+* $\dot m_{\text{gaz}}$ : débit massique des gaz ;
+* $c_p$ : chaleur massique ;
+* $\varepsilon_{\text{hx}}$ : efficacité de l’échangeur.
+
+### Flux thermique récupérable sur composants internes
+
+$$
+\dot Q_{\text{comp}}
+$$
+
+Il regroupe, selon conception :
+
+* pertes Joule alternateur ;
+* pertes électroniques ;
+* pertes de conversion ;
+* pertes de frottement ;
+* chaleur des pièces proches thermiquement couplées.
+
+### Flux thermique utile total
+
+$$
+\dot Q_{\text{utile}} = \dot Q_{\text{comb}} + \dot Q_{\text{éch}} + \dot Q_{\text{comp}}
+$$
 
 ---
+
+## 21.2 Bloc géométrique moteur complet
+
+### Alésage
+
+$$
+B
+$$
+
+### Rayon piston
+
+$$
+R = \frac{B}{2}
+$$
+
+### Surface utile du piston
+
+$$
+A = \frac{\pi B^2}{4}
+$$
+
+### Course utile
+
+$$
+S
+$$
+
+### Volume balayé unitaire
+
+$$
+V_b = A \cdot S
+$$
+
+### Volume mort
+
+$$
+V_m
+$$
+
+Condition :
+
+$$
+V_m > 0
+$$
+
+### Volume total chambre
+
+$$
+V_t = V_b + V_m
+$$
+
+### Rapport volumétrique
+
+$$
+r_v = \frac{V_t}{V_m}
+$$
+
+---
+
+## 21.3 Bloc pression interne réelle
+
+### Pression minimale cycle
+
+$$
+p_{\min}
+$$
+
+### Pression maximale cycle
+
+$$
+p_{\max}
+$$
+
+### Pression moyenne effective
+
+$$
+p_{me}
+$$
+
+Condition :
+
+$$
+p_{\min} < p_{me} < p_{\max}
+$$
+
+### Rapport de pression
+
+$$
+r_p = \frac{p_{\max}}{p_{\min}}
+$$
+
+### Force instantanée appliquée au piston
+
+$$
+F = p \cdot A
+$$
+
+### Force maximale réelle
+
+$$
+F_{\max} = p_{\max}\cdot A
+$$
+
+---
+
+## 21.4 Bloc matériaux
+
+Le programme doit permettre de renseigner ou récupérer depuis une base matériaux :
+
+* densité $\rho$ ;
+* module de Young $E$ ;
+* coefficient de Poisson $\nu$ ;
+* limite élastique $R_e$ ;
+* résistance à traction $R_m$ ;
+* conductivité thermique $\lambda$ ;
+* coefficient de dilatation $\alpha$ ;
+* température maximale de service ;
+* limite de fatigue si disponible.
+
+Le programme ne doit jamais inventer une propriété absente ; il doit la marquer comme inconnue bloquante ou partielle.
+
+---
+
+## 21.5 Bloc électrique système
+
+### Tension bus DC
+
+$$
+U_{\text{bus}}
+$$
+
+### Tension nominale cellule
+
+$$
+U_{\text{cell}}
+$$
+
+### Capacité unitaire cellule
+
+$$
+C_{\text{cell}}
+$$
+
+### Puissance électrique cible
+
+$$
+P_{\text{elec}}
+$$
+
+### Rendement chaîne électrique
+
+$$
+\eta_{\text{elec}}
+$$
+
+---
+
+# 22. Cinématique complète réelle
+
+## 22.1 Régime moteur
+
+$$
+N
+$$
+
+en tr/min.
+
+## 22.2 Fréquence mécanique
+
+$$
+f = \frac{N}{60}
+$$
+
+## 22.3 Pulsation
+
+$$
+\omega = \frac{2\pi N}{60}
+$$
+
+## 22.4 Vitesse moyenne piston
+
+$$
+U_p = \frac{2SN}{60}
+$$
+
+Condition prudente prototype durable :
+
+$$
+U_p \leq U_{p,\max}
+$$
+
+avec typiquement :
+
+$$
+U_{p,\max} \approx 8\ \text{m/s}
+$$
+
+à affiner selon matériaux, lubrification, guidage et durée de vie visée.
+
+## 22.5 Accélération maximale du piston
+
+Approximation premier ordre :
+
+$$
+a_{\max} \approx \omega^2 \cdot r
+$$
+
+avec :
+
+$$
+r = \frac{S}{2}
+$$
+
+## 22.6 Effort inertiel alternatif
+
+$$
+F_i = m_{\text{alt}} \cdot a
+$$
+
+où $m_{\text{alt}}$ est la masse alternative équivalente.
+
+## 22.7 Effort total transmis à la bielle
+
+En première approche :
+
+$$
+F_{\text{bielle}} = F_{\text{gaz}} + F_i
+$$
+
+avec :
+
+$$
+F_{\text{gaz}} = p \cdot A
+$$
+
+---
+
+# 23. Travail thermodynamique réel
+
+## 23.1 Travail élémentaire du cycle
+
+Expression générale :
+
+$$
+W = \oint p,dV
+$$
+
+## 23.2 Approximation de dimensionnement
+
+Pour pré-dimensionnement :
+
+$$
+W_i = p_{me}\cdot V_b
+$$
+
+## 23.3 Puissance indiquée
+
+$$
+P_i = W_i \cdot f
+$$
+
+ou encore :
+
+$$
+P_i = p_{me}\cdot V_b \cdot \frac{N}{60}
+$$
+
+Pour $N_{cyl}$ cylindres :
+
+$$
+P_{i,\text{tot}} = N_{cyl}\cdot p_{me}\cdot V_b \cdot \frac{N}{60}
+$$
+
+## 23.4 Puissance mécanique arbre
+
+$$
+P_{\text{shaft}} = \eta_m \cdot P_i
+$$
+
+avec $\eta_m$ rendement mécanique interne.
+
+## 23.5 Couple réel
+
+$$
+T = \frac{P_{\text{shaft}}}{\omega}
+$$
+
+---
+
+# 24. Dimensionnement structurel durci
+
+# 24.1 Arbres en torsion
+
+Contrainte de cisaillement maximale pour arbre plein :
+
+$$
+\tau = \frac{16T}{\pi d^3}
+$$
+
+Diamètre minimal en torsion :
+
+$$
+d_{\min,\text{tors}} = \left(\frac{16T}{\pi \tau_{\text{adm}}}\right)^{1/3}
+$$
+
+avec :
+
+$$
+\tau_{\text{adm}} = \frac{R_e}{K_s \sqrt{3}}
+$$
+
+si critère de Von Mises.
+
+---
+
+## 24.2 Arbres en flexion
+
+Contrainte de flexion :
+
+$$
+\sigma = \frac{32M}{\pi d^3}
+$$
+
+Diamètre minimal en flexion :
+
+$$
+d_{\min,\text{flex}} = \left(\frac{32M}{\pi \sigma_{\text{adm}}}\right)^{1/3}
+$$
+
+avec :
+
+$$
+\sigma_{\text{adm}} = \frac{R_e}{K_s}
+$$
+
+---
+
+## 24.3 Vérification combinée Von Mises
+
+$$
+\sigma_{VM} = \sqrt{\sigma^2 + 3\tau^2}
+$$
+
+Condition :
+
+$$
+\sigma_{VM} < \sigma_{\text{adm}}
+$$
+
+---
+
+## 24.4 Coefficient de sécurité mécanique
+
+Le coefficient de sécurité global doit être choisi selon le niveau de maturité :
+
+* calcul préliminaire : $K_s = 2$ ;
+* prototype critique : $K_s = 2.5$ à $3$ ;
+* pièce très sollicitée avec incertitudes : $K_s > 3$.
+
+---
+
+# 25. Bielle — version industrielle
+
+## 25.1 Contrainte axiale
+
+$$
+\sigma = \frac{F_{\text{bielle}}}{A}
+$$
+
+## 25.2 Vérification flambage Euler
+
+$$
+F_{cr} = \frac{\pi^2 E I}{(K L)^2}
+$$
+
+Condition minimale :
+
+$$
+F_{\text{bielle}} < \frac{F_{cr}}{K_{fl}}
+$$
+
+avec $K_{fl}$ marge de sécurité en flambage.
+
+## 25.3 Condition pratique de robustesse
+
+À défaut de calcul plus fin :
+
+$$
+F_{\text{bielle}} < \frac{F_{cr}}{2}
+$$
+
+constitue une base prudente.
+
+## 25.4 Vérification petite et grande tête
+
+La pression projetée sur portées doit respecter :
+
+$$
+p = \frac{F}{d\cdot L}
+$$
+
+Condition :
+
+$$
+p < p_{\text{adm}}
+$$
+
+---
+
+# 26. Batterie — intégration système complète
+
+La batterie n’est pas conçue électrochimiquement par le programme.
+Le programme doit seulement dimensionner **l’assemblage système** à partir de cellules du commerce.
+
+## 26.1 Nombre de cellules en série
+
+$$
+N_s = \frac{U_{\text{bus}}}{U_{\text{cell}}}
+$$
+
+En pratique, il faut ensuite arrondir à un entier compatible avec la tension maximale et minimale du pack.
+
+## 26.2 Nombre de cellules en parallèle
+
+$$
+N_p = \frac{C_{\text{tot}}}{C_{\text{cell}}}
+$$
+
+## 26.3 Nombre total de cellules
+
+$$
+N_{\text{cell,tot}} = N_s \cdot N_p
+$$
+
+## 26.4 Énergie pack
+
+$$
+E_{\text{pack}} = U_{\text{bus}}\cdot C_{\text{tot}}
+$$
+
+ou :
+
+$$
+E_{\text{pack}} = N_{\text{cell,tot}} \cdot E_{\text{cell}}
+$$
+
+## 26.5 Courant instantané maximal
+
+$$
+I_{\max} = \frac{P}{U}
+$$
+
+## 26.6 Vérification thermique pack
+
+Pertes Joule :
+
+$$
+P_J = R_{\text{int}} I^2
+$$
+
+Le système doit vérifier :
+
+* courant continu admissible ;
+* courant de pointe admissible ;
+* compatibilité BMS ;
+* compatibilité refroidissement ;
+* compatibilité tension alternateur / tension charge.
+
+---
+
+# 27. Contrainte majeure de l’architecture hybride
+
+Si le moteur thermique de génération ne fonctionne que sur une fraction du temps total, la puissance instantanée demandée à la chaîne thermique augmente.
+
+Si le moteur fonctionne sur une fraction $\beta$ du temps :
+
+$$
+0 < \beta \le 1
+$$
+
+alors la puissance instantanée nécessaire devient :
+
+$$
+P_{\text{inst}} = \frac{P_{\text{traction}} + P_{\text{recharge}}}{\beta}
+$$
+
+Cas particulier fondamental de ton architecture avec fonctionnement à 50 % du temps :
+
+$$
+\beta = 0.5
+$$
+
+donc :
+
+$$
+P_{\text{inst}} = 2,(P_{\text{traction}} + P_{\text{recharge}})
+$$
+
+Cette équation gouverne directement :
+
+* la puissance thermique à produire ;
+* le couple disponible ;
+* le dimensionnement alternateur ;
+* le refroidissement ;
+* la section des arbres ;
+* la tenue des roulements ;
+* le pilotage énergétique.
+
+---
+
+# 28. Refroidissement industriel réel
+
+## 28.1 Puissance thermique perdue
+
+$$
+P_{\text{pertes}} = P_{\text{entrée}} - P_{\text{utile}}
+$$
+
+## 28.2 Surface minimale d’échange
+
+$$
+A_{\text{éch}} = \frac{\dot Q}{h \Delta T}
+$$
+
+avec :
+
+* $h$ : coefficient d’échange convectif ;
+* $\Delta T$ : écart thermique moyen.
+
+## 28.3 Ordres de grandeur usuels
+
+Convection naturelle :
+
+$$
+h \approx 5\ \text{à}\ 15\ \text{W/m}^2\text{/K}
+$$
+
+Convection forcée air :
+
+$$
+h \approx 20\ \text{à}\ 300\ \text{W/m}^2\text{/K}
+$$
+
+Liquide forcé :
+
+$$
+h \gg 300\ \text{W/m}^2\text{/K}
+$$
+
+selon géométrie et débit.
+
+## 28.4 Vérification thermique matériau
+
+Condition générale :
+
+$$
+T_{\max,\text{pièce}} < T_{\text{service,max matériau}}
+$$
+
+---
+
+# 29. Rendement global réaliste
+
+## 29.1 Rendement thermique plafond théorique
+
+$$
+\eta_{\text{Carnot}} = 1 - \frac{T_c}{T_h}
+$$
+
+Ce rendement constitue uniquement une borne supérieure idéale.
+
+## 29.2 Rendement réel système
+
+$$
+\eta_{\text{global}} = \eta_{th}\cdot \eta_m \cdot \eta_{gen}\cdot \eta_{elec}\cdot \eta_{charge}
+$$
+
+avec :
+
+* $\eta_{th}$ : rendement thermo-mécanique ;
+* $\eta_m$ : rendement mécanique ;
+* $\eta_{gen}$ : rendement alternateur ;
+* $\eta_{elec}$ : rendement électronique ;
+* $\eta_{charge}$ : rendement charge batterie.
+
+## 29.3 Domaine réaliste
+
+Pour une architecture innovante mais encore non validée expérimentalement, il est rigoureux de considérer :
+
+* plausible prudent : 20 % à 30 % ;
+* ambitieux crédible : 30 % à 40 % ;
+* au-delà : validation expérimentale forte indispensable.
+
+Toute affirmation supérieure doit être prouvée par :
+
+* banc instrumenté ;
+* cartographie de rendement ;
+* bilans thermiques ;
+* mesures carburant ;
+* mesures électriques stabilisées.
+
+---
+
+# 30. Tableau des coefficients obligatoires
+
+Le programme doit intégrer des coefficients de sécurité ou de marge explicitement paramétrables.
+
+## 30.1 Sécurité mécanique
+
+$$
+K_s = 2 \text{ à } 3
+$$
+
+## 30.2 Sécurité thermique
+
+$$
+K_t \approx 1.2 \text{ à } 1.5
+$$
+
+## 30.3 Sécurité électrique
+
+$$
+K_e \approx 1.1 \text{ à } 1.25
+$$
+
+## 30.4 Sécurité pression
+
+$$
+K_p \ge 1.5
+$$
+
+pour les éléments soumis à surpression, à compléter selon réglementation visée.
+
+---
+
+# 31. Contraintes de pilotage et de contrôle
+
+Le programme et l’architecture système doivent intégrer un séquencement strict des états.
+
+## 31.1 États minimaux
+
+* purge ;
+* fermé / stabilisation ;
+* chauffe ;
+* mode secours pneumatique ;
+* production nominale ;
+* arrêt contrôlé ;
+* défaut sécurité.
+
+## 31.2 Règles d’interdiction logique
+
+Le système doit interdire :
+
+* combustion pendant purge normale ;
+* injection pneumatique hors fenêtre prévue ;
+* recharge batterie hors limite BMS ;
+* montée en température sans contrôle pression ;
+* fonctionnement alternateur hors vitesse admissible.
+
+## 31.3 Variables surveillées
+
+* température chambre chaude ;
+* température chambre froide ;
+* pression chambre chaude ;
+* pression chambre froide ;
+* vitesse rotation ;
+* courant charge ;
+* tension bus ;
+* température alternateur ;
+* température électronique ;
+* état soupapes.
+
+---
+
+# 32. Sorties obligatoires du programme
+
+Le logiciel doit générer automatiquement un rapport de synthèse contenant au minimum :
+
+## 32.1 Sorties géométriques
+
+* alésage ;
+* course ;
+* cylindrée ;
+* épaisseurs minimales ;
+* diamètres d’arbres ;
+* sections minimales ;
+* volumes internes ;
+* dimensions de portées.
+
+## 32.2 Sorties mécaniques
+
+* couple nominal ;
+* couple maximal ;
+* efforts sur piston ;
+* efforts sur bielle ;
+* contraintes arbre ;
+* contraintes vilebrequin ;
+* pression sur roulements ;
+* pression sur coussinets.
+
+## 32.3 Sorties thermiques
+
+* flux thermique entrant ;
+* flux récupérable ;
+* pertes ;
+* surface minimale d’échange ;
+* température maximale estimée.
+
+## 32.4 Sorties électriques
+
+* puissance générée ;
+* puissance utile ;
+* courant bus ;
+* tension bus ;
+* architecture batterie série/parallèle ;
+* compatibilité alternateur / batterie.
+
+## 32.5 Sorties de validation
+
+* marges de sécurité ;
+* inconnues bloquantes ;
+* inconnues partielles ;
+* avertissements de cohérence ;
+* niveau de validité du calcul.
+
+---
+
+# 33. Critères d’acceptation technique
+
+Le système ne peut être considéré comme techniquement acceptable que si toutes les vérifications critiques sont satisfaites.
+
+## 33.1 Critère mécanique
+
+$$
+\sigma_{VM} < \sigma_{\text{adm}}
+$$
+
+## 33.2 Critère flambage
+
+$$
+F_{\text{service}} < \frac{F_{cr}}{K_{fl}}
+$$
+
+## 33.3 Critère thermique
+
+$$
+T_{\max} < T_{\text{limite matériau}}
+$$
+
+## 33.4 Critère pression
+
+$$
+p_{\max} < p_{\text{admissible système}}
+$$
+
+## 33.5 Critère électrique
+
+$$
+I_{\text{charge}} < I_{\text{admissible BMS}}
+$$
+
+et :
+
+$$
+U_{\text{charge}} \in \text{plage admissible batterie}
+$$
+
+---
+
+# 34. Données encore absentes d’un dossier industriel complet
+
+Le dossier reste incomplet tant que les points suivants ne sont pas renseignés ou validés :
+
+* loi réelle de combustion ;
+* cinétique thermique transitoire ;
+* coefficient réel d’échange côté chaud ;
+* pertes réelles de purge ;
+* rendement réel alternateur à la vitesse visée ;
+* spectre vibratoire ;
+* fatigue haut nombre de cycles ;
+* tolérances de fabrication ;
+* jeux fonctionnels chaud / froid ;
+* états de surface ;
+* stabilité du contrôle.
+
+---
+
+# 35. Contenu attendu d’un dossier V2 réellement industrialisable
+
+La version suivante du dossier devra comprendre :
+
+## 35.1 Partie mécanique détaillée
+
+* chaînes de cotes ;
+* tolérances ISO ;
+* états de surface ;
+* matériaux candidats comparés ;
+* tableau des masses ;
+* inerties tournantes ;
+* cartes de contraintes.
+
+## 35.2 Partie thermique détaillée
+
+* bilans stationnaires ;
+* bilans transitoires ;
+* échangeur gaz / masse chaude ;
+* temps de montée en température ;
+* refroidissement alternateur et électronique.
+
+## 35.3 Partie électrique détaillée
+
+* cartes alternateur ;
+* rendement charge ;
+* limite courant ;
+* stratégie recharge ;
+* architecture bus ;
+* protections.
+
+## 35.4 Partie commande
+
+* logique d’état ;
+* capteurs ;
+* actionneurs ;
+* modes dégradés ;
+* repli sécurité ;
+* arrêt d’urgence.
+
+## 35.5 Partie validation expérimentale
+
+* plan d’essais ;
+* instrumentation ;
+* protocole d’acquisition ;
+* critères succès / échec ;
+* corrélation calcul / essai.
+
+---
+
+
+
