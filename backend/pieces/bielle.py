@@ -25,6 +25,33 @@
 #   * soit le module renvoie des équivalents calculatoires et des inconnues.
 # =============================================================================
 
+# backend/pieces/bielle.py
+# =============================================================================
+# CORPS DE BIELLE — SHSE-M
+# Version complétée : calcul + inter-pièces + bloc CAO / SolidWorks
+# =============================================================================
+# Principe :
+# - On calcule tout ce qui est calculable.
+# - On récupère explicitement les données des autres pièces (piston, arbre_piston,
+#   moteur_thermique, cylindre) si elles existent et si leur format le permet.
+# - On n’invente pas : si une donnée manque, elle est déclarée "inconnue".
+#
+# Sorties principales :
+# - Efforts axiaux max/min (si déductibles)
+# - Section minimale A_min et, si la famille géométrique est imposée, dimensions du fût
+# - Diamètre équivalent d_eq
+# - Flambage Euler (si E, I_min, L, K connus)
+# - Pressions de contact petite/grande tête
+# - Bloc "cao" exploitable pour dessin manuel / SolidWorks
+#
+# IMPORTANT :
+# - La géométrie complète réelle d’une bielle est un choix de conception.
+# - Ici, aucune forme n’est choisie automatiquement :
+#   * soit tu fournis la géométrie,
+#   * soit tu fournis une famille (ex : rectangle + ratio b/h),
+#   * soit le module renvoie des équivalents calculatoires et des inconnues.
+# =============================================================================
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -176,6 +203,49 @@ def _rectangle_inerties(b: float, h: float) -> Dict[str, float]:
     }
 
 
+def _goodman_utilisation(sigma_a: float, sigma_m: float, Se: float, Rm: float) -> Optional[float]:
+    return (float(sigma_a) / float(Se)) + (max(float(sigma_m), 0.0) / float(Rm))
+
+
+def _soderberg_utilisation(sigma_a: float, sigma_m: float, Se: float, Re: float) -> Optional[float]:
+    return (float(sigma_a) / float(Se)) + (max(float(sigma_m), 0.0) / float(Re))
+
+
+def _gerber_utilisation(sigma_a: float, sigma_m: float, Se: float, Rm: float) -> Optional[float]:
+    return (float(sigma_a) / float(Se)) + (max(float(sigma_m), 0.0) / float(Rm)) ** 2
+
+
+def _euler_flambage_detaille(E: float, I: float, A: float, L: float, K: float, Re: Optional[float]) -> Dict[str, float]:
+    Pcr = _euler_pcrit(E, I, L, K)
+    rg = math.sqrt(float(I) / float(A))
+    out = {
+        "charge_critique_euler_N": Pcr,
+        "rayon_giration_m": rg,
+        "elancement": (float(K) * float(L)) / rg,
+    }
+    if Re is not None:
+        Py = float(A) * float(Re)
+        out["charge_critique_rankine_N"] = 1.0 / ((1.0 / Pcr) + (1.0 / Py))
+    return out
+
+
+def _deformation_annulaire_simplifiee(F: float, E: float, largeur: float, epaisseur_radiale: float, rayon_moyen: float) -> Dict[str, float]:
+    b = _req_pos("largeur", largeur)
+    t = _req_pos("epaisseur_radiale", epaisseur_radiale)
+    R = _req_pos("rayon_moyen", rayon_moyen)
+    E_v = _req_pos("E", E)
+    k = (E_v * b * t**3) / (12.0 * R**3)
+    return {"raideur_N_m": k, "deformation_diametrale_m": float(F) / k if k > 0.0 else math.inf}
+
+
+def _pv_palier(pression_pa: float, vitesse_m_s: float) -> float:
+    return float(pression_pa) * float(vitesse_m_s)
+
+
+def _sommerfeld_simplifie(mu_pa_s: float, n_tr_s: float, pression_pa: float, rayon_m: float, jeu_radial_m: float) -> float:
+    return (float(mu_pa_s) * float(n_tr_s) / float(pression_pa)) * (float(rayon_m) / float(jeu_radial_m)) ** 2
+
+
 # =============================================================================
 # Matériau (optionnel via materiaux.py)
 # =============================================================================
@@ -185,10 +255,14 @@ def _resoudre_materiau(
     densite_kg_m3: Optional[float],
     limite_elastique_pa: Optional[float],
     module_young_pa: Optional[float],
+    resistance_traction_pa: Optional[float] = None,
+    limite_endurance_pa: Optional[float] = None,
 ) -> Dict[str, Optional[float]]:
     rho = densite_kg_m3
     Re = limite_elastique_pa
     E = module_young_pa
+    Rm = resistance_traction_pa
+    Se = limite_endurance_pa
 
     if materiau_cle:
         for modname in (
@@ -224,6 +298,8 @@ def _resoudre_materiau(
                 rho = rho if rho is not None else g(mat, "densite_kg_m3", "rho_kg_m3", "densite")
                 Re = Re if Re is not None else g(mat, "limite_elastique_pa", "Re_pa", "rp02_pa", "yield_strength_pa")
                 E = E if E is not None else g(mat, "module_young_pa", "E_pa", "young_pa", "young_modulus_pa")
+                Rm = Rm if Rm is not None else g(mat, "resistance_traction_pa", "Rm_pa", "uts_pa", "ultimate_strength_pa")
+                Se = Se if Se is not None else g(mat, "limite_fatigue_pa", "limite_endurance_pa", "Sf_pa", "endurance_limit_pa")
                 break
             except Exception:
                 continue
@@ -232,6 +308,8 @@ def _resoudre_materiau(
         "densite_kg_m3": rho,
         "limite_elastique_pa": Re,
         "module_young_pa": E,
+        "resistance_traction_pa": Rm,
+        "limite_endurance_pa": Se,
     }
 
 
@@ -292,17 +370,34 @@ class CorpsBielle:
     densite_kg_m3: Optional[float] = None
     limite_elastique_pa: Optional[float] = None
     module_young_pa: Optional[float] = None
+    resistance_traction_pa: Optional[float] = None
+    limite_endurance_pa: Optional[float] = None
+
+    # Fatigue (facteurs explicites)
+    coefficient_entaille_Kt: float = 1.0
+    facteur_surface: float = 1.0
+    facteur_taille: float = 1.0
+    facteur_fiabilite: float = 1.0
+    facteur_charge_fatigue: float = 1.0
+    facteur_temperature_fatigue: float = 1.0
 
     # Sécurité
     facteur_securite: float = 2.0
 
     # Flambage
     K_flambage: Optional[float] = None
+    K_flambage_plan_fort: Optional[float] = None
+    K_flambage_plan_faible: Optional[float] = None
+    inertie_plan_fort_fut_m4: Optional[float] = None
+    inertie_plan_faible_fut_m4: Optional[float] = None
 
     # Efforts
     force_axiale_max_N: Optional[float] = None
     force_axiale_min_N: Optional[float] = None
+    force_axiale_max_tension_N: Optional[float] = None
+    force_axiale_max_compression_N: Optional[float] = None
     effort_lateral_max_N: Optional[float] = None
+    rpm: Optional[float] = None
 
     # Géométrie fût : options
     diametre_equivalent_fut_m: Optional[float] = None
@@ -327,6 +422,15 @@ class CorpsBielle:
     epaisseur_radiale_grande_tete_m: Optional[float] = None
     largeur_exterieure_petite_tete_m: Optional[float] = None
     largeur_exterieure_grande_tete_m: Optional[float] = None
+    pression_matage_admissible_petite_tete_pa: Optional[float] = None
+    pression_matage_admissible_grande_tete_pa: Optional[float] = None
+    pv_admissible_petite_tete_pa_m_s: Optional[float] = None
+    pv_admissible_grande_tete_pa_m_s: Optional[float] = None
+    vitesse_glissement_petite_tete_m_s: Optional[float] = None
+    vitesse_glissement_grande_tete_m_s: Optional[float] = None
+    viscosite_huile_pa_s: Optional[float] = None
+    jeu_radial_petite_tete_m: Optional[float] = None
+    jeu_radial_grande_tete_m: Optional[float] = None
 
     # Règles CAO
     regles_fabrication: ReglesFabricationBielle = field(default_factory=ReglesFabricationBielle)
@@ -503,9 +607,13 @@ class CorpsBielle:
                 "grande_tete": {},
             },
             "dimensionnements": {},
+            "cycle_charge": {},
             "contraintes": {},
+            "fatigue": {},
             "flambage": {},
+            "flambage_detaille": {},
             "contacts_tetes": {},
+            "contacts_tetes_affines": {},
             "masse": {},
             "cao": {},
             "notes_modele": [],
@@ -522,10 +630,14 @@ class CorpsBielle:
             self.densite_kg_m3,
             self.limite_elastique_pa,
             self.module_young_pa,
+            self.resistance_traction_pa,
+            self.limite_endurance_pa,
         )
         rho = props["densite_kg_m3"]
         Re = props["limite_elastique_pa"]
         E = props["module_young_pa"]
+        Rm = props["resistance_traction_pa"]
+        Se = props["limite_endurance_pa"]
 
         sigma_adm = (float(Re) / FS) if Re is not None else None
 
@@ -534,6 +646,8 @@ class CorpsBielle:
             "densite_kg_m3": rho,
             "limite_elastique_pa": Re,
             "module_young_pa": E,
+            "resistance_traction_pa": Rm,
+            "limite_endurance_pa": Se,
             "sigma_admissible_pa": sigma_adm,
         }
 
@@ -569,8 +683,37 @@ class CorpsBielle:
         rapport["efforts"] = {
             "force_axiale_max_N": Fmax,
             "force_axiale_min_N": Fmin,
+            "force_axiale_max_tension_N": self.force_axiale_max_tension_N,
+            "force_axiale_max_compression_N": self.force_axiale_max_compression_N,
             "effort_lateral_max_N": self.effort_lateral_max_N,
+            "rpm": self.rpm,
         }
+
+        F_tension = abs(_req_pos("force_axiale_max_tension_N", self.force_axiale_max_tension_N, strictly=False)) if self.force_axiale_max_tension_N is not None else None
+        F_compression = abs(_req_pos("force_axiale_max_compression_N", self.force_axiale_max_compression_N, strictly=False)) if self.force_axiale_max_compression_N is not None else None
+
+        if F_tension is None or F_compression is None:
+            vals = [float(v) for v in (Fmax, Fmin) if v is not None]
+            if vals:
+                if F_tension is None and max(vals) > 0.0:
+                    F_tension = max(vals)
+                if F_compression is None and min(vals) < 0.0:
+                    F_compression = abs(min(vals))
+
+        if F_tension is not None or F_compression is not None:
+            Fsig_max = float(F_tension) if F_tension is not None else 0.0
+            Fsig_min = -float(F_compression) if F_compression is not None else 0.0
+            rapport["cycle_charge"] = {
+                "Fmax_tension_N": F_tension,
+                "Fmax_compression_N": F_compression,
+                "effort_moyen_N": 0.5 * (Fsig_max + Fsig_min),
+                "effort_alterne_N": 0.5 * (Fsig_max - Fsig_min),
+                "rapport_R": (Fsig_min / Fsig_max) if Fsig_max != 0.0 else None,
+                "force_max_signee_N": Fsig_max,
+                "force_min_signee_N": Fsig_min,
+            }
+        else:
+            _push_inconnue(rapport, "partielles", "cycle_traction_compression", "Nécessite Fmax/Fmin ou Fmax_tension/Fmax_compression.")
 
         # ---------------------------------------------------------------------
         # 3) Longueur entraxe
@@ -777,6 +920,8 @@ class CorpsBielle:
             rapport["contraintes"]["axial"] = {
                 "modele_section": modele_section,
                 "sigma_axiale_pa_sur_Fmax": sigma,
+                "sigma_tension_max_pa": (_sigma_axiale(float(rapport["cycle_charge"]["Fmax_tension_N"]), float(A)) if rapport["cycle_charge"].get("Fmax_tension_N") is not None else None),
+                "sigma_compression_max_pa": (-_sigma_axiale(float(rapport["cycle_charge"]["Fmax_compression_N"]), float(A)) if rapport["cycle_charge"].get("Fmax_compression_N") is not None else None),
                 "sigma_admissible_pa": sigma_adm,
                 "marge_axiale": marge,
             }
@@ -787,6 +932,42 @@ class CorpsBielle:
                 "contrainte_axiale",
                 "Calculable si section de fût et force axiale max sont connues.",
             )
+
+        if A is not None and rapport["cycle_charge"]:
+            smax = _sigma_axiale(float(rapport["cycle_charge"]["force_max_signee_N"]), float(A))
+            smin = _sigma_axiale(float(rapport["cycle_charge"]["force_min_signee_N"]), float(A))
+            sigma_m = 0.5 * (smax + smin)
+            sigma_a = 0.5 * (smax - smin)
+            Kt = _req_pos("coefficient_entaille_Kt", self.coefficient_entaille_Kt)
+            sigma_m_loc = Kt * sigma_m
+            sigma_a_loc = Kt * sigma_a
+            Se_corr = None
+            if Se is not None:
+                Se_corr = float(Se) * float(self.facteur_surface) * float(self.facteur_taille) * float(self.facteur_fiabilite) * float(self.facteur_charge_fatigue) * float(self.facteur_temperature_fatigue)
+            rapport["fatigue"] = {
+                "sigma_max_nominale_pa": smax,
+                "sigma_min_nominale_pa": smin,
+                "sigma_moyenne_locale_pa": sigma_m_loc,
+                "sigma_alternee_locale_pa": sigma_a_loc,
+                "rapport_R": rapport["cycle_charge"].get("rapport_R"),
+                "Kt": Kt,
+                "limite_endurance_corrigee_pa": Se_corr,
+                "resistance_traction_pa": Rm,
+                "limite_elastique_pa": Re,
+            }
+            if Se_corr is not None and Rm is not None:
+                ug = _goodman_utilisation(sigma_a_loc, sigma_m_loc, Se_corr, Rm)
+                rapport["fatigue"]["goodman"] = {"utilisation": ug, "ok": ug <= 1.0}
+                rapport["fatigue"]["gerber"] = {"utilisation": _gerber_utilisation(sigma_a_loc, sigma_m_loc, Se_corr, Rm)}
+            else:
+                _push_inconnue(rapport, "partielles", "fatigue_goodman_gerber", "Nécessite limite_endurance et résistance à la traction.")
+            if Se_corr is not None and Re is not None:
+                us = _soderberg_utilisation(sigma_a_loc, sigma_m_loc, Se_corr, Re)
+                rapport["fatigue"]["soderberg"] = {"utilisation": us, "ok": us <= 1.0}
+            else:
+                _push_inconnue(rapport, "partielles", "fatigue_soderberg", "Nécessite limite_endurance et limite élastique.")
+        else:
+            _push_inconnue(rapport, "partielles", "fatigue_bielle", "Calculable si section du fût, cycle de charge et matériau réel avec endurance sont connus.")
 
         # ---------------------------------------------------------------------
         # 7) Flambage Euler
@@ -804,6 +985,15 @@ class CorpsBielle:
                 "charge_critique_N": Pcr,
                 "marge_sur_Fmax": marge_flamb,
             }
+            if A is not None:
+                Ix = self.inertie_plan_fort_fut_m4 if self.inertie_plan_fort_fut_m4 is not None else rapport["geometrie"]["fut"].get("Ix_m4", Imin)
+                Iy = self.inertie_plan_faible_fut_m4 if self.inertie_plan_faible_fut_m4 is not None else rapport["geometrie"]["fut"].get("Iy_m4", Imin)
+                Kfort = self.K_flambage_plan_fort if self.K_flambage_plan_fort is not None else self.K_flambage
+                Kfaible = self.K_flambage_plan_faible if self.K_flambage_plan_faible is not None else self.K_flambage
+                if Ix is not None and Kfort is not None:
+                    rapport["flambage_detaille"]["plan_fort"] = _euler_flambage_detaille(float(E), float(Ix), float(A), float(L), float(Kfort), Re)
+                if Iy is not None and Kfaible is not None:
+                    rapport["flambage_detaille"]["plan_faible"] = _euler_flambage_detaille(float(E), float(Iy), float(A), float(L), float(Kfaible), Re)
         else:
             _push_inconnue(
                 rapport,
@@ -815,6 +1005,8 @@ class CorpsBielle:
         # ---------------------------------------------------------------------
         # 8) Contacts têtes
         # ---------------------------------------------------------------------
+        rpm_eff = _req_pos("rpm", self.rpm, strictly=False) if self.rpm is not None else None
+
         if Fmax is not None and d_axe is not None and Lp is not None:
             p = abs(float(Fmax)) / (float(d_axe) * float(Lp))
             ok = None
@@ -823,7 +1015,6 @@ class CorpsBielle:
                 padm = _req_pos("pression_admissible_petite_tete_pa", self.pression_admissible_petite_tete_pa)
                 ok = p <= (padm / FS)
                 marge = (padm / FS) / p if p > 0.0 else None
-
             rapport["contacts_tetes"]["petite_tete"] = {
                 "diametre_axe_m": d_axe,
                 "longueur_portee_m": Lp,
@@ -832,13 +1023,25 @@ class CorpsBielle:
                 "ok": ok,
                 "marge": marge,
             }
+            aff = {"ecrasement_local_pa": p, "pression_fond_oeil_pa": p}
+            if self.pression_matage_admissible_petite_tete_pa is not None:
+                pm = _req_pos("pression_matage_admissible_petite_tete_pa", self.pression_matage_admissible_petite_tete_pa)
+                aff["matage"] = {"ok": p <= pm / FS, "marge": (pm / FS) / p if p > 0.0 else None}
+            if self.vitesse_glissement_petite_tete_m_s is not None:
+                v = _req_pos("vitesse_glissement_petite_tete_m_s", self.vitesse_glissement_petite_tete_m_s, strictly=False)
+                aff["vitesse_glissement_m_s"] = v
+                aff["PV_pa_m_s"] = _pv_palier(p, v)
+                if self.pv_admissible_petite_tete_pa_m_s is not None:
+                    pv_adm = _req_pos("pv_admissible_petite_tete_pa_m_s", self.pv_admissible_petite_tete_pa_m_s)
+                    aff["PV_ok"] = aff["PV_pa_m_s"] <= pv_adm / FS
+            if E is not None and ep_rad_pt is not None and larg_ext_pt is not None:
+                aff.update(_deformation_annulaire_simplifiee(abs(float(Fmax)), float(E), float(larg_ext_pt), float(ep_rad_pt), 0.5 * (float(d_axe) + float(ep_rad_pt))))
+            if self.viscosite_huile_pa_s is not None and self.jeu_radial_petite_tete_m is not None and self.vitesse_glissement_petite_tete_m_s is not None:
+                n = float(self.vitesse_glissement_petite_tete_m_s) / (math.pi * float(d_axe))
+                aff["sommerfeld_simplifie"] = _sommerfeld_simplifie(float(self.viscosite_huile_pa_s), n, p, 0.5 * float(d_axe), float(self.jeu_radial_petite_tete_m))
+            rapport["contacts_tetes_affines"]["petite_tete"] = aff
         else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "contact_petite_tete",
-                "Calculable si Fmax, d_axe et longueur_portee_petite_tete_m sont connus.",
-            )
+            _push_inconnue(rapport, "partielles", "contact_petite_tete", "Calculable si Fmax, d_axe et longueur_portee_petite_tete_m sont connus.")
 
         if Fmax is not None and d_maneton is not None and Lg is not None:
             p = abs(float(Fmax)) / (float(d_maneton) * float(Lg))
@@ -848,7 +1051,6 @@ class CorpsBielle:
                 padm = _req_pos("pression_admissible_grande_tete_pa", self.pression_admissible_grande_tete_pa)
                 ok = p <= (padm / FS)
                 marge = (padm / FS) / p if p > 0.0 else None
-
             rapport["contacts_tetes"]["grande_tete"] = {
                 "diametre_maneton_m": d_maneton,
                 "longueur_portee_m": Lg,
@@ -857,13 +1059,28 @@ class CorpsBielle:
                 "ok": ok,
                 "marge": marge,
             }
+            aff = {"ecrasement_local_pa": p, "pression_fond_oeil_pa": p}
+            if self.pression_matage_admissible_grande_tete_pa is not None:
+                pm = _req_pos("pression_matage_admissible_grande_tete_pa", self.pression_matage_admissible_grande_tete_pa)
+                aff["matage"] = {"ok": p <= pm / FS, "marge": (pm / FS) / p if p > 0.0 else None}
+            v = self.vitesse_glissement_grande_tete_m_s
+            if v is None and rpm_eff is not None:
+                v = math.pi * float(d_maneton) * float(rpm_eff) / 60.0
+                rapport["notes_modele"].append("vitesse_glissement_grande_tete_m_s déduite via π*d_maneton*rpm/60.")
+            if v is not None:
+                aff["vitesse_glissement_m_s"] = v
+                aff["PV_pa_m_s"] = _pv_palier(p, v)
+                if self.pv_admissible_grande_tete_pa_m_s is not None:
+                    pv_adm = _req_pos("pv_admissible_grande_tete_pa_m_s", self.pv_admissible_grande_tete_pa_m_s)
+                    aff["PV_ok"] = aff["PV_pa_m_s"] <= pv_adm / FS
+            if E is not None and ep_rad_gt is not None and larg_ext_gt is not None:
+                aff.update(_deformation_annulaire_simplifiee(abs(float(Fmax)), float(E), float(larg_ext_gt), float(ep_rad_gt), 0.5 * (float(d_maneton) + float(ep_rad_gt))))
+            if self.viscosite_huile_pa_s is not None and self.jeu_radial_grande_tete_m is not None and v is not None:
+                n = (float(rpm_eff) / 60.0) if rpm_eff is not None else (float(v) / (math.pi * float(d_maneton)))
+                aff["sommerfeld_simplifie"] = _sommerfeld_simplifie(float(self.viscosite_huile_pa_s), n, p, 0.5 * float(d_maneton), float(self.jeu_radial_grande_tete_m))
+            rapport["contacts_tetes_affines"]["grande_tete"] = aff
         else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "contact_grande_tete",
-                "Calculable si Fmax, d_maneton et longueur_portee_grande_tete_m sont connus.",
-            )
+            _push_inconnue(rapport, "partielles", "contact_grande_tete", "Calculable si Fmax, d_maneton et longueur_portee_grande_tete_m sont connus.")
 
         # ---------------------------------------------------------------------
         # 9) Masse du fût
@@ -1019,11 +1236,26 @@ class CorpsBielle:
             "densite_kg_m3": self.densite_kg_m3,
             "limite_elastique_pa": self.limite_elastique_pa,
             "module_young_pa": self.module_young_pa,
+            "resistance_traction_pa": self.resistance_traction_pa,
+            "limite_endurance_pa": self.limite_endurance_pa,
+            "coefficient_entaille_Kt": self.coefficient_entaille_Kt,
+            "facteur_surface": self.facteur_surface,
+            "facteur_taille": self.facteur_taille,
+            "facteur_fiabilite": self.facteur_fiabilite,
+            "facteur_charge_fatigue": self.facteur_charge_fatigue,
+            "facteur_temperature_fatigue": self.facteur_temperature_fatigue,
             "facteur_securite": self.facteur_securite,
             "K_flambage": self.K_flambage,
+            "K_flambage_plan_fort": self.K_flambage_plan_fort,
+            "K_flambage_plan_faible": self.K_flambage_plan_faible,
+            "inertie_plan_fort_fut_m4": self.inertie_plan_fort_fut_m4,
+            "inertie_plan_faible_fut_m4": self.inertie_plan_faible_fut_m4,
             "force_axiale_max_N": self.force_axiale_max_N,
             "force_axiale_min_N": self.force_axiale_min_N,
+            "force_axiale_max_tension_N": self.force_axiale_max_tension_N,
+            "force_axiale_max_compression_N": self.force_axiale_max_compression_N,
             "effort_lateral_max_N": self.effort_lateral_max_N,
+            "rpm": self.rpm,
             "diametre_equivalent_fut_m": self.diametre_equivalent_fut_m,
             "largeur_fut_m": self.largeur_fut_m,
             "epaisseur_fut_m": self.epaisseur_fut_m,
@@ -1041,6 +1273,15 @@ class CorpsBielle:
             "epaisseur_radiale_grande_tete_m": self.epaisseur_radiale_grande_tete_m,
             "largeur_exterieure_petite_tete_m": self.largeur_exterieure_petite_tete_m,
             "largeur_exterieure_grande_tete_m": self.largeur_exterieure_grande_tete_m,
+            "pression_matage_admissible_petite_tete_pa": self.pression_matage_admissible_petite_tete_pa,
+            "pression_matage_admissible_grande_tete_pa": self.pression_matage_admissible_grande_tete_pa,
+            "pv_admissible_petite_tete_pa_m_s": self.pv_admissible_petite_tete_pa_m_s,
+            "pv_admissible_grande_tete_pa_m_s": self.pv_admissible_grande_tete_pa_m_s,
+            "vitesse_glissement_petite_tete_m_s": self.vitesse_glissement_petite_tete_m_s,
+            "vitesse_glissement_grande_tete_m_s": self.vitesse_glissement_grande_tete_m_s,
+            "viscosite_huile_pa_s": self.viscosite_huile_pa_s,
+            "jeu_radial_petite_tete_m": self.jeu_radial_petite_tete_m,
+            "jeu_radial_grande_tete_m": self.jeu_radial_grande_tete_m,
         }
 
         _dedup_inconnues(rapport)
