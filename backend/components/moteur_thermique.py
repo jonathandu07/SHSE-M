@@ -12,6 +12,10 @@ import math
 
 try:
     from backend.modules.moteur_thermique.calcul_cylindree import (
+        CourbePressionMesuree,
+        ParametresWiebe,
+        CasChargePression,
+        ModelePression,
         calcul_cylindree_unitaire,
         calcul_cylindree_totale,
         calcul_epaisseur_cylindre_mince,
@@ -22,6 +26,10 @@ try:
         calcul_epaisseur_paroi_depuis_alesage,
         verifier_hypothese_paroi_mince,
         calculer_cylindre_complet,
+        construire_loi_pression_cycle_mecanique,
+        calculer_cycle_mecanique_depuis_modele_pression,
+        calculer_cycle_mecanique_depuis_cas_charge,
+        evaluer_cycles_mecaniques_pour_cas_charge,
     )
     from backend.modules.moteur_thermique.calcul_travail_indique import (
         calcul_travail_indique_pme,
@@ -71,6 +79,10 @@ try:
     _CYCLE_OK = True
 except Exception:
     from backend.modules.moteur_thermique.calcul_cylindree import (
+        CourbePressionMesuree,
+        ParametresWiebe,
+        CasChargePression,
+        ModelePression,
         calcul_cylindree_unitaire,
         calcul_cylindree_totale,
         calcul_epaisseur_cylindre_mince,
@@ -81,6 +93,10 @@ except Exception:
         calcul_epaisseur_paroi_depuis_alesage,
         verifier_hypothese_paroi_mince,
         calculer_cylindre_complet,
+        construire_loi_pression_cycle_mecanique,
+        calculer_cycle_mecanique_depuis_modele_pression,
+        calculer_cycle_mecanique_depuis_cas_charge,
+        evaluer_cycles_mecaniques_pour_cas_charge,
     )
     from backend.modules.moteur_thermique.calcul_travail_indique import (
         calcul_travail_indique_pme,
@@ -1085,6 +1101,21 @@ class MoteurThermique:
         volume_mort_m3: Optional[float] = None,
         include_longitudinale: bool = False,
         ratio_mince_max: float = 0.1,
+        mode_pression: Optional[ModelePression] = None,
+        pas_angle_deg: float = 0.5,
+        longueur_bielle_m: Optional[float] = None,
+        axe_decale_m: Optional[float] = None,
+        courbe_mesuree: Optional[CourbePressionMesuree] = None,
+        theta_tableau_deg: Optional[Sequence[float]] = None,
+        pression_tableau_pa: Optional[Sequence[float]] = None,
+        parametres_wiebe: Optional[ParametresWiebe] = None,
+        pression_constante_pa: Optional[float] = None,
+        pression_max_modele_pa: Optional[float] = None,
+        angle_pic_deg: float = 5.0,
+        largeur_pic_deg: float = 18.0,
+        pression_admission_pa: Optional[float] = None,
+        pression_echappement_pa: Optional[float] = None,
+        cas_de_charge: Optional[Sequence[CasChargePression]] = None,
     ) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "entrees": {},
@@ -1096,6 +1127,10 @@ class MoteurThermique:
         p = pression_pa if pression_pa is not None else self.pression_max_pa
         cr = taux_compression if taux_compression is not None else self.taux_compression_effectif
         vc = volume_mort_m3 if volume_mort_m3 is not None else self.volume_mort_effectif_m3
+        L = longueur_bielle_m if longueur_bielle_m is not None else self.longueur_bielle_m
+        e = axe_decale_m if axe_decale_m is not None else self.axe_decale_m
+        p_adm = pression_admission_pa if pression_admission_pa is not None else self.pression_admission_pa
+        p_ech = pression_echappement_pa if pression_echappement_pa is not None else self.pression_echappement_pa
 
         rapport["entrees"] = {
             "alesage_m": self.alesage_m,
@@ -1108,6 +1143,11 @@ class MoteurThermique:
             "facteur_securite_cylindre": self.facteur_securite_cylindre,
             "include_longitudinale": include_longitudinale,
             "ratio_mince_max": ratio_mince_max,
+            "mode_pression": mode_pression,
+            "pas_angle_deg": pas_angle_deg,
+            "longueur_bielle_m": L,
+            "axe_decale_m": e,
+            "cas_de_charge_count": len(cas_de_charge) if cas_de_charge is not None else 0,
         }
 
         if self.alesage_m is None or self.course_m is None:
@@ -1115,20 +1155,40 @@ class MoteurThermique:
             _dedup_inconnues(rapport)
             return rapport
 
-        res = calculer_cylindre_complet(
-            alesage_m=self.alesage_m,
-            course_m=self.course_m,
-            nombre_cylindres=self.nombre_cylindres,
-            taux_compression=cr,
-            volume_mort_m3=vc,
-            pression_pa=p,
-            contrainte_admissible_pa=self.contrainte_admissible_pa,
-            modele_paroi="auto",
-            facteur_securite=self.facteur_securite_cylindre,
-            include_longitudinale=include_longitudinale,
-            ratio_mince_max=ratio_mince_max,
-        )
-        rapport["cylindre_complet"] = dict(res)
+        try:
+            res = calculer_cylindre_complet(
+                alesage_m=self.alesage_m,
+                course_m=self.course_m,
+                nombre_cylindres=self.nombre_cylindres,
+                taux_compression=cr,
+                volume_mort_m3=vc,
+                pression_pa=p,
+                contrainte_admissible_pa=self.contrainte_admissible_pa,
+                modele_paroi="auto",
+                facteur_securite=self.facteur_securite_cylindre,
+                include_longitudinale=include_longitudinale,
+                ratio_mince_max=ratio_mince_max,
+                mode_pression=mode_pression,
+                pas_angle_deg=pas_angle_deg,
+                longueur_bielle_m=L,
+                axe_decale_m=e,
+                courbe_mesuree=courbe_mesuree,
+                theta_tableau_deg=theta_tableau_deg,
+                pression_tableau_pa=pression_tableau_pa,
+                parametres_wiebe=parametres_wiebe,
+                pression_constante_pa=pression_constante_pa,
+                pression_max_pa=pression_max_modele_pa,
+                angle_pic_deg=angle_pic_deg,
+                largeur_pic_deg=largeur_pic_deg,
+                pression_admission_pa=p_adm if p_adm is not None else 101325.0,
+                pression_echappement_pa=p_ech if p_ech is not None else 101325.0,
+                cas_de_charge=cas_de_charge,
+            )
+            rapport["cylindre_complet"] = dict(res)
+        except Exception as e_calc:
+            _push_inconnue(rapport, "impossibles", "agrégateur cylindre complet", str(e_calc))
+            _dedup_inconnues(rapport)
+            return rapport
 
         if res.get("inconnues"):
             _push_inconnue(rapport, "partielles", "agrégateur cylindre", str(res.get("inconnues")))
@@ -1159,6 +1219,18 @@ class MoteurThermique:
         n_polytropique_detente: Optional[float] = None,
         rayon_maneton_m: Optional[float] = None,
         retourner_tableaux_en_listes: bool = False,
+        mode_pression: Optional[ModelePression] = None,
+        cas_charge: Optional[CasChargePression] = None,
+        cas_de_charge: Optional[Sequence[CasChargePression]] = None,
+        courbe_mesuree: Optional[CourbePressionMesuree] = None,
+        theta_tableau_deg: Optional[Sequence[float]] = None,
+        pression_tableau_pa: Optional[Sequence[float]] = None,
+        parametres_wiebe: Optional[ParametresWiebe] = None,
+        pression_constante_pa: Optional[float] = None,
+        pression_max_modele_pa: Optional[float] = None,
+        angle_pic_deg: float = 5.0,
+        largeur_pic_deg: float = 18.0,
+        temperature_gaz_utile_k: Optional[float] = None,
     ) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "entrees": {},
@@ -1168,18 +1240,33 @@ class MoteurThermique:
             "notes_modele": [],
         }
 
+        rpm_val = rpm if rpm is not None else self.rpm_nominal
+        ordre_val = ordre_allumage if ordre_allumage is not None else self.ordre_allumage
+        cr = taux_compression if taux_compression is not None else self.taux_compression_effectif
+        vc = volume_mort_m3 if volume_mort_m3 is not None else self.volume_mort_effectif_m3
+        axe_eff = axe_decale_m if axe_decale_m is not None else self.axe_decale_m
+        mt_eff = masse_tournante_equivalente_kg if masse_tournante_equivalente_kg is not None else self.masse_tournante_equivalente_kg
+        p_adm_eff = pression_admission_pa if pression_admission_pa is not None else (self.pression_admission_pa if self.pression_admission_pa is not None else 101325.0)
+        p_ech_eff = pression_echappement_pa if pression_echappement_pa is not None else (self.pression_echappement_pa if self.pression_echappement_pa is not None else 101325.0)
+        p_ref_eff = pression_reference_pa if pression_reference_pa is not None else (self.pression_reference_pa if self.pression_reference_pa is not None else 101325.0)
+        ncomp_eff = n_polytropique_compression if n_polytropique_compression is not None else (self.n_polytropique_compression if self.n_polytropique_compression is not None else 1.32)
+        ndet_eff = n_polytropique_detente if n_polytropique_detente is not None else (self.n_polytropique_detente if self.n_polytropique_detente is not None else 1.25)
+
         rapport["entrees"] = {
-            "rpm": rpm if rpm is not None else self.rpm_nominal,
+            "rpm": rpm_val,
             "alesage_m": self.alesage_m,
             "course_m": self.course_m,
             "longueur_bielle_m": self.longueur_bielle_m,
             "nombre_cylindres": self.nombre_cylindres,
-            "ordre_allumage": ordre_allumage if ordre_allumage is not None else self.ordre_allumage,
+            "ordre_allumage": ordre_val,
             "masse_alternative_kg": self.masse_alternative_kg,
-            "taux_compression": taux_compression if taux_compression is not None else self.taux_compression_effectif,
-            "volume_mort_m3": volume_mort_m3 if volume_mort_m3 is not None else self.volume_mort_effectif_m3,
+            "taux_compression": cr,
+            "volume_mort_m3": vc,
             "pas_angle_deg": pas_angle_deg,
             "modules_cycle_disponibles": _CYCLE_OK,
+            "mode_pression": mode_pression,
+            "cas_charge": cas_charge.nom if cas_charge is not None else None,
+            "cas_de_charge_count": len(cas_de_charge) if cas_de_charge is not None else 0,
         }
 
         if not _CYCLE_OK:
@@ -1192,7 +1279,6 @@ class MoteurThermique:
             _dedup_inconnues(rapport)
             return rapport
 
-        rpm_val = rpm if rpm is not None else self.rpm_nominal
         if self.alesage_m is None:
             _push_inconnue(rapport, "impossibles", "alesage_m", "Requis pour le cycle mécanique.")
         if self.course_m is None:
@@ -1201,15 +1287,12 @@ class MoteurThermique:
             _push_inconnue(rapport, "impossibles", "longueur_bielle_m", "Requis pour le cycle mécanique.")
         if self.masse_alternative_kg is None:
             _push_inconnue(rapport, "impossibles", "masse_alternative_kg", "Requis pour le cycle mécanique.")
-        if rpm_val is None:
-            _push_inconnue(rapport, "impossibles", "rpm", "Requis pour le cycle mécanique.")
 
-        ordre_val = ordre_allumage if ordre_allumage is not None else self.ordre_allumage
         ordre_norm = None
         try:
             ordre_norm = _normaliser_ordre_allumage(ordre_val, self.nombre_cylindres)
-        except Exception as e:
-            _push_inconnue(rapport, "impossibles", "ordre_allumage", f"Ordre d'allumage invalide: {e}")
+        except Exception as e_ord:
+            _push_inconnue(rapport, "impossibles", "ordre_allumage", f"Ordre d'allumage invalide: {e_ord}")
 
         if ordre_norm is None:
             _push_inconnue(
@@ -1223,8 +1306,138 @@ class MoteurThermique:
             _dedup_inconnues(rapport)
             return rapport
 
-        cr = taux_compression if taux_compression is not None else self.taux_compression_effectif
-        vc = volume_mort_m3 if volume_mort_m3 is not None else self.volume_mort_effectif_m3
+        if mode_pression is not None or cas_charge is not None or cas_de_charge is not None:
+            if cr is None and vc is None:
+                _push_inconnue(
+                    rapport,
+                    "impossibles",
+                    "taux_compression / volume_mort_m3",
+                    "Requis pour utiliser les ponts de cycle mécanique basés sur calcul_cylindree.py.",
+                )
+            if rpm_val is None and cas_charge is None and cas_de_charge is None:
+                _push_inconnue(rapport, "impossibles", "rpm", "Requis pour le mode_pression quand aucun cas de charge n'impose le régime.")
+            if rapport["inconnues"]["impossibles"]:
+                _dedup_inconnues(rapport)
+                return rapport
+
+            try:
+                if cas_de_charge is not None:
+                    res = evaluer_cycles_mecaniques_pour_cas_charge(
+                        alesage_m=float(self.alesage_m),
+                        course_m=float(self.course_m),
+                        longueur_bielle_m=float(self.longueur_bielle_m),
+                        nombre_cylindres=int(self.nombre_cylindres),
+                        ordre_allumage=tuple(ordre_norm),
+                        masse_alternative_kg=float(self.masse_alternative_kg),
+                        cas_de_charge=cas_de_charge,
+                        taux_compression=cr,
+                        volume_mort_m3=vc,
+                        masse_tournante_equivalente_kg=mt_eff,
+                        axe_decale_m=axe_eff,
+                        pression_reference_pa=p_ref_eff,
+                        pas_angle_deg=pas_angle_deg,
+                        rayon_maneton_m=rayon_maneton_m if rayon_maneton_m is not None else self.rayon_manivelle_effectif_m,
+                    )
+                    if retourner_tableaux_en_listes:
+                        res = _to_jsonable(res)
+                    rapport["cycle"] = res
+                    rapport["synthese"] = {
+                        "cas_dimensionnant_couple": res.get("cas_dimensionnant_couple"),
+                        "couple_max_dimensionnant_nm": res.get("couple_max_dimensionnant_nm"),
+                        "cas_dimensionnant_reaction_palier": res.get("cas_dimensionnant_reaction_palier"),
+                        "reaction_palier_dimensionnante_n": res.get("reaction_palier_dimensionnante_n"),
+                        "cas_dimensionnant_force_laterale": res.get("cas_dimensionnant_force_laterale"),
+                        "force_laterale_dimensionnante_n": res.get("force_laterale_dimensionnante_n"),
+                    }
+                    rapport["notes_modele"].append("Cycle mécanique évalué via plusieurs CasChargePression issus de calcul_cylindree.py.")
+                    _dedup_inconnues(rapport)
+                    return rapport
+
+                if cas_charge is not None:
+                    res = calculer_cycle_mecanique_depuis_cas_charge(
+                        alesage_m=float(self.alesage_m),
+                        course_m=float(self.course_m),
+                        longueur_bielle_m=float(self.longueur_bielle_m),
+                        nombre_cylindres=int(self.nombre_cylindres),
+                        ordre_allumage=tuple(ordre_norm),
+                        masse_alternative_kg=float(self.masse_alternative_kg),
+                        cas=cas_charge,
+                        taux_compression=cr,
+                        volume_mort_m3=vc,
+                        masse_tournante_equivalente_kg=mt_eff,
+                        axe_decale_m=axe_eff,
+                        pression_reference_pa=p_ref_eff,
+                        pas_angle_deg=pas_angle_deg,
+                        rayon_maneton_m=rayon_maneton_m if rayon_maneton_m is not None else self.rayon_manivelle_effectif_m,
+                    )
+                    if retourner_tableaux_en_listes:
+                        res = _to_jsonable(res)
+                    rapport["cycle"] = res
+                    cycle_dict = res.get("cycle", {})
+                    rapport["synthese"] = {
+                        "statistiques_cycle": cycle_dict.get("statistiques_cycle"),
+                        "enveloppes": cycle_dict.get("enveloppes"),
+                        "rapport_lambda": cycle_dict.get("extras", {}).get("rapport_lambda"),
+                        "phases_cylindres_deg": cycle_dict.get("extras", {}).get("phases_cylindres_deg"),
+                        "loi_pression": res.get("loi_pression"),
+                    }
+                    rapport["notes_modele"].append("Cycle mécanique calculé depuis un CasChargePression via calcul_cylindree.py.")
+                    _dedup_inconnues(rapport)
+                    return rapport
+
+                res = calculer_cycle_mecanique_depuis_modele_pression(
+                    alesage_m=float(self.alesage_m),
+                    course_m=float(self.course_m),
+                    longueur_bielle_m=float(self.longueur_bielle_m),
+                    nombre_cylindres=int(self.nombre_cylindres),
+                    ordre_allumage=tuple(ordre_norm),
+                    regime_tr_min=float(_require_positive("rpm", rpm_val, strictly=True)),
+                    masse_alternative_kg=float(self.masse_alternative_kg),
+                    mode_pression=mode_pression,
+                    taux_compression=cr,
+                    volume_mort_m3=vc,
+                    masse_tournante_equivalente_kg=mt_eff,
+                    axe_decale_m=axe_eff,
+                    pression_reference_pa=p_ref_eff,
+                    temperature_gaz_utile_k=temperature_gaz_utile_k,
+                    pas_angle_deg=pas_angle_deg,
+                    n_polytropique_compression=ncomp_eff,
+                    n_polytropique_detente=ndet_eff,
+                    rayon_maneton_m=rayon_maneton_m if rayon_maneton_m is not None else self.rayon_manivelle_effectif_m,
+                    courbe_mesuree=courbe_mesuree,
+                    theta_tableau_deg=theta_tableau_deg,
+                    pression_tableau_pa=pression_tableau_pa,
+                    parametres_wiebe=parametres_wiebe,
+                    pression_constante_pa=pression_constante_pa,
+                    pression_max_pa=pression_max_modele_pa,
+                    angle_pic_deg=angle_pic_deg,
+                    largeur_pic_deg=largeur_pic_deg,
+                    pression_admission_pa=p_adm_eff,
+                    pression_echappement_pa=p_ech_eff,
+                )
+                if retourner_tableaux_en_listes:
+                    res = _to_jsonable(res)
+                rapport["cycle"] = res
+                cycle_dict = res.get("cycle", {})
+                rapport["synthese"] = {
+                    "statistiques_cycle": cycle_dict.get("statistiques_cycle"),
+                    "enveloppes": cycle_dict.get("enveloppes"),
+                    "rapport_lambda": cycle_dict.get("extras", {}).get("rapport_lambda"),
+                    "phases_cylindres_deg": cycle_dict.get("extras", {}).get("phases_cylindres_deg"),
+                    "loi_pression": res.get("loi_pression"),
+                }
+                rapport["notes_modele"].append("Cycle mécanique calculé depuis un mode de pression explicite via calcul_cylindree.py.")
+                _dedup_inconnues(rapport)
+                return rapport
+            except Exception as e_bridge:
+                _push_inconnue(rapport, "impossibles", "pont calcul_cylindree -> cycle_mecanique", str(e_bridge))
+                _dedup_inconnues(rapport)
+                return rapport
+
+        if rpm_val is None:
+            _push_inconnue(rapport, "impossibles", "rpm", "Requis pour le cycle mécanique.")
+            _dedup_inconnues(rapport)
+            return rapport
 
         if cr is None and vc is not None and self.alesage_m is not None and self.course_m is not None:
             vd_unit = float(calcul_cylindree_unitaire(self.alesage_m, self.course_m))
@@ -1256,39 +1469,15 @@ class MoteurThermique:
             params_kwargs["loi_pression_cylindre"] = loi_pression_cylindre
         if modele_combustion is not None:
             params_kwargs["modele_combustion"] = modele_combustion
-        if axe_decale_m is not None:
-            params_kwargs["axe_decale_m"] = float(_require_finite("axe_decale_m", axe_decale_m))
-        elif self.axe_decale_m != 0.0:
-            params_kwargs["axe_decale_m"] = float(self.axe_decale_m)
-
-        mt = masse_tournante_equivalente_kg if masse_tournante_equivalente_kg is not None else self.masse_tournante_equivalente_kg
-        if mt != 0.0:
-            params_kwargs["masse_tournante_equivalente_kg"] = float(_require_positive("masse_tournante_equivalente_kg", mt, strictly=False))
-
-        if pression_admission_pa is not None:
-            params_kwargs["pression_admission_pa"] = float(_require_positive("pression_admission_pa", pression_admission_pa, strictly=False))
-        elif self.pression_admission_pa is not None:
-            params_kwargs["pression_admission_pa"] = float(_require_positive("pression_admission_pa", self.pression_admission_pa, strictly=False))
-
-        if pression_echappement_pa is not None:
-            params_kwargs["pression_echappement_pa"] = float(_require_positive("pression_echappement_pa", pression_echappement_pa, strictly=False))
-        elif self.pression_echappement_pa is not None:
-            params_kwargs["pression_echappement_pa"] = float(_require_positive("pression_echappement_pa", self.pression_echappement_pa, strictly=False))
-
-        if pression_reference_pa is not None:
-            params_kwargs["pression_reference_pa"] = float(_require_positive("pression_reference_pa", pression_reference_pa, strictly=False))
-        elif self.pression_reference_pa is not None:
-            params_kwargs["pression_reference_pa"] = float(_require_positive("pression_reference_pa", self.pression_reference_pa, strictly=False))
-
-        if n_polytropique_compression is not None:
-            params_kwargs["n_polytropique_compression"] = float(_require_positive("n_polytropique_compression", n_polytropique_compression, strictly=True))
-        elif self.n_polytropique_compression is not None:
-            params_kwargs["n_polytropique_compression"] = float(_require_positive("n_polytropique_compression", self.n_polytropique_compression, strictly=True))
-
-        if n_polytropique_detente is not None:
-            params_kwargs["n_polytropique_detente"] = float(_require_positive("n_polytropique_detente", n_polytropique_detente, strictly=True))
-        elif self.n_polytropique_detente is not None:
-            params_kwargs["n_polytropique_detente"] = float(_require_positive("n_polytropique_detente", self.n_polytropique_detente, strictly=True))
+        if axe_eff != 0.0:
+            params_kwargs["axe_decale_m"] = float(_require_finite("axe_decale_m", axe_eff))
+        if mt_eff != 0.0:
+            params_kwargs["masse_tournante_equivalente_kg"] = float(_require_positive("masse_tournante_equivalente_kg", mt_eff, strictly=False))
+        params_kwargs["pression_admission_pa"] = float(_require_positive("pression_admission_pa", p_adm_eff, strictly=False))
+        params_kwargs["pression_echappement_pa"] = float(_require_positive("pression_echappement_pa", p_ech_eff, strictly=False))
+        params_kwargs["pression_reference_pa"] = float(_require_positive("pression_reference_pa", p_ref_eff, strictly=False))
+        params_kwargs["n_polytropique_compression"] = float(_require_positive("n_polytropique_compression", ncomp_eff, strictly=True))
+        params_kwargs["n_polytropique_detente"] = float(_require_positive("n_polytropique_detente", ndet_eff, strictly=True))
 
         if rayon_maneton_m is not None:
             params_kwargs["rayon_maneton_m"] = float(_require_positive("rayon_maneton_m", rayon_maneton_m, strictly=True))
@@ -1315,7 +1504,6 @@ class MoteurThermique:
     # ============================================================
     # ANALYSE POINT DE FONCTIONNEMENT
     # ============================================================
-
     def analyser_point_de_fonctionnement(
         self,
         *,
