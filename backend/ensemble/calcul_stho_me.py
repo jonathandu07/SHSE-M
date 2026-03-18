@@ -178,6 +178,113 @@ def effort_inertiel(masse: float, acceleration: float) -> float:
 
 
 # ==========================================================
+# THERMO-MÉCANIQUE PISTON
+# ==========================================================
+
+def dilatation_lineaire(longueur_ref: float, alpha: float, delta_t: float) -> float:
+    """
+    dL = L0 * alpha * dT
+    """
+    verifier_positif(longueur_ref=longueur_ref, alpha=alpha)
+    return longueur_ref * alpha * delta_t
+
+
+def diametre_chaud(diametre_ref: float, alpha: float, delta_t: float) -> float:
+    """
+    D_hot = D_ref * (1 + alpha*dT)
+    """
+    verifier_positif(diametre_ref=diametre_ref, alpha=alpha)
+    return diametre_ref * (1 + alpha * delta_t)
+
+
+def jeu_fonctionnel_reel(
+    diametre_cylindre_ref: float,
+    alpha_cylindre: float,
+    delta_t_cylindre: float,
+    diametre_piston_ref: float,
+    alpha_piston: float,
+    delta_t_piston: float,
+) -> float:
+    """
+    J = D_cyl_hot - D_piston_hot
+    """
+    verifier_positif(diametre_cylindre_ref=diametre_cylindre_ref, alpha_cylindre=alpha_cylindre, diametre_piston_ref=diametre_piston_ref, alpha_piston=alpha_piston)
+    d_cyl_hot = diametre_chaud(diametre_cylindre_ref, alpha_cylindre, delta_t_cylindre)
+    d_pis_hot = diametre_chaud(diametre_piston_ref, alpha_piston, delta_t_piston)
+    return d_cyl_hot - d_pis_hot
+
+
+def conicite_theorique(diametre_haut_hot: float, diametre_bas_hot: float) -> float:
+    """
+    C = D_haut_hot - D_bas_hot
+    """
+    verifier_positif(diametre_haut_hot=diametre_haut_hot, diametre_bas_hot=diametre_bas_hot)
+    return diametre_haut_hot - diametre_bas_hot
+
+
+def ovalisation_theorique(diametre_poussee_hot: float, diametre_contre_hot: float) -> float:
+    """
+    O = D_poussee_hot - D_contre_hot
+    """
+    verifier_positif(diametre_poussee_hot=diametre_poussee_hot, diametre_contre_hot=diametre_contre_hot)
+    return diametre_poussee_hot - diametre_contre_hot
+
+
+def angle_bielle(rayon_manivelle: float, longueur_bielle: float, theta_rad: float) -> float:
+    """
+    beta = asin((r/l) * sin(theta))
+    """
+    verifier_positif(rayon_manivelle=rayon_manivelle, longueur_bielle=longueur_bielle)
+    arg = (rayon_manivelle / longueur_bielle) * math.sin(theta_rad)
+    arg = max(-1.0, min(1.0, arg))
+    return math.asin(arg)
+
+
+def force_laterale_piston(force_axiale: float, rayon_manivelle: float, longueur_bielle: float, theta_rad: float) -> float:
+    """
+    Fl = Fax * tan(beta)
+    """
+    verifier_positif(rayon_manivelle=rayon_manivelle, longueur_bielle=longueur_bielle)
+    beta = angle_bielle(rayon_manivelle, longueur_bielle, theta_rad)
+    return force_axiale * math.tan(beta)
+
+
+def pression_jupe(force_laterale: float, aire_contact: float) -> float:
+    """
+    p = F / A
+    """
+    verifier_positif(aire_contact=aire_contact)
+    return force_laterale / aire_contact
+
+
+def gradient_thermique(delta_t: float, epaisseur: float) -> float:
+    """
+    gradT = dT / e
+    """
+    verifier_positif(epaisseur=epaisseur)
+    return delta_t / epaisseur
+
+
+def contrainte_thermique_bloquee(e_module: float, alpha: float, delta_t: float, poisson: float, facteur_contrainte: float = 1.0) -> float:
+    """
+    sigma_th = k * E * alpha * dT / (1 - nu)
+    """
+    verifier_positif(e_module=e_module, alpha=alpha)
+    if poisson == 1.0:
+        raise ValueError("poisson ne doit pas être égal à 1")
+    return facteur_contrainte * e_module * alpha * delta_t / (1 - poisson)
+
+
+def contrainte_tete_piston_plaque(k_sigma: float, pression: float, alesage: float, epaisseur: float) -> float:
+    """
+    sigma = k * p * (a² / t²) avec a = alesage/2
+    """
+    verifier_positif(k_sigma=k_sigma, pression=pression, alesage=alesage, epaisseur=epaisseur)
+    a = alesage / 2
+    return k_sigma * pression * (a**2 / epaisseur**2)
+
+
+# ==========================================================
 # TRAVAIL THERMODYNAMIQUE
 # ==========================================================
 
