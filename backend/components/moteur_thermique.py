@@ -10,6 +10,9 @@ import math
 # Imports des modules "moteur_thermique" (robustes)
 # ============================================================
 
+_CYCLE_OK = False
+_CARBURANT_OK = False
+
 try:
     from backend.modules.moteur_thermique.calcul_cylindree import (
         CourbePressionMesuree,
@@ -59,6 +62,16 @@ try:
     from backend.modules.moteur_thermique.calcul_pertes_frottement import (
         calcul_puissance_frottement_segment,
         calcul_puissance_frottement_palier,
+        calcul_vitesse_glissement_palier_depuis_diametre,
+        calcul_couple_frottement_depuis_puissance,
+        calcul_puissance_frottement_depuis_couple,
+        calcul_puissance_frottement_segments_total,
+        calcul_puissance_frottement_paliers_total,
+        calcul_couple_frottement_visqueux_palier_concentrique,
+        calcul_puissance_frottement_visqueux_palier_concentrique,
+        calcul_puissance_frottement_moteur_totale,
+        calcul_fmep_depuis_puissance_frottement,
+        calcul_rendement_mecanique_depuis_puissances,
     )
     from backend.modules.moteur_thermique.calcul_precharge_vis import (
         calcul_force_separation,
@@ -71,84 +84,283 @@ try:
     from backend.modules.moteur_thermique.calcul_usure_archard import (
         calcul_volume_usure_archard,
         calcul_perte_epaisseur,
+    )
+    from backend.modules.moteur_thermique.calcul_carburant import (
+        CompositionElementaireCombustible,
+        Carburant,
+        calcul_puissance_chimique_combustion,
+        calcul_puissance_thermique_utile_combustion,
+        calcul_debit_massique_carburant_depuis_puissance_chimique,
+        calcul_debit_massique_carburant_depuis_puissance_utile,
+        calcul_debit_volumique_carburant,
+        calcul_masse_depuis_volume_carburant,
+        calcul_volume_depuis_masse_carburant,
+        calcul_energie_chimique_depuis_masse,
+        calcul_energie_chimique_depuis_volume,
+        calcul_besoin_o2_stoechiometrique_mol_par_mol_combustible,
+        calcul_rapport_oxygene_carburant_stoechiometrique_massique,
+        calcul_rapport_air_carburant_stoechiometrique_massique,
+        calcul_debit_massique_air_stoechiometrique,
+        calcul_debit_massique_air_reel,
+        calcul_lambda_depuis_debits_massiques,
+        calcul_phi_depuis_lambda,
+        calcul_debit_massique_gaz_echappement,
+        calcul_debit_massique_co2_theorique,
+        calcul_debit_massique_h2o_theorique,
+        calcul_flux_thermique_echappement_recuperable,
+        calcul_flux_thermique_total_utile,
+        calcul_bilan_carburant_simple,
     )
     from backend.modules.moteur_thermique.cycle_mecanique import (
         CycleMecaniqueParams,
         calculer_cycle_mecanique,
     )
     _CYCLE_OK = True
+    _CARBURANT_OK = True
 except Exception:
-    from backend.modules.moteur_thermique.calcul_cylindree import (
-        CourbePressionMesuree,
-        ParametresWiebe,
-        CasChargePression,
-        ModelePression,
-        calcul_cylindree_unitaire,
-        calcul_cylindree_totale,
-        calcul_epaisseur_cylindre_mince,
-        calcul_epaisseur_cylindre_lame,
-        calcul_volume_mort,
-        calcul_taux_compression,
-        calcul_ratio_alesage_course,
-        calcul_epaisseur_paroi_depuis_alesage,
-        verifier_hypothese_paroi_mince,
-        calculer_cylindre_complet,
-        construire_loi_pression_cycle_mecanique,
-        calculer_cycle_mecanique_depuis_modele_pression,
-        calculer_cycle_mecanique_depuis_cas_charge,
-        evaluer_cycles_mecaniques_pour_cas_charge,
-    )
-    from backend.modules.moteur_thermique.calcul_travail_indique import (
-        calcul_travail_indique_pme,
-        calcul_puissance_indiquee,
-    )
-    from backend.modules.moteur_thermique.calcul_gaz import (
-        calcul_force_gaz,
-        calcul_pression_gaz_parfait,
-        calcul_temperature_compression_adiabatique,
-        calcul_debit_fuite_annulaire,
-        calcul_masse_fuite,
-        calcul_densite_gaz_parfait,
-        calcul_masse_gaz_parfait,
-        calcul_temperature_gaz_parfait,
-        calcul_volume_gaz_parfait,
-        calcul_pression_isentropique_depuis_temperature,
-        calcul_ratio_volume_isentropique_depuis_pression,
-        calcul_reynolds_fuite_annulaire,
-        calculer_gaz_complet,
-    )
-    from backend.modules.moteur_thermique.calcul_force_inertie import (
-        calcul_force_inertie_alternative,
-    )
-    from backend.modules.moteur_thermique.calcul_couple_vilebrequin import (
-        calcul_couple_instantane,
-    )
-    from backend.modules.moteur_thermique.calcul_pertes_frottement import (
-        calcul_puissance_frottement_segment,
-        calcul_puissance_frottement_palier,
-    )
-    from backend.modules.moteur_thermique.calcul_precharge_vis import (
-        calcul_force_separation,
-        calcul_precharge_vis_totale,
-        calcul_couple_serrage,
-    )
-    from backend.modules.moteur_thermique.calcul_vitesse_piston import (
-        calcul_vitesse_moyenne_piston,
-    )
-    from backend.modules.moteur_thermique.calcul_usure_archard import (
-        calcul_volume_usure_archard,
-        calcul_perte_epaisseur,
-    )
     try:
-        from backend.modules.moteur_thermique.cycle_mecanique import (
+        from modules.moteur_thermique.calcul_cylindree import (
+            CourbePressionMesuree,
+            ParametresWiebe,
+            CasChargePression,
+            ModelePression,
+            calcul_cylindree_unitaire,
+            calcul_cylindree_totale,
+            calcul_epaisseur_cylindre_mince,
+            calcul_epaisseur_cylindre_lame,
+            calcul_volume_mort,
+            calcul_taux_compression,
+            calcul_ratio_alesage_course,
+            calcul_epaisseur_paroi_depuis_alesage,
+            verifier_hypothese_paroi_mince,
+            calculer_cylindre_complet,
+            construire_loi_pression_cycle_mecanique,
+            calculer_cycle_mecanique_depuis_modele_pression,
+            calculer_cycle_mecanique_depuis_cas_charge,
+            evaluer_cycles_mecaniques_pour_cas_charge,
+        )
+        from modules.moteur_thermique.calcul_travail_indique import (
+            calcul_travail_indique_pme,
+            calcul_puissance_indiquee,
+        )
+        from modules.moteur_thermique.calcul_gaz import (
+            calcul_force_gaz,
+            calcul_pression_gaz_parfait,
+            calcul_temperature_compression_adiabatique,
+            calcul_debit_fuite_annulaire,
+            calcul_masse_fuite,
+            calcul_densite_gaz_parfait,
+            calcul_masse_gaz_parfait,
+            calcul_temperature_gaz_parfait,
+            calcul_volume_gaz_parfait,
+            calcul_pression_isentropique_depuis_temperature,
+            calcul_ratio_volume_isentropique_depuis_pression,
+            calcul_reynolds_fuite_annulaire,
+            calculer_gaz_complet,
+        )
+        from modules.moteur_thermique.calcul_force_inertie import (
+            calcul_force_inertie_alternative,
+        )
+        from modules.moteur_thermique.calcul_couple_vilebrequin import (
+            calcul_couple_instantane,
+        )
+        from modules.moteur_thermique.calcul_pertes_frottement import (
+            calcul_puissance_frottement_segment,
+            calcul_puissance_frottement_palier,
+            calcul_vitesse_glissement_palier_depuis_diametre,
+            calcul_couple_frottement_depuis_puissance,
+            calcul_puissance_frottement_depuis_couple,
+            calcul_puissance_frottement_segments_total,
+            calcul_puissance_frottement_paliers_total,
+            calcul_couple_frottement_visqueux_palier_concentrique,
+            calcul_puissance_frottement_visqueux_palier_concentrique,
+            calcul_puissance_frottement_moteur_totale,
+            calcul_fmep_depuis_puissance_frottement,
+            calcul_rendement_mecanique_depuis_puissances,
+        )
+        from modules.moteur_thermique.calcul_precharge_vis import (
+            calcul_force_separation,
+            calcul_precharge_vis_totale,
+            calcul_couple_serrage,
+        )
+        from modules.moteur_thermique.calcul_vitesse_piston import (
+            calcul_vitesse_moyenne_piston,
+        )
+        from modules.moteur_thermique.calcul_usure_archard import (
+            calcul_volume_usure_archard,
+            calcul_perte_epaisseur,
+        )
+        from modules.moteur_thermique.calcul_carburant import (
+            CompositionElementaireCombustible,
+            Carburant,
+            calcul_puissance_chimique_combustion,
+            calcul_puissance_thermique_utile_combustion,
+            calcul_debit_massique_carburant_depuis_puissance_chimique,
+            calcul_debit_massique_carburant_depuis_puissance_utile,
+            calcul_debit_volumique_carburant,
+            calcul_masse_depuis_volume_carburant,
+            calcul_volume_depuis_masse_carburant,
+            calcul_energie_chimique_depuis_masse,
+            calcul_energie_chimique_depuis_volume,
+            calcul_besoin_o2_stoechiometrique_mol_par_mol_combustible,
+            calcul_rapport_oxygene_carburant_stoechiometrique_massique,
+            calcul_rapport_air_carburant_stoechiometrique_massique,
+            calcul_debit_massique_air_stoechiometrique,
+            calcul_debit_massique_air_reel,
+            calcul_lambda_depuis_debits_massiques,
+            calcul_phi_depuis_lambda,
+            calcul_debit_massique_gaz_echappement,
+            calcul_debit_massique_co2_theorique,
+            calcul_debit_massique_h2o_theorique,
+            calcul_flux_thermique_echappement_recuperable,
+            calcul_flux_thermique_total_utile,
+            calcul_bilan_carburant_simple,
+        )
+        from modules.moteur_thermique.cycle_mecanique import (
             CycleMecaniqueParams,
             calculer_cycle_mecanique,
         )
         _CYCLE_OK = True
+        _CARBURANT_OK = True
     except Exception:
-        _CYCLE_OK = False
-        CycleMecaniqueParams = Any  # type: ignore
-        calculer_cycle_mecanique = None  # type: ignore
+        CompositionElementaireCombustible = Any  # type: ignore
+        Carburant = Any  # type: ignore
+        calcul_puissance_chimique_combustion = None  # type: ignore
+        calcul_puissance_thermique_utile_combustion = None  # type: ignore
+        calcul_debit_massique_carburant_depuis_puissance_chimique = None  # type: ignore
+        calcul_debit_massique_carburant_depuis_puissance_utile = None  # type: ignore
+        calcul_debit_volumique_carburant = None  # type: ignore
+        calcul_masse_depuis_volume_carburant = None  # type: ignore
+        calcul_volume_depuis_masse_carburant = None  # type: ignore
+        calcul_energie_chimique_depuis_masse = None  # type: ignore
+        calcul_energie_chimique_depuis_volume = None  # type: ignore
+        calcul_besoin_o2_stoechiometrique_mol_par_mol_combustible = None  # type: ignore
+        calcul_rapport_oxygene_carburant_stoechiometrique_massique = None  # type: ignore
+        calcul_rapport_air_carburant_stoechiometrique_massique = None  # type: ignore
+        calcul_debit_massique_air_stoechiometrique = None  # type: ignore
+        calcul_debit_massique_air_reel = None  # type: ignore
+        calcul_lambda_depuis_debits_massiques = None  # type: ignore
+        calcul_phi_depuis_lambda = None  # type: ignore
+        calcul_debit_massique_gaz_echappement = None  # type: ignore
+        calcul_debit_massique_co2_theorique = None  # type: ignore
+        calcul_debit_massique_h2o_theorique = None  # type: ignore
+        calcul_flux_thermique_echappement_recuperable = None  # type: ignore
+        calcul_flux_thermique_total_utile = None  # type: ignore
+        calcul_bilan_carburant_simple = None  # type: ignore
+        try:
+            from backend.modules.moteur_thermique.calcul_cylindree import (
+                CourbePressionMesuree,
+                ParametresWiebe,
+                CasChargePression,
+                ModelePression,
+                calcul_cylindree_unitaire,
+                calcul_cylindree_totale,
+                calcul_epaisseur_cylindre_mince,
+                calcul_epaisseur_cylindre_lame,
+                calcul_volume_mort,
+                calcul_taux_compression,
+                calcul_ratio_alesage_course,
+                calcul_epaisseur_paroi_depuis_alesage,
+                verifier_hypothese_paroi_mince,
+                calculer_cylindre_complet,
+                construire_loi_pression_cycle_mecanique,
+                calculer_cycle_mecanique_depuis_modele_pression,
+                calculer_cycle_mecanique_depuis_cas_charge,
+                evaluer_cycles_mecaniques_pour_cas_charge,
+            )
+            from backend.modules.moteur_thermique.calcul_travail_indique import (
+                calcul_travail_indique_pme,
+                calcul_puissance_indiquee,
+            )
+            from backend.modules.moteur_thermique.calcul_gaz import (
+                calcul_force_gaz,
+                calcul_pression_gaz_parfait,
+                calcul_temperature_compression_adiabatique,
+                calcul_debit_fuite_annulaire,
+                calcul_masse_fuite,
+                calcul_densite_gaz_parfait,
+                calcul_masse_gaz_parfait,
+                calcul_temperature_gaz_parfait,
+                calcul_volume_gaz_parfait,
+                calcul_pression_isentropique_depuis_temperature,
+                calcul_ratio_volume_isentropique_depuis_pression,
+                calcul_reynolds_fuite_annulaire,
+                calculer_gaz_complet,
+            )
+            from backend.modules.moteur_thermique.calcul_force_inertie import (
+                calcul_force_inertie_alternative,
+            )
+            from backend.modules.moteur_thermique.calcul_couple_vilebrequin import (
+                calcul_couple_instantane,
+            )
+            from backend.modules.moteur_thermique.calcul_pertes_frottement import (
+                calcul_puissance_frottement_segment,
+                calcul_puissance_frottement_palier,
+                calcul_vitesse_glissement_palier_depuis_diametre,
+                calcul_couple_frottement_depuis_puissance,
+                calcul_puissance_frottement_depuis_couple,
+                calcul_puissance_frottement_segments_total,
+                calcul_puissance_frottement_paliers_total,
+                calcul_couple_frottement_visqueux_palier_concentrique,
+                calcul_puissance_frottement_visqueux_palier_concentrique,
+                calcul_puissance_frottement_moteur_totale,
+                calcul_fmep_depuis_puissance_frottement,
+                calcul_rendement_mecanique_depuis_puissances,
+            )
+            from backend.modules.moteur_thermique.calcul_precharge_vis import (
+                calcul_force_separation,
+                calcul_precharge_vis_totale,
+                calcul_couple_serrage,
+            )
+            from backend.modules.moteur_thermique.calcul_vitesse_piston import (
+                calcul_vitesse_moyenne_piston,
+            )
+            from backend.modules.moteur_thermique.calcul_usure_archard import (
+                calcul_volume_usure_archard,
+                calcul_perte_epaisseur,
+            )
+            try:
+                from backend.modules.moteur_thermique.calcul_carburant import (
+                    CompositionElementaireCombustible,
+                    Carburant,
+                    calcul_puissance_chimique_combustion,
+                    calcul_puissance_thermique_utile_combustion,
+                    calcul_debit_massique_carburant_depuis_puissance_chimique,
+                    calcul_debit_massique_carburant_depuis_puissance_utile,
+                    calcul_debit_volumique_carburant,
+                    calcul_masse_depuis_volume_carburant,
+                    calcul_volume_depuis_masse_carburant,
+                    calcul_energie_chimique_depuis_masse,
+                    calcul_energie_chimique_depuis_volume,
+                    calcul_besoin_o2_stoechiometrique_mol_par_mol_combustible,
+                    calcul_rapport_oxygene_carburant_stoechiometrique_massique,
+                    calcul_rapport_air_carburant_stoechiometrique_massique,
+                    calcul_debit_massique_air_stoechiometrique,
+                    calcul_debit_massique_air_reel,
+                    calcul_lambda_depuis_debits_massiques,
+                    calcul_phi_depuis_lambda,
+                    calcul_debit_massique_gaz_echappement,
+                    calcul_debit_massique_co2_theorique,
+                    calcul_debit_massique_h2o_theorique,
+                    calcul_flux_thermique_echappement_recuperable,
+                    calcul_flux_thermique_total_utile,
+                    calcul_bilan_carburant_simple,
+                )
+                _CARBURANT_OK = True
+            except Exception:
+                pass
+
+            try:
+                from backend.modules.moteur_thermique.cycle_mecanique import (
+                    CycleMecaniqueParams,
+                    calculer_cycle_mecanique,
+                )
+                _CYCLE_OK = True
+            except Exception:
+                CycleMecaniqueParams = Any  # type: ignore
+                calculer_cycle_mecanique = None  # type: ignore
+        except Exception as exc:
+            raise ImportError(f"Impossible de charger les modules moteur_thermique : {exc}") from exc
 
 
 # ============================================================
@@ -508,6 +720,13 @@ def _extraire_masses_depuis_rapport_piston(rapport_piston: Optional[Dict[str, An
     return out
 
 
+def _resoudre_carburant_source(
+    carburant: Optional[Any],
+    carburant_defaut: Optional[Any],
+) -> Optional[Any]:
+    return carburant if carburant is not None else carburant_defaut
+
+
 # ============================================================
 # Composant moteur thermique (calcul + définition)
 # ============================================================
@@ -597,6 +816,18 @@ class MoteurThermique:
     # --- Précharge vis (couvercle) ---
     facteur_securite_vis: float = 1.5
     facteur_frottement_vis_k: float = 0.2
+
+    # --- Carburant / combustion ---
+    carburant: Optional[Any] = None
+    debit_massique_carburant_nominal_kg_s: Optional[float] = None
+    lambda_air_nominal: Optional[float] = None
+    rendement_combustion_nominal: Optional[float] = None
+    rendement_global_energetique_nominal: Optional[float] = None
+    cp_gaz_echappement_j_kg_k: Optional[float] = None
+    temperature_gaz_echappement_in_nominal_k: Optional[float] = None
+    temperature_gaz_echappement_out_nominal_k: Optional[float] = None
+    efficacite_echangeur_echappement: Optional[float] = None
+    co2_ppm_air: float = 420.0
 
     clamp_non_negative: bool = True
 
@@ -712,6 +943,135 @@ class MoteurThermique:
             out["ecart_vs_entree_masse_alternative_kg"] = float(masse_calculee_piston) - float(masse_explicit)
 
         return out
+
+
+    def analyser_bilan_carburant(
+        self,
+        *,
+        carburant: Optional[Any] = None,
+        debit_massique_carburant_kg_s: Optional[float] = None,
+        lambda_exces_air: Optional[float] = None,
+        co2_ppm_air: Optional[float] = None,
+        cp_gaz_j_kg_k: Optional[float] = None,
+        temperature_gaz_in_k: Optional[float] = None,
+        temperature_gaz_out_k: Optional[float] = None,
+        efficacite_echangeur: Optional[float] = None,
+        puissance_utile_w: Optional[float] = None,
+        rendement_global: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        rapport: Dict[str, Any] = {
+            "entrees": {},
+            "bilan": {},
+            "inconnues": {"impossibles": [], "partielles": []},
+            "notes_modele": [],
+        }
+
+        carburant_eff = _resoudre_carburant_source(carburant, self.carburant)
+        mdot_f = debit_massique_carburant_kg_s if debit_massique_carburant_kg_s is not None else self.debit_massique_carburant_nominal_kg_s
+        lamb = lambda_exces_air if lambda_exces_air is not None else self.lambda_air_nominal
+        co2_ppm_eff = self.co2_ppm_air if co2_ppm_air is None else float(co2_ppm_air)
+        cp_eff = cp_gaz_j_kg_k if cp_gaz_j_kg_k is not None else self.cp_gaz_echappement_j_kg_k
+        tin_eff = temperature_gaz_in_k if temperature_gaz_in_k is not None else self.temperature_gaz_echappement_in_nominal_k
+        tout_eff = temperature_gaz_out_k if temperature_gaz_out_k is not None else self.temperature_gaz_echappement_out_nominal_k
+        eps_eff = efficacite_echangeur if efficacite_echangeur is not None else self.efficacite_echangeur_echappement
+        rendement_global_eff = rendement_global if rendement_global is not None else self.rendement_global_energetique_nominal
+
+        rapport["entrees"] = {
+            "carburant": getattr(carburant_eff, "nom", None),
+            "debit_massique_carburant_kg_s": mdot_f,
+            "lambda_exces_air": lamb,
+            "co2_ppm_air": co2_ppm_eff,
+            "cp_gaz_j_kg_k": cp_eff,
+            "temperature_gaz_in_k": tin_eff,
+            "temperature_gaz_out_k": tout_eff,
+            "efficacite_echangeur": eps_eff,
+            "puissance_utile_w": puissance_utile_w,
+            "rendement_global": rendement_global_eff,
+            "module_carburant_disponible": _CARBURANT_OK,
+        }
+
+        if not _CARBURANT_OK or calcul_bilan_carburant_simple is None:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "module carburant",
+                "calcul_carburant.py n'a pas pu être importé.",
+            )
+            _dedup_inconnues(rapport)
+            return rapport
+
+        if carburant_eff is None:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "carburant",
+                "Aucun carburant fourni ni défini dans l'objet moteur.",
+            )
+            _dedup_inconnues(rapport)
+            return rapport
+
+        if mdot_f is None:
+            if puissance_utile_w is not None and rendement_global_eff is not None:
+                try:
+                    mdot_f = float(
+                        calcul_debit_massique_carburant_depuis_puissance_utile(
+                            puissance_utile_w=puissance_utile_w,
+                            pci_j_kg=carburant_eff.pci_j_kg,
+                            rendement_global=rendement_global_eff,
+                        )
+                    )
+                    rapport["notes_modele"].append(
+                        "Débit carburant déduit depuis puissance utile et rendement global fournis."
+                    )
+                except Exception as e:
+                    _push_inconnue(rapport, "impossibles", "debit_massique_carburant_kg_s", str(e))
+                    _dedup_inconnues(rapport)
+                    return rapport
+            else:
+                _push_inconnue(
+                    rapport,
+                    "impossibles",
+                    "debit_massique_carburant_kg_s",
+                    "Fournis un débit carburant, ou bien puissance_utile_w + rendement_global.",
+                )
+                _dedup_inconnues(rapport)
+                return rapport
+
+        if lamb is None:
+            lamb = 1.0
+            rapport["notes_modele"].append("lambda_exces_air non fourni : valeur par défaut 1.0 utilisée.")
+
+        try:
+            bilan = calcul_bilan_carburant_simple(
+                carburant=carburant_eff,
+                debit_massique_carburant_kg_s=float(mdot_f),
+                lambda_exces_air=float(lamb),
+                co2_ppm_air=float(co2_ppm_eff),
+                cp_gaz_j_kg_k=cp_eff,
+                temperature_gaz_in_k=tin_eff,
+                temperature_gaz_out_k=tout_eff,
+                efficacite_echangeur=1.0 if eps_eff is None else float(eps_eff),
+            )
+            rapport["bilan"] = bilan
+        except Exception as e:
+            _push_inconnue(rapport, "impossibles", "bilan carburant", str(e))
+            _dedup_inconnues(rapport)
+            return rapport
+
+        if self.rendement_combustion_nominal is not None:
+            try:
+                rapport["bilan"]["puissance_thermique_utile_combustion_w"] = float(
+                    calcul_puissance_thermique_utile_combustion(
+                        debit_massique_carburant_kg_s=float(mdot_f),
+                        pci_j_kg=carburant_eff.pci_j_kg,
+                        rendement_combustion=float(self.rendement_combustion_nominal),
+                    )
+                )
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "puissance thermique utile combustion", str(e))
+
+        _dedup_inconnues(rapport)
+        return rapport
 
     # ============================================================
     # DÉFINITION DU MOTEUR PAR LE CALCUL (aucune invention)
@@ -1633,6 +1993,7 @@ class MoteurThermique:
     # ANALYSE POINT DE FONCTIONNEMENT
     # ============================================================
 
+
     def analyser_point_de_fonctionnement(
         self,
         *,
@@ -1657,12 +2018,24 @@ class MoteurThermique:
         force_normale_segment_n: Optional[float] = None,
         vitesse_glissement_palier_ms: Optional[float] = None,
         charge_palier_n: Optional[float] = None,
+        diametre_palier_m: Optional[float] = None,
+        rayon_arbre_palier_m: Optional[float] = None,
+        longueur_palier_m: Optional[float] = None,
+        jeu_radial_palier_m: Optional[float] = None,
         duree_fonctionnement_s: Optional[float] = None,
         pression_max_pa: Optional[float] = None,
         aire_effective_couvercle_m2: Optional[float] = None,
         force_joint_n: Optional[float] = None,
         nombre_vis: Optional[int] = None,
         diametre_nominal_vis_m: Optional[float] = None,
+        carburant: Optional[Any] = None,
+        debit_massique_carburant_kg_s: Optional[float] = None,
+        lambda_exces_air: Optional[float] = None,
+        co2_ppm_air: Optional[float] = None,
+        cp_gaz_echappement_j_kg_k: Optional[float] = None,
+        temperature_gaz_echappement_in_k: Optional[float] = None,
+        temperature_gaz_echappement_out_k: Optional[float] = None,
+        efficacite_echangeur_echappement: Optional[float] = None,
     ) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "entrees": {},
@@ -1676,6 +2049,7 @@ class MoteurThermique:
             "usure": {},
             "dimensionnement": {},
             "assemblage": {},
+            "carburant": {},
             "conception": {},
             "agrégateurs": {},
             "inconnues": {"impossibles": [], "partielles": []},
@@ -1709,6 +2083,7 @@ class MoteurThermique:
                 "ordre_allumage": self.ordre_allumage,
                 "masse_alternative_effective_kg": masse_alt_eff,
                 "piston_fournit": piston is not None or self.piston is not None or rapport_piston is not None,
+                "carburant_nom": getattr(_resoudre_carburant_source(carburant, self.carburant), "nom", None),
             }
         )
         rapport["conception"]["masse_alternative_resolution"] = masse_alt_resolue
@@ -1747,7 +2122,6 @@ class MoteurThermique:
         rapport["cylindree"]["volume_mort_effectif_m3"] = self.volume_mort_effectif_m3
         rapport["cylindree"]["taux_compression_effectif"] = self.taux_compression_effectif
 
-        # Agrégateur cylindre complet
         if self.alesage_m is not None and self.course_m is not None:
             try:
                 rapport["agrégateurs"]["cylindre_complet"] = calculer_cylindre_complet(
@@ -1773,7 +2147,6 @@ class MoteurThermique:
             rpm_val = _require_positive("rpm", rpm_effectif, strictly=False)
             omega = _omega_from_rpm(rpm_val)
             cps = _cycles_par_seconde(rpm_val, int(self.temps_moteur))
-
             if self.course_m is not None:
                 v_piston_moy = float(
                     calcul_vitesse_moyenne_piston(
@@ -1798,7 +2171,6 @@ class MoteurThermique:
 
         if pme_effective is not None and Vd_tot is not None:
             W_i = float(calcul_travail_indique_pme(pme_effective, Vd_tot))
-
             if rpm_effectif is not None:
                 P_i = float(
                     calcul_puissance_indiquee(
@@ -1866,7 +2238,7 @@ class MoteurThermique:
                 rapport,
                 "partielles",
                 "force inertie alternative",
-                "Calculable si (masse_alternative_kg, course/rayon_manivelle_m, rpm, longueur_bielle_m, angle_vilebrequin_deg) sont fournis.",
+                "Calculable si masse alternative, rayon/course, rpm, longueur bielle et angle sont fournis.",
             )
 
         if F_gaz is not None and F_inertie is not None:
@@ -1887,12 +2259,7 @@ class MoteurThermique:
                 )
             )
         else:
-            _push_inconnue(
-                rapport,
-                "partielles",
-                "couple instantané",
-                "Calculable si (force bielle, rayon_manivelle_m/course, angle_vilebrequin_deg) sont fournis.",
-            )
+            _push_inconnue(rapport, "partielles", "couple instantané", "Calculable si force bielle, rayon et angle sont fournis.")
 
         rapport["forces"]["F_gaz_N"] = F_gaz
         rapport["forces"]["F_inertie_N"] = F_inertie
@@ -1970,10 +2337,6 @@ class MoteurThermique:
                     gamma=_require_positive("gamma", gamma, strictly=True),
                 )
             )
-        else:
-            _push_inconnue(rapport, "partielles", "température adiabatique T2", "Calculable si t1_k, p1_pa, p2_pa sont fournis (et gamma).")
-
-        if t1_k is not None and T2 is not None and p1_pa is not None:
             p2_depuis_t = float(
                 calcul_pression_isentropique_depuis_temperature(
                     t1_k=_require_positive("t1_k", t1_k, strictly=True),
@@ -1982,6 +2345,8 @@ class MoteurThermique:
                     gamma=_require_positive("gamma", gamma, strictly=True),
                 )
             )
+        else:
+            _push_inconnue(rapport, "partielles", "température adiabatique T2", "Calculable si t1_k, p1_pa et p2_pa sont fournis.")
 
         rapport["thermo"]["pression_gaz_parfait_pa"] = P_gaz
         rapport["thermo"]["densite_gaz_parfait_kg_m3"] = rho_gaz
@@ -1992,7 +2357,6 @@ class MoteurThermique:
         rapport["thermo"]["pression_isentropique_p2_depuis_T_pa"] = p2_depuis_t
         rapport["thermo"]["ratio_volume_isentropique_v2_sur_v1"] = ratio_v2_v1
 
-        # Agrégateur gaz complet
         try:
             rapport["agrégateurs"]["gaz_complet"] = calculer_gaz_complet(
                 pression_pa=pression_cylindre_pa,
@@ -2061,7 +2425,7 @@ class MoteurThermique:
                     )
                 )
             else:
-                _push_inconnue(rapport, "partielles", "débit massique de fuite", "Calculable si densite_kg_m3 est fournie ou déductible (en plus de Q_fuite).")
+                _push_inconnue(rapport, "partielles", "débit massique de fuite", "Calculable si densite_kg_m3 est fournie ou déductible.")
         else:
             _push_inconnue(
                 rapport,
@@ -2076,6 +2440,10 @@ class MoteurThermique:
 
         P_frott_seg: Optional[float] = None
         P_frott_palier: Optional[float] = None
+        P_frott_palier_visqueux: Optional[float] = None
+        couple_frottement_moyen_nm: Optional[float] = None
+        fmep_frottement_pa: Optional[float] = None
+        rendement_mecanique_estime: Optional[float] = None
 
         if force_normale_segment_n is not None and self.coef_frottement_segment is not None and v_piston_moy is not None:
             P_frott_seg = float(
@@ -2086,32 +2454,117 @@ class MoteurThermique:
                 )
             )
         else:
-            _push_inconnue(rapport, "partielles", "pertes frottement segment", "Calculables si force_normale_segment_n, coef_frottement_segment, rpm et course_m sont fournis.")
+            _push_inconnue(rapport, "partielles", "pertes frottement segment", "Calculables si force normale, μ segment et vitesse piston sont fournis.")
 
-        if charge_palier_n is not None and vitesse_glissement_palier_ms is not None and self.coef_frottement_palier is not None:
+        v_palier_eff = vitesse_glissement_palier_ms
+        if v_palier_eff is None and diametre_palier_m is not None and rpm_effectif is not None:
+            try:
+                v_palier_eff = float(
+                    calcul_vitesse_glissement_palier_depuis_diametre(
+                        diametre_arbre_m=diametre_palier_m,
+                        regime_tr_min=_require_positive("rpm", rpm_effectif, strictly=False),
+                    )
+                )
+                rapport["notes_modele"].append("vitesse_glissement_palier_ms déduite depuis diamètre palier et régime.")
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "vitesse glissement palier", str(e))
+
+        if charge_palier_n is not None and v_palier_eff is not None and self.coef_frottement_palier is not None:
             P_frott_palier = float(
                 calcul_puissance_frottement_palier(
                     charge_w=_require_positive("charge_palier_n", charge_palier_n, strictly=False),
-                    vitesse_glissement_ms=_require_positive("vitesse_glissement_palier_ms", vitesse_glissement_palier_ms, strictly=False),
+                    vitesse_glissement_ms=_require_positive("v_palier_eff", v_palier_eff, strictly=False),
                     coef_frottement_f=_require_positive("coef_frottement_palier", self.coef_frottement_palier, strictly=False),
                 )
             )
         else:
-            _push_inconnue(rapport, "partielles", "pertes frottement palier", "Calculables si charge_palier_n, vitesse_glissement_palier_ms et coef_frottement_palier sont fournis.")
+            _push_inconnue(rapport, "partielles", "pertes frottement palier", "Calculables si charge, vitesse de glissement et μ palier sont fournis.")
+
+        if (
+            self.viscosite_pa_s is not None
+            and rayon_arbre_palier_m is not None
+            and longueur_palier_m is not None
+            and jeu_radial_palier_m is not None
+            and rpm_effectif is not None
+        ):
+            try:
+                P_frott_palier_visqueux = float(
+                    calcul_puissance_frottement_visqueux_palier_concentrique(
+                        viscosite_dynamique_pa_s=_require_positive("viscosite_pa_s", self.viscosite_pa_s, strictly=False),
+                        rayon_arbre_m=_require_positive("rayon_arbre_palier_m", rayon_arbre_palier_m, strictly=False),
+                        longueur_palier_m=_require_positive("longueur_palier_m", longueur_palier_m, strictly=False),
+                        jeu_radial_m=_require_positive("jeu_radial_palier_m", jeu_radial_palier_m, strictly=True),
+                        regime_tr_min=_require_positive("rpm", rpm_effectif, strictly=False),
+                    )
+                )
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "pertes visqueuses palier", str(e))
 
         P_frott_total: Optional[float] = None
-        if P_frott_seg is not None or P_frott_palier is not None:
-            P_frott_total = float((P_frott_seg or 0.0) + (P_frott_palier or 0.0))
+        try:
+            p_segments: List[float] = []
+            p_paliers: List[float] = []
+            autres: List[float] = []
+            if P_frott_seg is not None:
+                p_segments.append(float(P_frott_seg))
+            if P_frott_palier is not None:
+                p_paliers.append(float(P_frott_palier))
+            if P_frott_palier_visqueux is not None:
+                autres.append(float(P_frott_palier_visqueux))
+            if p_segments or p_paliers or autres:
+                P_frott_total = float(
+                    calcul_puissance_frottement_moteur_totale(
+                        puissances_segments_w=p_segments or None,
+                        puissances_paliers_w=p_paliers or None,
+                        autres_puissances_w=autres or None,
+                    )
+                )
+        except Exception as e:
+            _push_inconnue(rapport, "partielles", "pertes frottement totales", str(e))
+
+        if P_frott_total is not None and rpm_effectif is not None:
+            try:
+                couple_frottement_moyen_nm = float(
+                    calcul_couple_frottement_depuis_puissance(
+                        puissance_frottement_w=P_frott_total,
+                        regime_tr_min=_require_positive("rpm", rpm_effectif, strictly=True),
+                    )
+                )
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "couple de frottement moyen", str(e))
+
+        if P_frott_total is not None and Vd_tot is not None and rpm_effectif is not None:
+            try:
+                fmep_frottement_pa = float(
+                    calcul_fmep_depuis_puissance_frottement(
+                        puissance_frottement_w=P_frott_total,
+                        cylindree_totale_m3=Vd_tot,
+                        regime_tr_min=_require_positive("rpm", rpm_effectif, strictly=True),
+                        temps_moteur=int(self.temps_moteur),
+                    )
+                )
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "FMEP de frottement", str(e))
+
+        if P_i is not None and P_frott_total is not None:
+            try:
+                rendement_mecanique_estime = float(
+                    calcul_rendement_mecanique_depuis_puissances(
+                        puissance_indiquee_w=P_i,
+                        puissance_frottement_w=P_frott_total,
+                    )
+                )
+            except Exception as e:
+                _push_inconnue(rapport, "partielles", "rendement mécanique estimé", str(e))
 
         rapport["pertes"]["P_frottement_segment_W"] = P_frott_seg
         rapport["pertes"]["P_frottement_palier_W"] = P_frott_palier
+        rapport["pertes"]["P_frottement_palier_visqueux_W"] = P_frott_palier_visqueux
         rapport["pertes"]["P_frottement_total_W"] = P_frott_total
-
-        rendement_mecanique_estime = None
-        if P_i is not None and P_i > 0.0 and P_frott_total is not None:
-            rendement_mecanique_estime = max(0.0, (P_i - P_frott_total) / P_i)
-
+        rapport["pertes"]["couple_frottement_moyen_Nm"] = couple_frottement_moyen_nm
+        rapport["pertes"]["fmep_frottement_pa"] = fmep_frottement_pa
         rapport["pertes"]["rendement_mecanique_estime"] = rendement_mecanique_estime
+        rapport["cinematique"]["vitesse_glissement_palier_ms_effective"] = v_palier_eff
 
         usure_seg = _archard_depuis_vitesse(
             k=self.coefficient_usure_segment_k,
@@ -2123,7 +2576,7 @@ class MoteurThermique:
         usure_pal = _archard_depuis_vitesse(
             k=self.coefficient_usure_palier_k,
             W_n=charge_palier_n,
-            v_ms=vitesse_glissement_palier_ms,
+            v_ms=v_palier_eff,
             H_pa=self.durete_contact_palier_pa,
             aire_contact_m2=self.aire_contact_palier_m2,
         )
@@ -2133,7 +2586,6 @@ class MoteurThermique:
 
         if duree_fonctionnement_s is not None:
             t_s = _require_positive("duree_fonctionnement_s", duree_fonctionnement_s, strictly=False)
-
             if (
                 self.coefficient_usure_segment_k is not None
                 and force_normale_segment_n is not None
@@ -2150,27 +2602,23 @@ class MoteurThermique:
                 if self.aire_contact_segment_m2 is not None:
                     dh_seg = calcul_perte_epaisseur(volume_use_m3=V_seg, aire_contact_m2=self.aire_contact_segment_m2)
                     rapport["usure"]["segments"]["perte_epaisseur_totale_m"] = float(dh_seg)
-            else:
-                _push_inconnue(rapport, "partielles", "usure cumulée segments", "Calculable si (k, W, H) segments + vitesse piston sont fournis (et aire pour épaisseur).")
 
             if (
                 self.coefficient_usure_palier_k is not None
                 and charge_palier_n is not None
-                and vitesse_glissement_palier_ms is not None
+                and v_palier_eff is not None
                 and self.durete_contact_palier_pa is not None
             ):
                 V_pal = calcul_volume_usure_archard(
                     coefficient_usure_k=self.coefficient_usure_palier_k,
                     charge_normale_w=charge_palier_n,
-                    distance_glissement_ls=max(0.0, vitesse_glissement_palier_ms) * t_s,
+                    distance_glissement_ls=max(0.0, v_palier_eff) * t_s,
                     durete_h=self.durete_contact_palier_pa,
                 )
                 rapport["usure"]["palier"]["volume_use_total_m3"] = float(V_pal)
                 if self.aire_contact_palier_m2 is not None:
                     dh_pal = calcul_perte_epaisseur(volume_use_m3=V_pal, aire_contact_m2=self.aire_contact_palier_m2)
                     rapport["usure"]["palier"]["perte_epaisseur_totale_m"] = float(dh_pal)
-            else:
-                _push_inconnue(rapport, "partielles", "usure cumulée palier", "Calculable si (k, W, H) palier + vitesse palier sont fournis (et aire pour épaisseur).")
         else:
             _push_inconnue(rapport, "partielles", "usure cumulée", "Une durée (duree_fonctionnement_s) est nécessaire pour passer des taux (dV/dt) à un total.")
 
@@ -2192,7 +2640,6 @@ class MoteurThermique:
 
         if p_dim is not None and self.alesage_m is not None and self.contrainte_admissible_pa is not None:
             ri = 0.5 * _require_positive("alesage_m", self.alesage_m, strictly=True)
-
             t_mince = float(
                 calcul_epaisseur_cylindre_mince(
                     pression_pa=p_dim,
@@ -2240,10 +2687,7 @@ class MoteurThermique:
         rapport["dimensionnement"]["epaisseur_cylindre_auto_m"] = t_auto
         rapport["dimensionnement"]["verification_paroi_mince"] = verif_mince
         if t_mince is not None or t_lame is not None:
-            rapport["dimensionnement"]["epaisseur_cylindre_retenue_m"] = max(
-                t_mince or 0.0,
-                t_lame or 0.0,
-            )
+            rapport["dimensionnement"]["epaisseur_cylindre_retenue_m"] = max(t_mince or 0.0, t_lame or 0.0)
 
         F_sep: Optional[float] = None
         F_pre_tot: Optional[float] = None
@@ -2270,8 +2714,7 @@ class MoteurThermique:
                 _push_inconnue(rapport, "partielles", "précharge totale vis", "Calculable si force_joint_n est fournie (en plus de F_sep).")
 
             if F_pre_tot is not None and nombre_vis is not None:
-                n_vis = _require_int_pos("nombre_vis", nombre_vis)
-                F_par_vis = F_pre_tot / float(n_vis)
+                F_par_vis = F_pre_tot / float(_require_int_pos("nombre_vis", nombre_vis))
             else:
                 _push_inconnue(rapport, "partielles", "précharge par vis", "Calculable si F_pre_tot et nombre_vis sont fournis.")
 
@@ -2349,6 +2792,22 @@ class MoteurThermique:
             }
         )
 
+        try:
+            rapport["carburant"] = self.analyser_bilan_carburant(
+                carburant=carburant,
+                debit_massique_carburant_kg_s=debit_massique_carburant_kg_s,
+                lambda_exces_air=lambda_exces_air,
+                co2_ppm_air=co2_ppm_air,
+                cp_gaz_j_kg_k=cp_gaz_echappement_j_kg_k,
+                temperature_gaz_in_k=temperature_gaz_echappement_in_k,
+                temperature_gaz_out_k=temperature_gaz_echappement_out_k,
+                efficacite_echangeur=efficacite_echangeur_echappement,
+                puissance_utile_w=P_frein_estimee if P_frein_estimee is not None else P_i,
+                rendement_global=self.rendement_global_energetique_nominal,
+            )
+        except Exception as e:
+            rapport["carburant"] = {"erreur": str(e)}
+
         _push_inconnue(
             rapport,
             "impossibles",
@@ -2364,3 +2823,4 @@ class MoteurThermique:
 
         _dedup_inconnues(rapport)
         return rapport
+
