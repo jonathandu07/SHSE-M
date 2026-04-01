@@ -594,7 +594,7 @@ class CorpsBielle:
     # Calcul principal
     # -------------------------------------------------------------------------
 
-    def calculer(self, *, strict: bool = False) -> Dict[str, Any]:
+    def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "piece": "corps_bielle",
             "entrees": {},
