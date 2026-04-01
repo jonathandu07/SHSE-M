@@ -1448,23 +1448,27 @@ def _print_resume_console(config: Dict[str, Any]) -> None:
 
 
 if __name__ == "__main__":
-    kwargs = {
-        "moteur_thermique_definition": {},
-        "composants_definition": {},
-        "pieces_definition": {},
-    }
+    import sys
+    import os
+    import json
 
+    kwargs = {}
+    
     if len(sys.argv) > 1:
         arg = sys.argv[1]
         try:
             if arg.endswith(".json") and os.path.isfile(arg):
                 with open(arg, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    kwargs.update(data)
+                    kwargs = json.load(f)
             else:
-                kwargs["puissance_traction_kw"] = float(arg)
+                print("Le script attend un fichier JSON riche pour configurer l'orchestrateur. Aucun argument par défaut n'est toléré.")
+                sys.exit(1)
         except Exception as e:
-            print(f"Erreur lors du chargement de l'argument: {e}")
+            print(f"Erreur lors du chargement du fichier JSON: {e}")
+            sys.exit(1)
+    else:
+        print("Usage: python main.py <config.json> [sortie.json]\nAucune valeur par défaut n'est injectée, vous devez tout définir (ex: cibles de puissance) dans le JSON.")
+        sys.exit(1)
 
     try:
         rep = dimensionner_systeme_shsem(**kwargs)
@@ -1475,3 +1479,4 @@ if __name__ == "__main__":
             print(f"Rapport exporté vers {sys.argv[2]}")
     except Exception as e:
         print(f"Erreur d'exécution: {e}")
+
