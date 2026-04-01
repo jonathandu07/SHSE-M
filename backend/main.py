@@ -617,7 +617,9 @@ def construire_pieces_depuis_systeme(
         "couple_max_Nm": couple_max_nm,
         "course_m": course_m,
         "force_bielle_effective_N": force_bielle_N,
-        "materiau_cle": _get_nested(pieces_def, "arbre_vilebrequin", "materiau_cle"),
+        "materiau_cle": _get_nested(pieces_def, "arbre_vilebrequin", "materiau_cle") or mt.get("materiau_cle"),
+        "limite_fatigue_pa": _get_nested(pieces_def, "arbre_vilebrequin", "limite_fatigue_pa") or mt.get("limite_fatigue_pa"),
+        "limite_elastique_pa": _get_nested(pieces_def, "arbre_vilebrequin", "limite_elastique_pa") or mt.get("limite_elastique_pa"),
     }, _safe_dict(pieces_def.get("arbre_vilebrequin")))
     pieces["arbre_vilebrequin"] = _build_piece_instance(ArbreVilbrequin, raw, rapport, "arbre_vilebrequin")
     rapport["construction"]["arbre_vilebrequin"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("arbre_vilebrequin") is not None}
@@ -633,7 +635,9 @@ def construire_pieces_depuis_systeme(
         "course_m": course_m,
         "rpm": rpm,
         "couple_max_Nm": couple_max_nm,
-        "materiau_cle": _get_nested(pieces_def, "vilbrequin", "materiau_cle"),
+        "materiau_cle": _get_nested(pieces_def, "vilbrequin", "materiau_cle") or mt.get("materiau_cle"),
+        "limite_fatigue_pa": _get_nested(pieces_def, "vilbrequin", "limite_fatigue_pa") or mt.get("limite_fatigue_pa"),
+        "limite_elastique_pa": _get_nested(pieces_def, "vilbrequin", "limite_elastique_pa") or mt.get("limite_elastique_pa"),
     }, _safe_dict(pieces_def.get("vilbrequin")))
     pieces["vilbrequin"] = _build_piece_instance(Vilbrequin, raw, rapport, "vilbrequin")
     rapport["construction"]["vilbrequin"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("vilbrequin") is not None}
