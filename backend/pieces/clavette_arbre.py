@@ -717,8 +717,6 @@ class ClavetteArbre:
 
         return rapport
 
-    def calculer(self, *, strict: bool = False) -> Dict[str, Any]:
-        return self.analyser(strict=strict)
 
 
 if __name__ == "__main__":
