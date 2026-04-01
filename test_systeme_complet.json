@@ -13,7 +13,9 @@
     "composants_definition": {
         "moteur_electrique_kwargs": {
             "puissance_max_w": 80000,
-            "courant_max_a": 200,
+            "regime_max_rpm": 12000,
+            "couple_max_nm": 200,
+            "rendement_moteur": 0.95,
             "pertes_fixes_w": 500
         },
         "batterie_kwargs": {
