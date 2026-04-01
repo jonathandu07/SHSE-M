@@ -1381,7 +1381,7 @@ class ArbreVilbrequinFine(ArbreVilbrequin):
 # =============================================================================
 if __name__ == "__main__":
     class RoulementAiguilleMock:
-        def calculer(self):
+        def analyser(self):
             return {
                 "dimensions_requises": {"d_interieur_requis_m": 0.030},
                 "dimensions_reference": {
