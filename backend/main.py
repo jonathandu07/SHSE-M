@@ -1448,17 +1448,30 @@ def _print_resume_console(config: Dict[str, Any]) -> None:
 
 
 if __name__ == "__main__":
-    puissance_kw = None
-    if len(sys.argv) > 1:
-        try:
-            puissance_kw = float(sys.argv[1])
-        except ValueError:
-            puissance_kw = None
+    kwargs = {
+        "moteur_thermique_definition": {},
+        "composants_definition": {},
+        "pieces_definition": {},
+    }
 
-    rep = dimensionner_systeme_shsem(
-        puissance_traction_kw=puissance_kw,
-        moteur_thermique_definition={},
-        composants_definition={},
-        pieces_definition={},
-    )
-    _print_resume_console(rep)
+    if len(sys.argv) > 1:
+        arg = sys.argv[1]
+        try:
+            if arg.endswith(".json") and os.path.isfile(arg):
+                with open(arg, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    kwargs.update(data)
+            else:
+                kwargs["puissance_traction_kw"] = float(arg)
+        except Exception as e:
+            print(f"Erreur lors du chargement de l'argument: {e}")
+
+    try:
+        rep = dimensionner_systeme_shsem(**kwargs)
+        _print_resume_console(rep)
+
+        if len(sys.argv) > 2 and sys.argv[2].endswith(".json"):
+            exporter_rapport_json(rep, sys.argv[2])
+            print(f"Rapport exporté vers {sys.argv[2]}")
+    except Exception as e:
+        print(f"Erreur d'exécution: {e}")
