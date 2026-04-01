@@ -10,11 +10,11 @@
     "contrainte_admissible_pa": 400000000,
     "densite_materiau_kg_m3": 7800,
     
-    "composants": {
+    "composants_definition": {
         "moteur_electrique_kwargs": {
             "puissance_max_w": 80000,
-            "regime_max_rpm": 12000,
-            "rendement_max": 0.95
+            "courant_max_a": 200,
+            "pertes_fixes_w": 500
         },
         "batterie_kwargs": {
             "capacite_kwh": 50,

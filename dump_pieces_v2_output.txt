@@ -1,8 +1,7 @@
-ERREUR FATALE DANS dimensionner_systeme_shsem:
-Traceback (most recent call last):
-  File "D:\Documents\GitHub\SHSE-M\dump_pieces_v2.py", line 23, in <module>
-    db_result = db.compute_and_save_from_main(report_name="latest", **kwargs)
-  File "D:\Documents\GitHub\SHSE-M\backend\database.py", line 413, in compute_and_save_from_main
-    report = fn(**main_kwargs)
-TypeError: dimensionner_systeme_shsem() got an unexpected keyword argument 'composants'
+=== STATUT DATABASE ===
+Enregistrements chiffrés : 36
 
+=== INCONNUES OPTIMISATION ===
+{}
+
+=== PIECES (RAPPORTS D'ANALYSE) ===

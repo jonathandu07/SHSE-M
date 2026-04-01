@@ -27,8 +27,8 @@
         "composants_definition": {
             "moteur_electrique_kwargs": {
                 "puissance_max_w": 80000,
-                "regime_max_rpm": 12000,
-                "rendement_max": 0.95
+                "courant_max_a": 200,
+                "pertes_fixes_w": 500
             },
             "batterie_kwargs": {
                 "capacite_kwh": 50,
@@ -878,7 +878,7 @@
         "impossibles": [
             {
                 "nom": "moteur_electrique",
-                "raison": "Il faut fournir 'couple_max_nm' OU 'regime_base_rpm' pour définir une courbe couple/puissance sans hypothèses."
+                "raison": "Impossible de construire moteur_electrique sans ['regime_max_rpm']."
             },
             {
                 "nom": "moteur_thermique_definir_depuis_exigences",
