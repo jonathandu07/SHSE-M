@@ -14,35 +14,41 @@ if __name__ == "__main__":
         kwargs = json.load(f)
 
     try:
-        res = dimensionner_systeme_shsem(**kwargs)
-        pieces = res.get("pieces", {})
+        from backend.database import SecureDatabase
+        db = SecureDatabase()
+        
+        # Ce single call va:
+        # 1. Appeler dimensionner_systeme_shsem(**kwargs)
+        # 2. Tout sauvegarder dans shse_technical_data.db (y compris rapports_pieces)
+        db_result = db.compute_and_save_from_main(report_name="latest", **kwargs)
+        
+        # On peut charger le rapport complet depuis la base
+        res = db.load_main_report(report_name="latest")
+        
         optim = res.get("optimisation", {})
+        rapports_pieces = res.get("rapports_pieces", {})
+        donnees_pieces = res.get("toutes_les_donnees_pieces", {})
 
         with open("dump_pieces_v2_output.txt", "w", encoding="utf-8") as f:
+            f.write("=== STATUT DATABASE ===\n")
+            f.write(f"Enregistrements chiffrés : {db_result.get('records_saved')}\n\n")
+
             f.write("=== INCONNUES OPTIMISATION ===\n")
             f.write(pprint.pformat(optim.get("inconnues", {})))
-            f.write("\n\n=== PIECES ===\n")
-            for name, p in pieces.items():
+            
+            f.write("\n\n=== PIECES (RAPPORTS D'ANALYSE) ===\n")
+            for name, r in rapports_pieces.items():
                 f.write(f"\n--- {name} ---\n")
-                if hasattr(p, "analyser"):
-                    try:
-                        r = p.analyser()
-                        f.write(f"Inconnues Impossibles: {[i.get('nom') for i in r.get('inconnues', {}).get('impossibles', [])]}\n")
-                        f.write(f"Inconnues Partielles: {[i.get('nom') for i in r.get('inconnues', {}).get('partielles', [])]}\n")
-                        if name == "bielle":
-                            f.write(f"Efforts bielle: {r.get('efforts')}\n")
-                            f.write(f"Force max source: {r.get('sources', {}).get('force_axiale_max_N')}\n")
-                            f.write(f"Moteur_thermique dependency is none: {getattr(p, 'moteur_thermique', None) is None}\n")
-                        if name == "arbre_vilebrequin":
-                            f.write(f"Bielle liée ?: {'Oui' if getattr(p, 'bielle', None) is not None else 'Non'}\n")
-                            f.write(f"Moteur_thermique dependency is none: {getattr(p, 'moteur_thermique', None) is None}\n")
-                    except Exception as e:
-                        f.write(f"Erreur d'analyse: {e}\n")
-                        f.write(traceback.format_exc() + "\n")
+                if isinstance(r, dict):
+                    f.write(f"Inconnues Impossibles: {[i.get('nom') for i in r.get('inconnues', {}).get('impossibles', [])]}\n")
+                    f.write(f"Inconnues Partielles: {[i.get('nom') for i in r.get('inconnues', {}).get('partielles', [])]}\n")
+                    f.write("\n   --- Dimensions Calculees ---\n")
+                    f.write(pprint.pformat(r.get("dimensions", {})))
+                    f.write("\n")
                 else:
-                    f.write("Pas de méthode analyser()\n")
+                    f.write("Erreur : Le rapport n'est pas un dictionnaire.\n")
 
-        print("Traitement terminé. Voir dump_pieces_v2_output.txt")
+        print("Traitement terminé et sauvegardé dans backend/shse_technical_data.db. Voir dump_pieces_v2_output.txt")
 
     except Exception as e:
         with open("dump_pieces_v2_output.txt", "w", encoding="utf-8") as f:

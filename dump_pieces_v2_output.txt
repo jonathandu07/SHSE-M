@@ -1,4 +1,7 @@
+=== STATUT DATABASE ===
+Enregistrements chiffrés : 34
+
 === INCONNUES OPTIMISATION ===
 {}
 
-=== PIECES ===
+=== PIECES (RAPPORTS D'ANALYSE) ===

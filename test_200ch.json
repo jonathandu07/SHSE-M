@@ -1,0 +1,10 @@
+{
+    "puissance_traction_kw": 147.1,
+    "rpm_moteur_nominal": 6000,
+    "pme_pa": 1200000,
+    "vitesse_piston_max_ms": 20.0,
+    "ratio_course_alesage_max": 1.1,
+    "nombre_cylindres": 4,
+    "architecture_moteur": "L",
+    "temps_moteur": 4
+}
