@@ -521,7 +521,7 @@ class RoulementAiguilleArbreVilebrequin:
     # Calcul principal
     # -------------------------------------------------------------------------
 
-    def calculer(self, *, strict: bool = False) -> Dict[str, Any]:
+    def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
         rapport: Dict[str, Any] = {
             "piece": "roulement_aiguille_arbre_vilebrequin",
             "entrees": {},
@@ -1067,7 +1067,7 @@ if __name__ == "__main__":
     from pprint import pprint
 
     class CorpsBielleMock:
-        def calculer(self, strict: bool = False):
+        def analyser(self, strict: bool = False):
             return {
                 "efforts": {"force_axiale_max_N": 15000.0},
                 "geometrie": {"grande_tete": {"diametre_maneton_m": 0.030}},
