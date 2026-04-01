@@ -16,13 +16,30 @@
             "architecture": "L",
             "rpm_nominal": 6000,
             "pme_nominale_pa": 1200000,
-            "ratio_course_alesage_max": 1.1,
+            "pression_max_pa": 8000000,
+            "contrainte_admissible_pa": 400000000,
+            "densite_materiau_kg_m3": 7800,
             "vitesse_piston_max_ms": 20.0,
             "pme_pa": 1200000
         },
         "pieces_definition": {},
         "analyses_complementaires": {},
-        "composants_definition": {}
+        "composants_definition": {
+            "moteur_electrique_kwargs": {
+                "puissance_max_w": 80000,
+                "regime_max_rpm": 12000,
+                "rendement_max": 0.95
+            },
+            "batterie_kwargs": {
+                "capacite_kwh": 50,
+                "tension_nominale_v": 400
+            },
+            "alternateur_kwargs": {
+                "puissance_nominale_w": 50000,
+                "rendement_moyen": 0.9,
+                "vitesse_nominale_rpm": 3000
+            }
+        }
     },
     "inventaire": {
         "composants": {
@@ -31,12 +48,12 @@
                 "construit": false
             },
             "batterie": {
-                "type": null,
-                "construit": false
+                "type": "Batterie",
+                "construit": true
             },
             "alternateur": {
-                "type": null,
-                "construit": false
+                "type": "Alternateur",
+                "construit": true
             },
             "moteur_thermique": {
                 "type": "MoteurThermique",
@@ -76,15 +93,144 @@
         "note": "SystemeComplet non lancé."
     },
     "analyses_composants": {
+        "batterie_dimensionnement": {
+            "entrees": {
+                "fenetre_soc": 0.8,
+                "densite_energetique_kwh_kg": null,
+                "rendement_charge": 0.9,
+                "puissance_charge_kw": null,
+                "tension_nominale_v": 400,
+                "tension_charge_v": null,
+                "distance_km": null,
+                "conso_kwh_km": null,
+                "puissance_moyenne_kw": null,
+                "vitesse_moyenne_kmh": null,
+                "temps_charge_cible_h": null,
+                "puissance_pic_kw": null,
+                "duree_pic_s": null,
+                "energie_utile_imposee_kwh": null,
+                "mode_aggregation_energie": "max",
+                "calculer_puissance_charge_requise": true,
+                "activer_electrolyte_solide": false,
+                "nb_series": null,
+                "nb_parallele": null,
+                "tension_cellule_v": null,
+                "capacite_cellule_ah": null,
+                "courant_cellule_max_a": null,
+                "conductivite_ionique_s_m": null,
+                "epaisseur_electrolyte_m": null,
+                "surface_active_m2": null,
+                "resistance_interface_ohm": null,
+                "puissance_pack_continue_kw": null,
+                "puissance_pack_pic_kw": null,
+                "rendement_chaine": null,
+                "electrolyte_strict": false,
+                "activer_catalogue_cellules": false,
+                "catalogue_top_n": 5,
+                "catalogue_sleep_s": 0.0,
+                "activer_dimensionnement_fin": false,
+                "cellule_pack": null,
+                "energie_nominale_cible_pack_kwh": null,
+                "tension_bus_min_v": null,
+                "tension_bus_max_v": null,
+                "tension_nominale_cible_pack_v": null,
+                "pertes_passives_pack": null,
+                "modele_thermique_pack": null,
+                "nb_series_min_dim": null,
+                "nb_series_max_dim": null
+            },
+            "energies_utiles": {
+                "conso_kwh_km_derivee": null,
+                "E_trajet_kwh": null,
+                "E_charge_cible_kwh": null,
+                "E_pic_kwh": null,
+                "E_imposee_kwh": null
+            },
+            "dimensionnement": {
+                "E_utile_finale_kwh": null,
+                "capacite_totale_kwh": null,
+                "masse_batterie_kg": null
+            },
+            "charge": {
+                "temps_charge_h": null,
+                "puissance_effective_stockee_kw": null,
+                "puissance_charge_requise_kw": null,
+                "courant_charge_A": null
+            },
+            "electrique": {
+                "capacite_Ah_estimee": null,
+                "courant_decharge_A_estime": null,
+                "C_rate_decharge_estime": null,
+                "C_rate_charge_estime": null
+            },
+            "electrolyte_solide": {
+                "active": false
+            },
+            "catalogue_cellules": {
+                "active": false
+            },
+            "dimensionnement_fin": {
+                "active": false
+            },
+            "hypotheses": [],
+            "unites": {
+                "E_*": "kWh",
+                "capacite_totale": "kWh",
+                "masse_batterie": "kg",
+                "temps_charge": "h",
+                "puissance_*": "kW",
+                "tension_*": "V",
+                "courant_*": "A",
+                "capacite_Ah": "Ah",
+                "C_rate_*": "h^-1",
+                "asr": "ohm*m^2",
+                "R_cell": "ohm",
+                "P_pertes": "W",
+                "dV_cell": "V"
+            },
+            "inconnues": {
+                "impossibles": [
+                    {
+                        "nom": "E_utile_finale_kwh",
+                        "raison": "Impossible sans au moins un critère (trajet, charge cible, pic, ou énergie imposée)."
+                    },
+                    {
+                        "nom": "vieillissement / durée de vie",
+                        "raison": "Impossible sans modèle de vieillissement (cycles, DoD, C-rate, température, chimie) + données fabricant."
+                    },
+                    {
+                        "nom": "courbe CC/CV et taper fin de charge",
+                        "raison": "Le calcul de temps de charge reste un modèle à puissance constante."
+                    },
+                    {
+                        "nom": "thermique pack (refroidissement)",
+                        "raison": "Impossible sans architecture pack, résistances internes, modèle thermique, conditions ambiantes et profils charge/décharge."
+                    }
+                ],
+                "partielles": [
+                    {
+                        "nom": "capacite_totale_kwh",
+                        "raison": "Calculable si E_utile_finale_kwh est déterminée."
+                    },
+                    {
+                        "nom": "charge",
+                        "raison": "Calculable si E_utile_finale_kwh est déterminée et si (puissance_charge_kw ou temps_charge_cible_h) est fourni."
+                    }
+                ]
+            }
+        },
+        "alternateur_bus_dc": {
+            "erreur": "Alternateur.analyser_pour_bus_dc() missing 1 required keyword-only argument: 'puissance_bus_dc_w'"
+        },
         "moteur_thermique_geometrie": {
             "entrees": {
                 "alesage_m": null,
                 "course_m": null,
                 "nombre_cylindres": 4,
-                "pression_pa": null,
+                "pression_pa": 8000000.0,
                 "taux_compression": null,
                 "volume_mort_m3": null,
-                "contrainte_admissible_pa": null,
+                "contrainte_admissible_pa": 400000000,
                 "facteur_securite_cylindre": 1.5,
                 "include_longitudinale": false,
                 "ratio_mince_max": 0.1,
@@ -189,7 +335,7 @@
                 "architecture": "L",
                 "rpm_nominal": 6000,
                 "pme_nominale_pa": 1200000,
-                "pression_max_nominale_pa": null,
+                "pression_max_nominale_pa": 8000000,
                 "taux_compression_effectif": null,
                 "volume_mort_effectif_m3": null,
                 "ordre_allumage": null,
@@ -262,7 +408,7 @@
                 }
             },
             "dimensionnement": {
-                "pression_dimensionnement_pa": null,
+                "pression_dimensionnement_pa": 8000000.0,
                 "epaisseur_cylindre_mince_m": null,
                 "epaisseur_cylindre_lame_m": null,
                 "epaisseur_cylindre_auto_m": null,
@@ -462,7 +608,9 @@
                 "architecture": "L",
                 "rpm_nominal": 6000,
                 "pme_nominale_pa": 1200000,
-                "ratio_course_alesage_max": 1.1,
+                "pression_max_pa": 8000000,
+                "contrainte_admissible_pa": 400000000,
+                "densite_materiau_kg_m3": 7800,
                 "vitesse_piston_max_ms": 20.0,
                 "pme_pa": 1200000
             },
@@ -484,8 +632,43 @@
     "objets_serialises": {
         "composants": {
             "moteur_electrique": null,
-            "batterie": null,
-            "alternateur": null,
+            "batterie": {
+                "fenetre_soc": 0.8,
+                "densite_energetique_kwh_kg": null,
+                "rendement_charge": 0.9,
+                "puissance_charge_kw": null,
+                "tension_nominale_v": 400,
+                "tension_charge_v": null
+            },
+            "alternateur": {
+                "nombre_poles": null,
+                "mode_poles": "poles",
+                "connexion": "Y",
+                "nombre_spires_serie": null,
+                "facteur_enroulement": null,
+                "flux_max_pole_wb": null,
+                "induction_gap_t": null,
+                "aire_pole_m2": null,
+                "resistance_phase_ohm": null,
+                "resistivite_ohm_m": null,
+                "longueur_fil_m": null,
+                "section_fil_m2": null,
+                "temperature_c": null,
+                "temperature_ref_c": 20.0,
+                "coef_temperature": 0.00393,
+                "k_h": null,
+                "k_e": null,
+                "exposant_steinmetz": null,
+                "induction_max_t": null,
+                "eddy_freq_exp": 2.0,
+                "eddy_induction_exp": 2.0,
+                "masse_fer_kg": null,
+                "volume_fer_m3": null,
+                "pertes_fixes_w": 0.0,
+                "resistance_thermique_k_w": null,
+                "offset_temperature": 0.0,
+                "clamp_non_negative": true
+            },
             "moteur_thermique": {
                 "alesage_m": null,
                 "course_m": null,
@@ -507,7 +690,7 @@
                 "puissance_nominale_visee_w": null,
                 "type_puissance_nominale": null,
                 "rendement_mecanique_nominal": null,
-                "pression_max_pa": null,
+                "pression_max_pa": 8000000,
                 "longueur_bielle_m": null,
                 "rayon_manivelle_m": null,
                 "masse_alternative_kg": null,
@@ -515,9 +698,9 @@
                 "masse_bielle_kg": null,
                 "fraction_bielle_alternative": null,
                 "preferer_masse_issue_piston": true,
-                "contrainte_admissible_pa": null,
+                "contrainte_admissible_pa": 400000000,
                 "facteur_securite_cylindre": 1.5,
-                "densite_materiau_kg_m3": null,
+                "densite_materiau_kg_m3": 7800,
                 "cout_matiere_eur_kg": null,
                 "rendement_indique_cible_min": null,
                 "rendement_mecanique_cible_min": null,
@@ -559,10 +742,54 @@
             "type": null
         },
         "batterie": {
-            "type": null
+            "type": "Batterie",
+            "attributs": {
+                "fenetre_soc": 0.8,
+                "densite_energetique_kwh_kg": null,
+                "rendement_charge": 0.9,
+                "puissance_charge_kw": null,
+                "tension_nominale_v": 400,
+                "tension_charge_v": null
+            },
+            "methodes": {
+                "analyser_dimensionnement": "(*, distance_km: 'Optional[float]' = None, conso_kwh_km: 'Optional[float]' = None, puissance_moyenne_kw: 'Optional[float]' = None, vitesse_moyenne_kmh: 'Optional[float]' = None, temps_charge_cible_h: 'Optional[float]' = None, puissance_pic_kw: 'Optional[float]' = None, duree_pic_s: 'Optional[float]' = None, energie_utile_imposee_kwh: 'Optional[float]' = None, mode_aggregation_energie: 'str' = 'max', calculer_puissance_charge_requise: 'bool' = True, activer_electrolyte_solide: 'bool' = False, nb_series: 'Optional[int]' = None, nb_parallele: 'Optional[int]' = None, tension_cellule_v: 'Optional[float]' = None, capacite_cellule_ah: 'Optional[float]' = None, courant_cellule_max_a: 'Optional[float]' = None, conductivite_ionique_s_m: 'Optional[float]' = None, epaisseur_electrolyte_m: 'Optional[float]' = None, surface_active_m2: 'Optional[float]' = None, resistance_interface_ohm: 'Optional[float]' = None, puissance_pack_continue_kw: 'Optional[float]' = None, puissance_pack_pic_kw: 'Optional[float]' = None, rendement_chaine: 'Optional[float]' = None, electrolyte_strict: 'bool' = False, activer_catalogue_cellules: 'bool' = False, catalogue_cellules: 'Optional[Sequence[CelluleCommerciale]]' = None, catalogue_top_n: 'int' = 5, catalogue_sleep_s: 'float' = 0.0, activer_dimensionnement_fin: 'bool' = False, cellule_pack: 'Optional[CellulePack]' = None, energie_nominale_cible_pack_kwh: 'Optional[float]' = None, tension_bus_min_v: 'Optional[float]' = None, tension_bus_max_v: 'Optional[float]' = None, tension_nominale_cible_pack_v: 'Optional[float]' = None, pertes_passives_pack: 'Optional[PertesPassivesPack]' = None, modele_thermique_pack: 'Optional[ModeleThermiquePack]' = None, nb_series_min_dim: 'Optional[int]' = None, nb_series_max_dim: 'Optional[int]' = None) -> 'Dict[str, Any]'"
+            }
         },
         "alternateur": {
-            "type": null
+            "type": "Alternateur",
+            "attributs": {
+                "nombre_poles": null,
+                "mode_poles": "poles",
+                "connexion": "Y",
+                "nombre_spires_serie": null,
+                "facteur_enroulement": null,
+                "flux_max_pole_wb": null,
+                "induction_gap_t": null,
+                "aire_pole_m2": null,
+                "resistance_phase_ohm": null,
+                "resistivite_ohm_m": null,
+                "longueur_fil_m": null,
+                "section_fil_m2": null,
+                "temperature_c": null,
+                "temperature_ref_c": 20.0,
+                "coef_temperature": 0.00393,
+                "k_h": null,
+                "k_e": null,
+                "exposant_steinmetz": null,
+                "induction_max_t": null,
+                "eddy_freq_exp": 2.0,
+                "eddy_induction_exp": 2.0,
+                "masse_fer_kg": null,
+                "volume_fer_m3": null,
+                "pertes_fixes_w": 0.0,
+                "resistance_thermique_k_w": null,
+                "offset_temperature": 0.0,
+                "clamp_non_negative": true
+            },
+            "methodes": {
+                "analyser_pour_bus_dc": "(*, puissance_bus_dc_w: 'float', vitesse_rotation_rpm: 'Optional[float]' = None, vitesse_angulaire_rad_s: 'Optional[float]' = None, tension_bus_dc_v: 'Optional[float]' = None, batterie: 'Any' = None, moteur: 'Any' = None, energie_a_recharger_kwh: 'Optional[float]' = None) -> 'Dict[str, Any]'",
+                "analyser_point_de_fonctionnement": "(*, vitesse_rotation_rpm: 'Optional[float]' = None, vitesse_angulaire_rad_s: 'Optional[float]' = None, mode_electrique: 'ModeElectrique' = 'triphase_ac', tension_v: 'Optional[float]' = None, courant_a: 'Optional[float]' = None, facteur_puissance: 'float' = 1.0, entree_puissance_ac: \"Literal['VLL_IL', 'Vph_Iph']\" = 'VLL_IL', courant_est_ligne: 'bool' = True, puissance_electrique_cible_w: 'Optional[float]' = None, courant_phase_rms_stator_a: 'Optional[float]' = None, nb_phases_chargees: 'Optional[int]' = None) -> 'Dict[str, Any]'"
+            }
         },
         "moteur_thermique": {
             "type": "MoteurThermique",
@@ -587,7 +814,7 @@
                 "puissance_nominale_visee_w": null,
                 "type_puissance_nominale": null,
                 "rendement_mecanique_nominal": null,
-                "pression_max_pa": null,
+                "pression_max_pa": 8000000,
                 "longueur_bielle_m": null,
                 "rayon_manivelle_m": null,
                 "masse_alternative_kg": null,
@@ -595,9 +822,9 @@
                 "masse_bielle_kg": null,
                 "fraction_bielle_alternative": null,
                 "preferer_masse_issue_piston": true,
-                "contrainte_admissible_pa": null,
+                "contrainte_admissible_pa": 400000000,
                 "facteur_securite_cylindre": 1.5,
-                "densite_materiau_kg_m3": null,
+                "densite_materiau_kg_m3": 7800,
                 "cout_matiere_eur_kg": null,
                 "rendement_indique_cible_min": null,
                 "rendement_mecanique_cible_min": null,
@@ -650,19 +877,19 @@
     "inconnues": {
         "impossibles": [
             {
+                "nom": "moteur_electrique",
+                "raison": "Il faut fournir 'couple_max_nm' OU 'regime_base_rpm' pour définir une courbe couple/puissance sans hypothèses."
+            },
+            {
                 "nom": "moteur_thermique_definir_depuis_exigences",
                 "raison": "MoteurThermique.definir_depuis_exigences() missing 1 required keyword-only argument: 'puissance_visee_w'"
             },
             {
                 "nom": "SystemeComplet",
-                "raison": "Impossible de lancer le système complet sans ['moteur_electrique', 'batterie', 'alternateur']."
+                "raison": "Impossible de lancer le système complet sans ['moteur_electrique']."
             }
         ],
         "partielles": [
-            {
-                "nom": "moteur_electrique",
-                "raison": "Aucun objet ni kwargs fournis. main.py n'invente pas puissance_max_w/regime_max_rpm."
-            },
             {
                 "nom": "pieces",
                 "raison": "Construction des pièces impossible tant que le rapport système n'expose pas une synthèse exploitable."
@@ -684,12 +911,12 @@
                     "construit": false
                 },
                 "batterie": {
-                    "type": null,
-                    "construit": false
+                    "type": "Batterie",
+                    "construit": true
                 },
                 "alternateur": {
-                    "type": null,
-                    "construit": false
+                    "type": "Alternateur",
+                    "construit": true
                 },
                 "moteur_thermique": {
                     "type": "MoteurThermique",
