@@ -1120,14 +1120,25 @@ class Piston:
         # ---------------------------------------------------------------------
         nbj = None
         if self.nb_joints is None:
-            _push_inc(rap, "impossibles", "nb_joints", "Requis pour définir les rainures.")
-        else:
-            nbj = _req_int_ge("nb_joints", self.nb_joints, min_value=0)
+            self.nb_joints = max(2, int((Dcyl * 1000) // 25)) if Dcyl is not None else 3
+            rap["notes_modele"].append(f"nb_joints déduit (défaut intelligent={self.nb_joints}).")
+
+        nbj = _req_int_ge("nb_joints", self.nb_joints, min_value=0)
 
         jeu_radial_ref = rap["jeux"].get("jeu_radial_min_m", rap["jeux"].get("jeu_radial_nominal_m"))
         rainures: List[Dict[str, Any]] = []
 
         if nbj is not None and nbj > 0:
+            if self.section_joint_mm is None and Dcyl is not None:
+                self.section_joint_mm = max(1.5, min(6.0, Dcyl * 1000 * 0.05))  # ex: proportionnel à Dcyl
+                rap["notes_modele"].append(f"section_joint_mm déduite ({self.section_joint_mm:.2f} mm).")
+            if self.squeeze is None:
+                self.squeeze = 0.15
+                rap["notes_modele"].append("squeeze déduit par défaut (0.15).")
+            if self.facteur_largeur_rainure is None:
+                self.facteur_largeur_rainure = 1.3
+                rap["notes_modele"].append("facteur_largeur_rainure déduit par défaut (1.3).")
+
             if self.section_joint_mm is None or self.squeeze is None or self.facteur_largeur_rainure is None:
                 _push_inc(
                     rap,
