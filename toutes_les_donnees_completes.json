@@ -1,0 +1,710 @@
+{
+    "meta": {
+        "backend": "main.py",
+        "mode": "strict_sans_invention",
+        "repertoire": "D:\\Documents\\GitHub\\SHSE-M\\backend",
+        "version": "3.0.0",
+        "modele": "orchestrateur strict SHSE-M"
+    },
+    "entrees": {
+        "puissance_traction_kw": 147.1,
+        "production_electrique_sortie_w": null,
+        "puissance_bus_dc_w": null,
+        "definition_moteur_thermique": {
+            "temps_moteur": 4,
+            "nombre_cylindres": 4,
+            "architecture": "L",
+            "rpm_nominal": 6000,
+            "pme_nominale_pa": 1200000,
+            "ratio_course_alesage_max": 1.1,
+            "vitesse_piston_max_ms": 20.0,
+            "pme_pa": 1200000
+        },
+        "pieces_definition": {},
+        "analyses_complementaires": {},
+        "composants_definition": {}
+    },
+    "inventaire": {
+        "composants": {
+            "moteur_electrique": {
+                "type": null,
+                "construit": false
+            },
+            "batterie": {
+                "type": null,
+                "construit": false
+            },
+            "alternateur": {
+                "type": null,
+                "construit": false
+            },
+            "moteur_thermique": {
+                "type": "MoteurThermique",
+                "construit": true
+            },
+            "boite_crabots": {
+                "type": null,
+                "construit": false
+            },
+            "architecture": {
+                "type": null,
+                "construit": false
+            }
+        },
+        "pieces": {}
+    },
+    "resume_gui": {
+        "N_cyl": null,
+        "Architecture": null,
+        "Bore_mm": null,
+        "Stroke_mm": null,
+        "RPM": null,
+        "PME_Pa": null,
+        "Pmax_Pa": null,
+        "Couple_max_Nm": null,
+        "Force_bielle_N": null,
+        "vd_tot_cc": null,
+        "P_bus_dc_design_w": null,
+        "energie_batterie_kwh": null,
+        "score_coherence_100": null,
+        "score_global_100": null,
+        "nb_pieces_construites": 0,
+        "nb_alertes": 0,
+        "nb_inconnues": 4
+    },
+    "systeme_complet": {
+        "note": "SystemeComplet non lancé."
+    },
+    "analyses_composants": {
+        "moteur_thermique_geometrie": {
+            "entrees": {
+                "alesage_m": null,
+                "course_m": null,
+                "nombre_cylindres": 4,
+                "pression_pa": null,
+                "taux_compression": null,
+                "volume_mort_m3": null,
+                "contrainte_admissible_pa": null,
+                "facteur_securite_cylindre": 1.5,
+                "include_longitudinale": false,
+                "ratio_mince_max": 0.1,
+                "mode_pression": null,
+                "pas_angle_deg": 0.5,
+                "longueur_bielle_m": null,
+                "axe_decale_m": 0.0,
+                "cas_de_charge_count": 0
+            },
+            "cylindre_complet": {},
+            "inconnues": {
+                "impossibles": [
+                    {
+                        "nom": "géométrie cylindre",
+                        "raison": "Impossible sans alesage_m et course_m."
+                    }
+                ],
+                "partielles": []
+            },
+            "notes_modele": []
+        },
+        "moteur_thermique_cycle": {
+            "entrees": {
+                "rpm": 6000,
+                "alesage_m": null,
+                "course_m": null,
+                "longueur_bielle_m": null,
+                "nombre_cylindres": 4,
+                "ordre_allumage": null,
+                "masse_alternative_kg": null,
+                "masse_alternative_effective_kg": null,
+                "piston_fournit": false,
+                "taux_compression": null,
+                "volume_mort_m3": null,
+                "pas_angle_deg": 1.0,
+                "modules_cycle_disponibles": true,
+                "mode_pression": null,
+                "cas_charge": null,
+                "cas_de_charge_count": 0
+            },
+            "cycle": {},
+            "synthese": {
+                "masse_alternative_resolution": {
+                    "source": null,
+                    "rapport_piston_disponible": false,
+                    "masses_piston": {
+                        "masse_corps_piston_kg": null,
+                        "masse_axe_kg": null,
+                        "masse_joints_kg": null,
+                        "masse_segments_kg": null,
+                        "masse_bielle_alternative_kg": null,
+                        "masse_alternative_calculee_kg": null,
+                        "masse_alternative_totale_avec_bielle_kg": null,
+                        "centre_gravite_depuis_face_tete_m": null
+                    },
+                    "masse_alternative_effective_kg": null,
+                    "ecart_vs_entree_masse_alternative_kg": null,
+                    "notes": [],
+                    "inconnues": [
+                        "masse alternative effective"
+                    ]
+                }
+            },
+            "inconnues": {
+                "impossibles": [
+                    {
+                        "nom": "alesage_m",
+                        "raison": "Requis pour le cycle mécanique."
+                    },
+                    {
+                        "nom": "course_m",
+                        "raison": "Requis pour le cycle mécanique."
+                    },
+                    {
+                        "nom": "longueur_bielle_m",
+                        "raison": "Requis pour le cycle mécanique."
+                    },
+                    {
+                        "nom": "masse_alternative_effective_kg",
+                        "raison": "Requise pour le cycle mécanique, fournie soit directement, soit via le module piston."
+                    },
+                    {
+                        "nom": "ordre_allumage",
+                        "raison": "Requis pour reconstituer un cycle multi-cylindres. Pour 1 cylindre, [1] est accepté automatiquement."
+                    }
+                ],
+                "partielles": []
+            },
+            "notes_modele": []
+        },
+        "moteur_thermique_point": {
+            "entrees": {
+                "rpm": 6000,
+                "pression_moyenne_effective_pa": 1200000.0,
+                "pression_cylindre_pa": null,
+                "angle_vilebrequin_deg": null,
+                "duree_fonctionnement_s": null,
+                "temps_moteur": 4,
+                "nombre_cylindres": 4,
+                "alesage_m": null,
+                "course_m": null,
+                "architecture": "L",
+                "rpm_nominal": 6000,
+                "pme_nominale_pa": 1200000,
+                "pression_max_nominale_pa": null,
+                "taux_compression_effectif": null,
+                "volume_mort_effectif_m3": null,
+                "ordre_allumage": null,
+                "masse_alternative_effective_kg": null,
+                "piston_fournit": false,
+                "carburant_nom": null
+            },
+            "cylindree": {
+                "Vd_unitaire_m3": null,
+                "Vd_totale_m3": null,
+                "ratio_alesage_course_B_sur_S": null,
+                "type_geometrique": null,
+                "volume_mort_effectif_m3": null,
+                "taux_compression_effectif": null
+            },
+            "cinematique": {
+                "omega_rad_s": 628.3185307179587,
+                "cycles_par_seconde": 50.0,
+                "vitesse_moyenne_piston_ms": null,
+                "rayon_manivelle_m_effectif": null,
+                "vitesse_glissement_palier_ms_effective": null
+            },
+            "resultats": {
+                "travail_indique_par_cycle_J": null,
+                "puissance_indiquee_W": null,
+                "puissance_frein_estimee_W": null,
+                "Q_fuite_m3_s": null,
+                "m_dot_fuite_kg_s": null,
+                "reynolds_fuite": null
+            },
+            "thermo": {
+                "pression_gaz_parfait_pa": null,
+                "densite_gaz_parfait_kg_m3": null,
+                "masse_gaz_calculee_kg": null,
+                "temperature_gaz_calculee_k": null,
+                "volume_gaz_calcule_m3": null,
+                "temperature_adiabatique_T2_k": null,
+                "pression_isentropique_p2_depuis_T_pa": null,
+                "ratio_volume_isentropique_v2_sur_v1": null
+            },
+            "forces": {
+                "F_gaz_N": null,
+                "F_inertie_N": null,
+                "F_bielle_effective_N": null
+            },
+            "couple": {
+                "T_instantane_Nm": null
+            },
+            "pertes": {
+                "P_frottement_segment_W": null,
+                "P_frottement_palier_W": null,
+                "P_frottement_palier_visqueux_W": null,
+                "P_frottement_total_W": null,
+                "couple_frottement_moyen_Nm": null,
+                "fmep_frottement_pa": null,
+                "rendement_mecanique_estime": null
+            },
+            "usure": {
+                "segments": {
+                    "dV_dt_m3_s": null,
+                    "dh_dt_m_s": null,
+                    "dV_par_heure_m3_h": null,
+                    "dh_par_heure_m_h": null
+                },
+                "palier": {
+                    "dV_dt_m3_s": null,
+                    "dh_dt_m_s": null,
+                    "dV_par_heure_m3_h": null,
+                    "dh_par_heure_m_h": null
+                }
+            },
+            "dimensionnement": {
+                "pression_dimensionnement_pa": null,
+                "epaisseur_cylindre_mince_m": null,
+                "epaisseur_cylindre_lame_m": null,
+                "epaisseur_cylindre_auto_m": null,
+                "verification_paroi_mince": null
+            },
+            "assemblage": {
+                "force_separation_N": null,
+                "precharge_totale_N": null,
+                "precharge_par_vis_N": null,
+                "couple_serrage_par_vis_Nm": null
+            },
+            "carburant": {
+                "entrees": {
+                    "carburant": null,
+                    "debit_massique_carburant_kg_s": null,
+                    "lambda_exces_air": null,
+                    "co2_ppm_air": 420.0,
+                    "cp_gaz_j_kg_k": null,
+                    "temperature_gaz_in_k": null,
+                    "temperature_gaz_out_k": null,
+                    "efficacite_echangeur": null,
+                    "puissance_utile_w": null,
+                    "rendement_global": null,
+                    "module_carburant_disponible": true
+                },
+                "bilan": {},
+                "inconnues": {
+                    "impossibles": [
+                        {
+                            "nom": "carburant",
+                            "raison": "Aucun carburant fourni ni défini dans l'objet moteur."
+                        }
+                    ],
+                    "partielles": []
+                },
+                "notes_modele": []
+            },
+            "conception": {
+                "masse_alternative_resolution": {
+                    "source": null,
+                    "rapport_piston_disponible": false,
+                    "masses_piston": {
+                        "masse_corps_piston_kg": null,
+                        "masse_axe_kg": null,
+                        "masse_joints_kg": null,
+                        "masse_segments_kg": null,
+                        "masse_bielle_alternative_kg": null,
+                        "masse_alternative_calculee_kg": null,
+                        "masse_alternative_totale_avec_bielle_kg": null,
+                        "centre_gravite_depuis_face_tete_m": null
+                    },
+                    "masse_alternative_effective_kg": null,
+                    "ecart_vs_entree_masse_alternative_kg": null,
+                    "notes": [],
+                    "inconnues": [
+                        "masse alternative effective"
+                    ]
+                },
+                "masse": {
+                    "volume_matiere_total_m3": null,
+                    "masse_estimee_kg": null,
+                    "notes": null
+                },
+                "cout_matiere_estime_eur": null,
+                "indice_maintenance": 4.0,
+                "respecte_masse_estimee_max": null,
+                "respecte_cout_matiere_max": null,
+                "respecte_indice_maintenance_max": null,
+                "respecte_rendement_mecanique_min": null,
+                "commentaires": [
+                    "La masse et le coût ici restent des estimations limitées à la matière des viroles de cylindres lorsque les données sont présentes.",
+                    "L'indice de maintenance est un proxy déterministe de complexité, pas un coût d'atelier réel.",
+                    "La fiabilité absolue reste impossible à conclure ici sans fatigue détaillée, états de surface, matériaux de chaque pièce et spectres de charge."
+                ]
+            },
+            "agrégateurs": {
+                "gaz_complet": {
+                    "constante_gaz_r": 287.05,
+                    "gamma": 1.4,
+                    "inconnues": "pression_pa (manque 3/4 parmi P,m,V,T); masse_kg (manque 3/4 parmi P,m,V,T); volume_m3 (manque 3/4 parmi P,m,V,T); temperature_k (manque 3/4 parmi P,m,V,T); densite_kg_m3 (besoin P&T ou m&V)"
+                }
+            },
+            "inconnues": {
+                "impossibles": [
+                    {
+                        "nom": "cylindrée",
+                        "raison": "Impossible sans alesage_m et course_m."
+                    },
+                    {
+                        "nom": "usure segments (valeur absolue)",
+                        "raison": "Impossible sans coefficient d'usure k et dureté H (tribologie/datasheet)."
+                    },
+                    {
+                        "nom": "usure palier (valeur absolue)",
+                        "raison": "Impossible sans coefficient d'usure k et dureté H (tribologie/datasheet)."
+                    },
+                    {
+                        "nom": "rendement global réel",
+                        "raison": "Sans p(θ) (diagramme indicateur), pertes de pompage, transferts thermiques, accessoires, on ne peut pas calculer un rendement global fiable."
+                    },
+                    {
+                        "nom": "fatigue/longévité complète",
+                        "raison": "Sans matériaux précis, états de surface, concentrations de contraintes, et cycles de charge, on ne peut pas conclure sur la fatigue/longévité."
+                    }
+                ],
+                "partielles": [
+                    {
+                        "nom": "vitesse moyenne piston",
+                        "raison": "Calculable si course_m est fournie."
+                    },
+                    {
+                        "nom": "travail/power indiqué",
+                        "raison": "Calculables si PME et alesage/course sont fournis."
+                    },
+                    {
+                        "nom": "force gaz instantanée",
+                        "raison": "Calculable si pression_cylindre_pa et alesage_m sont fournis."
+                    },
+                    {
+                        "nom": "force inertie alternative",
+                        "raison": "Calculable si masse alternative, rayon/course, rpm, longueur bielle et angle sont fournis."
+                    },
+                    {
+                        "nom": "force bielle effective",
+                        "raison": "Déductible si force gaz ET force inertie sont calculées."
+                    },
+                    {
+                        "nom": "couple instantané",
+                        "raison": "Calculable si force bielle, rayon et angle sont fournis."
+                    },
+                    {
+                        "nom": "pression gaz parfait",
+                        "raison": "Calculable si masse_gaz_kg, volume_gaz_m3, temperature_gaz_k sont fournis."
+                    },
+                    {
+                        "nom": "température adiabatique T2",
+                        "raison": "Calculable si t1_k, p1_pa et p2_pa sont fournis."
+                    },
+                    {
+                        "nom": "débit de fuite annulaire",
+                        "raison": "Calculable si delta_p_fuite_pa, jeu_radial_h_m, rayon_fuite_m, longueur_fuite_m, viscosite_pa_s sont fournis."
+                    },
+                    {
+                        "nom": "pertes frottement segment",
+                        "raison": "Calculables si force normale, μ segment et vitesse piston sont fournis."
+                    },
+                    {
+                        "nom": "pertes frottement palier",
+                        "raison": "Calculables si charge, vitesse de glissement et μ palier sont fournis."
+                    },
+                    {
+                        "nom": "usure cumulée",
+                        "raison": "Une durée (duree_fonctionnement_s) est nécessaire pour passer des taux (dV/dt) à un total."
+                    },
+                    {
+                        "nom": "épaisseur paroi cylindre",
+                        "raison": "Calculable si (pression_max_pa ou pression_cylindre_pa), alesage_m et contrainte_admissible_pa sont fournis."
+                    },
+                    {
+                        "nom": "dimensionnement vis couvercle",
+                        "raison": "Calculable si pression_max_pa et aire_effective_couvercle_m2 sont fournis (et force_joint_n, nombre_vis, diametre_nominal_vis_m pour aller plus loin)."
+                    }
+                ]
+            },
+            "notes_modele": []
+        },
+        "moteur_thermique_bilan_carburant": {
+            "entrees": {
+                "carburant": null,
+                "debit_massique_carburant_kg_s": null,
+                "lambda_exces_air": null,
+                "co2_ppm_air": 420.0,
+                "cp_gaz_j_kg_k": null,
+                "temperature_gaz_in_k": null,
+                "temperature_gaz_out_k": null,
+                "efficacite_echangeur": null,
+                "puissance_utile_w": null,
+                "rendement_global": null,
+                "module_carburant_disponible": true
+            },
+            "bilan": {},
+            "inconnues": {
+                "impossibles": [
+                    {
+                        "nom": "carburant",
+                        "raison": "Aucun carburant fourni ni défini dans l'objet moteur."
+                    }
+                ],
+                "partielles": []
+            },
+            "notes_modele": []
+        },
+        "construction_moteur_thermique": {
+            "definition_utilisee": {
+                "temps_moteur": 4,
+                "nombre_cylindres": 4,
+                "architecture": "L",
+                "rpm_nominal": 6000,
+                "pme_nominale_pa": 1200000,
+                "ratio_course_alesage_max": 1.1,
+                "vitesse_piston_max_ms": 20.0,
+                "pme_pa": 1200000
+            },
+            "mode_construction": "minimal",
+            "rapport_definition_exigences": null
+        }
+    },
+    "construction_pieces": {
+        "note": "Construction pièces non lancée."
+    },
+    "rapports_pieces": {},
+    "optimisation": {
+        "note": "Optimisation non lancée."
+    },
+    "stho_me_secondaire": {
+        "note": "Pipeline STHO_ME non lancé."
+    },
+    "legacy": {},
+    "objets_serialises": {
+        "composants": {
+            "moteur_electrique": null,
+            "batterie": null,
+            "alternateur": null,
+            "moteur_thermique": {
+                "alesage_m": null,
+                "course_m": null,
+                "nombre_cylindres": 4,
+                "temps_moteur": 4,
+                "architecture": "L",
+                "taux_compression_nominal": null,
+                "volume_mort_nominal_m3": null,
+                "ordre_allumage": null,
+                "axe_decale_m": 0.0,
+                "masse_tournante_equivalente_kg": 0.0,
+                "pression_admission_pa": null,
+                "pression_echappement_pa": null,
+                "pression_reference_pa": null,
+                "n_polytropique_compression": null,
+                "n_polytropique_detente": null,
+                "rpm_nominal": 6000,
+                "pme_nominale_pa": 1200000,
+                "puissance_nominale_visee_w": null,
+                "type_puissance_nominale": null,
+                "rendement_mecanique_nominal": null,
+                "pression_max_pa": null,
+                "longueur_bielle_m": null,
+                "rayon_manivelle_m": null,
+                "masse_alternative_kg": null,
+                "piston": null,
+                "masse_bielle_kg": null,
+                "fraction_bielle_alternative": null,
+                "preferer_masse_issue_piston": true,
+                "contrainte_admissible_pa": null,
+                "facteur_securite_cylindre": 1.5,
+                "densite_materiau_kg_m3": null,
+                "cout_matiere_eur_kg": null,
+                "rendement_indique_cible_min": null,
+                "rendement_mecanique_cible_min": null,
+                "masse_estimee_max_kg": null,
+                "cout_matiere_max_eur": null,
+                "indice_maintenance_max": null,
+                "duree_vie_cible_h": null,
+                "viscosite_pa_s": null,
+                "densite_kg_m3": null,
+                "coef_frottement_segment": null,
+                "coef_frottement_palier": null,
+                "coefficient_usure_segment_k": null,
+                "durete_contact_segment_pa": null,
+                "aire_contact_segment_m2": null,
+                "coefficient_usure_palier_k": null,
+                "durete_contact_palier_pa": null,
+                "aire_contact_palier_m2": null,
+                "facteur_securite_vis": 1.5,
+                "facteur_frottement_vis_k": 0.2,
+                "carburant": null,
+                "debit_massique_carburant_nominal_kg_s": null,
+                "lambda_air_nominal": null,
+                "rendement_combustion_nominal": null,
+                "rendement_global_energetique_nominal": null,
+                "cp_gaz_echappement_j_kg_k": null,
+                "temperature_gaz_echappement_in_nominal_k": null,
+                "temperature_gaz_echappement_out_nominal_k": null,
+                "efficacite_echangeur_echappement": null,
+                "co2_ppm_air": 420.0,
+                "clamp_non_negative": true
+            },
+            "boite_crabots": null,
+            "architecture": null
+        },
+        "pieces": {}
+    },
+    "toutes_les_donnees_composants": {
+        "moteur_electrique": {
+            "type": null
+        },
+        "batterie": {
+            "type": null
+        },
+        "alternateur": {
+            "type": null
+        },
+        "moteur_thermique": {
+            "type": "MoteurThermique",
+            "attributs": {
+                "alesage_m": null,
+                "course_m": null,
+                "nombre_cylindres": 4,
+                "temps_moteur": 4,
+                "architecture": "L",
+                "taux_compression_nominal": null,
+                "volume_mort_nominal_m3": null,
+                "ordre_allumage": null,
+                "axe_decale_m": 0.0,
+                "masse_tournante_equivalente_kg": 0.0,
+                "pression_admission_pa": null,
+                "pression_echappement_pa": null,
+                "pression_reference_pa": null,
+                "n_polytropique_compression": null,
+                "n_polytropique_detente": null,
+                "rpm_nominal": 6000,
+                "pme_nominale_pa": 1200000,
+                "puissance_nominale_visee_w": null,
+                "type_puissance_nominale": null,
+                "rendement_mecanique_nominal": null,
+                "pression_max_pa": null,
+                "longueur_bielle_m": null,
+                "rayon_manivelle_m": null,
+                "masse_alternative_kg": null,
+                "piston": null,
+                "masse_bielle_kg": null,
+                "fraction_bielle_alternative": null,
+                "preferer_masse_issue_piston": true,
+                "contrainte_admissible_pa": null,
+                "facteur_securite_cylindre": 1.5,
+                "densite_materiau_kg_m3": null,
+                "cout_matiere_eur_kg": null,
+                "rendement_indique_cible_min": null,
+                "rendement_mecanique_cible_min": null,
+                "masse_estimee_max_kg": null,
+                "cout_matiere_max_eur": null,
+                "indice_maintenance_max": null,
+                "duree_vie_cible_h": null,
+                "viscosite_pa_s": null,
+                "densite_kg_m3": null,
+                "coef_frottement_segment": null,
+                "coef_frottement_palier": null,
+                "coefficient_usure_segment_k": null,
+                "durete_contact_segment_pa": null,
+                "aire_contact_segment_m2": null,
+                "coefficient_usure_palier_k": null,
+                "durete_contact_palier_pa": null,
+                "aire_contact_palier_m2": null,
+                "facteur_securite_vis": 1.5,
+                "facteur_frottement_vis_k": 0.2,
+                "carburant": null,
+                "debit_massique_carburant_nominal_kg_s": null,
+                "lambda_air_nominal": null,
+                "rendement_combustion_nominal": null,
+                "rendement_global_energetique_nominal": null,
+                "cp_gaz_echappement_j_kg_k": null,
+                "temperature_gaz_echappement_in_nominal_k": null,
+                "temperature_gaz_echappement_out_nominal_k": null,
+                "efficacite_echangeur_echappement": null,
+                "co2_ppm_air": 420.0,
+                "clamp_non_negative": true
+            },
+            "methodes": {
+                "analyser_point_de_fonctionnement": "(*, rpm: 'Optional[float]' = None, piston: 'Optional[Any]' = None, rapport_piston: 'Optional[Dict[str, Any]]' = None, pression_moyenne_effective_pa: 'Optional[float]' = None, pression_cylindre_pa: 'Optional[float]' = None, angle_vilebrequin_deg: 'Optional[float]' = None, masse_gaz_kg: 'Optional[float]' = None, volume_gaz_m3: 'Optional[float]' = None, temperature_gaz_k: 'Optional[float]' = None, constante_gaz_r: 'float' = 287.05, t1_k: 'Optional[float]' = None, p1_pa: 'Optional[float]' = None, p2_pa: 'Optional[float]' = None, gamma: 'float' = 1.4, delta_p_fuite_pa: 'Optional[float]' = None, jeu_radial_h_m: 'Optional[float]' = None, rayon_fuite_m: 'Optional[float]' = None, longueur_fuite_m: 'Optional[float]' = None, force_normale_segment_n: 'Optional[float]' = None, vitesse_glissement_palier_ms: 'Optional[float]' = None, charge_palier_n: 'Optional[float]' = None, diametre_palier_m: 'Optional[float]' = None, rayon_arbre_palier_m: 'Optional[float]' = None, longueur_palier_m: 'Optional[float]' = None, jeu_radial_palier_m: 'Optional[float]' = None, duree_fonctionnement_s: 'Optional[float]' = None, pression_max_pa: 'Optional[float]' = None, aire_effective_couvercle_m2: 'Optional[float]' = None, force_joint_n: 'Optional[float]' = None, nombre_vis: 'Optional[int]' = None, diametre_nominal_vis_m: 'Optional[float]' = None, carburant: 'Optional[Any]' = None, debit_massique_carburant_kg_s: 'Optional[float]' = None, lambda_exces_air: 'Optional[float]' = None, co2_ppm_air: 'Optional[float]' = None, cp_gaz_echappement_j_kg_k: 'Optional[float]' = None, temperature_gaz_echappement_in_k: 'Optional[float]' = None, temperature_gaz_echappement_out_k: 'Optional[float]' = None, efficacite_echangeur_echappement: 'Optional[float]' = None) -> 'Dict[str, Any]'",
+                "analyser_geometrie_definition": "(*, pression_pa: 'Optional[float]' = None, taux_compression: 'Optional[float]' = None, volume_mort_m3: 'Optional[float]' = None, include_longitudinale: 'bool' = False, ratio_mince_max: 'float' = 0.1, mode_pression: 'Optional[ModelePression]' = None, pas_angle_deg: 'float' = 0.5, longueur_bielle_m: 'Optional[float]' = None, axe_decale_m: 'Optional[float]' = None, courbe_mesuree: 'Optional[CourbePressionMesuree]' = None, theta_tableau_deg: 'Optional[Sequence[float]]' = None, pression_tableau_pa: 'Optional[Sequence[float]]' = None, parametres_wiebe: 'Optional[ParametresWiebe]' = None, pression_constante_pa: 'Optional[float]' = None, pression_max_modele_pa: 'Optional[float]' = None, angle_pic_deg: 'float' = 5.0, largeur_pic_deg: 'float' = 18.0, pression_admission_pa: 'Optional[float]' = None, pression_echappement_pa: 'Optional[float]' = None, cas_de_charge: 'Optional[Sequence[CasChargePression]]' = None) -> 'Dict[str, Any]'",
+                "analyser_cycle_mecanique": "(*, rpm: 'Optional[float]' = None, ordre_allumage: 'Optional[OrdreAllumageType]' = None, piston: 'Optional[Any]' = None, rapport_piston: 'Optional[Dict[str, Any]]' = None, taux_compression: 'Optional[float]' = None, volume_mort_m3: 'Optional[float]' = None, loi_pression_cylindre: 'Optional[Any]' = None, modele_combustion: 'Optional[Any]' = None, pression_admission_pa: 'Optional[float]' = None, pression_echappement_pa: 'Optional[float]' = None, pression_reference_pa: 'Optional[float]' = None, axe_decale_m: 'Optional[float]' = None, masse_tournante_equivalente_kg: 'Optional[float]' = None, pas_angle_deg: 'float' = 1.0, n_polytropique_compression: 'Optional[float]' = None, n_polytropique_detente: 'Optional[float]' = None, rayon_maneton_m: 'Optional[float]' = None, retourner_tableaux_en_listes: 'bool' = False, mode_pression: 'Optional[ModelePression]' = None, cas_charge: 'Optional[CasChargePression]' = None, cas_de_charge: 'Optional[Sequence[CasChargePression]]' = None, courbe_mesuree: 'Optional[CourbePressionMesuree]' = None, theta_tableau_deg: 'Optional[Sequence[float]]' = None, pression_tableau_pa: 'Optional[Sequence[float]]' = None, parametres_wiebe: 'Optional[ParametresWiebe]' = None, pression_constante_pa: 'Optional[float]' = None, pression_max_modele_pa: 'Optional[float]' = None, angle_pic_deg: 'float' = 5.0, largeur_pic_deg: 'float' = 18.0, temperature_gaz_utile_k: 'Optional[float]' = None) -> 'Dict[str, Any]'",
+                "analyser_bilan_carburant": "(*, carburant: 'Optional[Any]' = None, debit_massique_carburant_kg_s: 'Optional[float]' = None, lambda_exces_air: 'Optional[float]' = None, co2_ppm_air: 'Optional[float]' = None, cp_gaz_j_kg_k: 'Optional[float]' = None, temperature_gaz_in_k: 'Optional[float]' = None, temperature_gaz_out_k: 'Optional[float]' = None, efficacite_echangeur: 'Optional[float]' = None, puissance_utile_w: 'Optional[float]' = None, rendement_global: 'Optional[float]' = None) -> 'Dict[str, Any]'"
+            }
+        },
+        "boite_crabots": {
+            "type": null
+        },
+        "architecture": {
+            "type": null
+        }
+    },
+    "toutes_les_donnees_pieces": {},
+    "toutes_les_donnees_systeme": {
+        "type": null
+    },
+    "inconnues": {
+        "impossibles": [
+            {
+                "nom": "moteur_thermique_definir_depuis_exigences",
+                "raison": "MoteurThermique.definir_depuis_exigences() missing 1 required keyword-only argument: 'puissance_visee_w'"
+            },
+            {
+                "nom": "SystemeComplet",
+                "raison": "Impossible de lancer le système complet sans ['moteur_electrique', 'batterie', 'alternateur']."
+            }
+        ],
+        "partielles": [
+            {
+                "nom": "moteur_electrique",
+                "raison": "Aucun objet ni kwargs fournis. main.py n'invente pas puissance_max_w/regime_max_rpm."
+            },
+            {
+                "nom": "pieces",
+                "raison": "Construction des pièces impossible tant que le rapport système n'expose pas une synthèse exploitable."
+            }
+        ]
+    },
+    "alertes": {},
+    "notes_modele": [
+        "La puissance moteur thermique n'est pas déduite automatiquement depuis la puissance traction : cela dépend de la chaîne complète et des rendements, donc aucune valeur n'est inventée."
+    ],
+    "synthese": {
+        "systeme": {},
+        "moteur_thermique": {},
+        "optimisation": {},
+        "inventaire": {
+            "composants": {
+                "moteur_electrique": {
+                    "type": null,
+                    "construit": false
+                },
+                "batterie": {
+                    "type": null,
+                    "construit": false
+                },
+                "alternateur": {
+                    "type": null,
+                    "construit": false
+                },
+                "moteur_thermique": {
+                    "type": "MoteurThermique",
+                    "construit": true
+                },
+                "boite_crabots": {
+                    "type": null,
+                    "construit": false
+                },
+                "architecture": {
+                    "type": null,
+                    "construit": false
+                }
+            },
+            "pieces": {}
+        }
+    }
+}
