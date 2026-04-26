@@ -583,6 +583,7 @@ def construire_pieces_depuis_systeme(
     pieces_definition: Optional[Dict[str, Any]] = None,
     moteur_thermique_obj: Any = None,
     systeme_obj: Any = None,
+    puissance_traction_kw_for_fallback: Optional[float] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     synth = _safe_dict(rapport_systeme.get("synthese"))
     mt_systeme = _safe_dict(synth.get("moteur_thermique"))
@@ -626,8 +627,8 @@ def construire_pieces_depuis_systeme(
     # Calcul couple moyen
     couple_moyen_Nm = None
     puissance_W = _first_finite(_get_nested(mt_systeme, "puissance_requise_W"), _get_nested(rapport_systeme, "analyses_composants", "moteur_thermique_point", "resultats", "puissance_indiquee_W"))
-    if puissance_W is None and _is_finite(_get_nested(rapport_systeme, "entrees", "puissance_traction_kw")):
-        puissance_W = _get_nested(rapport_systeme, "entrees", "puissance_traction_kw") * 1000.0
+    if puissance_W is None and _is_finite(puissance_traction_kw_for_fallback):
+        puissance_W = puissance_traction_kw_for_fallback * 1000.0
 
     if _is_finite(rpm_sys) and rpm_sys > 0 and _is_finite(puissance_W):
         omega_rad_s = 2 * math.pi * rpm_sys / 60.0
@@ -1409,6 +1410,7 @@ def dimensionner_systeme_shsem(
             pieces_definition=pieces_definition,
             moteur_thermique_obj=moteur_thermique,
             systeme_obj=systeme,
+            puissance_traction_kw_for_fallback=puissance_traction_kw,
         )
         rapports_pieces = analyser_pieces(pieces)
     else:

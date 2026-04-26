@@ -9,13 +9,8 @@ Enregistrements chiffrés : 100
                  'raison': 'Aucun diamètre de maneton exploitable.'},
                 {'nom': 'interface journal principal',
                  'raison': 'Aucun diamètre de journal principal exploitable.'},
-                {'nom': 'coherence deplaceur/cylindre',
-                 'raison': 'Nécessite alésage cylindre et diamètre déplaceur.'},
                 {'nom': 'interface joint deplaceur',
                  'raison': 'Diamètre support ou fond de gorge introuvable.'},
-                {'nom': 'fermeture cylindre',
-                 'raison': 'Aucune pression de référence exploitable pour '
-                           "l'assemblage."},
                 {'nom': 'roulement_aiguille_arbre',
                  'raison': 'Données insuffisantes pour spécifier complètement '
                            'le roulement.'},
@@ -26,22 +21,22 @@ Enregistrements chiffrés : 100
 === PIECES (RAPPORTS D'ANALYSE) ===
 
 --- cylindre ---
-Inconnues Impossibles: []
-Inconnues Partielles: []
+Inconnues Impossibles: ['contrainte admissible', 'épaisseur cylindre', 'contraintes', 'masse/inerties']
+Inconnues Partielles: ['thermique (conduction)', 'profil thermique axial', 'contact de fermeture']
 
    --- Dimensions Calculees ---
 {}
 
 --- deplaceur ---
-Inconnues Impossibles: []
-Inconnues Partielles: []
+Inconnues Impossibles: ['position_axiale_centre_m']
+Inconnues Partielles: ['volumes chaud/froid', 'joints toriques', 'deformations']
 
    --- Dimensions Calculees ---
 {}
 
 --- joint_deplaceur ---
 Inconnues Impossibles: ['diametre_deplaceur_m', 'section_joint_mm', 'squeeze', 'profondeur_gorge']
-Inconnues Partielles: ['longueur_deplaceur_m', 'facteur_largeur', 'largeur_gorge_m', 'diametre_fond_gorge_m', 'verification_radiale', 'volumes_gorge_joint', 'pression_service_pa', 'module_elastomere_pa', 'frottement']
+Inconnues Partielles: ['longueur_deplaceur_m', 'facteur_largeur', 'largeur_gorge_m', 'diametre_fond_gorge_m', 'verification_radiale', 'volumes_gorge_joint', 'module_min', 'module_elastomere_pa', 'frottement']
 
    --- Dimensions Calculees ---
 {}
@@ -110,8 +105,8 @@ Inconnues Partielles: ['moteur_thermique', 'largeur_portee_grande_tete_m', 'char
 {}
 
 --- couvercle_cylindre ---
-Inconnues Impossibles: ['diametre_ouverture_m', 'rayon_appui_m', 'contrainte admissible', 'charges pression', 'géométrie calotte', 'epaisseur_m', 'contraintes']
-Inconnues Partielles: ['rayon_externe_m', 'bride', 'nb_vis', 'course_m', 'lubrification', 'refroidissement haut', 'déformation thermique culasse', 'dilatation thermique', 'thermique (conduction)']
+Inconnues Impossibles: ['contrainte admissible', 'géométrie calotte', 'epaisseur_m', 'contraintes']
+Inconnues Partielles: ['bride', 'nb_vis', 'lubrification', 'refroidissement haut', 'déformation thermique culasse', 'dilatation thermique', 'thermique (conduction)']
 
    --- Dimensions Calculees ---
 {}
