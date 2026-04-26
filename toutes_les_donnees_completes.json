@@ -611,7 +611,10 @@
         ]
     },
     "cao": {
-        "solidworks_ready": true,
+        "solidworks_ready_minimal": true,
+        "solidworks_ready_pre_dimensionnement": true,
+        "solidworks_ready_detaille": false,
+        "raison_detaille": "Certaines cotes détaillées de piston, maneton, portées, roulements, visserie et rainures restent absentes.",
         "moteur_thermique": {
             "alesage_mm": 80.0,
             "course_mm": 90.0
@@ -628,7 +631,68 @@
                 "force_axiale_max_N": 40212.385965949354
             }
         },
-        "inconnues_cao": []
+        "inconnues_cao": [
+            {
+                "piece": "piston",
+                "champ": "diametre_axe_m",
+                "raison": "Diamètre axe piston inconnu."
+            },
+            {
+                "piece": "bielle",
+                "champ": "diametre_maneton_m",
+                "raison": "Diamètre maneton inconnu."
+            },
+            {
+                "piece": "bielle",
+                "champ": "largeur_petite_tete_m",
+                "raison": "Largeur petite tête inconnue."
+            },
+            {
+                "piece": "bielle",
+                "champ": "largeur_grande_tete_m",
+                "raison": "Largeur grande tête inconnue."
+            },
+            {
+                "piece": "bielle",
+                "champ": "section_fut_m2",
+                "raison": "Section de fût de bielle inconnue."
+            },
+            {
+                "piece": "arbre_vilebrequin",
+                "champ": "diametre_journal_principal_m",
+                "raison": "Diamètre journal principal inconnu."
+            },
+            {
+                "piece": "roulement_aiguille_arbre",
+                "champ": "diametre_portee_m",
+                "raison": "Portées de roulements inconnues."
+            },
+            {
+                "piece": "piston",
+                "champ": "hauteur_totale_m",
+                "raison": "Dimensions piston principales (hauteur) inconnues."
+            },
+            {
+                "piece": "joint_piston",
+                "champ": "profondeur_rainure_m",
+                "raison": "Rainures segments/joints inconnues."
+            },
+            {
+                "piece": "arbre",
+                "champ": "diametre_m",
+                "raison": "Dimensions d'arbre inconnues."
+            },
+            {
+                "piece": "clavette_arbre",
+                "champ": "largeur_m",
+                "raison": "Dimensions clavette inconnues."
+            },
+            {
+                "piece": "vis_couvercle_cylindre",
+                "champ": "diametre_nominal_m",
+                "raison": "Visserie couvercle complète inconnue."
+            }
+        ]
     },
     "analyses_composants": {
         "batterie_dimensionnement": {
