@@ -1656,15 +1656,47 @@ def dimensionner_systeme_shsem(
     if longueur_bielle is None:
         inconnues_cao.append({"piece": "bielle", "champ": "longueur_bielle_m", "raison": "Longueur de bielle inconnue."})
 
+    cotes_detaillees = [
+        ("piston", "diametre_axe_m", "geometrie.diametre_axe_m", "Diamètre axe piston inconnu."),
+        ("bielle", "diametre_maneton_m", "geometrie.diametre_maneton_m", "Diamètre maneton inconnu."),
+        ("bielle", "largeur_petite_tete_m", "geometrie.largeur_petite_tete_m", "Largeur petite tête inconnue."),
+        ("bielle", "largeur_grande_tete_m", "geometrie.largeur_grande_tete_m", "Largeur grande tête inconnue."),
+        ("bielle", "section_fut_m2", "geometrie.section_fut_m2", "Section de fût de bielle inconnue."),
+        ("arbre_vilebrequin", "diametre_journal_principal_m", "geometrie.diametre_journal_principal_m", "Diamètre journal principal inconnu."),
+        ("roulement_aiguille_arbre", "diametre_portee_m", "geometrie.diametre_portee_m", "Portées de roulements inconnues."),
+        ("piston", "hauteur_totale_m", "geometrie.hauteur_totale_m", "Dimensions piston principales (hauteur) inconnues."),
+        ("joint_piston", "profondeur_rainure_m", "geometrie.profondeur_rainure_m", "Rainures segments/joints inconnues."),
+        ("arbre", "diametre_m", "geometrie.diametre_m", "Dimensions d'arbre inconnues."),
+        ("clavette_arbre", "largeur_m", "geometrie.largeur_m", "Dimensions clavette inconnues."),
+        ("vis_couvercle_cylindre", "diametre_nominal_m", "geometrie.diametre_nominal_m", "Visserie couvercle complète inconnue.")
+    ]
+    
+    missing_detail_count = 0
+    for piece_nom, champ, path, raison in cotes_detaillees:
+        keys = path.split('.')
+        val = _get_nested(rapports_pieces.get(piece_nom, {}), *keys)
+        if val is None:
+            inconnues_cao.append({"piece": piece_nom, "champ": champ, "raison": raison})
+            missing_detail_count += 1
+
+    solidworks_ready_detaille = (missing_detail_count == 0)
+
     cao_block = {
-        "solidworks_ready": _get_nested(rapport_systeme, "cao", "solidworks_ready") or True,
+        "solidworks_ready_minimal": True,
+        "solidworks_ready_pre_dimensionnement": True,
+        "solidworks_ready_detaille": solidworks_ready_detaille,
+    }
+    if not solidworks_ready_detaille:
+        cao_block["raison_detaille"] = "Certaines cotes détaillées de piston, maneton, portées, roulements, visserie et rainures restent absentes."
+
+    cao_block.update({
         "moteur_thermique": {
             "alesage_mm": resume_gui["Bore_mm"],
             "course_mm": resume_gui["Stroke_mm"],
         },
         "pieces": {},
         "inconnues_cao": inconnues_cao
-    }
+    })
     if "cylindre" in rapports_pieces:
         cao_block["pieces"]["cylindre"] = {"epaisseur_cylindre_mm": epaisseur_cyl}
     if "piston" in rapports_pieces:
