@@ -208,7 +208,7 @@ def _append_note(rapport: Dict[str, Any], note: str) -> None:
 
 
 def _dedup_report_lists(rapport: Dict[str, Any]) -> None:
-    for section, keyset in (("inconnues", ("nom", "raison")), ("alertes", ("nom", "detail"))):
+    for section in ("inconnues", "alertes"):
         bloc = _safe_dict(rapport.get(section))
         new_bloc: Dict[str, Any] = {}
         for category, values in bloc.items():
@@ -217,7 +217,8 @@ def _dedup_report_lists(rapport: Dict[str, Any]) -> None:
             for item in list(values or []):
                 if not isinstance(item, dict):
                     continue
-                sig = tuple(str(item.get(k, "")) for k in keyset)
+                # Hash the complete dictionary content to avoid duplicate reasons with same names
+                sig = tuple(sorted((str(k), str(v)) for k, v in item.items()))
                 if sig in seen:
                     continue
                 seen.add(sig)
@@ -254,6 +255,55 @@ def _to_jsonable(value: Any, *, depth: int = 0, max_depth: int = 5) -> Any:
         except Exception:
             pass
     return {"type": type(value).__name__}
+
+
+def _get_piece_ref(obj: Any) -> Optional[str]:
+    cls_name = type(obj).__name__
+    mapping = {
+        "Cylindre": "cylindre", "Piston": "piston", "JointPiston": "joint_piston",
+        "CorpsBielle": "bielle", "Deplaceur": "deplaceur", "JointDeplaceur": "joint_deplaceur",
+        "ArbrePiston": "arbre_piston", "CoussinetArbrePiston": "coussinet_arbre_piston",
+        "ArbreVilbrequin": "arbre_vilebrequin", "Vilbrequin": "vilbrequin",
+        "RoulementAiguilleArbre": "roulement_aiguille_arbre",
+        "RoulementAiguilleArbreVilebrequin": "roulement_aiguille_arbre_vilebrequin",
+        "CouvercleCylindre": "couvercle_cylindre", "VisCouvercleCylindre": "vis_couvercle_cylindre",
+        "ArbreMoteur": "arbre", "ClavetteArbre": "clavette_arbre"
+    }
+    return mapping.get(cls_name)
+
+
+def _serialize_ref(obj: Any, depth: int = 0, max_depth: int = 1) -> Any:
+    if obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, dict):
+        if depth > max_depth:
+            return {"truncated": True}
+        return {str(k): _serialize_ref(v, depth=depth + 1, max_depth=max_depth) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        if depth > max_depth:
+            return []
+        return [_serialize_ref(v, depth=depth + 1, max_depth=max_depth) for v in obj]
+    if hasattr(obj, "__dataclass_fields__") or hasattr(obj, "__dict__"):
+        type_name = type(obj).__name__
+        ref_name = _get_piece_ref(obj)
+        res: Dict[str, Any] = {"type": type_name}
+        if ref_name:
+            res["ref"] = f"pieces.{ref_name}"
+        res["truncated"] = True
+        
+        if depth <= max_depth:
+            resume = {}
+            try:
+                attrs = asdict(obj) if is_dataclass(obj) else vars(obj)
+                for k, v in attrs.items():
+                    if isinstance(v, (int, float, str, bool)) and not k.startswith("_"):
+                        resume[k] = v
+                if resume:
+                    res["resume"] = resume
+            except Exception:
+                pass
+        return res
+    return str(obj)
 
 
 def _callable_accepts_varkw(callable_obj: Any) -> bool:
@@ -539,8 +589,8 @@ def _build_piece_instance(piece_cls: Any, raw_kwargs: Dict[str, Any], rapport: D
         rapport["construction_debug"] = {}
         
     debug_info = {
-        "kwargs": _to_jsonable(_filter_kwargs_for_callable(piece_cls, raw_kwargs)) if piece_cls else {},
-        "kwargs_bruts": _to_jsonable(raw_kwargs),
+        "kwargs": _serialize_ref(_filter_kwargs_for_callable(piece_cls, raw_kwargs)) if piece_cls else {},
+        "kwargs_bruts": _to_jsonable(raw_kwargs, max_depth=2),
         "construit": False,
         "rapport_disponible": False,
         "type": piece_cls.__name__ if piece_cls else None,
@@ -567,11 +617,22 @@ def _build_piece_instance(piece_cls: Any, raw_kwargs: Dict[str, Any], rapport: D
         debug_info["construit"] = True
         debug_info["rapport_disponible"] = True
         rapport["construction_debug"][nom] = debug_info
+        rapport["construction"][nom] = {
+            "construit": True,
+            "type": debug_info["type"],
+            "kwargs": _serialize_ref(kwargs, max_depth=1)
+        }
         return obj
     except Exception as exc:
         debug_info["erreur"] = str(exc)
         debug_info["trace"] = traceback.format_exc()
         rapport["construction_debug"][nom] = debug_info
+        rapport["construction"][nom] = {
+            "construit": False,
+            "type": debug_info["type"],
+            "erreur": str(exc),
+            "kwargs": _serialize_ref(kwargs, max_depth=1)
+        }
         _push_inconnue(rapport, "impossibles", f"construction {nom}", str(exc))
         return None
 
