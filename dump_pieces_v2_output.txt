@@ -21,8 +21,8 @@ Enregistrements chiffrés : 100
 === PIECES (RAPPORTS D'ANALYSE) ===
 
 --- cylindre ---
-Inconnues Impossibles: ['contrainte admissible', 'épaisseur cylindre', 'contraintes', 'masse/inerties']
-Inconnues Partielles: ['thermique (conduction)', 'profil thermique axial', 'contact de fermeture']
+Inconnues Impossibles: []
+Inconnues Partielles: ['déformations sous pression', 'dilatation thermique', 'thermique (conduction)', 'joint torique / fermeture complète', 'profil thermique axial', 'contact de fermeture']
 
    --- Dimensions Calculees ---
 {}
@@ -113,14 +113,14 @@ Inconnues Partielles: ['bride', 'nb_vis', 'lubrification', 'refroidissement haut
 
 --- vis_couvercle_cylindre ---
 Inconnues Impossibles: ['diametre_ouverture_m', 'force_separation', 'dimensionnement vis', 'couple_de_serrage', 'dimensions_tete_vis']
-Inconnues Partielles: ['rayon_externe_couvercle_m', 'rayon_externe_cylindre_m', 'epaisseur_couvercle_m', 'Re taraudage']
+Inconnues Partielles: ['rayon_externe_couvercle_m', 'epaisseur_couvercle_m', 'Re taraudage']
 
    --- Dimensions Calculees ---
 {}
 
 --- arbre ---
-Inconnues Impossibles: ['couple_max_Nm', 'tau_admissible_arbre_pa', 'd_min_global_m', 'diametre_arbre_m']
-Inconnues Partielles: ['moment_flexion_max_Nm', 'force_radiale_N', 'sigma_admissible_arbre_pa', 'tau_admissible_clavette_pa', 'sigma_admissible_appui_pa', 'd_max_passage_m', 'clavette_b_h', 'longueur_clavette_cisaillement_m', 'longueur_clavette_ecrasement_m', 'largeur_moyeu_vilbrequin_m', 'largeur_portee_roulement_m', 'bloc_cylindres_longueur_m', 'longueur_totale_arbre_m', 'masse_modele_kg']
+Inconnues Impossibles: ['couple_max_Nm', 'tau_admissible_arbre_pa', 'd_min_global_m', 'diametre_arbre_m', 'entraxe_cylindres_m']
+Inconnues Partielles: ['moment_flexion_max_Nm', 'force_radiale_N', 'sigma_admissible_arbre_pa', 'tau_admissible_clavette_pa', 'sigma_admissible_appui_pa', 'd_max_passage_m', 'clavette_b_h', 'longueur_clavette_cisaillement_m', 'longueur_clavette_ecrasement_m', 'largeur_moyeu_vilbrequin_m', 'largeur_portee_roulement_m', 'longueur_totale_arbre_m', 'masse_modele_kg']
 
    --- Dimensions Calculees ---
 {}

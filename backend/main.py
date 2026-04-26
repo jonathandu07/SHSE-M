@@ -590,7 +590,7 @@ def _build_piece_instance(piece_cls: Any, raw_kwargs: Dict[str, Any], rapport: D
         
     debug_info = {
         "kwargs": _serialize_ref(_filter_kwargs_for_callable(piece_cls, raw_kwargs)) if piece_cls else {},
-        "kwargs_bruts": _to_jsonable(raw_kwargs, max_depth=2),
+        "kwargs_bruts": _to_jsonable({k: v for k, v in raw_kwargs.items() if v is not None}, max_depth=2),
         "construit": False,
         "rapport_disponible": False,
         "type": piece_cls.__name__ if piece_cls else None,
@@ -645,6 +645,7 @@ def construire_pieces_depuis_systeme(
     moteur_thermique_obj: Any = None,
     systeme_obj: Any = None,
     puissance_traction_kw_for_fallback: Optional[float] = None,
+    rapports_composants: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     synth = _safe_dict(rapport_systeme.get("synthese"))
     mt_systeme = _safe_dict(synth.get("moteur_thermique"))
@@ -686,7 +687,7 @@ def construire_pieces_depuis_systeme(
     _trace("course_m", course_sys, "definition_moteur_thermique.course_m", "entrée_directe")
 
     # Calcul des puissances et couples
-    puissance_indiquee_W = _get_nested(rapport_systeme, "analyses_composants", "moteur_thermique_point", "resultats", "puissance_indiquee_W")
+    puissance_indiquee_W = _get_nested(rapports_composants or {}, "moteur_thermique_point", "resultats", "puissance_indiquee_W")
     puissance_cible_systeme_W = None
     if _is_finite(puissance_traction_kw_for_fallback):
         puissance_cible_systeme_W = puissance_traction_kw_for_fallback * 1000.0
@@ -722,6 +723,8 @@ def construire_pieces_depuis_systeme(
         "pression_service_pa": pme_sys,
         "pression_max_pa": pression_max_sys,
         "materiau_cle": _get_nested(pieces_def, "cylindre", "materiau_cle"),
+        "contrainte_admissible_pa": mt.get("contrainte_admissible_pa"),
+        "densite_kg_m3": mt.get("densite_materiau_kg_m3"),
     }, _safe_dict(pieces_def.get("cylindre")))
     pieces["cylindre"] = _build_piece_instance(Cylindre, raw, rapport, "cylindre")
     if pieces.get("cylindre") is not None:
@@ -813,6 +816,7 @@ def construire_pieces_depuis_systeme(
         "moteur_thermique": moteur_thermique_obj if moteur_thermique_obj is not None else mt,
         "longueur_bielle_m": longueur_bielle_input,
         "force_axiale_max_N": force_axiale_bielle,
+        "rpm": rpm_sys,
         "materiau_cle": _get_nested(pieces_def, "bielle", "materiau_cle"),
     }, _safe_dict(pieces_def.get("bielle")))
     pieces["bielle"] = _build_piece_instance(CorpsBielle, raw, rapport, "bielle")
@@ -1560,11 +1564,14 @@ def dimensionner_systeme_shsem(
     synth = _safe_dict(_safe_dict(rapport_systeme).get("synthese"))
     mt_syn = _safe_dict(synth.get("moteur_thermique"))
     
-    mt_point = _safe_dict(_get_nested(rapport_systeme, "analyses_composants", "moteur_thermique_point", "resultats"))
-    if "puissance_indiquee_W" not in mt_syn and "puissance_indiquee_W" in mt_point:
+    mt_point = _safe_dict(_get_nested(rapports_composants, "moteur_thermique_point", "resultats"))
+    if mt_syn.get("puissance_indiquee_W") is None and mt_point.get("puissance_indiquee_W") is not None:
         mt_syn["puissance_indiquee_W"] = mt_point["puissance_indiquee_W"]
     if _is_finite(puissance_traction_kw):
         mt_syn["puissance_cible_systeme_W"] = puissance_traction_kw * 1000.0
+        
+    if isinstance(rapport_systeme, dict) and isinstance(rapport_systeme.get("synthese"), dict):
+        rapport_systeme["synthese"]["moteur_thermique"] = mt_syn
         
     veh_syn = _safe_dict(synth.get("vehicule"))
     batt_syn = _safe_dict(synth.get("batterie"))
@@ -1587,18 +1594,28 @@ def dimensionner_systeme_shsem(
         "partielles": len(inconnues_globales.get("partielles", []))
     }
 
+    rpm_val = mt_syn.get("rpm_nominal")
+    couple_indique = None
+    couple_cible = None
+    if _is_finite(rpm_val) and rpm_val > 0:
+        omega = 2 * math.pi * rpm_val / 60.0
+        if _is_finite(mt_syn.get("puissance_indiquee_W")):
+            couple_indique = mt_syn["puissance_indiquee_W"] / omega
+        if _is_finite(mt_syn.get("puissance_cible_systeme_W")):
+            couple_cible = mt_syn["puissance_cible_systeme_W"] / omega
+
     resume_gui = {
         "N_cyl": mt_syn.get("nombre_cylindres"),
         "Architecture": mt_syn.get("architecture"),
         "Bore_mm": (_safe_float(mt_syn.get("alesage_m")) or 0.0) * 1000.0 if _is_finite(mt_syn.get("alesage_m")) else None,
         "Stroke_mm": (_safe_float(mt_syn.get("course_m")) or 0.0) * 1000.0 if _is_finite(mt_syn.get("course_m")) else None,
-        "RPM": mt_syn.get("rpm_nominal"),
+        "RPM": rpm_val,
         "PME_Pa": mt_syn.get("pme_pa"),
         "Pmax_Pa": mt_syn.get("pression_max_pa"),
         "Couple_max_Nm": mt_syn.get("couple_max_Nm"),
-        "couple_moyen_Nm": _get_nested(rapport_construction_pieces, "propagation_debug", "couple_moyen_Nm", "valeur"),
-        "couple_indique_moyen_Nm": _get_nested(rapport_construction_pieces, "propagation_debug", "couple_indique_moyen_Nm", "valeur"),
-        "couple_cible_moyen_Nm": _get_nested(rapport_construction_pieces, "propagation_debug", "couple_cible_moyen_Nm", "valeur"),
+        "couple_moyen_Nm": _first_finite(couple_indique, couple_cible, _get_nested(rapport_construction_pieces, "propagation_debug", "couple_moyen_Nm", "valeur")),
+        "couple_indique_moyen_Nm": couple_indique,
+        "couple_cible_moyen_Nm": couple_cible,
         "Force_bielle_N": force_bielle,
         "vd_tot_cc": _first_non_none(mt_syn.get("cylindree_totale_cc"), definition_moteur.get("cylindree_totale_cc")),
         "P_bus_dc_design_w": veh_syn.get("puissance_bus_dc_design_w"),
@@ -1610,6 +1627,35 @@ def dimensionner_systeme_shsem(
         "nb_inconnues": nb_inconnues_total,
     }
     
+    epaisseur_cyl_m = _get_nested(rapports_pieces.get("cylindre", {}), "dimensionnement", "epaisseur_retenue_m")
+    if epaisseur_cyl_m is not None:
+        epaisseur_cyl = epaisseur_cyl_m * 1000.0
+    else:
+        epaisseur_cyl = None
+    
+    if epaisseur_cyl is None:
+        ep_m = _first_finite(
+            _get_nested(rapports_composants, "moteur_thermique_point", "dimensionnement", "epaisseur_cylindre_retenue_m"),
+            _get_nested(rapports_composants, "moteur_thermique_geometrie", "cylindre_complet", "epaisseur_lame_m")
+        )
+        if ep_m is not None:
+            epaisseur_cyl = ep_m * 1000.0
+            
+    longueur_bielle = _get_nested(rapports_pieces.get("bielle", {}), "geometrie", "longueur_bielle_m")
+    if longueur_bielle is None:
+        longueur_bielle = _first_finite(
+            _get_nested(rapport_construction_pieces, "propagation_debug", "longueur_bielle_m", "valeur"),
+            _get_nested(rapports_pieces.get("bielle", {}), "entrees", "longueur_bielle_m"),
+            _get_nested(rapports_pieces.get("bielle", {}), "cao", "entraxe_centres_m"),
+            definition_moteur.get("longueur_bielle_m")
+        )
+
+    inconnues_cao = list(inconnues_globales.get("cao", []))
+    if epaisseur_cyl is None:
+        inconnues_cao.append({"piece": "cylindre", "champ": "epaisseur_cylindre_mm", "raison": "Épaisseur paroi inconnue."})
+    if longueur_bielle is None:
+        inconnues_cao.append({"piece": "bielle", "champ": "longueur_bielle_m", "raison": "Longueur de bielle inconnue."})
+
     cao_block = {
         "solidworks_ready": _get_nested(rapport_systeme, "cao", "solidworks_ready") or True,
         "moteur_thermique": {
@@ -1617,15 +1663,15 @@ def dimensionner_systeme_shsem(
             "course_mm": resume_gui["Stroke_mm"],
         },
         "pieces": {},
-        "inconnues_cao": inconnues_globales.get("cao", [])
+        "inconnues_cao": inconnues_cao
     }
     if "cylindre" in rapports_pieces:
-        cao_block["pieces"]["cylindre"] = {"epaisseur_cylindre_mm": _get_nested(rapports_pieces["cylindre"], "geometrie", "epaisseur_paroi_mm")}
+        cao_block["pieces"]["cylindre"] = {"epaisseur_cylindre_mm": epaisseur_cyl}
     if "piston" in rapports_pieces:
         cao_block["pieces"]["piston"] = {"force_gaz_n": _get_nested(rapports_pieces["piston"], "cinematique", "force_gaz_n")}
     if "bielle" in rapports_pieces:
         cao_block["pieces"]["bielle"] = {
-            "longueur_bielle_m": _get_nested(rapports_pieces["bielle"], "geometrie", "longueur_bielle_m"),
+            "longueur_bielle_m": longueur_bielle,
             "force_axiale_max_N": force_bielle
         }
 
