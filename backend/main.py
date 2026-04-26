@@ -148,6 +148,41 @@ def _get_nested(d: Any, *path: str) -> Any:
     return cur
 
 
+def _first_finite_nested(d: Any, *paths: Sequence[str]) -> Optional[float]:
+    for path in paths:
+        val = _get_nested(d, *path)
+        if _is_finite(val):
+            return float(val)
+    return None
+
+
+def _extract_cylindre_values(rapport_cylindre: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(rapport_cylindre, dict):
+        return {}
+    return {
+        "alesage_m": _first_finite_nested(rapport_cylindre, ("entrees", "alesage_m"), ("geometrie", "diametre_interieur_nominal_m")),
+        "course_m": _first_finite_nested(rapport_cylindre, ("entrees", "course_m")),
+        "pression_max_pa": _first_finite_nested(rapport_cylindre, ("entrees", "pression_max_pa")),
+    }
+
+
+def _extract_piston_values(rapport_piston: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(rapport_piston, dict):
+        return {}
+    return {
+        "force_gaz_n": _first_finite_nested(rapport_piston, ("cinematique", "force_gaz_n"), ("dimensionnement", "force_pression_piston_max_N")),
+        "force_axiale_nette_n": _first_finite_nested(rapport_piston, ("cinematique", "force_axiale_nette_n")),
+    }
+
+
+def _extract_bielle_values(rapport_bielle: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(rapport_bielle, dict):
+        return {}
+    return {
+        "longueur_bielle_m": _first_finite_nested(rapport_bielle, ("geometrie", "longueur_bielle_m"), ("entrees", "longueur_bielle_m")),
+    }
+
+
 def _merge_dict_non_none(base: Optional[Dict[str, Any]], extra: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     out: Dict[str, Any] = dict(base or {})
     for k, v in (extra or {}).items():
@@ -532,163 +567,66 @@ def construire_pieces_depuis_systeme(
         "construction": {},
         "inconnues": {"impossibles": [], "partielles": []},
         "notes_modele": [],
+        "propagation_debug": {},
+        "rapports_pieces": {},
     }
 
-    alesage_m = _first_finite(mt.get("alesage_m"), _get_nested(rapport_systeme, "cao", "moteur_thermique", "alesage_mm"))
-    if alesage_m is not None and alesage_m > 1.0:
-        alesage_m = alesage_m / 1000.0
-    course_m = _first_finite(mt.get("course_m"), _get_nested(rapport_systeme, "cao", "moteur_thermique", "course_mm"))
-    if course_m is not None and course_m > 1.0:
-        course_m = course_m / 1000.0
-    rpm = _first_finite(mt.get("rpm_nominal"), mt.get("rpm"))
-    pme_pa = _first_finite(mt.get("pme_pa"), mt.get("pme_nominale_pa"))
-    pression_max_pa = _safe_float(mt.get("pression_max_pa"))
-    couple_max_nm = _first_finite(mt.get("couple_max_Nm"), mt.get("couple_requis_Nm"))
-    force_bielle_N = _safe_float(mt.get("force_bielle_N"))
+    def _trace(nom: str, valeur: Any, source: str) -> None:
+        if valeur is not None:
+            rapport["propagation_debug"][nom] = {"valeur": valeur, "source": source}
+
+    # Données système initiales
+    alesage_sys = _first_finite(mt.get("alesage_m"), _get_nested(rapport_systeme, "cao", "moteur_thermique", "alesage_mm"))
+    if alesage_sys is not None and alesage_sys > 1.0:
+        alesage_sys = alesage_sys / 1000.0
+    course_sys = _first_finite(mt.get("course_m"), _get_nested(rapport_systeme, "cao", "moteur_thermique", "course_mm"))
+    if course_sys is not None and course_sys > 1.0:
+        course_sys = course_sys / 1000.0
+    rpm_sys = _first_finite(mt.get("rpm_nominal"), mt.get("rpm"))
+    pme_sys = _first_finite(mt.get("pme_pa"), mt.get("pme_nominale_pa"))
+    pression_max_sys = _safe_float(mt.get("pression_max_pa"))
+    couple_max_sys = _first_finite(mt.get("couple_max_Nm"), mt.get("couple_requis_Nm"))
+    force_bielle_sys = _safe_float(mt.get("force_bielle_N"))
+
+    _trace("rpm", rpm_sys, "Systeme / Input")
+    _trace("couple_max_Nm", couple_max_sys, "Systeme / Input")
 
     pieces: Dict[str, Any] = {}
 
+    # 1. Cylindre
     raw = _merge_dict_non_none({
-        "alesage_m": alesage_m,
-        "course_m": course_m,
+        "alesage_m": alesage_sys,
+        "course_m": course_sys,
         "longueur_utile_m": _get_nested(pieces_def, "cylindre", "longueur_utile_m"),
-        "pression_service_pa": pme_pa,
-        "pression_max_pa": pression_max_pa,
+        "pression_service_pa": pme_sys,
+        "pression_max_pa": pression_max_sys,
         "materiau_cle": _get_nested(pieces_def, "cylindre", "materiau_cle"),
     }, _safe_dict(pieces_def.get("cylindre")))
     pieces["cylindre"] = _build_piece_instance(Cylindre, raw, rapport, "cylindre")
     rapport["construction"]["cylindre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("cylindre") is not None}
+    
+    rapport_cyl = _safe_call_report(pieces.get("cylindre"))
+    rapport["rapports_pieces"]["cylindre"] = rapport_cyl
+    vals_cyl = _extract_cylindre_values(rapport_cyl)
 
+    alesage_prop = _first_finite(vals_cyl.get("alesage_m"), alesage_sys)
+    course_prop = _first_finite(vals_cyl.get("course_m"), course_sys)
+    pression_max_prop = _first_finite(vals_cyl.get("pression_max_pa"), pression_max_sys)
+
+    _trace("alesage_m", alesage_prop, "Cylindre")
+    _trace("course_m", course_prop, "Cylindre")
+    _trace("pression_max_pa", pression_max_prop, "Cylindre")
+
+    # 2. Deplaceur
     raw = _merge_dict_non_none({
         "cylindre": pieces.get("cylindre"),
-        "materiau_piston_cle": _get_nested(pieces_def, "piston", "materiau_piston_cle"),
-        "pression_max_pa": pression_max_pa,
-        "alesage_nominal_m": alesage_m,
-        "course_m": course_m,
-        "rpm": rpm,
-        "materiau_joint_cle": _get_nested(pieces_def, "piston", "materiau_joint_cle"),
-    }, _safe_dict(pieces_def.get("piston")))
-    pieces["piston"] = _build_piece_instance(Piston, raw, rapport, "piston")
-    rapport["construction"]["piston"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("piston") is not None}
-
-    raw = _merge_dict_non_none({
-        "piston": pieces.get("piston"),
-        "cylindre": pieces.get("cylindre"),
-        "materiau_joint_cle": _get_nested(pieces_def, "joint_piston", "materiau_joint_cle"),
-    }, _safe_dict(pieces_def.get("joint_piston")))
-    pieces["joint_piston"] = _build_piece_instance(JointPiston, raw, rapport, "joint_piston")
-    rapport["construction"]["joint_piston"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("joint_piston") is not None}
-
-    raw = _merge_dict_non_none({
-        "piston": pieces.get("piston"),
-        "cylindre": pieces.get("cylindre"),
-        "rpm": rpm,
-        "materiau_cle": _get_nested(pieces_def, "arbre_piston", "materiau_cle"),
-    }, _safe_dict(pieces_def.get("arbre_piston")))
-    pieces["arbre_piston"] = _build_piece_instance(ArbrePiston, raw, rapport, "arbre_piston")
-    rapport["construction"]["arbre_piston"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("arbre_piston") is not None}
-
-    raw = _merge_dict_non_none({
-        "piston": pieces.get("piston"),
-        "arbre_piston": pieces.get("arbre_piston"),
-        "cylindre": pieces.get("cylindre"),
-        "moteur_thermique": moteur_thermique_obj if moteur_thermique_obj is not None else mt,
-        "longueur_bielle_m": _first_finite(_get_nested(pieces_def, "bielle", "longueur_bielle_m"), definition_mt.get("longueur_bielle_m")),
-        "force_axiale_max_N": force_bielle_N,
-        "materiau_cle": _get_nested(pieces_def, "bielle", "materiau_cle"),
-    }, _safe_dict(pieces_def.get("bielle")))
-    pieces["bielle"] = _build_piece_instance(CorpsBielle, raw, rapport, "bielle")
-    rapport["construction"]["bielle"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("bielle") is not None}
-
-    raw = _merge_dict_non_none({
-        "arbre_piston": pieces.get("arbre_piston"),
-        "rpm": rpm,
-        "materiau_coussinet": _get_nested(pieces_def, "coussinet_arbre_piston", "materiau_coussinet"),
-    }, _safe_dict(pieces_def.get("coussinet_arbre_piston")))
-    pieces["coussinet_arbre_piston"] = _build_piece_instance(CoussinetArbrePiston, raw, rapport, "coussinet_arbre_piston")
-    rapport["construction"]["coussinet_arbre_piston"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("coussinet_arbre_piston") is not None}
-
-    raw = _merge_dict_non_none({
-        "cylindre": pieces.get("cylindre"),
-        "piston": pieces.get("piston"),
-        "bielle": pieces.get("bielle"),
-        "moteur_thermique": moteur_thermique_obj,
-        "rpm": rpm,
-        "couple_max_Nm": couple_max_nm,
-        "course_m": course_m,
-        "force_bielle_effective_N": force_bielle_N,
-        "materiau_cle": _get_nested(pieces_def, "arbre_vilebrequin", "materiau_cle") or mt.get("materiau_cle"),
-        "limite_fatigue_pa": _get_nested(pieces_def, "arbre_vilebrequin", "limite_fatigue_pa") or mt.get("limite_fatigue_pa"),
-        "limite_elastique_pa": _get_nested(pieces_def, "arbre_vilebrequin", "limite_elastique_pa") or mt.get("limite_elastique_pa"),
-    }, _safe_dict(pieces_def.get("arbre_vilebrequin")))
-    pieces["arbre_vilebrequin"] = _build_piece_instance(ArbreVilbrequin, raw, rapport, "arbre_vilebrequin")
-    rapport["construction"]["arbre_vilebrequin"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("arbre_vilebrequin") is not None}
-
-    raw = _merge_dict_non_none({
-        "arbre": pieces.get("arbre_vilebrequin"),
-        "cylindre": pieces.get("cylindre"),
-        "piston": pieces.get("piston"),
-        "bielle": pieces.get("bielle"),
-        "deplaceur": pieces.get("deplaceur"),
-        "systeme_complet": systeme_obj,
-        "moteur_thermique": moteur_thermique_obj,
-        "course_m": course_m,
-        "rpm": rpm,
-        "couple_max_Nm": couple_max_nm,
-        "materiau_cle": _get_nested(pieces_def, "vilbrequin", "materiau_cle") or mt.get("materiau_cle"),
-        "limite_fatigue_pa": _get_nested(pieces_def, "vilbrequin", "limite_fatigue_pa") or mt.get("limite_fatigue_pa"),
-        "limite_elastique_pa": _get_nested(pieces_def, "vilbrequin", "limite_elastique_pa") or mt.get("limite_elastique_pa"),
-    }, _safe_dict(pieces_def.get("vilbrequin")))
-    pieces["vilbrequin"] = _build_piece_instance(Vilbrequin, raw, rapport, "vilbrequin")
-    rapport["construction"]["vilbrequin"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("vilbrequin") is not None}
-
-    raw = _merge_dict_non_none({
-        "vilbrequin": pieces.get("vilbrequin"),
-        "arbre_vilbrequin": pieces.get("arbre_vilebrequin"),
-        "bielle": pieces.get("bielle"),
-        "piston": pieces.get("piston"),
-        "cylindre": pieces.get("cylindre"),
-        "rpm": rpm,
-        "couple_max_Nm": couple_max_nm,
-        "rayon_manivelle_m": (0.5 * course_m) if _is_finite(course_m) else None,
-    }, _safe_dict(pieces_def.get("roulement_aiguille_arbre")))
-    pieces["roulement_aiguille_arbre"] = _build_piece_instance(RoulementAiguilleArbre, raw, rapport, "roulement_aiguille_arbre")
-    rapport["construction"]["roulement_aiguille_arbre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("roulement_aiguille_arbre") is not None}
-
-    raw = _merge_dict_non_none({
-        "corps_bielle": pieces.get("bielle"),
-        "arbre_vilebrequin": pieces.get("arbre_vilebrequin"),
-        "moteur_thermique": moteur_thermique_obj,
-        "rpm_vilebrequin": rpm,
-    }, _safe_dict(pieces_def.get("roulement_aiguille_arbre_vilebrequin")))
-    pieces["roulement_aiguille_arbre_vilebrequin"] = _build_piece_instance(RoulementAiguilleArbreVilebrequin, raw, rapport, "roulement_aiguille_arbre_vilebrequin")
-    rapport["construction"]["roulement_aiguille_arbre_vilebrequin"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("roulement_aiguille_arbre_vilebrequin") is not None}
-
-    raw = _merge_dict_non_none({
-        "cylindre": pieces.get("cylindre"),
-        "pression_max_pa": pression_max_pa,
-        "materiau_cle": _get_nested(pieces_def, "couvercle_cylindre", "materiau_cle"),
-    }, _safe_dict(pieces_def.get("couvercle_cylindre")))
-    pieces["couvercle_cylindre"] = _build_piece_instance(CouvercleCylindre, raw, rapport, "couvercle_cylindre")
-    rapport["construction"]["couvercle_cylindre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("couvercle_cylindre") is not None}
-
-    raw = _merge_dict_non_none({
-        "cylindre": pieces.get("cylindre"),
-        "couvercle": pieces.get("couvercle_cylindre"),
-        "pression_max_pa": pression_max_pa,
-        "classe_vis_iso898": _get_nested(pieces_def, "vis_couvercle_cylindre", "classe_vis_iso898"),
-    }, _safe_dict(pieces_def.get("vis_couvercle_cylindre")))
-    pieces["vis_couvercle_cylindre"] = _build_piece_instance(VisCouvercleCylindre, raw, rapport, "vis_couvercle_cylindre")
-    rapport["construction"]["vis_couvercle_cylindre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("vis_couvercle_cylindre") is not None}
-
-    raw = _merge_dict_non_none({
-        "cylindre": pieces.get("cylindre"),
-        "pression_froid_pa": pression_max_pa,
+        "pression_froid_pa": pression_max_prop,
         "materiau_cle": _get_nested(pieces_def, "deplaceur", "materiau_cle"),
     }, _safe_dict(pieces_def.get("deplaceur")))
     pieces["deplaceur"] = _build_piece_instance(Deplaceur, raw, rapport, "deplaceur")
     rapport["construction"]["deplaceur"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("deplaceur") is not None}
 
+    # 3. Joint Deplaceur
     raw = _merge_dict_non_none({
         "deplaceur": pieces.get("deplaceur"),
         "cylindre": pieces.get("cylindre"),
@@ -697,26 +635,194 @@ def construire_pieces_depuis_systeme(
     pieces["joint_deplaceur"] = _build_piece_instance(JointDeplaceur, raw, rapport, "joint_deplaceur")
     rapport["construction"]["joint_deplaceur"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("joint_deplaceur") is not None}
 
+    # 4. Piston
+    raw = _merge_dict_non_none({
+        "cylindre": pieces.get("cylindre"),
+        "materiau_piston_cle": _get_nested(pieces_def, "piston", "materiau_piston_cle"),
+        "pression_max_pa": pression_max_prop,
+        "alesage_nominal_m": alesage_prop,
+        "course_m": course_prop,
+        "rpm": rpm_sys,
+        "materiau_joint_cle": _get_nested(pieces_def, "piston", "materiau_joint_cle"),
+    }, _safe_dict(pieces_def.get("piston")))
+    pieces["piston"] = _build_piece_instance(Piston, raw, rapport, "piston")
+    rapport["construction"]["piston"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("piston") is not None}
+
+    rapport_pist = _safe_call_report(pieces.get("piston"))
+    rapport["rapports_pieces"]["piston"] = rapport_pist
+    vals_pist = _extract_piston_values(rapport_pist)
+
+    force_gaz_prop = vals_pist.get("force_gaz_n")
+    force_nette_prop = vals_pist.get("force_axiale_nette_n")
+    _trace("force_gaz_n", force_gaz_prop, "Piston")
+    _trace("force_axiale_nette_n", force_nette_prop, "Piston")
+
+    # Calcul de la force axiale pour la bielle
+    force_axiale_bielle = None
+    if force_nette_prop is not None and force_gaz_prop is not None:
+        force_axiale_bielle = max(abs(force_nette_prop), abs(force_gaz_prop))
+        _trace("force_axiale_max_N", force_axiale_bielle, "max(abs(Piston.force_nette), abs(Piston.force_gaz))")
+    elif force_nette_prop is not None:
+        force_axiale_bielle = abs(force_nette_prop)
+        _trace("force_axiale_max_N", force_axiale_bielle, "Piston.force_nette")
+    elif force_gaz_prop is not None:
+        force_axiale_bielle = abs(force_gaz_prop)
+        _trace("force_axiale_max_N", force_axiale_bielle, "Piston.force_gaz")
+    elif force_bielle_sys is not None:
+        force_axiale_bielle = force_bielle_sys
+        _trace("force_axiale_max_N", force_axiale_bielle, "Systeme.force_bielle")
+
+    # 5. Joint Piston
+    raw = _merge_dict_non_none({
+        "piston": pieces.get("piston"),
+        "cylindre": pieces.get("cylindre"),
+        "materiau_joint_cle": _get_nested(pieces_def, "joint_piston", "materiau_joint_cle"),
+    }, _safe_dict(pieces_def.get("joint_piston")))
+    pieces["joint_piston"] = _build_piece_instance(JointPiston, raw, rapport, "joint_piston")
+    rapport["construction"]["joint_piston"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("joint_piston") is not None}
+
+    # 6. Arbre Piston
+    raw = _merge_dict_non_none({
+        "piston": pieces.get("piston"),
+        "cylindre": pieces.get("cylindre"),
+        "rpm": rpm_sys,
+        "materiau_cle": _get_nested(pieces_def, "arbre_piston", "materiau_cle"),
+    }, _safe_dict(pieces_def.get("arbre_piston")))
+    pieces["arbre_piston"] = _build_piece_instance(ArbrePiston, raw, rapport, "arbre_piston")
+    rapport["construction"]["arbre_piston"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("arbre_piston") is not None}
+
+    # 7. Bielle
+    longueur_bielle_input = _first_finite(_get_nested(pieces_def, "bielle", "longueur_bielle_m"), definition_mt.get("longueur_bielle_m"))
+
+    raw = _merge_dict_non_none({
+        "piston": pieces.get("piston"),
+        "arbre_piston": pieces.get("arbre_piston"),
+        "cylindre": pieces.get("cylindre"),
+        "moteur_thermique": moteur_thermique_obj if moteur_thermique_obj is not None else mt,
+        "longueur_bielle_m": longueur_bielle_input,
+        "force_axiale_max_N": force_axiale_bielle,
+        "materiau_cle": _get_nested(pieces_def, "bielle", "materiau_cle"),
+    }, _safe_dict(pieces_def.get("bielle")))
+    pieces["bielle"] = _build_piece_instance(CorpsBielle, raw, rapport, "bielle")
+    rapport["construction"]["bielle"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("bielle") is not None}
+
+    rapport_bielle = _safe_call_report(pieces.get("bielle"))
+    rapport["rapports_pieces"]["bielle"] = rapport_bielle
+    vals_bielle = _extract_bielle_values(rapport_bielle)
+    
+    longueur_bielle_prop = _first_finite(vals_bielle.get("longueur_bielle_m"), longueur_bielle_input)
+    _trace("longueur_bielle_m", longueur_bielle_prop, "Bielle / input")
+
+    # 8. Coussinet Arbre Piston
+    raw = _merge_dict_non_none({
+        "arbre_piston": pieces.get("arbre_piston"),
+        "rpm": rpm_sys,
+        "materiau_coussinet": _get_nested(pieces_def, "coussinet_arbre_piston", "materiau_coussinet"),
+    }, _safe_dict(pieces_def.get("coussinet_arbre_piston")))
+    pieces["coussinet_arbre_piston"] = _build_piece_instance(CoussinetArbrePiston, raw, rapport, "coussinet_arbre_piston")
+    rapport["construction"]["coussinet_arbre_piston"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("coussinet_arbre_piston") is not None}
+
+    # 9. Arbre Vilebrequin
+    raw = _merge_dict_non_none({
+        "cylindre": pieces.get("cylindre"),
+        "piston": pieces.get("piston"),
+        "bielle": pieces.get("bielle"),
+        "moteur_thermique": moteur_thermique_obj,
+        "rpm": rpm_sys,
+        "couple_max_Nm": couple_max_sys,
+        "course_m": course_prop,
+        "force_bielle_effective_N": force_axiale_bielle,
+        "materiau_cle": _get_nested(pieces_def, "arbre_vilebrequin", "materiau_cle") or mt.get("materiau_cle"),
+        "limite_fatigue_pa": _get_nested(pieces_def, "arbre_vilebrequin", "limite_fatigue_pa") or mt.get("limite_fatigue_pa"),
+        "limite_elastique_pa": _get_nested(pieces_def, "arbre_vilebrequin", "limite_elastique_pa") or mt.get("limite_elastique_pa"),
+    }, _safe_dict(pieces_def.get("arbre_vilebrequin")))
+    pieces["arbre_vilebrequin"] = _build_piece_instance(ArbreVilbrequin, raw, rapport, "arbre_vilebrequin")
+    rapport["construction"]["arbre_vilebrequin"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("arbre_vilebrequin") is not None}
+
+    # 10. Vilbrequin
+    raw = _merge_dict_non_none({
+        "arbre": pieces.get("arbre_vilebrequin"),
+        "cylindre": pieces.get("cylindre"),
+        "piston": pieces.get("piston"),
+        "bielle": pieces.get("bielle"),
+        "deplaceur": pieces.get("deplaceur"),
+        "systeme_complet": systeme_obj,
+        "moteur_thermique": moteur_thermique_obj,
+        "course_m": course_prop,
+        "rpm": rpm_sys,
+        "couple_max_Nm": couple_max_sys,
+        "materiau_cle": _get_nested(pieces_def, "vilbrequin", "materiau_cle") or mt.get("materiau_cle"),
+        "limite_fatigue_pa": _get_nested(pieces_def, "vilbrequin", "limite_fatigue_pa") or mt.get("limite_fatigue_pa"),
+        "limite_elastique_pa": _get_nested(pieces_def, "vilbrequin", "limite_elastique_pa") or mt.get("limite_elastique_pa"),
+    }, _safe_dict(pieces_def.get("vilbrequin")))
+    pieces["vilbrequin"] = _build_piece_instance(Vilbrequin, raw, rapport, "vilbrequin")
+    rapport["construction"]["vilbrequin"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("vilbrequin") is not None}
+
+    # 11. Roulement Aiguille Arbre
+    raw = _merge_dict_non_none({
+        "vilbrequin": pieces.get("vilbrequin"),
+        "arbre_vilbrequin": pieces.get("arbre_vilebrequin"),
+        "bielle": pieces.get("bielle"),
+        "piston": pieces.get("piston"),
+        "cylindre": pieces.get("cylindre"),
+        "rpm": rpm_sys,
+        "couple_max_Nm": couple_max_sys,
+        "rayon_manivelle_m": (0.5 * course_prop) if _is_finite(course_prop) else None,
+    }, _safe_dict(pieces_def.get("roulement_aiguille_arbre")))
+    pieces["roulement_aiguille_arbre"] = _build_piece_instance(RoulementAiguilleArbre, raw, rapport, "roulement_aiguille_arbre")
+    rapport["construction"]["roulement_aiguille_arbre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("roulement_aiguille_arbre") is not None}
+
+    # 12. Roulement Aiguille Arbre Vilebrequin
+    raw = _merge_dict_non_none({
+        "corps_bielle": pieces.get("bielle"),
+        "arbre_vilebrequin": pieces.get("arbre_vilebrequin"),
+        "moteur_thermique": moteur_thermique_obj,
+        "rpm_vilebrequin": rpm_sys,
+    }, _safe_dict(pieces_def.get("roulement_aiguille_arbre_vilebrequin")))
+    pieces["roulement_aiguille_arbre_vilebrequin"] = _build_piece_instance(RoulementAiguilleArbreVilebrequin, raw, rapport, "roulement_aiguille_arbre_vilebrequin")
+    rapport["construction"]["roulement_aiguille_arbre_vilebrequin"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("roulement_aiguille_arbre_vilebrequin") is not None}
+
+    # 13. Couvercle Cylindre
+    raw = _merge_dict_non_none({
+        "cylindre": pieces.get("cylindre"),
+        "pression_max_pa": pression_max_prop,
+        "materiau_cle": _get_nested(pieces_def, "couvercle_cylindre", "materiau_cle"),
+    }, _safe_dict(pieces_def.get("couvercle_cylindre")))
+    pieces["couvercle_cylindre"] = _build_piece_instance(CouvercleCylindre, raw, rapport, "couvercle_cylindre")
+    rapport["construction"]["couvercle_cylindre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("couvercle_cylindre") is not None}
+
+    # 14. Vis Couvercle Cylindre
+    raw = _merge_dict_non_none({
+        "cylindre": pieces.get("cylindre"),
+        "couvercle": pieces.get("couvercle_cylindre"),
+        "pression_max_pa": pression_max_prop,
+        "classe_vis_iso898": _get_nested(pieces_def, "vis_couvercle_cylindre", "classe_vis_iso898"),
+    }, _safe_dict(pieces_def.get("vis_couvercle_cylindre")))
+    pieces["vis_couvercle_cylindre"] = _build_piece_instance(VisCouvercleCylindre, raw, rapport, "vis_couvercle_cylindre")
+    rapport["construction"]["vis_couvercle_cylindre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("vis_couvercle_cylindre") is not None}
+
+    # 15. Arbre
     raw = _merge_dict_non_none({
         "cylindre": pieces.get("cylindre"),
         "moteur_thermique": moteur_thermique_obj,
         "systeme_complet": systeme_obj,
         "vilbrequin": pieces.get("vilbrequin"),
         "roulement_aiguille": pieces.get("roulement_aiguille_arbre"),
-        "couple_max_Nm": couple_max_nm,
-        "rpm": rpm,
+        "couple_max_Nm": couple_max_sys,
+        "rpm": rpm_sys,
         "nombre_cylindres": _safe_int(mt.get("nombre_cylindres")),
         "materiau_arbre_cle": _get_nested(pieces_def, "arbre", "materiau_arbre_cle"),
     }, _safe_dict(pieces_def.get("arbre")))
     pieces["arbre"] = _build_piece_instance(ArbreMoteur, raw, rapport, "arbre")
     rapport["construction"]["arbre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("arbre") is not None}
 
+    # 16. Clavette Arbre
     raw = _merge_dict_non_none({
         "arbre_vilbrequin": pieces.get("arbre_vilebrequin"),
         "roulement_aiguille_arbre": pieces.get("roulement_aiguille_arbre"),
         "vilbrequin": pieces.get("vilbrequin"),
         "moteur_thermique": moteur_thermique_obj,
-        "couple_transmis_Nm": couple_max_nm,
+        "couple_transmis_Nm": couple_max_sys,
         "materiau_clavette_cle": _get_nested(pieces_def, "clavette_arbre", "materiau_clavette_cle"),
     }, _safe_dict(pieces_def.get("clavette_arbre")))
     pieces["clavette_arbre"] = _build_piece_instance(ClavetteArbre, raw, rapport, "clavette_arbre")
