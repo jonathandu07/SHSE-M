@@ -534,17 +534,44 @@ def construire_moteur_thermique_complet(*, moteur_thermique_definition: Optional
 
 
 def _build_piece_instance(piece_cls: Any, raw_kwargs: Dict[str, Any], rapport: Dict[str, Any], nom: str) -> Any:
+    import traceback
+    if "construction_debug" not in rapport:
+        rapport["construction_debug"] = {}
+        
+    debug_info = {
+        "kwargs": _to_jsonable(_filter_kwargs_for_callable(piece_cls, raw_kwargs)) if piece_cls else {},
+        "kwargs_bruts": _to_jsonable(raw_kwargs),
+        "construit": False,
+        "rapport_disponible": False,
+        "type": piece_cls.__name__ if piece_cls else None,
+        "erreur": None,
+        "trace": None
+    }
+    
     if piece_cls is None:
+        debug_info["erreur"] = f"Classe indisponible pour {nom}."
+        rapport["construction_debug"][nom] = debug_info
         _push_inconnue(rapport, "impossibles", nom, f"Classe indisponible pour {nom}.")
         return None
+        
     kwargs = _filter_kwargs_for_callable(piece_cls, raw_kwargs)
     required = [p for p in _required_params_for_callable(piece_cls) if p not in kwargs]
     if required:
+        debug_info["erreur"] = f"Construction impossible sans {required}."
+        rapport["construction_debug"][nom] = debug_info
         _push_inconnue(rapport, "partielles", nom, f"Construction impossible sans {required}.")
         return None
+        
     try:
-        return piece_cls(**kwargs)
+        obj = piece_cls(**kwargs)
+        debug_info["construit"] = True
+        debug_info["rapport_disponible"] = True
+        rapport["construction_debug"][nom] = debug_info
+        return obj
     except Exception as exc:
+        debug_info["erreur"] = str(exc)
+        debug_info["trace"] = traceback.format_exc()
+        rapport["construction_debug"][nom] = debug_info
         _push_inconnue(rapport, "impossibles", f"construction {nom}", str(exc))
         return None
 
@@ -571,9 +598,9 @@ def construire_pieces_depuis_systeme(
         "rapports_pieces": {},
     }
 
-    def _trace(nom: str, valeur: Any, source: str) -> None:
+    def _trace(nom: str, valeur: Any, source: str, statut: str = "calculée") -> None:
         if valeur is not None:
-            rapport["propagation_debug"][nom] = {"valeur": valeur, "source": source}
+            rapport["propagation_debug"][nom] = {"valeur": valeur, "source": source, "statut": statut}
 
     # Données système initiales
     alesage_sys = _first_finite(mt.get("alesage_m"), _get_nested(rapport_systeme, "cao", "moteur_thermique", "alesage_mm"))
@@ -593,17 +620,40 @@ def construire_pieces_depuis_systeme(
 
     pieces: Dict[str, Any] = {}
 
+    _trace("alesage_m", alesage_sys, "definition_moteur_thermique.alesage_m", "entrée_directe")
+    _trace("course_m", course_sys, "definition_moteur_thermique.course_m", "entrée_directe")
+
+    # Calcul couple moyen
+    couple_moyen_Nm = None
+    puissance_W = _first_finite(_get_nested(mt_systeme, "puissance_requise_W"), _get_nested(rapport_systeme, "analyses_composants", "moteur_thermique_point", "resultats", "puissance_indiquee_W"))
+    if puissance_W is None and _is_finite(_get_nested(rapport_systeme, "entrees", "puissance_traction_kw")):
+        puissance_W = _get_nested(rapport_systeme, "entrees", "puissance_traction_kw") * 1000.0
+
+    if _is_finite(rpm_sys) and rpm_sys > 0 and _is_finite(puissance_W):
+        omega_rad_s = 2 * math.pi * rpm_sys / 60.0
+        couple_moyen_Nm = puissance_W / omega_rad_s
+        _trace("couple_moyen_Nm", couple_moyen_Nm, "puissance_W / omega_rad_s", "calculée")
+
     # 1. Cylindre
+    longueur_utile_input = _get_nested(pieces_def, "cylindre", "longueur_utile_m")
+    if longueur_utile_input is None and _is_finite(course_sys):
+        longueur_utile_input = course_sys
+        _trace("longueur_utile_m", longueur_utile_input, "fallback géométrique minimal : longueur_utile_m absente, utilisation de course_m pour permettre la construction du Cylindre", "fallback_minimal")
+    else:
+        _trace("longueur_utile_m", longueur_utile_input, "definition_moteur_thermique.longueur_utile_m", "entrée_directe")
+
     raw = _merge_dict_non_none({
         "alesage_m": alesage_sys,
         "course_m": course_sys,
-        "longueur_utile_m": _get_nested(pieces_def, "cylindre", "longueur_utile_m"),
+        "longueur_utile_m": longueur_utile_input,
         "pression_service_pa": pme_sys,
         "pression_max_pa": pression_max_sys,
         "materiau_cle": _get_nested(pieces_def, "cylindre", "materiau_cle"),
     }, _safe_dict(pieces_def.get("cylindre")))
     pieces["cylindre"] = _build_piece_instance(Cylindre, raw, rapport, "cylindre")
     rapport["construction"]["cylindre"] = {"kwargs": _to_jsonable(raw), "construit": pieces.get("cylindre") is not None}
+    if pieces.get("cylindre") is not None:
+        _trace("cylindre_objet", True, "Cylindre(**kwargs_cyl)", "propagée")
     
     rapport_cyl = _safe_call_report(pieces.get("cylindre"))
     rapport["rapports_pieces"]["cylindre"] = rapport_cyl
@@ -880,18 +930,25 @@ def analyser_composants_complementaires(*, composants: Mapping[str, Any], rappor
             rapports["batterie_dimensionnement"] = {"erreur": str(exc)}
 
     if alternateur is not None and hasattr(alternateur, "analyser_pour_bus_dc"):
-        kwargs = _merge_dict_non_none({
-            "puissance_bus_dc_w": _first_finite(veh_synth.get("puissance_bus_dc_design_w"), alt_synth.get("P_electrique_sortie_W")),
-            "vitesse_rotation_rpm": _first_finite(alt_synth.get("vitesse_rotation_rpm"), _get_nested(rapport_systeme or {}, "liaisons", "alternateur", "vitesse_rotation_rpm")),
-            "tension_bus_dc_v": _first_finite(veh_synth.get("tension_bus_dc_v"), batt_synth.get("tension_nominale_v")),
-            "batterie": batterie,
-            "moteur": moteur_electrique,
-            "energie_a_recharger_kwh": _safe_float(batt_synth.get("energie_utile_kwh")),
-        }, _safe_dict(analyses_user.get("alternateur_bus_dc")))
-        try:
-            rapports["alternateur_bus_dc"] = alternateur.analyser_pour_bus_dc(**_filter_kwargs_for_callable(alternateur.analyser_pour_bus_dc, kwargs))
-        except Exception as exc:
-            rapports["alternateur_bus_dc"] = {"erreur": str(exc)}
+        p_bus_dc = _first_finite(veh_synth.get("puissance_bus_dc_design_w"), alt_synth.get("P_electrique_sortie_W"))
+        if p_bus_dc is None:
+            p_bus_dc = _first_finite(definition_moteur.get("puissance_elec_alt_cible_w"))
+            
+        if p_bus_dc is not None:
+            kwargs = _merge_dict_non_none({
+                "puissance_bus_dc_w": p_bus_dc,
+                "vitesse_rotation_rpm": _first_finite(alt_synth.get("vitesse_rotation_rpm"), _get_nested(rapport_systeme or {}, "liaisons", "alternateur", "vitesse_rotation_rpm")),
+                "tension_bus_dc_v": _first_finite(veh_synth.get("tension_bus_dc_v"), batt_synth.get("tension_nominale_v")),
+                "batterie": batterie,
+                "moteur": moteur_electrique,
+                "energie_a_recharger_kwh": _safe_float(batt_synth.get("energie_utile_kwh")),
+            }, _safe_dict(analyses_user.get("alternateur_bus_dc")))
+            try:
+                rapports["alternateur_bus_dc"] = alternateur.analyser_pour_bus_dc(**_filter_kwargs_for_callable(alternateur.analyser_pour_bus_dc, kwargs))
+            except Exception as exc:
+                rapports["alternateur_bus_dc"] = {"erreur": str(exc)}
+        else:
+            rapports["alternateur_bus_dc"] = {"inconnues": {"impossibles": [{"nom": "Alternateur.analyser_pour_bus_dc", "raison": "Manque puissance_bus_dc_w ou puissance_elec_alt_cible_w pour lancer l'analyse."}]}}
 
     if architecture is not None and hasattr(architecture, "analyser"):
         kwargs = _merge_dict_non_none({
@@ -1450,7 +1507,7 @@ def dimensionner_systeme_shsem(
 
     inventaire = {
         "composants": {nom: {"type": None if obj is None else type(obj).__name__, "construit": obj is not None} for nom, obj in composants.items()},
-        "pieces": {nom: {"type": None if obj is None else type(obj).__name__, "construit": obj is not None, "rapport_disponible": isinstance(rapports_pieces.get(nom), dict)} for nom, obj in pieces.items()},
+        "pieces": {nom: {"type": None if obj is None else type(obj).__name__, "construit": obj is not None, "rapport_disponible": isinstance(rapports_pieces.get(nom), dict) and "inconnues" in rapports_pieces.get(nom, {})} for nom, obj in pieces.items()},
     }
 
     synth = _safe_dict(_safe_dict(rapport_systeme).get("synthese"))
@@ -1458,6 +1515,10 @@ def dimensionner_systeme_shsem(
     veh_syn = _safe_dict(synth.get("vehicule"))
     batt_syn = _safe_dict(synth.get("batterie"))
     opt_syn = _safe_dict(_safe_dict(rapport_optimisation).get("synthese_optimisation"))
+
+    force_bielle = _get_nested(rapport_construction_pieces, "propagation_debug", "force_axiale_max_N", "valeur")
+    if force_bielle is None:
+        force_bielle = _first_non_none(mt_syn.get("force_bielle_N"), definition_moteur.get("force_bielle_N"))
 
     resume_gui = {
         "N_cyl": mt_syn.get("nombre_cylindres"),
@@ -1467,8 +1528,9 @@ def dimensionner_systeme_shsem(
         "RPM": mt_syn.get("rpm_nominal"),
         "PME_Pa": mt_syn.get("pme_pa"),
         "Pmax_Pa": mt_syn.get("pression_max_pa"),
-        "Couple_max_Nm": _first_non_none(mt_syn.get("couple_max_Nm"), mt_syn.get("couple_requis_Nm")),
-        "Force_bielle_N": _first_non_none(mt_syn.get("force_bielle_N"), definition_moteur.get("force_bielle_N")),
+        "Couple_max_Nm": mt_syn.get("couple_max_Nm"),
+        "couple_moyen_Nm": _get_nested(rapport_construction_pieces, "propagation_debug", "couple_moyen_Nm", "valeur"),
+        "Force_bielle_N": force_bielle,
         "vd_tot_cc": _first_non_none(mt_syn.get("cylindree_totale_cc"), definition_moteur.get("cylindree_totale_cc")),
         "P_bus_dc_design_w": veh_syn.get("puissance_bus_dc_design_w"),
         "energie_batterie_kwh": batt_syn.get("energie_utile_kwh"),
@@ -1546,6 +1608,7 @@ def _print_resume_console(config: Dict[str, Any]) -> None:
     print(f"PME            : {gui.get('PME_Pa')} Pa")
     print(f"Pmax           : {gui.get('Pmax_Pa')} Pa")
     print(f"Couple max     : {gui.get('Couple_max_Nm')} Nm")
+    print(f"Couple moyen   : {gui.get('couple_moyen_Nm')} Nm")
     print(f"Force bielle   : {gui.get('Force_bielle_N')} N")
     print(f"Cylindrée      : {gui.get('vd_tot_cc')} cc")
     print(f"Bus DC design  : {gui.get('P_bus_dc_design_w')} W")
