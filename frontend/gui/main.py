@@ -410,10 +410,10 @@ class LoadingScreen(Screen):
             time.sleep(0.30)
 
         try:
-            from backend.main import dimensionner_systeme_shsem
+            from backend.main import dimensionner_systeme_shsem_simple
 
             p_target = float(app.target_power)
-            res = dimensionner_systeme_shsem(p_target)
+            res = dimensionner_systeme_shsem_simple(p_target)
             app.simulation_results = res or {}
         except Exception:
             app.simulation_results = {"__error__": traceback.format_exc()}

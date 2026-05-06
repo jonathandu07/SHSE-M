@@ -1749,6 +1749,88 @@ def dimensionner_systeme_shsem(
     return resultat
 
 
+def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batterie: bool = True) -> Dict[str, Any]:
+    """Compatibility path for the Kivy GUI.
+
+    The main orchestrator above stays strict and needs a full engineering
+    scenario. The GUI currently asks only for target traction power, so this
+    helper builds an explicit first-pass scenario and returns the legacy flat
+    keys consumed by the screens.
+    """
+
+    from backend.definition_pieces import dimensionner_pieces_completes
+    from backend.engineering_model import DimensioningEngine
+    from backend.system_generator import DriveChainGenerator
+
+    p_kw = _req_pos("puissance_traction_kw", puissance_traction_kw)
+
+    eta_inv = 0.97
+    eta_mot = 0.92
+    p_aux_w = 5000.0
+    p_charge_bat_w = 20000.0 if charger_batterie else 0.0
+    p_dc_total_w = (p_kw * 1000.0 / (eta_mot * eta_inv)) + p_charge_bat_w + p_aux_w
+    p_elec_cible_kw = p_dc_total_w / 1000.0
+
+    eng = DimensioningEngine(
+        p_elec_kw=p_elec_cible_kw,
+        rpm=1000.0,
+        p_mean_bar=20.0,
+        n_cyl=4,
+        bn=0.15,
+    )
+
+    pieces_report = dimensionner_pieces_completes(
+        puissance_cible_w=eng.p_meca_needed_w,
+        regime_tr_min=eng.rpm,
+        n_cyl=eng.n_cyl,
+        pression_max_pa=eng.p_safety_bar * 1.0e5,
+    )
+
+    gen = DriveChainGenerator()
+    gen.compute(p_kw, charger_batterie=charger_batterie)
+    battery_mass = float(str(gen.results["batterie"]["masse_estimee"]).split()[0])
+
+    mass_engine = 250.0 + (eng.vd_total_liters * 20.0)
+    l_max_m = eng.bore_m * 1.5 * eng.n_cyl + 0.3
+    w_max_m = 0.6
+    h_max_m = max(eng.stroke_m * 3.0, 0.35)
+
+    return {
+        "N_cyl": eng.n_cyl,
+        "Architecture": f"L{eng.n_cyl}",
+        "Score": 100.0,
+        "Cout_Maint_Estime": 1500.0,
+        "Bore_mm": eng.bore_mm,
+        "Stroke_mm": eng.stroke_mm,
+        "RPM": eng.rpm,
+        "PME": eng.p_mean_pa,
+        "PME_bar": eng.p_mean_bar,
+        "P_max": eng.p_safety_bar * 1.0e5,
+        "Displacement_L": eng.vd_total_liters,
+        "vd_tot_cc": eng.vd_total_liters * 1000.0,
+        "masse_totale_kg": mass_engine + battery_mass,
+        "masse_pieces_kg": pieces_report.get("masse_pieces_kg"),
+        "L_max_m": l_max_m,
+        "W_max_m": w_max_m,
+        "volume_total_m3": l_max_m * w_max_m * h_max_m,
+        "couple_moyen_Nm": eng.torque_mean_nm,
+        "drivetrain": gen.results,
+        "pieces": pieces_report.get("pieces", {}),
+        "pieces_db_error": pieces_report.get("db_error"),
+        "resume_gui": {
+            "N_cyl": eng.n_cyl,
+            "Architecture": f"L{eng.n_cyl}",
+            "Bore_mm": eng.bore_mm,
+            "Stroke_mm": eng.stroke_mm,
+            "RPM": eng.rpm,
+            "PME_Pa": eng.p_mean_pa,
+            "Pmax_Pa": eng.p_safety_bar * 1.0e5,
+            "couple_moyen_Nm": eng.torque_mean_nm,
+            "vd_tot_cc": eng.vd_total_liters * 1000.0,
+        },
+    }
+
+
 realiser_systeme_complet = dimensionner_systeme_shsem
 concevoir_systeme_complet = dimensionner_systeme_shsem
 

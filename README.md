@@ -2,6 +2,34 @@
 
 Tu peux le reprendre tel quel comme base de `README.md`, ou mieux : en faire un document séparé `DOSSIER_TECHNIQUE_STHO_ME.md`.
 
+# SHSE-M / STHO-ME
+
+Outil Python de pre-dimensionnement pour un systeme thermo-hybride avec backend de calcul, inventaire pieces, esquisses 2D/3D et interface Kivy.
+
+## Demarrage rapide
+
+```powershell
+python -m pip install -r requirements.txt
+python frontend/gui/main.py
+```
+
+## Tests
+
+```powershell
+python -m pytest
+```
+
+## Points d'entree utiles
+
+- Interface graphique : `frontend/gui/main.py`
+- Orchestrateur strict : `backend/main.py::dimensionner_systeme_shsem`
+- Mode simple GUI : `backend/main.py::dimensionner_systeme_shsem_simple`
+- Base locale chiffree : `backend/database.py`
+
+Le mode strict ne fabrique pas d'hypotheses implicites : il attend un scenario complet. L'interface utilise le mode simple pour produire un premier dimensionnement coherent a partir d'une puissance cible.
+
+Les fichiers generes (`__pycache__`, logs, base SQLite locale, cle locale, sorties PDF) sont ignores via `.gitignore`; s'ils sont deja presents dans le dossier, ils peuvent rester localement mais ne devraient pas etre ajoutes aux prochains commits.
+
 ---
 
 # DOSSIER TECHNIQUE COMPLET

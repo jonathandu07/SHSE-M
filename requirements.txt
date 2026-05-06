@@ -1,0 +1,9 @@
+beautifulsoup4
+cryptography
+kivy
+matplotlib
+numpy
+pypdf
+pytest
+pytest-asyncio
+requests
