@@ -1,0 +1,799 @@
+2026-05-06 21:13:20,105 - INFO - Starting test_systeme_analyser_full
+2026-05-06 21:13:20,106 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-06 21:13:20,109 - INFO - {
+  "entrees": {
+    "vehicule": {
+      "masse_kg": 1200.0,
+      "vitesse_ms": 20.0,
+      "acceleration_ms2": 0.5,
+      "angle_pente": 0.0,
+      "angle_unite": "rad",
+      "coef_roulement": 0.015,
+      "coef_trainee_aero_cda": 0.65,
+      "densite_air": 1.2,
+      "gravite": 9.80665,
+      "rayon_roue_m": 0.32,
+      "rapport_reduction_global": 9.0,
+      "rendement_transmission": 0.95,
+      "nb_roues_motrices": 2,
+      "nb_moteurs_electriques": 1,
+      "pertes_fixes_transmission_w": 0.0,
+      "couple_pertes_transmission_nm": 0.0,
+      "marge_puissance": 0.0,
+      "marge_couple": 0.0,
+      "puissance_auxiliaire_w": 0.0
+    },
+    "batterie": {
+      "distance_km": null,
+      "conso_kwh_km": null,
+      "puissance_moyenne_kw": null,
+      "vitesse_moyenne_kmh": null,
+      "temps_charge_cible_h": null,
+      "puissance_pic_kw": null,
+      "duree_pic_s": null,
+      "energie_utile_imposee_kwh": null,
+      "calculer_puissance_charge_requise": true,
+      "utiliser_puissance_traction_comme_pic_si_absente": true
+    },
+    "bus_dc": {
+      "scenario_bus_dc": "max",
+      "tension_bus_dc_v": null
+    },
+    "alternateur": {
+      "mode_electrique_alternateur": "dc",
+      "vitesse_alternateur_rpm": null,
+      "rapport_vitesse_alt_sur_moteur": null,
+      "vitesse_moteur_thermique_rpm": 3000.0,
+      "puissance_elec_alt_cible_w": null,
+      "tension_alt_v": null,
+      "courant_alt_a": null,
+      "facteur_puissance_alt": 1.0,
+      "entree_puissance_ac": "VLL_IL",
+      "courant_est_ligne": true,
+      "rendement_liaison_meca_alt": 1.0
+    },
+    "boite_crabots": {
+      "rapports_boite_candidates": null,
+      "rendement_boite": null,
+      "facteur_service_boite": 1.2,
+      "moment_flechissant_nm": null,
+      "inertie_primaire_kg_m2": null,
+      "inertie_secondaire_kg_m2": null,
+      "delta_omega_rad_s": null,
+      "temps_engagement_s": null,
+      "force_axiale_roulement_N": null,
+      "force_radiale_roulement_N": null
+    },
+    "architecture": {
+      "pme_pa": 1000000.0,
+      "vitesse_piston_max_ms": null,
+      "longueur_dispo_m": null,
+      "largeur_dispo_m": null,
+      "horizon_usage_h": 20000.0,
+      "architectures_autorisees": null,
+      "architecture_forcee": null,
+      "poids_maintenance": 1.0,
+      "poids_masse": 1.0,
+      "poids_cout_matiere": 1.0,
+      "poids_compacite": 1.0,
+      "poids_fiabilite": 1.0,
+      "poids_rendement": 1.0
+    },
+    "moteur_thermique_criteres": {
+      "pression_max_pa": null,
+      "contrainte_admissible_pa": null,
+      "densite_materiau_kg_m3": null,
+      "cout_matiere_eur_kg": null,
+      "rendement_indique_cible_min": null,
+      "rendement_mecanique_cible_min": null,
+      "masse_estimee_max_kg": null,
+      "cout_matiere_max_eur": null,
+      "indice_maintenance_max": null,
+      "duree_vie_cible_h": null
+    }
+  },
+  "sous_systemes": {
+    "traction": {
+      "demande_totale": {
+        "F_res_totale_N": 332.5197,
+        "F_inertie_N": 600.0,
+        "F_requise_N": 932.5197000000001,
+        "P_roue_W": 18650.394,
+        "T_roue_total_Nm": 298.40630400000003,
+        "T_par_roue_Nm": 149.20315200000002,
+        "P_moteur_W": 19631.993684210527,
+        "T_moteur_Nm": 34.90132210526317,
+        "rpm_roue": 596.8310365946076,
+        "rpm_moteur": 5371.479329351468,
+        "omega_roue_rad_s": 62.5,
+        "omega_moteur_rad_s": 562.5
+      },
+      "demande_par_moteur": {
+        "F_res_totale_N": 332.5197,
+        "F_inertie_N": 600.0,
+        "F_requise_N": 932.5197000000001,
+        "P_roue_W": 18650.394,
+        "T_roue_total_Nm": 298.40630400000003,
+        "T_par_roue_Nm": 149.20315200000002,
+        "P_moteur_W": 19631.993684210527,
+        "T_moteur_Nm": 34.90132210526317,
+        "rpm_roue": 596.8310365946076,
+        "rpm_moteur": 5371.479329351468,
+        "omega_roue_rad_s": 62.5,
+        "omega_moteur_rad_s": 562.5
+      }
+    },
+    "check_moteurs": {
+      "nb_moteurs": 1,
+      "check_par_moteur": {
+        "rpm": 5371.479329351468,
+        "P_req_W": 19631.993684210527,
+        "T_req_Nm": 34.90132210526317,
+        "P_cap_W": 100000.0,
+        "T_cap_Nm": 177.77777777777777,
+        "P_ok": 1.0,
+        "T_ok": 1.0,
+        "P_ratio_cap_req": 5.0937261700744765,
+        "T_ratio_cap_req": 5.093726170074475,
+        "P_marge_W": 80368.00631578948,
+        "T_marge_Nm": 142.8764556725146
+      },
+      "check_total_equivalent": {
+        "rpm": 5371.479329351468,
+        "P_req_W": 19631.993684210527,
+        "T_req_Nm": 34.90132210526317,
+        "P_cap_W": 100000.0,
+        "T_cap_Nm": 177.77777777777777,
+        "P_ok": 1.0,
+        "T_ok": 1.0,
+        "P_ratio_cap_req": 5.0937261700744765,
+        "T_ratio_cap_req": 5.093726170074475,
+        "P_marge_W": 80368.00631578948,
+        "T_marge_Nm": 142.8764556725146
+      }
+    },
+    "batterie": {
+      "entrees": {
+        "fenetre_soc": 0.8,
+        "densite_energetique_kwh_kg": 0.2,
+        "rendement_charge": 0.95,
+        "puissance_charge_kw": null,
+        "tension_nominale_v": 400.0,
+        "tension_charge_v": 420.0,
+        "distance_km": null,
+        "conso_kwh_km": null,
+        "puissance_moyenne_kw": null,
+        "vitesse_moyenne_kmh": null,
+        "temps_charge_cible_h": null,
+        "puissance_pic_kw": 21.924437426900585,
+        "duree_pic_s": null,
+        "energie_utile_imposee_kwh": null,
+        "mode_aggregation_energie": "max",
+        "calculer_puissance_charge_requise": true,
+        "activer_electrolyte_solide": false,
+        "nb_series": null,
+        "nb_parallele": null,
+        "tension_cellule_v": null,
+        "capacite_cellule_ah": null,
+        "courant_cellule_max_a": null,
+        "conductivite_ionique_s_m": null,
+        "epaisseur_electrolyte_m": null,
+        "surface_active_m2": null,
+        "resistance_interface_ohm": null,
+        "puissance_pack_continue_kw": null,
+        "puissance_pack_pic_kw": null,
+        "rendement_chaine": null,
+        "electrolyte_strict": false,
+        "activer_catalogue_cellules": false,
+        "catalogue_top_n": 5,
+        "catalogue_sleep_s": 0.0,
+        "activer_dimensionnement_fin": false,
+        "cellule_pack": null,
+        "energie_nominale_cible_pack_kwh": null,
+        "tension_bus_min_v": null,
+        "tension_bus_max_v": null,
+        "tension_nominale_cible_pack_v": null,
+        "pertes_passives_pack": null,
+        "modele_thermique_pack": null,
+        "nb_series_min_dim": null,
+        "nb_series_max_dim": null
+      },
+      "energies_utiles": {
+        "conso_kwh_km_derivee": null,
+        "E_trajet_kwh": null,
+        "E_charge_cible_kwh": null,
+        "E_pic_kwh": null,
+        "E_imposee_kwh": null
+      },
+      "dimensionnement": {
+        "E_utile_finale_kwh": null,
+        "capacite_totale_kwh": null,
+        "masse_batterie_kg": null
+      },
+      "charge": {
+        "temps_charge_h": null,
+        "puissance_effective_stockee_kw": null,
+        "puissance_charge_requise_kw": null,
+        "courant_charge_A": null
+      },
+      "electrique": {
+        "capacite_Ah_estimee": null,
+        "courant_decharge_A_estime": null,
+        "C_rate_decharge_estime": null,
+        "C_rate_charge_estime": null
+      },
+      "electrolyte_solide": {
+        "active": false
+      },
+      "catalogue_cellules": {
+        "active": false
+      },
+      "dimensionnement_fin": {
+        "active": false
+      },
+      "hypotheses": [],
+      "unites": {
+        "E_*": "kWh",
+        "capacite_totale": "kWh",
+        "masse_batterie": "kg",
+        "temps_charge": "h",
+        "puissance_*": "kW",
+        "tension_*": "V",
+        "courant_*": "A",
+        "capacite_Ah": "Ah",
+        "C_rate_*": "h^-1",
+        "asr": "ohm*m^2",
+        "R_cell": "ohm",
+        "P_pertes": "W",
+        "dV_cell": "V"
+      },
+      "inconnues": {
+        "impossibles": [
+          {
+            "nom": "E_utile_finale_kwh",
+            "raison": "Impossible sans au moins un critère (trajet, charge cible, pic, ou énergie imposée)."
+          },
+          {
+            "nom": "vieillissement / durée de vie",
+            "raison": "Impossible sans modèle de vieillissement (cycles, DoD, C-rate, température, chimie) + données fabricant."
+          },
+          {
+            "nom": "courbe CC/CV et taper fin de charge",
+            "raison": "Le calcul de temps de charge reste un modèle à puissance constante."
+          },
+          {
+            "nom": "thermique pack (refroidissement)",
+            "raison": "Impossible sans architecture pack, résistances internes, modèle thermique, conditions ambiantes et profils charge/décharge."
+          }
+        ],
+        "partielles": [
+          {
+            "nom": "E_pic_kwh",
+            "raison": "Calculable si puissance_pic_kw ET duree_pic_s sont fournis."
+          },
+          {
+            "nom": "capacite_totale_kwh",
+            "raison": "Calculable si E_utile_finale_kwh est déterminée."
+          },
+          {
+            "nom": "charge",
+            "raison": "Calculable si E_utile_finale_kwh est déterminée et si (puissance_charge_kw ou temps_charge_cible_h) est fourni."
+          }
+        ]
+      }
+    },
+    "chaine_moteur_alternateur": null,
+    "alternateur": null,
+    "boite_crabots": null,
+    "architecture": null,
+    "moteur_thermique_definition": null,
+    "moteur_thermique": {
+      "entrees": {
+        "rpm": 3000.0,
+        "pression_moyenne_effective_pa": 1000000.0,
+        "pression_cylindre_pa": null,
+        "angle_vilebrequin_deg": null,
+        "duree_fonctionnement_s": null,
+        "temps_moteur": 4,
+        "nombre_cylindres": 4,
+        "alesage_m": 0.08,
+        "course_m": 0.08,
+        "architecture": null,
+        "rpm_nominal": null,
+        "pme_nominale_pa": null,
+        "pression_max_nominale_pa": null,
+        "taux_compression_effectif": null,
+        "volume_mort_effectif_m3": null,
+        "ordre_allumage": null,
+        "masse_alternative_effective_kg": null,
+        "piston_fournit": false,
+        "carburant_nom": null
+      },
+      "cylindree": {
+        "Vd_unitaire_m3": 0.00040212385965949355,
+        "Vd_totale_m3": 0.0016084954386379742,
+        "ratio_alesage_course_B_sur_S": 1.0,
+        "type_geometrique": "carre",
+        "volume_mort_effectif_m3": null,
+        "taux_compression_effectif": null
+      },
+      "cinematique": {
+        "omega_rad_s": 314.1592653589793,
+        "cycles_par_seconde": 25.0,
+        "vitesse_moyenne_piston_ms": 8.0,
+        "distance_glissement_piston_par_heure_m": 28800.0,
+        "rayon_manivelle_m_effectif": 0.04,
+        "vitesse_glissement_palier_ms_effective": null
+      },
+      "resultats": {
+        "travail_indique_par_cycle_J": 1608.495438637974,
+        "puissance_indiquee_W": 40212.385965949354,
+        "puissance_frein_estimee_W": null,
+        "Q_fuite_m3_s": null,
+        "m_dot_fuite_kg_s": null,
+        "reynolds_fuite": null
+      },
+      "thermo": {
+        "pression_gaz_parfait_pa": null,
+        "densite_gaz_parfait_kg_m3": null,
+        "masse_gaz_calculee_kg": null,
+        "temperature_gaz_calculee_k": null,
+        "volume_gaz_calcule_m3": null,
+        "temperature_adiabatique_T2_k": null,
+        "pression_isentropique_p2_depuis_T_pa": null,
+        "ratio_volume_isentropique_v2_sur_v1": null
+      },
+      "forces": {
+        "F_gaz_N": null,
+        "F_inertie_N": null,
+        "F_bielle_effective_N": null
+      },
+      "couple": {
+        "T_instantane_Nm": null
+      },
+      "pertes": {
+        "P_frottement_segment_W": null,
+        "P_frottement_palier_W": null,
+        "P_frottement_palier_visqueux_W": null,
+        "P_frottement_total_W": null,
+        "couple_frottement_moyen_Nm": null,
+        "fmep_frottement_pa": null,
+        "rendement_mecanique_estime": null
+      },
+      "usure": {
+        "segments": {
+          "dV_dt_m3_s": null,
+          "dh_dt_m_s": null,
+          "dV_par_heure_m3_h": null,
+          "dh_par_heure_m_h": null
+        },
+        "palier": {
+          "dV_dt_m3_s": null,
+          "dh_dt_m_s": null,
+          "dV_par_heure_m3_h": null,
+          "dh_par_heure_m_h": null
+        }
+      },
+      "dimensionnement": {
+        "pression_dimensionnement_pa": null,
+        "epaisseur_cylindre_mince_m": null,
+        "epaisseur_cylindre_lame_m": null,
+        "epaisseur_cylindre_auto_m": null,
+        "verification_paroi_mince": null
+      },
+      "assemblage": {
+        "force_separation_N": null,
+        "precharge_totale_N": null,
+        "precharge_par_vis_N": null,
+        "couple_serrage_par_vis_Nm": null
+      },
+      "carburant": {
+        "entrees": {
+          "carburant": null,
+          "debit_massique_carburant_kg_s": null,
+          "lambda_exces_air": null,
+          "co2_ppm_air": 420.0,
+          "cp_gaz_j_kg_k": null,
+          "temperature_gaz_in_k": null,
+          "temperature_gaz_out_k": null,
+          "efficacite_echangeur": null,
+          "puissance_utile_w": 40212.385965949354,
+          "rendement_global": null,
+          "module_carburant_disponible": true
+        },
+        "bilan": {},
+        "inconnues": {
+          "impossibles": [
+            {
+              "nom": "carburant",
+              "raison": "Aucun carburant fourni ni défini dans l'objet moteur."
+            }
+          ],
+          "partielles": []
+        },
+        "notes_modele": []
+      },
+      "conception": {
+        "masse_alternative_resolution": {
+          "source": null,
+          "rapport_piston_disponible": false,
+          "masses_piston": {
+            "masse_corps_piston_kg": null,
+            "masse_axe_kg": null,
+            "masse_joints_kg": null,
+            "masse_segments_kg": null,
+            "masse_bielle_alternative_kg": null,
+            "masse_alternative_calculee_kg": null,
+            "masse_alternative_totale_avec_bielle_kg": null,
+            "centre_gravite_depuis_face_tete_m": null
+          },
+          "masse_alternative_effective_kg": null,
+          "ecart_vs_entree_masse_alternative_kg": null,
+          "notes": [],
+          "inconnues": [
+            "masse alternative effective"
+          ]
+        },
+        "masse": {
+          "volume_matiere_total_m3": null,
+          "masse_estimee_kg": null,
+          "notes": null
+        },
+        "cout_matiere_estime_eur": null,
+        "indice_maintenance": null,
+        "respecte_masse_estimee_max": null,
+        "respecte_cout_matiere_max": null,
+        "respecte_indice_maintenance_max": null,
+        "respecte_rendement_mecanique_min": null,
+        "commentaires": [
+          "La masse et le coût ici restent des estimations limitées à la matière des viroles de cylindres lorsque les données sont présentes.",
+          "L'indice de maintenance est un proxy déterministe de complexité, pas un coût d'atelier réel.",
+          "La fiabilité absolue reste impossible à conclure ici sans fatigue détaillée, états de surface, matériaux de chaque pièce et spectres de charge."
+        ]
+      },
+      "agrégateurs": {
+        "cylindre_complet": {
+          "alesage_m": 0.08,
+          "rayon_interne_m": 0.04,
+          "course_m": 0.08,
+          "nombre_cylindres": 4.0,
+          "aire_section_m2": 0.005026548245743669,
+          "aire_piston_m2": 0.005026548245743669,
+          "cylindree_unitaire_m3": 0.00040212385965949355,
+          "cylindree_unitaire_l": 0.40212385965949354,
+          "cylindree_unitaire_cm3": 402.1238596594935,
+          "cylindree_totale_m3": 0.0016084954386379742,
+          "cylindree_totale_l": 1.6084954386379742,
+          "cylindree_totale_cm3": 1608.495438637974,
+          "ratio_alesage_course": 1.0,
+          "architecture_code": 0.0,
+          "inconnues": "pression_pa / force_gaz_n; contrainte_admissible_pa / epaisseur_paroi"
+        },
+        "gaz_complet": {
+          "constante_gaz_r": 287.05,
+          "gamma": 1.4,
+          "alesage_m": 0.08,
+          "aire_piston_m2": 0.005026548245743669,
+          "inconnues": "pression_pa (manque 3/4 parmi P,m,V,T); masse_kg (manque 3/4 parmi P,m,V,T); volume_m3 (manque 3/4 parmi P,m,V,T); temperature_k (manque 3/4 parmi P,m,V,T); densite_kg_m3 (besoin P&T ou m&V); force_gaz_n (pression_pa manquante)"
+        }
+      },
+      "inconnues": {
+        "impossibles": [
+          {
+            "nom": "usure segments (valeur absolue)",
+            "raison": "Impossible sans coefficient d'usure k et dureté H (tribologie/datasheet)."
+          },
+          {
+            "nom": "usure palier (valeur absolue)",
+            "raison": "Impossible sans coefficient d'usure k et dureté H (tribologie/datasheet)."
+          },
+          {
+            "nom": "rendement global réel",
+            "raison": "Sans p(θ) (diagramme indicateur), pertes de pompage, transferts thermiques, accessoires, on ne peut pas calculer un rendement global fiable."
+          },
+          {
+            "nom": "fatigue/longévité complète",
+            "raison": "Sans matériaux précis, états de surface, concentrations de contraintes, et cycles de charge, on ne peut pas conclure sur la fatigue/longévité."
+          }
+        ],
+        "partielles": [
+          {
+            "nom": "force gaz instantanée",
+            "raison": "Calculable si pression_cylindre_pa et alesage_m sont fournis."
+          },
+          {
+            "nom": "force inertie alternative",
+            "raison": "Calculable si masse alternative, rayon/course, rpm, longueur bielle et angle sont fournis."
+          },
+          {
+            "nom": "force bielle effective",
+            "raison": "Déductible si force gaz ET force inertie sont calculées."
+          },
+          {
+            "nom": "couple instantané",
+            "raison": "Calculable si force bielle, rayon et angle sont fournis."
+          },
+          {
+            "nom": "pression gaz parfait",
+            "raison": "Calculable si masse_gaz_kg, volume_gaz_m3, temperature_gaz_k sont fournis."
+          },
+          {
+            "nom": "température adiabatique T2",
+            "raison": "Calculable si t1_k, p1_pa et p2_pa sont fournis."
+          },
+          {
+            "nom": "débit de fuite annulaire",
+            "raison": "Calculable si delta_p_fuite_pa, jeu_radial_h_m, rayon_fuite_m, longueur_fuite_m, viscosite_pa_s sont fournis."
+          },
+          {
+            "nom": "pertes frottement segment",
+            "raison": "Calculables si force normale, μ segment et vitesse piston sont fournis."
+          },
+          {
+            "nom": "pertes frottement palier",
+            "raison": "Calculables si charge, vitesse de glissement et μ palier sont fournis."
+          },
+          {
+            "nom": "usure cumulée",
+            "raison": "Une durée (duree_fonctionnement_s) est nécessaire pour passer des taux (dV/dt) à un total."
+          },
+          {
+            "nom": "épaisseur paroi cylindre",
+            "raison": "Calculable si (pression_max_pa ou pression_cylindre_pa), alesage_m et contrainte_admissible_pa sont fournis."
+          },
+          {
+            "nom": "dimensionnement vis couvercle",
+            "raison": "Calculable si pression_max_pa et aire_effective_couvercle_m2 sont fournis (et force_joint_n, nombre_vis, diametre_nominal_vis_m pour aller plus loin)."
+          }
+        ]
+      },
+      "notes_modele": [
+        "rayon_manivelle_m approx = course/2 (si non fourni)."
+      ]
+    }
+  },
+  "liaisons": {
+    "bus_dc": {
+      "P_bus_dc_traction_w": 21924.437426900586,
+      "P_bus_dc_charge_w": null,
+      "scenario_bus_dc": "max",
+      "P_bus_dc_design_w": 21924.437426900586,
+      "V_bus_dc_v": 400.0,
+      "energie_a_recharger_kwh": null
+    },
+    "moteur_thermique_exigences": {
+      "rpm_moteur_thermique": 3000.0,
+      "P_moteur_thermique_W": null,
+      "couple_moteur_thermique_Nm": null,
+      "rpm_alternateur": null,
+      "ratio_alt_sur_moteur": null
+    },
+    "pme": {
+      "pme_pa_utilisee_ou_requise": 1000000.0
+    }
+  },
+  "synthese": {
+    "vehicule": {
+      "puissance_traction_bus_dc_w": 21924.437426900586,
+      "puissance_bus_dc_design_w": 21924.437426900586,
+      "tension_bus_dc_v": 400.0
+    },
+    "batterie": {
+      "energie_utile_kwh": null,
+      "puissance_charge_requise_kw": null,
+      "puissance_pic_kw": 21.924437426900585
+    },
+    "alternateur": {
+      "rpm_alternateur": null,
+      "P_mecanique_W": null,
+      "couple_mecanique_Nm": null
+    },
+    "moteur_thermique": {
+      "rpm_nominal": 3000.0,
+      "puissance_requise_W": null,
+      "couple_requis_Nm": null,
+      "pme_pa": 1000000.0,
+      "pression_max_pa": null,
+      "architecture": null,
+      "nombre_cylindres": 4,
+      "alesage_m": 0.08,
+      "course_m": 0.08,
+      "cylindree_totale_m3": 0.0016084954386379744,
+      "cylindree_totale_cc": 1608.4954386379743,
+      "epaisseur_cylindre_retenue_m": null,
+      "puissance_indiquee_W": 40212.385965949354,
+      "puissance_frein_estimee_W": null,
+      "rendement_mecanique_estime": null,
+      "masse_estimee_kg": null,
+      "cout_matiere_estime_eur": null,
+      "indice_maintenance": null,
+      "respecte_masse_max": null,
+      "respecte_cout_max": null,
+      "respecte_indice_maintenance_max": null,
+      "respecte_rendement_mecanique_min": null
+    }
+  },
+  "criteres_conception": {
+    "maintenance": {
+      "poids": 1.0,
+      "indice_maintenance_max": null,
+      "respecte": null
+    },
+    "masse": {
+      "poids": 1.0,
+      "masse_estimee_max_kg": null,
+      "respecte": null
+    },
+    "cout": {
+      "poids": 1.0,
+      "cout_matiere_max_eur": null,
+      "respecte": null
+    },
+    "compacite": {
+      "poids": 1.0,
+      "longueur_dispo_m": null,
+      "largeur_dispo_m": null
+    },
+    "fiabilite": {
+      "poids": 1.0,
+      "pression_max_pa": null,
+      "contrainte_admissible_pa": null,
+      "duree_vie_cible_h": null
+    },
+    "rendement": {
+      "poids": 1.0,
+      "rendement_indique_cible_min": null,
+      "rendement_mecanique_cible_min": null,
+      "respecte_rendement_mecanique_min": null
+    }
+  },
+  "cao": {
+    "solidworks_ready": true,
+    "moteur_thermique": {
+      "architecture": null,
+      "nombre_cylindres": 4,
+      "alesage_mm": 80.0,
+      "course_mm": 80.0,
+      "epaisseur_cylindre_mm": null,
+      "cylindree_totale_cc": 1608.4954386379743,
+      "rpm_nominal": 3000.0,
+      "pme_pa": 1000000.0
+    },
+    "systeme": {
+      "P_bus_dc_design_w": 21924.437426900586,
+      "V_bus_dc_v": 400.0,
+      "P_moteur_thermique_requise_w": null,
+      "couple_moteur_thermique_requis_nm": null
+    }
+  },
+  "inconnues": {
+    "impossibles": [
+      {
+        "nom": "batterie :: E_utile_finale_kwh",
+        "raison": "Impossible sans au moins un critère (trajet, charge cible, pic, ou énergie imposée)."
+      },
+      {
+        "nom": "batterie :: vieillissement / durée de vie",
+        "raison": "Impossible sans modèle de vieillissement (cycles, DoD, C-rate, température, chimie) + données fabricant."
+      },
+      {
+        "nom": "batterie :: courbe CC/CV et taper fin de charge",
+        "raison": "Le calcul de temps de charge reste un modèle à puissance constante."
+      },
+      {
+        "nom": "batterie :: thermique pack (refroidissement)",
+        "raison": "Impossible sans architecture pack, résistances internes, modèle thermique, conditions ambiantes et profils charge/décharge."
+      },
+      {
+        "nom": "moteur_thermique :: usure segments (valeur absolue)",
+        "raison": "Impossible sans coefficient d'usure k et dureté H (tribologie/datasheet)."
+      },
+      {
+        "nom": "moteur_thermique :: usure palier (valeur absolue)",
+        "raison": "Impossible sans coefficient d'usure k et dureté H (tribologie/datasheet)."
+      },
+      {
+        "nom": "moteur_thermique :: rendement global réel",
+        "raison": "Sans p(θ) (diagramme indicateur), pertes de pompage, transferts thermiques, accessoires, on ne peut pas calculer un rendement global fiable."
+      },
+      {
+        "nom": "moteur_thermique :: fatigue/longévité complète",
+        "raison": "Sans matériaux précis, états de surface, concentrations de contraintes, et cycles de charge, on ne peut pas conclure sur la fatigue/longévité."
+      }
+    ],
+    "partielles": [
+      {
+        "nom": "batterie :: E_pic_kwh",
+        "raison": "Calculable si puissance_pic_kw ET duree_pic_s sont fournis."
+      },
+      {
+        "nom": "batterie :: capacite_totale_kwh",
+        "raison": "Calculable si E_utile_finale_kwh est déterminée."
+      },
+      {
+        "nom": "batterie :: charge",
+        "raison": "Calculable si E_utile_finale_kwh est déterminée et si (puissance_charge_kw ou temps_charge_cible_h) est fourni."
+      },
+      {
+        "nom": "vitesse alternateur",
+        "raison": "Donner vitesse_alternateur_rpm OU (rpm moteur + ratio)."
+      },
+      {
+        "nom": "P_moteur_thermique_w",
+        "raison": "Calculable si alternateur fournit P_mecanique_W."
+      },
+      {
+        "nom": "couple moteur thermique",
+        "raison": "Calculable si couple alternateur + ratio connus."
+      },
+      {
+        "nom": "architecture",
+        "raison": "Composant Architecture non fourni."
+      },
+      {
+        "nom": "moteur_thermique_definition",
+        "raison": "Nécessite au minimum P_moteur_thermique_w, vitesse_moteur_thermique_rpm, pme_pa et vitesse_piston_max_ms."
+      },
+      {
+        "nom": "moteur_thermique :: force gaz instantanée",
+        "raison": "Calculable si pression_cylindre_pa et alesage_m sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: force inertie alternative",
+        "raison": "Calculable si masse alternative, rayon/course, rpm, longueur bielle et angle sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: force bielle effective",
+        "raison": "Déductible si force gaz ET force inertie sont calculées."
+      },
+      {
+        "nom": "moteur_thermique :: couple instantané",
+        "raison": "Calculable si force bielle, rayon et angle sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: pression gaz parfait",
+        "raison": "Calculable si masse_gaz_kg, volume_gaz_m3, temperature_gaz_k sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: température adiabatique T2",
+        "raison": "Calculable si t1_k, p1_pa et p2_pa sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: débit de fuite annulaire",
+        "raison": "Calculable si delta_p_fuite_pa, jeu_radial_h_m, rayon_fuite_m, longueur_fuite_m, viscosite_pa_s sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: pertes frottement segment",
+        "raison": "Calculables si force normale, μ segment et vitesse piston sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: pertes frottement palier",
+        "raison": "Calculables si charge, vitesse de glissement et μ palier sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: usure cumulée",
+        "raison": "Une durée (duree_fonctionnement_s) est nécessaire pour passer des taux (dV/dt) à un total."
+      },
+      {
+        "nom": "moteur_thermique :: épaisseur paroi cylindre",
+        "raison": "Calculable si (pression_max_pa ou pression_cylindre_pa), alesage_m et contrainte_admissible_pa sont fournis."
+      },
+      {
+        "nom": "moteur_thermique :: dimensionnement vis couvercle",
+        "raison": "Calculable si pression_max_pa et aire_effective_couvercle_m2 sont fournis (et force_joint_n, nombre_vis, diametre_nominal_vis_m pour aller plus loin)."
+      },
+      {
+        "nom": "synthèse architecture moteur",
+        "raison": "Le système n'a ni arbitrage Architecture exploitable ni définition directe complète du moteur thermique."
+      }
+    ]
+  },
+  "notes_modele": [
+    "puissance_pic_kw déduite du point traction (P_bus_dc_traction_w) car absente en entrée.",
+    "Le système complet consolide ce qui est calculable mais ne remplace pas encore le dimensionnement détaillé de toutes les pièces mécaniques aval.",
+    "Le bloc 'cao' fourni ici est un paquet de cotes de haut niveau pour fermer l'architecture moteur ; les autres pièces devront ensuite consommer ces données."
+  ]
+}
+2026-05-06 21:13:20,112 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-06 21:13:20,115 - INFO - Starting test_systeme_missing_inputs
+2026-05-06 21:13:20,116 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
