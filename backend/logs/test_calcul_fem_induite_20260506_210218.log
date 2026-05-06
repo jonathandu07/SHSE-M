@@ -1,0 +1,106 @@
+2026-05-06 21:02:18 [INFO] === DÉBUT TESTS ===
+2026-05-06 21:02:18 [INFO] Module de test : C:\Users\alpha\Documents\GitHub\SHSE-M\backend\tests\modules\alternateur\test_calcul_fem_induite.py
+2026-05-06 21:02:18 [INFO] Log file       : C:\Users\alpha\Documents\GitHub\SHSE-M\backend\logs\test_calcul_fem_induite_20260506_210218.log
+2026-05-06 21:02:18 [INFO] Python         : 3.12.0 (tags/v3.12.0:0fb18b0, Oct  2 2023, 13:03:39) [MSC v.1935 64 bit (AMD64)]
+2026-05-06 21:02:18 [INFO] Platform       : Windows-11-10.0.26200-SP0 | AMD64
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_avec_induction_equivalence
+2026-05-06 21:02:18 [INFO] fem_avec_induction | phi=0.008 | E=31.968 | attendu=31.968
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_avec_induction_equivalence | OK | 0.010421 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_custom_sans_constante_refuse
+2026-05-06 21:02:18 [INFO] expect ValueError | onde=custom sans constante_custom
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_custom_sans_constante_refuse | OK | 0.000413 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_frequence_zero
+2026-05-06 21:02:18 [INFO] f=0 -> E=0
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_frequence_zero | OK | 0.000413 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_nominal
+2026-05-06 21:02:18 [INFO] calcul_fem_induite | f=100 | N=10 | phi=0.01 | kw=0.9 | onde=sinus | E=39.96 | attendu=39.96
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_nominal | OK | 0.000330 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_phi_negative_clamp_false
+2026-05-06 21:02:18 [INFO] phi négatif clamp=False | E=-39.96 | attendu=-39.96
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_phi_negative_clamp_false | OK | 0.000364 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_phi_negative_clamp_true
+2026-05-06 21:02:18 [INFO] phi négatif clamp=True | E=39.96 | attendu=39.96
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_phi_negative_clamp_true | OK | 0.000322 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_spires_zero
+2026-05-06 21:02:18 [INFO] N=0 -> E=0
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_spires_zero | OK | 0.000313 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_validation_types
+2026-05-06 21:02:18 [INFO] expect ValueError | N non int
+2026-05-06 21:02:18 [INFO] expect ValueError | f=NaN
+2026-05-06 21:02:18 [INFO] expect ValueError | phi=inf
+2026-05-06 21:02:18 [INFO] expect ValueError | kw=NaN
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_fem_induite_validation_types | OK | 0.000660 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_flux_depuis_tension
+2026-05-06 21:02:18 [INFO] flux_depuis_tension | phi=0.00625626 | attendu=0.00625626
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_flux_depuis_tension | OK | 0.000311 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_flux_pole_mode_BA
+2026-05-06 21:02:18 [INFO] flux | B=-0.8 | A=0.01 | model=B*A -> phi=-0.008
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_flux_pole_mode_BA | OK | 0.000251 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_flux_pole_mode_absBA
+2026-05-06 21:02:18 [INFO] flux | B=-0.8 | A=0.01 | model=abs(B)*A -> phi=0.008
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_flux_pole_mode_absBA | OK | 0.000286 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_flux_pole_mode_invalide_refuse
+2026-05-06 21:02:18 [INFO] expect ValueError | flux_model invalide
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_flux_pole_mode_invalide_refuse | OK | 0.000265 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_kw_depuis_tension
+2026-05-06 21:02:18 [INFO] kw_depuis_tension | kw=0.563063 | attendu=0.563063
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_kw_depuis_tension | OK | 0.000289 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_spires_depuis_tension_arrondis
+2026-05-06 21:02:18 [INFO] spires_depuis_tension | E=100 f=100 phi=0.01 kw=0.9 | denom=3.996 | n_float=25.025 | floor=25 ceil=26 round=25
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_spires_depuis_tension_arrondis | OK | 0.000285 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_spires_depuis_tension_division_par_zero_refuse
+2026-05-06 21:02:18 [INFO] expect ValueError | denom=0 via phi=0
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_calcul_spires_depuis_tension_division_par_zero_refuse | OK | 0.000287 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_carree
+2026-05-06 21:02:18 [INFO] constante | onde=carree -> C=4
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_carree | OK | 0.000245 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_custom
+2026-05-06 21:02:18 [INFO] constante | onde=custom | C=5
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_custom | OK | 0.000272 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_custom_manquante_refuse
+2026-05-06 21:02:18 [INFO] expect ValueError | onde=custom sans constante_custom
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_custom_manquante_refuse | OK | 0.000283 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_onde_invalide_refuse
+2026-05-06 21:02:18 [INFO] expect ValueError | onde invalide
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_onde_invalide_refuse | OK | 0.000255 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_sinus
+2026-05-06 21:02:18 [INFO] constante | onde=sinus -> C=4.44
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_constante_rms_sinus | OK | 0.000348 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_frequence_depuis_rpm
+2026-05-06 21:02:18 [INFO] f_depuis_rpm | rpm=3000 | p=2 -> f=100
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_frequence_depuis_rpm | OK | 0.000324 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_hz_to_omega
+2026-05-06 21:02:18 [INFO] hz_to_omega | hz=50 -> omega=314.159 (attendu=314.159)
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_hz_to_omega | OK | 0.000264 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_hz_to_rpm
+2026-05-06 21:02:18 [INFO] hz_to_rpm | hz=20 -> rpm=1200
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_hz_to_rpm | OK | 0.000256 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_omega_to_hz
+2026-05-06 21:02:18 [INFO] omega_to_hz | omega=314.159 -> hz=50
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_omega_to_hz | OK | 0.000290 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_rapport_fem_complet_rpm_et_induction
+2026-05-06 21:02:18 [INFO] rapport | resultats={'E_phase_rms_V': 31.96800000000001, 'frequence_hz': 100.0, 'flux_max_pole_wb': 0.008, 'constante_C': 4.44, 'V_ligne_rms_V': 55.37020021636189, 'couplage': 'etoile'}
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_rapport_fem_complet_rpm_et_induction | OK | 0.000484 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_rapport_fem_custom_sans_constante_refuse
+2026-05-06 21:02:18 [INFO] expect ValueError | rapport onde=custom sans constante_custom
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_rapport_fem_custom_sans_constante_refuse | OK | 0.000348 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_rapport_fem_parametres_manquants
+2026-05-06 21:02:18 [INFO] rapport incomplet | inconnues={'impossibles': [{'nom': 'frequence_hz', 'raison': 'Fournir frequence_hz, ou fournir (rpm_mecanique + nb_paires_poles).'}, {'nom': 'flux_max_pole_wb', 'raison': 'Fournir flux_max_pole_wb, ou fournir (induction_gap_t + aire_pole_m2).'}], 'partielles': []}
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_rapport_fem_parametres_manquants | OK | 0.000351 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_rpm_depuis_frequence
+2026-05-06 21:02:18 [INFO] rpm_depuis_f | f=100 | p=2 -> rpm=3000
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_rpm_depuis_frequence | OK | 0.000328 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_rpm_to_hz
+2026-05-06 21:02:18 [INFO] rpm_to_hz | rpm=1200 -> hz=20
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_rpm_to_hz | OK | 0.000266 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_tension_couplage_invalide_refuse
+2026-05-06 21:02:18 [INFO] expect ValueError | couplage invalide
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_tension_couplage_invalide_refuse | OK | 0.000306 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_tension_ligne_depuis_phase
+2026-05-06 21:02:18 [INFO] Vligne | Vph=100 | etoile=173.205 | triangle=100
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_tension_ligne_depuis_phase | OK | 0.000276 s
+2026-05-06 21:02:18 [INFO] --- START test_calcul_fem_induite.TestCalculFEMInduite.test_tension_phase_depuis_ligne
+2026-05-06 21:02:18 [INFO] Vphase | Vl=173.205 | etoile -> Vph=100
+2026-05-06 21:02:18 [INFO] Vphase | Vl=173.205 | triangle -> Vph=173.205
+2026-05-06 21:02:18 [INFO] --- END   test_calcul_fem_induite.TestCalculFEMInduite.test_tension_phase_depuis_ligne | OK | 0.000403 s
+2026-05-06 21:02:18 [INFO] === FIN TESTS ===
