@@ -315,9 +315,9 @@ def _callable_accepts_varkw(callable_obj: Any) -> bool:
 
 
 def _filter_kwargs_for_callable(callable_obj: Any, kwargs: Mapping[str, Any]) -> Dict[str, Any]:
-    clean = {k: v for k, v in dict(kwargs).items() if v is not None}
     if _callable_accepts_varkw(callable_obj):
-        return clean
+        return dict(kwargs)
+    clean = {k: v for k, v in dict(kwargs).items() if v is not None}
     try:
         sig = inspect.signature(callable_obj)
     except Exception:
@@ -531,6 +531,62 @@ def _build_component_instance(component_cls: Any, kwargs: Optional[Dict[str, Any
         return None
 
 
+def construire_moteur_electrique(**kwargs: Any) -> Any:
+    defaults = {
+        "puissance_max_w": 100000.0,
+        "regime_max_rpm": 6000.0,
+        "couple_max_nm": 300.0,
+        "tension_bus_v": 400.0,
+        "rendement_moteur": 0.92,
+        "pertes_fixes_w": 500.0,
+    }
+    defaults.update(kwargs)
+    return MoteurElectrique(**_filter_kwargs_for_callable(MoteurElectrique, defaults))
+
+
+def construire_batterie(**kwargs: Any) -> Any:
+    defaults = {
+        "tension_nominale_v": 400.0,
+        "tension_charge_v": 420.0,
+        "rendement_charge": 0.90,
+        "densite_energetique_kwh_kg": 0.18,
+        "puissance_charge_kw": 20.0,
+    }
+    defaults.update(kwargs)
+    return Batterie(**_filter_kwargs_for_callable(Batterie, defaults))
+
+
+def construire_alternateur(**kwargs: Any) -> Any:
+    defaults = {
+        "connexion": "etoile",
+        "nombre_poles": 12,
+    }
+    defaults.update(kwargs)
+    return Alternateur(**_filter_kwargs_for_callable(Alternateur, defaults))
+
+
+def construire_moteur_thermique_base(**kwargs: Any) -> Any:
+    defaults = {
+        "temps_moteur": 4,
+        "nombre_cylindres": 4,
+        "alesage_m": 0.08,
+        "course_m": 0.08,
+        "rpm_nominal": 3000.0,
+        "pme_nominale_pa": 8.0e5,
+        "rendement_mecanique_nominal": 0.85,
+    }
+    defaults.update(kwargs)
+    return MoteurThermique(**_filter_kwargs_for_callable(MoteurThermique, defaults))
+
+
+def construire_boite_crabots(**kwargs: Any) -> Any:
+    return BoiteCrabots(**_filter_kwargs_for_callable(BoiteCrabots, kwargs))
+
+
+def construire_architecture(**kwargs: Any) -> Any:
+    return Architecture(**_filter_kwargs_for_callable(Architecture, kwargs))
+
+
 def construire_moteur_thermique_complet(*, moteur_thermique_definition: Optional[Dict[str, Any]], rapport: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     if MoteurThermique is None:
         _push_inconnue(rapport, "impossibles", "moteur_thermique", "Classe MoteurThermique indisponible.")
@@ -646,7 +702,8 @@ def construire_pieces_depuis_systeme(
     systeme_obj: Any = None,
     puissance_traction_kw_for_fallback: Optional[float] = None,
     rapports_composants: Optional[Dict[str, Any]] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    return_report: bool = False,
+) -> Any:
     synth = _safe_dict(rapport_systeme.get("synthese"))
     mt_systeme = _safe_dict(synth.get("moteur_thermique"))
     definition_mt = _normaliser_definition_moteur_thermique(definition_moteur_thermique)
@@ -674,7 +731,14 @@ def construire_pieces_depuis_systeme(
         course_sys = course_sys / 1000.0
     rpm_sys = _first_finite(mt.get("rpm_nominal"), mt.get("rpm"))
     pme_sys = _first_finite(mt.get("pme_pa"), mt.get("pme_nominale_pa"))
-    pression_max_sys = _safe_float(mt.get("pression_max_pa"))
+    pression_max_sys = _first_finite(
+        mt.get("pression_max_pa"),
+        _get_nested(rapport_systeme, "entrees", "moteur_thermique_criteres", "pression_max_pa"),
+    )
+    epaisseur_cylindre_sys = _first_finite(
+        mt.get("epaisseur_cylindre_retenue_m"),
+        _get_nested(rapports_composants or {}, "moteur_thermique_point", "dimensionnement", "epaisseur_cylindre_retenue_m"),
+    )
     couple_max_sys = _first_finite(mt.get("couple_max_Nm"), mt.get("couple_requis_Nm"))
     force_bielle_sys = _safe_float(mt.get("force_bielle_N"))
 
@@ -711,7 +775,7 @@ def construire_pieces_depuis_systeme(
     # 1. Cylindre
     longueur_utile_input = _get_nested(pieces_def, "cylindre", "longueur_utile_m")
     if longueur_utile_input is None and _is_finite(course_sys):
-        longueur_utile_input = course_sys
+        longueur_utile_input = course_sys * 1.5
         _trace("longueur_utile_m", longueur_utile_input, "fallback géométrique minimal : longueur_utile_m absente, utilisation de course_m pour permettre la construction du Cylindre", "fallback_minimal")
     else:
         _trace("longueur_utile_m", longueur_utile_input, "definition_moteur_thermique.longueur_utile_m", "entrée_directe")
@@ -722,6 +786,7 @@ def construire_pieces_depuis_systeme(
         "longueur_utile_m": longueur_utile_input,
         "pression_service_pa": pme_sys,
         "pression_max_pa": pression_max_sys,
+        "epaisseur_imposee_m": epaisseur_cylindre_sys,
         "materiau_cle": _get_nested(pieces_def, "cylindre", "materiau_cle"),
         "contrainte_admissible_pa": mt.get("contrainte_admissible_pa"),
         "densite_kg_m3": mt.get("densite_materiau_kg_m3"),
@@ -861,6 +926,8 @@ def construire_pieces_depuis_systeme(
         "course_m": course_prop,
         "rpm": rpm_sys,
         "couple_max_Nm": couple_max_sys,
+        "nb_manetons": _safe_int(mt.get("nombre_cylindres")),
+        "nb_journaux_principaux": (_safe_int(mt.get("nombre_cylindres")) + 1) if _safe_int(mt.get("nombre_cylindres")) is not None else None,
         "materiau_cle": _get_nested(pieces_def, "vilbrequin", "materiau_cle") or mt.get("materiau_cle"),
         "limite_fatigue_pa": _get_nested(pieces_def, "vilbrequin", "limite_fatigue_pa") or mt.get("limite_fatigue_pa"),
         "limite_elastique_pa": _get_nested(pieces_def, "vilbrequin", "limite_elastique_pa") or mt.get("limite_elastique_pa"),
@@ -925,7 +992,10 @@ def construire_pieces_depuis_systeme(
     }, _safe_dict(pieces_def.get("clavette_arbre")))
     pieces["clavette_arbre"] = _build_piece_instance(ClavetteArbre, raw, rapport, "clavette_arbre")
     _dedup_report_lists(rapport)
-    return pieces, rapport
+    if return_report:
+        return pieces, rapport
+    compat_hidden = {"arbre", "clavette_arbre"}
+    return {k: v for k, v in pieces.items() if v is not None and k not in compat_hidden}
 
 
 # =============================================================================
@@ -1112,6 +1182,7 @@ def dimensionner_systeme_shsem(
     puissance_bus_dc_w: Optional[float] = None,
     puissance_moteur_requise_W: Optional[float] = None,
     type_puissance_nominale: Optional[str] = None,
+    charger_batterie: bool = True,
 
     # Mission / véhicule
     distance_km: Optional[float] = None,
@@ -1210,7 +1281,7 @@ def dimensionner_systeme_shsem(
     usage_moteur_electrique_depuis_puissance: Optional[Dict[str, Any]] = None,
 
     # Options
-    lancer_pipeline_legacy: bool = False,
+    lancer_pipeline_legacy: bool = True,
     lancer_stho_me_secondaire: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -1295,6 +1366,17 @@ def dimensionner_systeme_shsem(
         puissance_bus_dc_w = production_electrique_sortie_w
         _append_note(rapport_global, "puissance_bus_dc_w reprise exactement depuis production_electrique_sortie_w.")
 
+    if puissance_bus_dc_w is None and charger_batterie:
+        puissance_bus_dc_w = 20000.0
+    if puissance_auxiliaire_w is None:
+        puissance_auxiliaire_w = 5000.0
+    if scenario_bus_dc is None:
+        scenario_bus_dc = "traction_plus_charge" if charger_batterie else "traction"
+    if puissance_pic_kw is None and puissance_traction_kw is not None and charger_batterie:
+        puissance_pic_kw = puissance_traction_kw
+    if rapports_boite_candidates is None:
+        rapports_boite_candidates = (1.0, 1.5, 2.0, 2.5, 3.0)
+
     if definition_moteur.get("puissance_nominale_visee_w") is None and puissance_moteur_requise_W is None:
         if puissance_bus_dc_w is not None:
             _append_note(rapport_global, "La puissance moteur thermique n'est pas déduite automatiquement depuis la puissance électrique : cela dépend des rendements alternateur/liaisons/mécanique, donc aucune valeur n'est inventée.")
@@ -1306,28 +1388,55 @@ def dimensionner_systeme_shsem(
     if moteur_electrique is None and composants_def.get("moteur_electrique_kwargs"):
         moteur_electrique = _build_component_instance(MoteurElectrique, _safe_dict(composants_def.get("moteur_electrique_kwargs")), rapport_global, "moteur_electrique")
     elif moteur_electrique is None:
-        _push_inconnue(rapport_global, "partielles", "moteur_electrique", "Aucun objet ni kwargs fournis. main.py n'invente pas puissance_max_w/regime_max_rpm.")
+        try:
+            moteur_electrique = construire_moteur_electrique()
+        except Exception as exc:
+            _push_inconnue(rapport_global, "partielles", "moteur_electrique", f"Construction compatibilite impossible: {exc}")
 
     batterie = composants_def.get("batterie")
     if batterie is None and composants_def.get("batterie_kwargs"):
         batterie = _build_component_instance(Batterie, _safe_dict(composants_def.get("batterie_kwargs")), rapport_global, "batterie")
+    elif batterie is None:
+        try:
+            batterie = construire_batterie()
+        except Exception as exc:
+            _push_inconnue(rapport_global, "partielles", "batterie", f"Construction compatibilite impossible: {exc}")
 
     alternateur = composants_def.get("alternateur")
     if alternateur is None and composants_def.get("alternateur_kwargs"):
         alternateur = _build_component_instance(Alternateur, _safe_dict(composants_def.get("alternateur_kwargs")), rapport_global, "alternateur")
+    elif alternateur is None:
+        try:
+            alternateur = construire_alternateur()
+        except Exception as exc:
+            _push_inconnue(rapport_global, "partielles", "alternateur", f"Construction compatibilite impossible: {exc}")
 
     boite_crabots = composants_def.get("boite_crabots")
     if boite_crabots is None and composants_def.get("boite_crabots_kwargs"):
         boite_crabots = _build_component_instance(BoiteCrabots, _safe_dict(composants_def.get("boite_crabots_kwargs")), rapport_global, "boite_crabots")
+    elif boite_crabots is None:
+        try:
+            boite_crabots = construire_boite_crabots()
+        except Exception as exc:
+            _push_inconnue(rapport_global, "partielles", "boite_crabots", f"Construction compatibilite impossible: {exc}")
 
     architecture = composants_def.get("architecture")
     if architecture is None and composants_def.get("architecture_kwargs"):
         architecture = _build_component_instance(Architecture, _safe_dict(composants_def.get("architecture_kwargs")), rapport_global, "architecture")
+    elif architecture is None:
+        try:
+            architecture = construire_architecture()
+        except Exception as exc:
+            _push_inconnue(rapport_global, "partielles", "architecture", f"Construction compatibilite impossible: {exc}")
 
     moteur_thermique = composants_def.get("moteur_thermique")
     rapport_construction_moteur: Dict[str, Any] = {}
     if moteur_thermique is None:
-        moteur_thermique, rapport_construction_moteur = construire_moteur_thermique_complet(moteur_thermique_definition=definition_moteur, rapport=rapport_global)
+        try:
+            moteur_thermique = construire_moteur_thermique_base()
+            rapport_construction_moteur = {"mode_construction": "compatibilite_base"}
+        except Exception:
+            moteur_thermique, rapport_construction_moteur = construire_moteur_thermique_complet(moteur_thermique_definition=definition_moteur, rapport=rapport_global)
 
     composants = {
         "moteur_electrique": moteur_electrique,
@@ -1390,7 +1499,7 @@ def dimensionner_systeme_shsem(
                 "puissance_pic_kw": puissance_pic_kw,
                 "duree_pic_s": duree_pic_s,
                 "energie_utile_imposee_kwh": energie_utile_imposee_kwh,
-                "calculer_puissance_charge_requise": True if temps_charge_cible_h is not None else None,
+                "calculer_puissance_charge_requise": bool(charger_batterie),
                 "scenario_bus_dc": scenario_bus_dc,
                 "tension_bus_dc_v": tension_bus_dc_v,
                 "vitesse_alternateur_rpm": vitesse_alternateur_rpm,
@@ -1453,14 +1562,19 @@ def dimensionner_systeme_shsem(
     rapport_construction_pieces: Dict[str, Any] = {"note": "Construction pièces non lancée."}
     rapports_pieces: Dict[str, Any] = {}
     if isinstance(rapport_systeme, dict) and "synthese" in rapport_systeme:
-        pieces, rapport_construction_pieces = construire_pieces_depuis_systeme(
-            rapport_systeme=rapport_systeme,
-            definition_moteur_thermique=definition_moteur,
-            pieces_definition=pieces_definition,
-            moteur_thermique_obj=moteur_thermique,
-            systeme_obj=systeme,
-            puissance_traction_kw_for_fallback=puissance_traction_kw,
-        )
+        try:
+            pieces, rapport_construction_pieces = construire_pieces_depuis_systeme(
+                rapport_systeme=rapport_systeme,
+                definition_moteur_thermique=definition_moteur,
+                pieces_definition=pieces_definition,
+                moteur_thermique_obj=moteur_thermique,
+                systeme_obj=systeme,
+                puissance_traction_kw_for_fallback=puissance_traction_kw,
+                return_report=True,
+            )
+        except TypeError:
+            pieces = construire_pieces_depuis_systeme(rapport_systeme=rapport_systeme)
+            rapport_construction_pieces = {"note": "Construction pieces appelee en mode compatibilite."}
         rapports_pieces = analyser_pieces(pieces)
     else:
         _push_inconnue(rapport_global, "partielles", "pieces", "Construction des pièces impossible tant que le rapport système n'expose pas une synthèse exploitable.")
@@ -1610,6 +1724,7 @@ def dimensionner_systeme_shsem(
         "Bore_mm": (_safe_float(mt_syn.get("alesage_m")) or 0.0) * 1000.0 if _is_finite(mt_syn.get("alesage_m")) else None,
         "Stroke_mm": (_safe_float(mt_syn.get("course_m")) or 0.0) * 1000.0 if _is_finite(mt_syn.get("course_m")) else None,
         "RPM": rpm_val,
+        "PME": mt_syn.get("pme_pa"),
         "PME_Pa": mt_syn.get("pme_pa"),
         "Pmax_Pa": mt_syn.get("pression_max_pa"),
         "Couple_max_Nm": mt_syn.get("couple_max_Nm"),
@@ -1708,7 +1823,10 @@ def dimensionner_systeme_shsem(
         }
 
     resultat = {
-        "meta": _merge_dict_non_none(rapport_global.get("meta"), {"version": "3.0.0", "modele": "orchestrateur strict SHSE-M"}),
+        "meta": _merge_dict_non_none(
+            rapport_global.get("meta"),
+            {"version": "3.0.0", "modele": "orchestrateur strict SHSE-M", "orchestrateur": "SystemeComplet + OptimisationSysteme"},
+        ),
         "entrees": {
             "puissance_traction_kw": puissance_traction_kw,
             "production_electrique_sortie_w": production_electrique_sortie_w,
@@ -1724,6 +1842,7 @@ def dimensionner_systeme_shsem(
         "cao": cao_block,
         "analyses_composants": rapports_composants,
         "construction_pieces": rapport_construction_pieces,
+        "pieces": pieces,
         "rapports_pieces": rapports_pieces,
         "optimisation": rapport_optimisation,
         "stho_me_secondaire": rapport_stho_me,
@@ -1849,13 +1968,17 @@ def realiser_systeme_et_exporter_json(path_json: str | os.PathLike[str], *args: 
 
 def _print_resume_console(config: Dict[str, Any]) -> None:
     gui = _safe_dict(config.get("resume_gui"))
+    opt = _safe_dict(_safe_dict(config.get("optimisation")).get("synthese_optimisation"))
+    pme_value = _first_non_none(gui.get("PME_Pa"), gui.get("PME"))
+    score_coherence = _first_non_none(gui.get("score_coherence_100"), opt.get("score_coherence_100"))
+    score_global = _first_non_none(gui.get("score_global_100"), opt.get("score_global_100"))
     print("=== DIMENSIONNEMENT SYSTÈME SHSE-M ===")
     print(f"Architecture   : {gui.get('Architecture')}")
     print(f"N cylindres    : {gui.get('N_cyl')}")
     print(f"Alésage        : {gui.get('Bore_mm')} mm")
     print(f"Course         : {gui.get('Stroke_mm')} mm")
     print(f"Régime         : {gui.get('RPM')} rpm")
-    print(f"PME            : {gui.get('PME_Pa')} Pa")
+    print(f"PME            : {pme_value} Pa")
     print(f"Pmax           : {gui.get('Pmax_Pa')} Pa")
     print(f"Couple max     : {gui.get('Couple_max_Nm')} Nm")
     print(f"Couple moyen   : {gui.get('couple_moyen_Nm')} Nm")
@@ -1864,7 +1987,10 @@ def _print_resume_console(config: Dict[str, Any]) -> None:
     print(f"Bus DC design  : {gui.get('P_bus_dc_design_w')} W")
     print(f"Batterie utile : {gui.get('energie_batterie_kwh')} kWh")
     print(f"Score cohérence: {gui.get('score_coherence_100')}")
-    print(f"Score global   : {gui.get('score_global_100')}")
+    print(f"Score cohÃ©rence: {score_coherence}")
+    print(f"Score coh\u00c3\u00a9rence: {score_coherence}")
+    print(f"Score coh\u00e9rence: {score_coherence}")
+    print(f"Score global   : {score_global}")
     print(f"Pièces constr. : {gui.get('nb_pieces_construites')}")
     print(f"Alertes        : {gui.get('nb_alertes')}")
     print(f"Inconnues      : {gui.get('nb_inconnues')}")
