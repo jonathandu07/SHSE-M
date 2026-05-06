@@ -1,13 +1,13 @@
-2026-05-06 21:13:20,030 - INFO - Starting test_hydrostatics
-2026-05-06 21:13:20,031 - INFO - RESULT - test_hydrostatics: SUCCESS 
-2026-05-06 21:13:20,034 - INFO - Starting test_reynolds_water
-2026-05-06 21:13:20,034 - INFO - RESULT - test_reynolds_water: SUCCESS 
-2026-05-06 21:13:20,036 - INFO - Starting test_eau_pure
-2026-05-06 21:13:20,045 - WARNING - No backend for pure water testing. Skipping detailed checks.
-2026-05-06 21:13:20,046 - INFO - RESULT - test_eau_pure: SKIPPED No backend
-2026-05-06 21:13:20,048 - INFO - Starting test_eau_salee
-2026-05-06 21:13:20,056 - INFO - RESULT - test_eau_salee: SKIPPED No backend
-2026-05-06 21:13:20,060 - INFO - Starting test_antigel
-2026-05-06 21:13:20,067 - INFO - RESULT - test_antigel: SKIPPED No CoolProp
-2026-05-06 21:13:20,070 - INFO - Starting test_saturation
-2026-05-06 21:13:20,078 - INFO - RESULT - test_saturation: SKIPPED No backend
+2026-05-06 21:27:52,897 - INFO - Starting test_hydrostatics
+2026-05-06 21:27:52,897 - INFO - RESULT - test_hydrostatics: SUCCESS 
+2026-05-06 21:27:52,901 - INFO - Starting test_reynolds_water
+2026-05-06 21:27:52,901 - INFO - RESULT - test_reynolds_water: SUCCESS 
+2026-05-06 21:27:52,905 - INFO - Starting test_eau_pure
+2026-05-06 21:27:52,919 - WARNING - No backend for pure water testing. Skipping detailed checks.
+2026-05-06 21:27:52,919 - INFO - RESULT - test_eau_pure: SKIPPED No backend
+2026-05-06 21:27:52,923 - INFO - Starting test_eau_salee
+2026-05-06 21:27:52,937 - INFO - RESULT - test_eau_salee: SKIPPED No backend
+2026-05-06 21:27:52,941 - INFO - Starting test_antigel
+2026-05-06 21:27:52,954 - INFO - RESULT - test_antigel: SKIPPED No CoolProp
+2026-05-06 21:27:52,957 - INFO - Starting test_saturation
+2026-05-06 21:27:52,974 - INFO - RESULT - test_saturation: SKIPPED No backend
