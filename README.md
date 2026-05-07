@@ -35,7 +35,7 @@ Le mode `analyser_systeme_depuis_puissance` accepte une puissance en `W`, `kW`, 
 Exemple strict avec stockage :
 
 ```powershell
-python backend/scripts/generer_rapport_puissance.py 150 --unite kw --search-json "{""rpm_sortie"":[1000,2000],""tension_dc_v"":[400,800]}"
+python backend/scripts/generer_rapport_puissance.py 150 --unite kw --search-json '{\"rpm_sortie\":[1000,2000],\"tension_dc_v\":[400,800]}'
 ```
 
 Sans `--search-json`, le rapport est quand meme ecrit, mais il indique les donnees manquantes au lieu de choisir un "meilleur" couple ou courant.

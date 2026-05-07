@@ -405,22 +405,239 @@ class LoadingScreen(Screen):
         app = App.get_running_app()
 
         steps = ["Architecture...", "Cylindrée...", "Vilebrequin...", "Thermodynamique...", "Finalisation..."]
+            radius: [13]
+"""
+)
+
+# =========================
+# UI Components
+# =========================
+class PremiumCard(BoxLayout):
+    def __init__(self, title="", **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = "vertical"
+        self.padding = [20, 20]
+        self.spacing = 10
+
+        with self.canvas.before:
+            Color(200 / 255, 200 / 255, 200 / 255, 0.35)
+            self.shadow = RoundedRectangle(pos=(0, 0), size=(0, 0), radius=[24])
+            Color(*COLORS["white"])
+            self.bg = RoundedRectangle(pos=(0, 0), size=(0, 0), radius=[24])
+
+        self.bind(pos=self.update_graphics, size=self.update_graphics)
+
+        if title:
+            t = Label(
+                text=title.upper(),
+                size_hint_y=None,
+                height=30,
+                color=COLORS["BF"],
+                bold=True,
+                font_size="14sp",
+                halign="left",
+                valign="middle",
+            )
+            t.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+            self.add_widget(t)
+
+    def update_graphics(self, *args):
+        self.shadow.pos = (self.x + 6, self.y - 6)
+        self.shadow.size = self.size
+        self.bg.pos = self.pos
+        self.bg.size = self.size
+
+
+class ModernButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ""
+        self.background_down = ""
+        self.background_color = (0, 0, 0, 0)
+        self.bold = True
+        self.color = COLORS["white"]
+        if "font_size" not in kwargs:
+            self.font_size = "18sp"
+        with self.canvas.before:
+            self.bg_color = Color(*COLORS["BF"])
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[20])
+        self.bind(pos=self.update_graphics, size=self.update_graphics)
+
+    def on_state(self, instance, value):
+        self.bg_color.rgba = COLORS["BM"] if value == "down" else COLORS["BF"]
+
+    def update_graphics(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+
+class TechRow(BoxLayout):
+    """Une ligne clé/valeur lisible (fond léger + padding + wrap)."""
+
+    def __init__(self, key_text: str, value_text: str, **kwargs):
+        super().__init__(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=48,
+            spacing=10,
+            padding=[12, 6, 12, 6],
+            **kwargs,
+        )
+
+        with self.canvas.before:
+            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.80)
+            self._bg = RoundedRectangle(pos=self.pos, size=self.size, radius=[12])
+        self.bind(pos=self._update_bg, size=self._update_bg)
+
+        self.key_lbl = Label(
+            text=key_text,
+            color=COLORS["GAXD"],
+            halign="left",
+            valign="middle",
+            font_size="13sp",
+            size_hint_x=0.60,
+        )
+        self.val_lbl = Label(
+            text=value_text,
+            color=COLORS["BF"],
+            halign="right",
+            valign="middle",
+            font_size="14sp",
+            size_hint_x=0.40,
+        )
+
+        self.key_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        self.val_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+
+        self.add_widget(self.key_lbl)
+        self.add_widget(self.val_lbl)
+
+    def _update_bg(self, *args):
+        self._bg.pos = self.pos
+        self._bg.size = self.size
+
+
+# =========================
+# Screens
+# =========================
+class ConfigScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            Color(*COLORS["BL"])
+            self.bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[0])
+        self.bind(pos=self._update_bg, size=self._update_bg)
+
+        root = BoxLayout(orientation="vertical", padding=[100, 60], spacing=40)
+
+        header = BoxLayout(orientation="vertical", size_hint_y=0.4)
+        header.add_widget(Label(text="SHSE-M", font_size="64sp", bold=True, color=COLORS["BF"]))
+        header.add_widget(Label(text="ENGINE GENERATOR", font_size="24sp", color=COLORS["BA"]))
+        root.add_widget(header)
+
+        main_card = PremiumCard(size_hint_y=0.4)
+        main_card.add_widget(Label(text="PUISSANCE CIBLE (kW)", color=COLORS["BF"], bold=True, font_size="18sp"))
+
+        self.power_input = NeumorphicInput(text="150")
+        self.power_input.hint_text = "Ex: 150"
+        main_card.add_widget(self.power_input)
+
+        self.err = Label(text="", color=COLORS["RF"], font_size="14sp", size_hint_y=None, height=20)
+        main_card.add_widget(self.err)
+
+        root.add_widget(main_card)
+
+        self.gen_btn = ModernButton(text="GÉNÉRER LE SYSTÈME", size_hint_y=0.2)
+        self.gen_btn.bind(on_press=self.launch_generation)
+        root.add_widget(self.gen_btn)
+
+        self.add_widget(root)
+
+    def on_enter(self, *args):
+        Clock.schedule_once(lambda dt: setattr(self.power_input, "focus", True), 0)
+
+    def _update_bg(self, *args):
+        self.bg_rect.pos = self.pos
+        self.bg_rect.size = self.size
+
+    def launch_generation(self, *_):
+        txt_raw = (self.power_input.text or "").strip()
+        txt = txt_raw.replace(",", ".")
+        try:
+            val = float(txt)
+            if val <= 0:
+                raise ValueError("P > 0 requis")
+            if val > 5000:
+                self.err.text = "Limite: 5000 kW (Physique)"
+                return
+        except Exception as e:
+            self.err.text = f"Entrée invalide: {e}"
+            return
+
+        self.err.text = ""
+        app = App.get_running_app()
+        app.target_power = str(val)
+        self.manager.current = "loading"
+
+
+class LoadingScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        layout = BoxLayout(orientation="vertical", padding=100)
+        self.label = Label(text="Séquençage des calculs physiques...", font_size="24sp", color=COLORS["BF"])
+        layout.add_widget(self.label)
+        self.add_widget(layout)
+
+    def on_enter(self):
+        Clock.schedule_once(self.run_sim, 0.15)
+
+    def run_sim(self, dt):
+        threading.Thread(target=self.do_math, daemon=True).start()
+
+    def do_math(self):
+        import time
+
+        app = App.get_running_app()
+
+        steps = ["Architecture...", "Cylindrée...", "Vilebrequin...", "Thermodynamique...", "Finalisation..."]
         for s in steps:
             Clock.schedule_once(lambda dt, msg=f"Calcul : {s}": setattr(self.label, "text", msg))
             time.sleep(0.30)
 
         try:
-            from backend.main import dimensionner_systeme_shsem_simple
+            from backend.modules.systeme.database import SecureDatabase
 
             p_target = float(app.target_power)
-            res = dimensionner_systeme_shsem_simple(p_target)
+            
+            db = SecureDatabase()
+            report_name = f"gui_moteur_{int(p_target)}kw"
+            
+            # Lancement de l'orchestrateur complet via la BDD
+            db.compute_and_save_from_main(
+                report_name=report_name,
+                function_name="dimensionner_systeme_shsem",
+                puissance_traction_kw=p_target,
+                energie_utile_imposee_kwh=100.0,
+                puissance_moteur_requise_W=p_target * 1000.0 * 1.1,
+                charger_batterie=True,
+                vitesse_moteur_thermique_rpm=1500.0,
+                pression_max_pa=8.0e6,
+                contrainte_admissible_pa=1.8e8,
+                moteur_thermique_definition={
+                    "temps_moteur": 4,
+                    "nombre_cylindres": 6 if p_target >= 100 else 4,
+                    "architecture": "L6" if p_target >= 100 else "L4",
+                    "alesage_m": 0.130 if p_target >= 100 else 0.080,
+                    "course_m": 0.150 if p_target >= 100 else 0.090,
+                    "rpm_nominal": 1500.0,
+                    "pression_max_pa": 8.0e6,
+                    "carburant": "diesel",
+                }
+            )
+            
+            # Récupère uniquement le résumé pour l'affichage Dashboard
+            res = db.load_resume_gui()
             app.simulation_results = res or {}
-        except Exception:
-            app.simulation_results = {"__error__": traceback.format_exc()}
-
-        Clock.schedule_once(lambda dt: setattr(self.manager, "current", "dashboard"))
-
-
 class DashboardScreen(Screen):
     res_pwr = StringProperty("-- kW")
     res_mass = StringProperty("-- kg")
