@@ -42,13 +42,13 @@ SystemeComplet = _import_attr(("backend.ensemble.systeme_complet", "systeme_comp
 OptimisationSysteme = _import_attr(("backend.ensemble.optimisation", "optimisation"), "OptimisationSysteme", default=None)
 STHO_ME = _import_attr(("backend.ensemble.STHO_ME", "STHO_ME"), "STHO_ME", default=None)
 
-MoteurElectrique = _import_attr(("backend.components.moteur_electrique", "moteur_electrique"), "MoteurElectrique", default=None)
-AnalyserMoteurElectriqueDepuisPuissance = _import_attr(("backend.components.moteur_electrique", "moteur_electrique"), "analyser_depuis_puissance", default=None)
-Batterie = _import_attr(("backend.components.batterie", "batterie"), "Batterie", default=None)
-Alternateur = _import_attr(("backend.components.alternateur", "alternateur"), "Alternateur", default=None)
-MoteurThermique = _import_attr(("backend.components.moteur_thermique", "moteur_thermique"), "MoteurThermique", default=None)
-BoiteCrabots = _import_attr(("backend.components.boite_crabots", "boite_crabots"), "BoiteCrabots", default=None)
-Architecture = _import_attr(("backend.components.architecture", "architecture"), "Architecture", default=None)
+MoteurElectrique = _import_attr(("backend.components.moteur_electrique.moteur_electrique", "backend.components.moteur_electrique", "moteur_electrique"), "MoteurElectrique", default=None)
+AnalyserMoteurElectriqueDepuisPuissance = _import_attr(("backend.components.moteur_electrique.moteur_electrique", "backend.components.moteur_electrique", "moteur_electrique"), "analyser_depuis_puissance", default=None)
+Batterie = _import_attr(("backend.components.batterie.batterie", "backend.components.batterie", "batterie"), "Batterie", default=None)
+Alternateur = _import_attr(("backend.components.alternateur.alternateur", "backend.components.alternateur", "alternateur"), "Alternateur", default=None)
+MoteurThermique = _import_attr(("backend.components.moteur_thermique.moteur_thermique", "backend.components.moteur_thermique", "moteur_thermique"), "MoteurThermique", default=None)
+BoiteCrabots = _import_attr(("backend.components.boite_crabots.boite_crabots", "backend.components.boite_crabots", "boite_crabots"), "BoiteCrabots", default=None)
+Architecture = _import_attr(("backend.components.architechture.architecture", "backend.components.architecture.architecture", "backend.components.architechture", "architecture"), "Architecture", default=None)
 
 Cylindre = _import_attr(("backend.components.moteur_thermique.pieces.cylindre", "cylindre"), "Cylindre", default=None)
 Piston = _import_attr(("backend.components.moteur_thermique.pieces.piston", "piston"), "Piston", default=None)
@@ -75,7 +75,7 @@ except Exception:
     dimensionner_pieces_completes = None  # type: ignore
 
 try:
-    from backend.system_generator import DriveChainGenerator  # type: ignore
+    from backend.modules.systeme.system_generator import DriveChainGenerator  # type: ignore
 except Exception:
     DriveChainGenerator = None  # type: ignore
 
@@ -1885,8 +1885,8 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
     """
 
     from backend.modules.systeme.definition_pieces import dimensionner_pieces_completes
-    from backend.engineering_model import DimensioningEngine
-    from backend.system_generator import DriveChainGenerator
+    from backend.modules.systeme.engineering_model import DimensioningEngine
+    from backend.modules.systeme.system_generator import DriveChainGenerator
 
     p_kw = _req_pos("puissance_traction_kw", puissance_traction_kw)
 

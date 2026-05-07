@@ -902,14 +902,14 @@ class PieceLibraryScreen(Screen):
     def on_enter(self, *args):
         self.grid.clear_widgets()
 
-        pieces_path = os.path.join(BASE_DIR, "backend", "pieces")
+        pieces_path = os.path.join(BASE_DIR, "backend", "components", "moteur_thermique", "pieces")
         if not os.path.exists(pieces_path):
             self.grid.add_widget(Label(text=f"Dossier introuvable: {pieces_path}", color=COLORS["RF"]))
             return
 
         files = [f for f in os.listdir(pieces_path) if f.endswith(".py") and f != "__init__.py"]
         if not files:
-            self.grid.add_widget(Label(text="Aucune pièce trouvée dans backend/pieces", color=COLORS["GAXD"]))
+            self.grid.add_widget(Label(text="Aucune pièce trouvée dans backend/components/moteur_thermique/pieces", color=COLORS["GAXD"]))
             return
 
         for f in sorted(files):
@@ -964,7 +964,7 @@ class PieceDetailScreen(Screen):
         # --- Load data
         data = None
         try:
-            from backend.database import SecureDatabase
+            from backend.modules.systeme.database import SecureDatabase
 
             db_path_abs = os.path.join(BASE_DIR, "backend", "shse_technical_data.db")
             db = SecureDatabase(db_path=db_path_abs)

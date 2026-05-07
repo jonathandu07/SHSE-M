@@ -11,7 +11,7 @@ def _fmt(value: float, unit: str, digits: int = 1) -> str:
 
 @dataclass
 class DriveChainGenerator:
-    """Builds a compact drivetrain summary for the GUI.
+    """Builds a compact system drivetrain summary for the GUI.
 
     This is not a detailed design authority. It provides deterministic,
     documented estimates so the app can run and display coherent first-pass
