@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.moteur_electrique.calcul_acceleration_max import (
+from backend.components.moteur_electrique.modules.calcul_acceleration_max import (
     calcul_acceleration_max,
     calcul_acceleration_max_analytique
 )

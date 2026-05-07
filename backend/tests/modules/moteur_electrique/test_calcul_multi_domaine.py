@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import json
-from backend.modules.moteur_electrique.calcul_multi_domaine import (
+from backend.components.moteur_electrique.modules.calcul_multi_domaine import (
     calcul_densite_air_sec,
     calcul_demande_nautique,
     calcul_demande_aerien_rho,

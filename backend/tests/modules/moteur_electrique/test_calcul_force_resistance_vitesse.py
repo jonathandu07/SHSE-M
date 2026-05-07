@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.moteur_electrique.calcul_force_resistance_vitesse import (
+from backend.components.moteur_electrique.modules.calcul_force_resistance_vitesse import (
     calcul_force_resistance_totale
 )
 

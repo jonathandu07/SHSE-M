@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.moteur_electrique.calcul_puissance_moteur import (
+from backend.components.moteur_electrique.modules.calcul_puissance_moteur import (
     calcul_puissance_moteur_electrique,
     calcul_couple_moteur
 )

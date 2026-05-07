@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.moteur_electrique.calcul_charge_essieu import (
+from backend.components.moteur_electrique.modules.calcul_charge_essieu import (
     calcul_charges_essieux
 )
 
