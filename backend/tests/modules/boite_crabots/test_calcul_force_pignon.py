@@ -4,7 +4,7 @@ import os
 import logging
 import math
 import json
-from backend.modules.boite_crabots.calcul_force_pignon import (
+from backend.components.boite_crabots.modules.calcul_force_pignon import (
     calcul_force_tangentielle,
     calcul_forces_engrenage
 )

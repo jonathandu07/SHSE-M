@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.boite_crabots.calcul_choc_engagement import (
+from backend.components.boite_crabots.modules.calcul_choc_engagement import (
     calcul_inertie_equivalente,
     calcul_energie_choc,
     calcul_couple_synchronisation_moyen

@@ -4,7 +4,7 @@ import os
 import logging
 import math
 import json
-from backend.modules.boite_crabots.calcul_dimensionnement_arbre import (
+from backend.components.boite_crabots.modules.calcul_dimensionnement_arbre import (
     calcul_contrainte_cisaillement_torsion,
     calcul_contrainte_flexion_arbre,
     calcul_von_mises_arbre,

@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.boite_crabots.calcul_duree_vie_roulement import (
+from backend.components.boite_crabots.modules.calcul_duree_vie_roulement import (
     calcul_charge_equivalente_roulement,
     calcul_duree_vie_l10,
     calcul_duree_vie_heures

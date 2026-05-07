@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.boite_crabots.calcul_flexion_dent import (
+from backend.components.boite_crabots.modules.calcul_flexion_dent import (
     calcul_contrainte_flexion_lewis
 )
 

@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.boite_crabots.calcul_contact_dent import (
+from backend.components.boite_crabots.modules.calcul_contact_dent import (
     calcul_contrainte_contact_hertz
 )
 

@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import json
-from backend.modules.boite_crabots.calcul_dimensionnement_crabot import (
+from backend.components.boite_crabots.modules.calcul_dimensionnement_crabot import (
     calcul_couple_transmissible_crabot,
     calcul_pression_contact_crabot
 )
