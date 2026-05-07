@@ -4,7 +4,7 @@
 # =============================================================================
 # But :
 # - afficher un joint piston / ses rainures en 3D
-# - utiliser les données de backend/pieces/joint_piston.py
+# - utiliser les données de backend/components/moteur_thermique/pieces/joint_piston.py
 # - ne rien inventer hors du rapport calculé
 #
 # Dépendances :

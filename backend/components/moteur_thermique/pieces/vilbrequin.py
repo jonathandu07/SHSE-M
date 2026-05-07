@@ -1,4 +1,4 @@
-# backend/pieces/vilbrequin.py
+# backend/components/moteur_thermique/pieces/vilbrequin.py
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,4 +1,4 @@
-# backend/pieces/arbre_vilbrequin.py
+# backend/components/moteur_thermique/pieces/arbre_vilbrequin.py
 # =============================================================================
 # ARBRE DE VILEBREQUIN — SHSE-M
 # Version complétée : inter-pièces + contraintes mécaniques + bloc CAO/SolidWorks

@@ -25,7 +25,7 @@ import math
 # --- import robuste de tes utilitaires pack électrique (courant, etc.) ---
 # Compatible avec plusieurs arborescences :
 # - backend.components.batterie.modules.*
-# - backend.modules.batterie.*
+# - backend.components.batterie.modules.*
 # - fichiers posés dans le même dossier
 try:  # arborescence initialement utilisée dans certains fichiers
     from backend.components.batterie.modules.calcul_electrique_pack import (

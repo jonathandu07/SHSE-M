@@ -1,4 +1,4 @@
-# backend/pieces/roulement_aiguille_arbre.py
+# backend/components/moteur_thermique/pieces/roulement_aiguille_arbre.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -383,7 +383,7 @@ class RoulementAiguilleArbre:
     SANS RIEN INVENTER.
 
     Dépendances (recommandées) :
-    - vilbrequin (backend/pieces/vilbrequin.py) : rpm, couple, diamètres/largeurs des portées.
+    - vilbrequin (backend/components/moteur_thermique/pieces/vilbrequin.py) : rpm, couple, diamètres/largeurs des portées.
     - bielle / piston : si ces modules fournissent une force max, on peut l'utiliser comme charge radiale candidate.
     - coussinet/palier lisse : si une zone n'est pas un roulement à aiguilles, ce module peut aussi exposer
       un bloc hydrodynamique de premier niveau ou relayer un vrai module coussinet.

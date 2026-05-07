@@ -4,7 +4,7 @@
 # =============================================================================
 # But :
 # - afficher rapidement la forme 3D attendue minimale de la pièce
-# - utiliser uniquement les données calculées dans backend/pieces/arbre_vilbrequin.py
+# - utiliser uniquement les données calculées dans backend/components/moteur_thermique/pieces/arbre_vilbrequin.py
 # - ne pas inventer les bras/contrepoids si non définis
 #
 # Dépendances :

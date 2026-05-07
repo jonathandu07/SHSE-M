@@ -3,7 +3,7 @@
 # VISUALISATION 3D DÉTAILLÉE — CYLINDRE
 # =============================================================================
 # But :
-# - afficher un cylindre détaillé à partir de backend/pieces/cylindre.py
+# - afficher un cylindre détaillé à partir de backend/components/moteur_thermique/pieces/cylindre.py
 # - utiliser prioritairement rapport["geometrie"]["cao"]
 # - ne rien inventer hors des données calculées
 #

@@ -1,4 +1,4 @@
-# backend/pieces/bielle.py
+# backend/components/moteur_thermique/pieces/bielle.py
 # =============================================================================
 # CORPS DE BIELLE — SHSE-M
 # Version complétée : calcul + inter-pièces + bloc CAO / SolidWorks
@@ -25,7 +25,7 @@
 #   * soit le module renvoie des équivalents calculatoires et des inconnues.
 # =============================================================================
 
-# backend/pieces/bielle.py
+# backend/components/moteur_thermique/pieces/bielle.py
 # =============================================================================
 # CORPS DE BIELLE — SHSE-M
 # Version complétée : calcul + inter-pièces + bloc CAO / SolidWorks

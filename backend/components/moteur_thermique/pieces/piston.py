@@ -1,4 +1,4 @@
-# backend/pieces/piston.py
+# backend/components/moteur_thermique/pieces/piston.py
 # =============================================================================
 # PISTON (côté froid) — SHSE-M
 # =============================================================================

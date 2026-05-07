@@ -3,7 +3,7 @@
 # VISUALISATION 3D DÉTAILLÉE — COUSSINET ARBRE-PISTON
 # =============================================================================
 # But :
-# - afficher un coussinet 3D détaillé à partir de backend/pieces/coussinet_arbre_piston.py
+# - afficher un coussinet 3D détaillé à partir de backend/components/moteur_thermique/pieces/coussinet_arbre_piston.py
 # - n'utiliser que les données du bloc CAO sans inventer
 #
 # Dépendances :

@@ -1,4 +1,4 @@
-# backend/pieces/cylindre.py
+# backend/components/moteur_thermique/pieces/cylindre.py
 from __future__ import annotations
 
 from dataclasses import dataclass

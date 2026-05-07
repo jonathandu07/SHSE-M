@@ -3,7 +3,7 @@
 # VISUALISATION 3D DÉTAILLÉE — DEPLACEUR
 # =============================================================================
 # But :
-# - afficher un déplaceur 3D détaillé à partir de backend/pieces/deplaceur.py
+# - afficher un déplaceur 3D détaillé à partir de backend/components/moteur_thermique/pieces/deplaceur.py
 # - respecter uniquement les données calculées dans rapport["geometrie"]["cao"]
 #
 # Dépendances :

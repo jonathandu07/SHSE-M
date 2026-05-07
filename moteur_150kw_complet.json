@@ -113,11 +113,6 @@
         "pieces": {},
         "inconnues_cao": [
             {
-                "piece": "cylindre",
-                "champ": "epaisseur_cylindre_mm",
-                "raison": "Épaisseur paroi inconnue."
-            },
-            {
                 "piece": "bielle",
                 "champ": "longueur_bielle_m",
                 "raison": "Longueur de bielle inconnue."
@@ -483,13 +478,13 @@
         },
         "moteur_thermique_geometrie": {
             "entrees": {
-                "alesage_m": 0.08,
-                "course_m": 0.08,
-                "nombre_cylindres": 4,
+                "alesage_m": 0.13,
+                "course_m": 0.15,
+                "nombre_cylindres": 6,
                 "pression_pa": 8000000.0,
                 "taux_compression": null,
                 "volume_mort_m3": null,
-                "contrainte_admissible_pa": null,
+                "contrainte_admissible_pa": 180000000.0,
                 "facteur_securite_cylindre": 1.5,
                 "include_longitudinale": false,
                 "ratio_mince_max": 0.1,
@@ -500,42 +495,44 @@
                 "cas_de_charge_count": 0
             },
             "cylindre_complet": {
-                "alesage_m": 0.08,
-                "rayon_interne_m": 0.04,
-                "course_m": 0.08,
-                "nombre_cylindres": 4.0,
-                "aire_section_m2": 0.005026548245743669,
-                "aire_piston_m2": 0.005026548245743669,
-                "cylindree_unitaire_m3": 0.00040212385965949355,
-                "cylindree_unitaire_l": 0.40212385965949354,
-                "cylindree_unitaire_cm3": 402.1238596594935,
-                "cylindree_totale_m3": 0.0016084954386379742,
-                "cylindree_totale_l": 1.6084954386379742,
-                "cylindree_totale_cm3": 1608.495438637974,
-                "ratio_alesage_course": 1.0,
-                "architecture_code": 0.0,
+                "alesage_m": 0.13,
+                "rayon_interne_m": 0.065,
+                "course_m": 0.15,
+                "nombre_cylindres": 6.0,
+                "aire_section_m2": 0.013273228961416878,
+                "aire_piston_m2": 0.013273228961416878,
+                "cylindree_unitaire_m3": 0.0019909843442125316,
+                "cylindree_unitaire_l": 1.9909843442125317,
+                "cylindree_unitaire_cm3": 1990.9843442125316,
+                "cylindree_totale_m3": 0.01194590606527519,
+                "cylindree_totale_l": 11.94590606527519,
+                "cylindree_totale_cm3": 11945.90606527519,
+                "ratio_alesage_course": 0.8666666666666667,
+                "architecture_code": -1.0,
                 "pression_pa": 8000000.0,
-                "force_gaz_n": 40212.385965949354,
-                "inconnues": "contrainte_admissible_pa / epaisseur_paroi"
+                "force_gaz_n": 106185.83169133503,
+                "contrainte_admissible_pa": 180000000.0,
+                "facteur_securite": 1.5,
+                "epaisseur_mince_m": 0.004333333333333333,
+                "t_over_ri_mince": 0.06666666666666667,
+                "ratio_mince_max": 0.1,
+                "epaisseur_lame_m": 0.004487922897230337,
+                "epaisseur_auto_m": 0.004333333333333333,
+                "inconnues": ""
             },
             "inconnues": {
                 "impossibles": [],
-                "partielles": [
-                    {
-                        "nom": "agrégateur cylindre",
-                        "raison": "contrainte_admissible_pa / epaisseur_paroi"
-                    }
-                ]
+                "partielles": []
             },
             "notes_modele": []
         },
         "moteur_thermique_cycle": {
             "entrees": {
-                "rpm": 3000.0,
-                "alesage_m": 0.08,
-                "course_m": 0.08,
+                "rpm": 1500.0,
+                "alesage_m": 0.13,
+                "course_m": 0.15,
                 "longueur_bielle_m": null,
-                "nombre_cylindres": 4,
+                "nombre_cylindres": 6,
                 "ordre_allumage": null,
                 "masse_alternative_kg": null,
                 "masse_alternative_effective_kg": null,
@@ -592,19 +589,19 @@
         },
         "moteur_thermique_point": {
             "entrees": {
-                "rpm": 3000.0,
+                "rpm": 1500.0,
                 "pression_moyenne_effective_pa": 1500000.0,
                 "pression_cylindre_pa": null,
                 "angle_vilebrequin_deg": null,
                 "duree_fonctionnement_s": null,
                 "temps_moteur": 4,
-                "nombre_cylindres": 4,
-                "alesage_m": 0.08,
-                "course_m": 0.08,
-                "architecture": null,
-                "rpm_nominal": 3000.0,
-                "pme_nominale_pa": 800000.0,
-                "pression_max_nominale_pa": null,
+                "nombre_cylindres": 6,
+                "alesage_m": 0.13,
+                "course_m": 0.15,
+                "architecture": "L6",
+                "rpm_nominal": 1500.0,
+                "pme_nominale_pa": 1500000.0,
+                "pression_max_nominale_pa": 8000000.0,
                 "taux_compression_effectif": null,
                 "volume_mort_effectif_m3": null,
                 "ordre_allumage": null,
@@ -613,25 +610,25 @@
                 "carburant_nom": null
             },
             "cylindree": {
-                "Vd_unitaire_m3": 0.00040212385965949355,
-                "Vd_totale_m3": 0.0016084954386379742,
-                "ratio_alesage_course_B_sur_S": 1.0,
-                "type_geometrique": "carre",
+                "Vd_unitaire_m3": 0.0019909843442125316,
+                "Vd_totale_m3": 0.01194590606527519,
+                "ratio_alesage_course_B_sur_S": 0.8666666666666667,
+                "type_geometrique": "longue_course",
                 "volume_mort_effectif_m3": null,
                 "taux_compression_effectif": null
             },
             "cinematique": {
-                "omega_rad_s": 314.1592653589793,
-                "cycles_par_seconde": 25.0,
-                "vitesse_moyenne_piston_ms": 8.0,
-                "distance_glissement_piston_par_heure_m": 28800.0,
-                "rayon_manivelle_m_effectif": 0.04,
+                "omega_rad_s": 157.07963267948966,
+                "cycles_par_seconde": 12.5,
+                "vitesse_moyenne_piston_ms": 7.5,
+                "distance_glissement_piston_par_heure_m": 27000.0,
+                "rayon_manivelle_m_effectif": 0.075,
                 "vitesse_glissement_palier_ms_effective": null
             },
             "resultats": {
-                "travail_indique_par_cycle_J": 2412.743157956961,
-                "puissance_indiquee_W": 60318.57894892403,
-                "puissance_frein_estimee_W": 51270.792106585424,
+                "travail_indique_par_cycle_J": 17918.859097912788,
+                "puissance_indiquee_W": 223985.73872390983,
+                "puissance_frein_estimee_W": 190387.87791532336,
                 "Q_fuite_m3_s": null,
                 "m_dot_fuite_kg_s": null,
                 "reynolds_fuite": null
@@ -679,10 +676,15 @@
             },
             "dimensionnement": {
                 "pression_dimensionnement_pa": 8000000.0,
-                "epaisseur_cylindre_mince_m": null,
-                "epaisseur_cylindre_lame_m": null,
-                "epaisseur_cylindre_auto_m": null,
-                "verification_paroi_mince": null
+                "epaisseur_cylindre_mince_m": 0.004333333333333333,
+                "epaisseur_cylindre_lame_m": 0.004487922897230337,
+                "epaisseur_cylindre_auto_m": 0.004333333333333333,
+                "verification_paroi_mince": {
+                    "t_over_ri": 0.06666666666666667,
+                    "ratio_max": 0.1,
+                    "is_thin_wall": 1.0
+                },
+                "epaisseur_cylindre_retenue_m": 0.004487922897230337
             },
             "assemblage": {
                 "force_separation_N": null,
@@ -700,7 +702,7 @@
                     "temperature_gaz_in_k": null,
                     "temperature_gaz_out_k": null,
                     "efficacite_echangeur": null,
-                    "puissance_utile_w": 51270.792106585424,
+                    "puissance_utile_w": 190387.87791532336,
                     "rendement_global": null,
                     "module_carburant_disponible": true
                 },
@@ -708,8 +710,8 @@
                 "inconnues": {
                     "impossibles": [
                         {
-                            "nom": "carburant",
-                            "raison": "Aucun carburant fourni ni défini dans l'objet moteur."
+                            "nom": "debit_massique_carburant_kg_s",
+                            "raison": "Fournis un débit carburant, ou bien puissance_utile_w + rendement_global."
                         }
                     ],
                     "partielles": []
@@ -738,11 +740,11 @@
                     ]
                 },
                 "masse": {
-                    "volume_matiere_total_m3": null,
-                    "masse_estimee_kg": null,
-                    "notes": null
+                    "volume_matiere_total_m3": 0.0019625417107237792,
+                    "masse_estimee_kg": 15.307825343645478,
+                    "notes": "Estimation de masse limitée aux viroles de cylindres. Ne comprend ni culasse, ni carter, ni vilebrequin, ni bielles, ni fixations."
                 },
-                "cout_matiere_estime_eur": null,
+                "cout_matiere_estime_eur": 38.2695633591137,
                 "indice_maintenance": null,
                 "respecte_masse_estimee_max": null,
                 "respecte_cout_matiere_max": null,
@@ -756,29 +758,36 @@
             },
             "agrégateurs": {
                 "cylindre_complet": {
-                    "alesage_m": 0.08,
-                    "rayon_interne_m": 0.04,
-                    "course_m": 0.08,
-                    "nombre_cylindres": 4.0,
-                    "aire_section_m2": 0.005026548245743669,
-                    "aire_piston_m2": 0.005026548245743669,
-                    "cylindree_unitaire_m3": 0.00040212385965949355,
-                    "cylindree_unitaire_l": 0.40212385965949354,
-                    "cylindree_unitaire_cm3": 402.1238596594935,
-                    "cylindree_totale_m3": 0.0016084954386379742,
-                    "cylindree_totale_l": 1.6084954386379742,
-                    "cylindree_totale_cm3": 1608.495438637974,
-                    "ratio_alesage_course": 1.0,
-                    "architecture_code": 0.0,
+                    "alesage_m": 0.13,
+                    "rayon_interne_m": 0.065,
+                    "course_m": 0.15,
+                    "nombre_cylindres": 6.0,
+                    "aire_section_m2": 0.013273228961416878,
+                    "aire_piston_m2": 0.013273228961416878,
+                    "cylindree_unitaire_m3": 0.0019909843442125316,
+                    "cylindree_unitaire_l": 1.9909843442125317,
+                    "cylindree_unitaire_cm3": 1990.9843442125316,
+                    "cylindree_totale_m3": 0.01194590606527519,
+                    "cylindree_totale_l": 11.94590606527519,
+                    "cylindree_totale_cm3": 11945.90606527519,
+                    "ratio_alesage_course": 0.8666666666666667,
+                    "architecture_code": -1.0,
                     "pression_pa": 8000000.0,
-                    "force_gaz_n": 40212.385965949354,
-                    "inconnues": "contrainte_admissible_pa / epaisseur_paroi"
+                    "force_gaz_n": 106185.83169133503,
+                    "contrainte_admissible_pa": 180000000.0,
+                    "facteur_securite": 1.5,
+                    "epaisseur_mince_m": 0.004333333333333333,
+                    "t_over_ri_mince": 0.06666666666666667,
+                    "ratio_mince_max": 0.1,
+                    "epaisseur_lame_m": 0.004487922897230337,
+                    "epaisseur_auto_m": 0.004333333333333333,
+                    "inconnues": ""
                 },
                 "gaz_complet": {
                     "constante_gaz_r": 287.05,
                     "gamma": 1.4,
-                    "alesage_m": 0.08,
-                    "aire_piston_m2": 0.005026548245743669,
+                    "alesage_m": 0.13,
+                    "aire_piston_m2": 0.013273228961416878,
                     "inconnues": "pression_pa (manque 3/4 parmi P,m,V,T); masse_kg (manque 3/4 parmi P,m,V,T); volume_m3 (manque 3/4 parmi P,m,V,T); temperature_k (manque 3/4 parmi P,m,V,T); densite_kg_m3 (besoin P&T ou m&V); force_gaz_n (pression_pa manquante)"
                 }
             },
@@ -843,18 +852,12 @@
                         "raison": "Une durée (duree_fonctionnement_s) est nécessaire pour passer des taux (dV/dt) à un total."
                     },
                     {
-                        "nom": "épaisseur paroi cylindre",
-                        "raison": "Calculable si (pression_max_pa ou pression_cylindre_pa), alesage_m et contrainte_admissible_pa sont fournis."
-                    },
-                    {
                         "nom": "dimensionnement vis couvercle",
                         "raison": "Calculable si pression_max_pa et aire_effective_couvercle_m2 sont fournis (et force_joint_n, nombre_vis, diametre_nominal_vis_m pour aller plus loin)."
                     }
                 ]
             },
-            "notes_modele": [
-                "rayon_manivelle_m approx = course/2 (si non fourni)."
-            ]
+            "notes_modele": []
         },
         "moteur_thermique_bilan_carburant": {
             "entrees": {
@@ -883,7 +886,39 @@
             "notes_modele": []
         },
         "construction_moteur_thermique": {
-            "mode_construction": "compatibilite_base"
+            "definition_utilisee": {
+                "temps_moteur": 4,
+                "nombre_cylindres": 6,
+                "architecture": "L6",
+                "alesage_m": 0.13,
+                "course_m": 0.15,
+                "rpm_nominal": 1500.0,
+                "puissance_nominale_visee_w": 165000.0,
+                "pme_nominale_pa": 1500000.0,
+                "pression_max_pa": 8000000.0,
+                "rendement_mecanique_nominal": 0.85,
+                "carburant": "diesel",
+                "contrainte_admissible_pa": 180000000.0,
+                "densite_materiau_kg_m3": 7800.0,
+                "cout_matiere_eur_kg": 2.5,
+                "rendement_mecanique_cible_min": 0.85,
+                "vitesse_piston_max_ms": 12.0,
+                "L_max_m": 2.0,
+                "W_max_m": 1.0,
+                "pme_pa": 1500000.0,
+                "type_puissance_nominale": "frein",
+                "puissance_requise_W": 165000.0,
+                "cylindree_unitaire_m3": 0.001990984344212531,
+                "cylindree_totale_m3": 0.011945906065275187,
+                "cylindree_totale_cc": 11945.906065275187,
+                "rayon_manivelle_m": 0.075,
+                "vitesse_piston_moyenne_ms": 7.5,
+                "couple_max_Nm": 1050.4226244065092,
+                "couple_requis_Nm": 1050.4226244065092,
+                "force_bielle_N": 14005.634992086789
+            },
+            "mode_construction": "direct",
+            "rapport_definition_exigences": null
         }
     },
     "construction_pieces": {
@@ -915,15 +950,15 @@
         },
         "extractions": {
             "systeme_complet": {
-                "rpm_moteur": 3000.0,
+                "rpm_moteur": 1500.0,
                 "P_moteur_thermique_W": null,
                 "couple_moteur_thermique_Nm": null,
                 "pme_pa": null,
                 "pression_max_pa": null,
-                "architecture": null,
-                "nb_cyl": 4,
-                "alesage_m": 0.08,
-                "course_m": 0.08,
+                "architecture": "L6",
+                "nb_cyl": 6,
+                "alesage_m": 0.13,
+                "course_m": 0.15,
                 "epaisseur_cylindre_m": null,
                 "V_bus_dc_v": 400.0,
                 "P_bus_dc_design_w": null,
@@ -1129,22 +1164,22 @@
         },
         "coherences": {
             "course_globale": {
-                "course_reference_m": 0.08,
+                "course_reference_m": 0.15,
                 "comparaison": [
                     {
                         "source": "systeme_complet",
-                        "course_m": 0.08,
+                        "course_m": 0.15,
                         "ecart_relatif": 0.0
                     }
                 ],
                 "coherent": true
             },
             "alesage_global": {
-                "alesage_reference_m": 0.08,
+                "alesage_reference_m": 0.13,
                 "comparaison": [
                     {
                         "source": "systeme_complet",
-                        "alesage_m": 0.08,
+                        "alesage_m": 0.13,
                         "ecart_relatif": 0.0
                     }
                 ],
@@ -1355,11 +1390,11 @@
                 "clamp_non_negative": true
             },
             "moteur_thermique": {
-                "alesage_m": 0.08,
-                "course_m": 0.08,
-                "nombre_cylindres": 4,
+                "alesage_m": 0.13,
+                "course_m": 0.15,
+                "nombre_cylindres": 6,
                 "temps_moteur": 4,
-                "architecture": null,
+                "architecture": "L6",
                 "taux_compression_nominal": null,
                 "volume_mort_nominal_m3": null,
                 "ordre_allumage": null,
@@ -1370,25 +1405,25 @@
                 "pression_reference_pa": null,
                 "n_polytropique_compression": null,
                 "n_polytropique_detente": null,
-                "rpm_nominal": 3000.0,
-                "pme_nominale_pa": 800000.0,
-                "puissance_nominale_visee_w": null,
-                "type_puissance_nominale": null,
+                "rpm_nominal": 1500.0,
+                "pme_nominale_pa": 1500000.0,
+                "puissance_nominale_visee_w": 165000.0,
+                "type_puissance_nominale": "frein",
                 "rendement_mecanique_nominal": 0.85,
-                "pression_max_pa": null,
+                "pression_max_pa": 8000000.0,
                 "longueur_bielle_m": null,
-                "rayon_manivelle_m": null,
+                "rayon_manivelle_m": 0.075,
                 "masse_alternative_kg": null,
                 "piston": null,
                 "masse_bielle_kg": null,
                 "fraction_bielle_alternative": null,
                 "preferer_masse_issue_piston": true,
-                "contrainte_admissible_pa": null,
+                "contrainte_admissible_pa": 180000000.0,
                 "facteur_securite_cylindre": 1.5,
-                "densite_materiau_kg_m3": null,
-                "cout_matiere_eur_kg": null,
+                "densite_materiau_kg_m3": 7800.0,
+                "cout_matiere_eur_kg": 2.5,
                 "rendement_indique_cible_min": null,
-                "rendement_mecanique_cible_min": null,
+                "rendement_mecanique_cible_min": 0.85,
                 "masse_estimee_max_kg": null,
                 "cout_matiere_max_eur": null,
                 "indice_maintenance_max": null,
@@ -1405,7 +1440,7 @@
                 "aire_contact_palier_m2": null,
                 "facteur_securite_vis": 1.5,
                 "facteur_frottement_vis_k": 0.2,
-                "carburant": null,
+                "carburant": "diesel",
                 "debit_massique_carburant_nominal_kg_s": null,
                 "lambda_air_nominal": null,
                 "rendement_combustion_nominal": null,
@@ -1540,11 +1575,11 @@
         "moteur_thermique": {
             "type": "MoteurThermique",
             "attributs": {
-                "alesage_m": 0.08,
-                "course_m": 0.08,
-                "nombre_cylindres": 4,
+                "alesage_m": 0.13,
+                "course_m": 0.15,
+                "nombre_cylindres": 6,
                 "temps_moteur": 4,
-                "architecture": null,
+                "architecture": "L6",
                 "taux_compression_nominal": null,
                 "volume_mort_nominal_m3": null,
                 "ordre_allumage": null,
@@ -1555,25 +1590,25 @@
                 "pression_reference_pa": null,
                 "n_polytropique_compression": null,
                 "n_polytropique_detente": null,
-                "rpm_nominal": 3000.0,
-                "pme_nominale_pa": 800000.0,
-                "puissance_nominale_visee_w": null,
-                "type_puissance_nominale": null,
+                "rpm_nominal": 1500.0,
+                "pme_nominale_pa": 1500000.0,
+                "puissance_nominale_visee_w": 165000.0,
+                "type_puissance_nominale": "frein",
                 "rendement_mecanique_nominal": 0.85,
-                "pression_max_pa": null,
+                "pression_max_pa": 8000000.0,
                 "longueur_bielle_m": null,
-                "rayon_manivelle_m": null,
+                "rayon_manivelle_m": 0.075,
                 "masse_alternative_kg": null,
                 "piston": null,
                 "masse_bielle_kg": null,
                 "fraction_bielle_alternative": null,
                 "preferer_masse_issue_piston": true,
-                "contrainte_admissible_pa": null,
+                "contrainte_admissible_pa": 180000000.0,
                 "facteur_securite_cylindre": 1.5,
-                "densite_materiau_kg_m3": null,
-                "cout_matiere_eur_kg": null,
+                "densite_materiau_kg_m3": 7800.0,
+                "cout_matiere_eur_kg": 2.5,
                 "rendement_indique_cible_min": null,
-                "rendement_mecanique_cible_min": null,
+                "rendement_mecanique_cible_min": 0.85,
                 "masse_estimee_max_kg": null,
                 "cout_matiere_max_eur": null,
                 "indice_maintenance_max": null,
@@ -1590,7 +1625,7 @@
                 "aire_contact_palier_m2": null,
                 "facteur_securite_vis": 1.5,
                 "facteur_frottement_vis_k": 0.2,
-                "carburant": null,
+                "carburant": "diesel",
                 "debit_massique_carburant_nominal_kg_s": null,
                 "lambda_air_nominal": null,
                 "rendement_combustion_nominal": null,
@@ -1727,11 +1762,11 @@
                 "clamp_non_negative": true
             },
             "moteur_thermique": {
-                "alesage_m": 0.08,
-                "course_m": 0.08,
-                "nombre_cylindres": 4,
+                "alesage_m": 0.13,
+                "course_m": 0.15,
+                "nombre_cylindres": 6,
                 "temps_moteur": 4,
-                "architecture": null,
+                "architecture": "L6",
                 "taux_compression_nominal": null,
                 "volume_mort_nominal_m3": null,
                 "ordre_allumage": null,
@@ -1742,25 +1777,25 @@
                 "pression_reference_pa": null,
                 "n_polytropique_compression": null,
                 "n_polytropique_detente": null,
-                "rpm_nominal": 3000.0,
-                "pme_nominale_pa": 800000.0,
-                "puissance_nominale_visee_w": null,
-                "type_puissance_nominale": null,
+                "rpm_nominal": 1500.0,
+                "pme_nominale_pa": 1500000.0,
+                "puissance_nominale_visee_w": 165000.0,
+                "type_puissance_nominale": "frein",
                 "rendement_mecanique_nominal": 0.85,
-                "pression_max_pa": null,
+                "pression_max_pa": 8000000.0,
                 "longueur_bielle_m": null,
-                "rayon_manivelle_m": null,
+                "rayon_manivelle_m": 0.075,
                 "masse_alternative_kg": null,
                 "piston": null,
                 "masse_bielle_kg": null,
                 "fraction_bielle_alternative": null,
                 "preferer_masse_issue_piston": true,
-                "contrainte_admissible_pa": null,
+                "contrainte_admissible_pa": 180000000.0,
                 "facteur_securite_cylindre": 1.5,
-                "densite_materiau_kg_m3": null,
-                "cout_matiere_eur_kg": null,
+                "densite_materiau_kg_m3": 7800.0,
+                "cout_matiere_eur_kg": 2.5,
                 "rendement_indique_cible_min": null,
-                "rendement_mecanique_cible_min": null,
+                "rendement_mecanique_cible_min": 0.85,
                 "masse_estimee_max_kg": null,
                 "cout_matiere_max_eur": null,
                 "indice_maintenance_max": null,
@@ -1777,7 +1812,7 @@
                 "aire_contact_palier_m2": null,
                 "facteur_securite_vis": 1.5,
                 "facteur_frottement_vis_k": 0.2,
-                "carburant": null,
+                "carburant": "diesel",
                 "debit_massique_carburant_nominal_kg_s": null,
                 "lambda_air_nominal": null,
                 "rendement_combustion_nominal": null,
@@ -1893,7 +1928,7 @@
     "synthese": {
         "systeme": {},
         "moteur_thermique": {
-            "puissance_indiquee_W": 60318.57894892403,
+            "puissance_indiquee_W": 223985.73872390983,
             "puissance_cible_systeme_W": 150000.0
         },
         "optimisation": {

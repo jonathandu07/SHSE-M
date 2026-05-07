@@ -1,5 +1,5 @@
 
-# backend/pieces/couvercle_cylindre.py
+# backend/components/moteur_thermique/pieces/couvercle_cylindre.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field

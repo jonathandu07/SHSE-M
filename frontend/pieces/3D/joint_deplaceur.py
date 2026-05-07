@@ -3,7 +3,7 @@
 # VISUALISATION 3D DÉTAILLÉE — JOINT DEPLACEUR
 # =============================================================================
 # But :
-# - afficher les joints toriques du déplaceur à partir de backend/pieces/joint_deplaceur.py
+# - afficher les joints toriques du déplaceur à partir de backend/components/moteur_thermique/pieces/joint_deplaceur.py
 # - utiliser uniquement les données du rapport/cao sans inventer
 #
 # Dépendances :

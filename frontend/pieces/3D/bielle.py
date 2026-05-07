@@ -3,7 +3,7 @@
 # VISUALISATION 3D DÉTAILLÉE — BIELLE
 # =============================================================================
 # But :
-# - afficher une bielle détaillée à partir du bloc CAO de backend/pieces/bielle.py
+# - afficher une bielle détaillée à partir du bloc CAO de backend/components/moteur_thermique/pieces/bielle.py
 # - ne modéliser que ce qui est effectivement défini/calculé
 #
 # Dépendances :

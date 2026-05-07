@@ -4,7 +4,7 @@
 # =============================================================================
 # But :
 # - afficher rapidement la forme 3D attendue de la pièce
-# - utiliser uniquement les données calculées dans backend/pieces/arbre_piston.py
+# - utiliser uniquement les données calculées dans backend/components/moteur_thermique/pieces/arbre_piston.py
 # - ne rien inventer si les cotes nécessaires sont absentes
 #
 # Dépendances :

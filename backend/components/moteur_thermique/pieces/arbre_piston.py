@@ -1,4 +1,4 @@
-# backend/pieces/arbre_piston.py
+# backend/components/moteur_thermique/pieces/arbre_piston.py
 # =============================================================================
 # ARBRE DE PISTON — SHSE-M
 # Version complétée : CAO + arbre plein/évidé + cisaillement + torsion + flexion

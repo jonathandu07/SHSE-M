@@ -1,4 +1,4 @@
-# backend/pieces/deplaceur.py
+# backend/components/moteur_thermique/pieces/deplaceur.py
 from __future__ import annotations
 
 from dataclasses import dataclass

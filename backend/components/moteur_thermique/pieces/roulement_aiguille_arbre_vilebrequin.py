@@ -1,4 +1,4 @@
-# backend/pieces/roulement_aiguille_arbre_vilebrequin.py
+# backend/components/moteur_thermique/pieces/roulement_aiguille_arbre_vilebrequin.py
 # =============================================================================
 # ROULEMENT À AIGUILLES — ARBRE / VILEBREQUIN (côté maneton / grande tête)
 # =============================================================================

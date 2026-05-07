@@ -3,7 +3,7 @@
 # VISUALISATION 3D DÉTAILLÉE — PISTON
 # =============================================================================
 # But :
-# - afficher un piston 3D à partir du rapport backend/pieces/piston.py
+# - afficher un piston 3D à partir du rapport backend/components/moteur_thermique/pieces/piston.py
 # - utiliser strictement les dimensions calculées
 # - montrer tête, jupe, rainures et joints
 #

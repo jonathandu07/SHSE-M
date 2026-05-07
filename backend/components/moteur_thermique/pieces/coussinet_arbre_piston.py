@@ -1,4 +1,4 @@
-# backend/pieces/coussinet_arbre_piston.py
+# backend/components/moteur_thermique/pieces/coussinet_arbre_piston.py
 # =============================================================================
 # COUSSINET ARBRE-PISTON — SHSE-M
 # =============================================================================

@@ -1,4 +1,4 @@
-# backend/pieces/clavette_arbre.py
+# backend/components/moteur_thermique/pieces/clavette_arbre.py
 from __future__ import annotations
 
 from dataclasses import dataclass

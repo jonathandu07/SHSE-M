@@ -4,7 +4,7 @@
 # =============================================================================
 # But :
 # - afficher une forme 3D détaillée et crédible de l'arbre moteur
-# - utiliser les données calculées par backend/pieces/arbre.py
+# - utiliser les données calculées par backend/components/moteur_thermique/pieces/arbre.py
 # - ne pas inventer des diamètres d'épaulement non fournis
 #
 # Dépendances :

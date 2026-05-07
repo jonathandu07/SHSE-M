@@ -3,7 +3,7 @@
 # VISUALISATION 3D — ROULEMENT À AIGUILLES (ARBRE / VILEBREQUIN)
 # =============================================================================
 # But :
-# - visualiser en 3D un roulement à aiguilles issu de backend/pieces/roulement_aiguille_arbre.py
+# - visualiser en 3D un roulement à aiguilles issu de backend/components/moteur_thermique/pieces/roulement_aiguille_arbre.py
 # - ne rien inventer :
 #   * si D extérieur n'est pas connu, on n'invente pas une bague extérieure
 #   * si la référence commerciale n'est pas fournie, on affiche les dimensions requises

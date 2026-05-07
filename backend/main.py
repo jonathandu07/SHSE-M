@@ -1440,10 +1440,10 @@ def dimensionner_systeme_shsem(
     rapport_construction_moteur: Dict[str, Any] = {}
     if moteur_thermique is None:
         try:
+            moteur_thermique, rapport_construction_moteur = construire_moteur_thermique_complet(moteur_thermique_definition=definition_moteur, rapport=rapport_global)
+        except Exception:
             moteur_thermique = construire_moteur_thermique_base()
             rapport_construction_moteur = {"mode_construction": "compatibilite_base"}
-        except Exception:
-            moteur_thermique, rapport_construction_moteur = construire_moteur_thermique_complet(moteur_thermique_definition=definition_moteur, rapport=rapport_global)
 
     composants = {
         "moteur_electrique": moteur_electrique,

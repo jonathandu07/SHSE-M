@@ -1,4 +1,4 @@
-# backend/pieces/joint_piston.py
+# backend/components/moteur_thermique/pieces/joint_piston.py
 # =============================================================================
 # JOINT PISTON — étanchéité piston <-> cylindre (côté froid)
 # =============================================================================

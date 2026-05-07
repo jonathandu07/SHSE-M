@@ -1,4 +1,4 @@
-# backend/pieces/vis_couvercle_cylindre.py
+# backend/components/moteur_thermique/pieces/vis_couvercle_cylindre.py
 from __future__ import annotations
 
 from dataclasses import dataclass

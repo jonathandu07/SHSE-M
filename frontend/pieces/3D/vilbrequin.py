@@ -3,7 +3,7 @@
 # VISUALISATION 3D — VILBREQUIN
 # =============================================================================
 # But :
-# - visualiser un vilbrequin à partir du rapport backend/pieces/vilbrequin.py
+# - visualiser un vilbrequin à partir du rapport backend/components/moteur_thermique/pieces/vilbrequin.py
 # - ne rien inventer :
 #   * journaux et manetons seulement si leurs dimensions existent
 #   * webs / contrepoids non modélisés sans géométrie explicite
