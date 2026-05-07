@@ -118,17 +118,41 @@ class Thermique:
 # NOUVEAU : intégration du module électrolyte solide
 # =============================================================================
 
-# Import du module que tu as ajouté (même arborescence que ton fichier /mnt/data/electrolyte_solide.py)
-from backend.components.batterie.modules.electrolyte_solide import (
-    ElectrolyteSolide,
-    CelluleSolide,
-    PackSolide,
-    Options as OptionsElectrolyte,
-    evaluer_electrolyte_solide,
-)
+# Imports robustes : compatibles avec backend.components.*, backend.modules.*
+# et avec des fichiers placés localement pour les tests unitaires.
+try:
+    from backend.components.batterie.modules.electrolyte_solide import (
+        ElectrolyteSolide,
+        CelluleSolide,
+        PackSolide,
+        Options as OptionsElectrolyte,
+        evaluer_electrolyte_solide,
+    )
+except Exception:
+    try:
+        from backend.modules.batterie.electrolyte_solide import (
+            ElectrolyteSolide,
+            CelluleSolide,
+            PackSolide,
+            Options as OptionsElectrolyte,
+            evaluer_electrolyte_solide,
+        )
+    except Exception:
+        from electrolyte_solide import (
+            ElectrolyteSolide,
+            CelluleSolide,
+            PackSolide,
+            Options as OptionsElectrolyte,
+            evaluer_electrolyte_solide,
+        )
 
-# Si ton module calcul_electrique_pack contient déjà ce helper, on l’utilise pour rester homogène.
-from backend.components.batterie.modules.calcul_electrique_pack import calcul_courant_depuis_kw_tension
+try:
+    from backend.components.batterie.modules.calcul_electrique_pack import calcul_courant_depuis_kw_tension
+except Exception:
+    try:
+        from backend.modules.batterie.calcul_electrique_pack import calcul_courant_depuis_kw_tension
+    except Exception:
+        from calcul_electrique_pack import calcul_courant_depuis_kw_tension
 
 
 @dataclass(frozen=True)

@@ -5,9 +5,9 @@ import json
 from unittest.mock import MagicMock
 from backend.ensemble.systeme_complet import SystemeComplet
 from backend.components.moteur_electrique.moteur_electrique import MoteurElectrique
-from backend.components.batterie import Batterie
-from backend.components.alternateur import Alternateur
-from backend.components.moteur_thermique import MoteurThermique
+from backend.components.batterie.batterie import Batterie
+from backend.components.alternateur.alternateur import Alternateur
+from backend.components.moteur_thermique.moteur_thermique import MoteurThermique
 
 # Configuration du logging
 LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "logs"))

@@ -11,7 +11,7 @@ import math
 
 # --- Cylindrée / épaisseurs ---
 try:
-    from backend.modules.moteur_thermique.calcul_cylindree import (
+    from backend.components.moteur_thermique.modules.calcul_cylindree import (
         calcul_cylindree_unitaire,
         calcul_epaisseur_cylindre_mince,
         calcul_epaisseur_cylindre_lame,
@@ -73,7 +73,7 @@ except Exception:  # pragma: no cover
 
 # --- Précharge / visserie ---
 try:
-    from backend.modules.moteur_thermique.calcul_precharge_vis import (
+    from backend.components.moteur_thermique.modules.calcul_precharge_vis import (
         calcul_force_separation,
         calcul_precharge_vis_totale,
         calcul_couple_serrage,

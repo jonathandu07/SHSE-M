@@ -12,34 +12,34 @@ import math
 
 try:
     # Composants
-    from backend.components.moteur_electrique import (
+    from backend.components.moteur_electrique.moteur_electrique import (
         MoteurElectrique,
         calcul_demande_moteur_depuis_vehicule,
         verifie_moteur_sur_demande,
     )
-    from backend.components.batterie import Batterie
-    from backend.components.alternateur import Alternateur
-    from backend.components.moteur_thermique import MoteurThermique
-    from backend.components.boite_crabots import BoiteCrabots
-    from backend.components.architecture import Architecture
+    from backend.components.batterie.batterie import Batterie
+    from backend.components.alternateur.alternateur import Alternateur
+    from backend.components.moteur_thermique.moteur_thermique import MoteurThermique
+    from backend.components.boite_crabots.boite_crabots import BoiteCrabots
+    from backend.components.architechture.architecture import Architecture
 
     # Modules
-    from backend.modules.moteur_thermique.calcul_cylindree import calcul_cylindree_totale
+    from backend.components.moteur_thermique.modules.calcul_cylindree import calcul_cylindree_totale
 
 except Exception:
-    from components.moteur_electrique import (
+    from backend.components.moteur_electrique.moteur_electrique import (
         MoteurElectrique,
         calcul_demande_moteur_depuis_vehicule,
         verifie_moteur_sur_demande,
     )
-    from components.batterie import Batterie
-    from components.alternateur import Alternateur
-    from components.moteur_thermique import MoteurThermique
-    from components.boite_crabots import BoiteCrabots
-    from components.architecture import Architecture
+    from backend.components.batterie.batterie import Batterie
+    from backend.components.alternateur.alternateur import Alternateur
+    from backend.components.moteur_thermique.moteur_thermique import MoteurThermique
+    from backend.components.boite_crabots.boite_crabots import BoiteCrabots
+    from backend.components.architechture.architecture import Architecture
 
     try:
-        from modules.moteur_thermique.calcul_cylindree import calcul_cylindree_totale
+        from backend.components.moteur_thermique.modules.calcul_cylindree import calcul_cylindree_totale
     except Exception:
         calcul_cylindree_totale = None  # type: ignore
 

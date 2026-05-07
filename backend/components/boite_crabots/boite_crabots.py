@@ -10,54 +10,54 @@ import math
 # ============================================================
 
 try:
-    from backend.modules.boite_crabots.calcul_choc_engagement import (
+    from backend.components.boite_crabots.modules.calcul_choc_engagement import (
         calcul_inertie_equivalente,
         calcul_energie_choc,
         calcul_couple_synchronisation_moyen,
     )
-    from backend.modules.boite_crabots.calcul_force_pignon import (
+    from backend.components.boite_crabots.modules.calcul_force_pignon import (
         calcul_force_tangentielle,
         calcul_forces_engrenage,
     )
-    from backend.modules.boite_crabots.calcul_contact_dent import calcul_contrainte_contact_hertz
-    from backend.modules.boite_crabots.calcul_flexion_dent import calcul_contrainte_flexion_lewis
-    from backend.modules.boite_crabots.calcul_dimensionnement_arbre import (
+    from backend.components.boite_crabots.modules.calcul_contact_dent import calcul_contrainte_contact_hertz
+    from backend.components.boite_crabots.modules.calcul_flexion_dent import calcul_contrainte_flexion_lewis
+    from backend.components.boite_crabots.modules.calcul_dimensionnement_arbre import (
         calcul_contrainte_cisaillement_torsion,
         calcul_contrainte_flexion_arbre,
         calcul_von_mises_arbre,
     )
-    from backend.modules.boite_crabots.calcul_dimensionnement_crabot import (
+    from backend.components.boite_crabots.modules.calcul_dimensionnement_crabot import (
         calcul_couple_transmissible_crabot,
         calcul_pression_contact_crabot,
     )
-    from backend.modules.boite_crabots.calcul_duree_vie_roulement import (
+    from backend.components.boite_crabots.modules.calcul_duree_vie_roulement import (
         calcul_charge_equivalente_roulement,
         calcul_duree_vie_l10,
         calcul_duree_vie_heures,
     )
 except Exception:
     # Variante possible (si ton projet n'a pas le package backend.modules)
-    from backend.modules.boite_crabots.calcul_choc_engagement import (
+    from backend.components.boite_crabots.modules.calcul_choc_engagement import (
         calcul_inertie_equivalente,
         calcul_energie_choc,
         calcul_couple_synchronisation_moyen,
     )
-    from backend.modules.boite_crabots.calcul_force_pignon import (
+    from backend.components.boite_crabots.modules.calcul_force_pignon import (
         calcul_force_tangentielle,
         calcul_forces_engrenage,
     )
-    from backend.modules.boite_crabots.calcul_contact_dent import calcul_contrainte_contact_hertz
-    from backend.modules.boite_crabots.calcul_flexion_dent import calcul_contrainte_flexion_lewis
-    from backend.modules.boite_crabots.calcul_dimensionnement_arbre import (
+    from backend.components.boite_crabots.modules.calcul_contact_dent import calcul_contrainte_contact_hertz
+    from backend.components.boite_crabots.modules.calcul_flexion_dent import calcul_contrainte_flexion_lewis
+    from backend.components.boite_crabots.modules.calcul_dimensionnement_arbre import (
         calcul_contrainte_cisaillement_torsion,
         calcul_contrainte_flexion_arbre,
         calcul_von_mises_arbre,
     )
-    from backend.modules.boite_crabots.calcul_dimensionnement_crabot import (
+    from backend.components.boite_crabots.modules.calcul_dimensionnement_crabot import (
         calcul_couple_transmissible_crabot,
         calcul_pression_contact_crabot,
     )
-    from backend.modules.boite_crabots.calcul_duree_vie_roulement import (
+    from backend.components.boite_crabots.modules.calcul_duree_vie_roulement import (
         calcul_charge_equivalente_roulement,
         calcul_duree_vie_l10,
         calcul_duree_vie_heures,
@@ -68,12 +68,12 @@ except Exception:
 # ============================================================
 
 try:
-    from backend.components.alternateur import Alternateur  # type: ignore
+    from backend.components.alternateur.alternateur import Alternateur  # type: ignore
 except Exception:
     Alternateur = Any  # type: ignore
 
 try:
-    from backend.components.moteur_thermique import MoteurThermique  # type: ignore
+    from backend.components.moteur_thermique.moteur_thermique import MoteurThermique  # type: ignore
 except Exception:
     MoteurThermique = Any  # type: ignore
 

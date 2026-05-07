@@ -1,6 +1,6 @@
 import pytest
-from backend.pieces.cylindre import Cylindre
-from backend.pieces.deplaceur import Deplaceur
+from backend.components.moteur_thermique.pieces.cylindre import Cylindre
+from backend.components.moteur_thermique.pieces.deplaceur import Deplaceur
 
 def test_deplaceur_analyser_without_longueur_totale():
     # Create a simple cylinder with required parameters

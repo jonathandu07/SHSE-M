@@ -29,7 +29,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.bielle import CorpsBielle
+from backend.components.moteur_thermique.pieces.bielle import CorpsBielle
 
 
 # =============================================================================
@@ -527,7 +527,7 @@ def afficher_bielle_3d_detaillee(
 
 if __name__ == "__main__":
     try:
-        from backend.pieces.arbre_piston import ArbrePiston  # type: ignore
+        from backend.components.moteur_thermique.pieces.arbre_piston import ArbrePiston  # type: ignore
         arbre = ArbrePiston(
             diametre_portee_coussinet_m=0.020,
         )

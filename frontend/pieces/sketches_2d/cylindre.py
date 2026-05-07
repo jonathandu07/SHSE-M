@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle, Polygon
 from matplotlib.lines import Line2D
 
-from backend.pieces.cylindre import Cylindre
+from backend.components.moteur_thermique.pieces.cylindre import Cylindre
 
 
 # ============================================================
@@ -680,7 +680,7 @@ def tracer_croquis_cylindre_2d(
 # ============================================================
 
 if __name__ == "__main__":
-    from backend.pieces.cylindre import (
+    from backend.components.moteur_thermique.pieces.cylindre import (
         ReglesJointTorique,
         ReglesVisserieBride,
         ReglesFabricationCylindre,

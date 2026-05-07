@@ -10,59 +10,59 @@ import math
 # ============================================================
 
 try:
-    from backend.modules.alternateur.calcul_vitesse_angulaire import calcul_vitesse_angulaire
-    from backend.modules.alternateur.calcul_frequence_synchrone import calcul_frequence_synchrone
-    from backend.modules.alternateur.calcul_fem_induite import (
+    from backend.components.alternateur.modules.calcul_vitesse_angulaire import calcul_vitesse_angulaire
+    from backend.components.alternateur.modules.calcul_frequence_synchrone import calcul_frequence_synchrone
+    from backend.components.alternateur.modules.calcul_fem_induite import (
         calcul_fem_induite,
         calcul_fem_induite_avec_induction,
     )
-    from backend.modules.alternateur.calcul_puissance_electrique import (
+    from backend.components.alternateur.modules.calcul_puissance_electrique import (
         calcul_puissance_triphase,
         calcul_puissance_monophase,
         calcul_puissance_dc,
     )
-    from backend.modules.alternateur.calcul_pertes_cuivre import (
+    from backend.components.alternateur.modules.calcul_pertes_cuivre import (
         calcul_resistance_enroulement,
         calcul_pertes_cuivre_phase,
         calcul_pertes_cuivre_triphase,
     )
-    from backend.modules.alternateur.calcul_pertes_fer import calcul_pertes_fer_steinmetz
-    from backend.modules.alternateur.calcul_rendement_alternateur import calcul_rendement_alternateur
-    from backend.modules.alternateur.calcul_puissance_mecanique import calcul_puissance_mecanique
-    from backend.modules.alternateur.calcul_couple_alternateur import calcul_couple_alternateur
-    from backend.modules.alternateur.calcul_echauffement_thermique import calcul_echauffement_thermique
+    from backend.components.alternateur.modules.calcul_pertes_fer import calcul_pertes_fer_steinmetz
+    from backend.components.alternateur.modules.calcul_rendement_alternateur import calcul_rendement_alternateur
+    from backend.components.alternateur.modules.calcul_puissance_mecanique import calcul_puissance_mecanique
+    from backend.components.alternateur.modules.calcul_couple_alternateur import calcul_couple_alternateur
+    from backend.components.alternateur.modules.calcul_echauffement_thermique import calcul_echauffement_thermique
 except Exception:
-    from backend.modules.alternateur.calcul_vitesse_angulaire import calcul_vitesse_angulaire
-    from backend.modules.alternateur.calcul_frequence_synchrone import calcul_frequence_synchrone
-    from backend.modules.alternateur.calcul_fem_induite import (
+    from backend.components.alternateur.modules.calcul_vitesse_angulaire import calcul_vitesse_angulaire
+    from backend.components.alternateur.modules.calcul_frequence_synchrone import calcul_frequence_synchrone
+    from backend.components.alternateur.modules.calcul_fem_induite import (
         calcul_fem_induite,
         calcul_fem_induite_avec_induction,
     )
-    from backend.modules.alternateur.calcul_puissance_electrique import (
+    from backend.components.alternateur.modules.calcul_puissance_electrique import (
         calcul_puissance_triphase,
         calcul_puissance_monophase,
         calcul_puissance_dc,
     )
-    from backend.modules.alternateur.calcul_pertes_cuivre import (
+    from backend.components.alternateur.modules.calcul_pertes_cuivre import (
         calcul_resistance_enroulement,
         calcul_pertes_cuivre_phase,
         calcul_pertes_cuivre_triphase,
     )
-    from backend.modules.alternateur.calcul_pertes_fer import calcul_pertes_fer_steinmetz
-    from backend.modules.alternateur.calcul_rendement_alternateur import calcul_rendement_alternateur
-    from backend.modules.alternateur.calcul_puissance_mecanique import calcul_puissance_mecanique
-    from backend.modules.alternateur.calcul_couple_alternateur import calcul_couple_alternateur
-    from backend.modules.alternateur.calcul_echauffement_thermique import calcul_echauffement_thermique
+    from backend.components.alternateur.modules.calcul_pertes_fer import calcul_pertes_fer_steinmetz
+    from backend.components.alternateur.modules.calcul_rendement_alternateur import calcul_rendement_alternateur
+    from backend.components.alternateur.modules.calcul_puissance_mecanique import calcul_puissance_mecanique
+    from backend.components.alternateur.modules.calcul_couple_alternateur import calcul_couple_alternateur
+    from backend.components.alternateur.modules.calcul_echauffement_thermique import calcul_echauffement_thermique
 
 # ============================================================
 # (Optionnel) import module batterie pour temps/énergie de charge
 # ============================================================
 
 try:
-    from backend.modules.batterie.calcul_temps_charge import calcul_temps_charge
+    from backend.components.batterie.modules.calcul_temps_charge import calcul_temps_charge
 except Exception:
     try:
-        from backend.modules.batterie.calcul_temps_charge import calcul_temps_charge  # type: ignore
+        from backend.components.batterie.modules.calcul_temps_charge import calcul_temps_charge  # type: ignore
     except Exception:
         calcul_temps_charge = None  # type: ignore
 

@@ -1,2 +1,2 @@
 # backend\tests\pieces\test_arbre.py
-from backend.pieces.arbre import *
+from backend.components.moteur_thermique.pieces.arbre import *

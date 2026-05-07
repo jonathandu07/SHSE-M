@@ -36,10 +36,10 @@ except Exception:  # pragma: no cover
         SystemeComplet = None  # type: ignore
 
 try:
-    from backend.components.moteur_thermique import MoteurThermique
+    from backend.components.moteur_thermique.moteur_thermique import MoteurThermique
 except Exception:  # pragma: no cover
     try:
-        from components.moteur_thermique import MoteurThermique  # type: ignore
+        from backend.components.moteur_thermique.moteur_thermique import MoteurThermique  # type: ignore
     except Exception:  # pragma: no cover
         MoteurThermique = None  # type: ignore
 

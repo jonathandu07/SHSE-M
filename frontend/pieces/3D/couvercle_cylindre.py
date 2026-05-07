@@ -31,7 +31,7 @@ import math
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.couvercle_cylindre import CouvercleCylindre
+from backend.components.moteur_thermique.pieces.couvercle_cylindre import CouvercleCylindre
 
 
 # =============================================================================

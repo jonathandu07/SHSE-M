@@ -738,7 +738,7 @@ class Vilbrequin:
 
 
 try:
-    from backend.pieces.arbre_vilbrequin_fine import ArbreVilbrequinFine
+    from backend.components.moteur_thermique.pieces.arbre_vilbrequin_fine import ArbreVilbrequinFine
 except Exception:
     try:
         from arbre_vilbrequin_fine import ArbreVilbrequinFine  # type: ignore

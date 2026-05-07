@@ -1300,7 +1300,7 @@ class CorpsBielle:
 # =============================================================================
 if __name__ == "__main__":
     try:
-        from backend.pieces.arbre_piston import ArbrePiston  # type: ignore
+        from backend.components.moteur_thermique.pieces.arbre_piston import ArbrePiston  # type: ignore
         arbre = ArbrePiston(
             diametre_portee_coussinet_m=0.020,
         )

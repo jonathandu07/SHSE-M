@@ -1640,7 +1640,7 @@ def calculer_cycle_mecanique_depuis_modele_pression(
     et ses paramètres associés.
     """
     try:
-        from backend.modules.moteur_thermique.cycle_mecanique import (
+        from backend.components.moteur_thermique.modules.cycle_mecanique import (
             CycleMecaniqueParams,
             calculer_cycle_mecanique,
         )

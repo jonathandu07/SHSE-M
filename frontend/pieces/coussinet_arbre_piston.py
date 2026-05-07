@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle, Rectangle
 
-from backend.pieces.coussinet_arbre_piston import CoussinetArbrePiston
+from backend.components.moteur_thermique.pieces.coussinet_arbre_piston import CoussinetArbrePiston
 
 
 # ============================================================

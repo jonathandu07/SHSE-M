@@ -21,14 +21,14 @@ except Exception:  # pragma: no cover
 
 # Déplaceur
 try:
-    from backend.pieces.deplaceur import Deplaceur  # type: ignore
+    from backend.components.moteur_thermique.pieces.deplaceur import Deplaceur  # type: ignore
 except Exception:  # pragma: no cover
     Deplaceur = None  # type: ignore
 
 
 # Cylindre
 try:
-    from backend.pieces.cylindre import Cylindre  # type: ignore
+    from backend.components.moteur_thermique.pieces.cylindre import Cylindre  # type: ignore
 except Exception:  # pragma: no cover
     Cylindre = None  # type: ignore
 

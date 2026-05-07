@@ -10,7 +10,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Circle, Rectangle, Polygon
 
 
-from backend.pieces.couvercle_cylindre import CouvercleCylindre
+from backend.components.moteur_thermique.pieces.couvercle_cylindre import CouvercleCylindre
 
 
 # ============================================================
@@ -672,13 +672,13 @@ def tracer_croquis_couvercle_2d(
 # ============================================================
 
 if __name__ == "__main__":
-    from backend.pieces.cylindre import (
+    from backend.components.moteur_thermique.pieces.cylindre import (
         Cylindre,
         ReglesJointTorique,
         ReglesVisserieBride,
         ReglesFabricationCylindre,
     )
-    from backend.pieces.couvercle_cylindre import ReglesFormeCouvercle
+    from backend.components.moteur_thermique.pieces.couvercle_cylindre import ReglesFormeCouvercle
 
     cyl = Cylindre(
         alesage_m=0.080,

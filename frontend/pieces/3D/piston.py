@@ -19,7 +19,7 @@ import math
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.piston import Piston
+from backend.components.moteur_thermique.pieces.piston import Piston
 
 
 # =============================================================================

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle, Rectangle, Polygon
 
-from backend.pieces.bielle import CorpsBielle
+from backend.components.moteur_thermique.pieces.bielle import CorpsBielle
 
 
 # ============================================================
@@ -714,7 +714,7 @@ def tracer_croquis_bielle_2d(
 
 if __name__ == "__main__":
     try:
-        from backend.pieces.arbre_piston import ArbrePiston
+        from backend.components.moteur_thermique.pieces.arbre_piston import ArbrePiston
         arbre = ArbrePiston(
             diametre_portee_coussinet_m=0.020,
         )

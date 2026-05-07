@@ -27,7 +27,7 @@ except Exception:  # pragma: no cover
 
 # --- Cylindre ---
 try:
-    from backend.pieces.cylindre import Cylindre
+    from backend.components.moteur_thermique.pieces.cylindre import Cylindre
 except Exception:  # pragma: no cover
     try:
         from pieces.cylindre import Cylindre  # type: ignore

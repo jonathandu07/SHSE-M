@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle, Circle
 
-from backend.pieces.piston import Piston
+from backend.components.moteur_thermique.pieces.piston import Piston
 
 
 # ============================================================

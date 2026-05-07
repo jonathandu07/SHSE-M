@@ -18,7 +18,7 @@ import math
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.deplaceur import Deplaceur
+from backend.components.moteur_thermique.pieces.deplaceur import Deplaceur
 
 
 # =============================================================================

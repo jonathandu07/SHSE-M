@@ -28,7 +28,7 @@ from typing import Any, Dict, Tuple
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.coussinet_arbre_piston import CoussinetArbrePiston
+from backend.components.moteur_thermique.pieces.coussinet_arbre_piston import CoussinetArbrePiston
 
 
 # =============================================================================

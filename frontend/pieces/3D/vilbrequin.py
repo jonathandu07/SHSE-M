@@ -21,7 +21,7 @@ import math
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.vilbrequin import Vilbrequin
+from backend.components.moteur_thermique.pieces.vilbrequin import Vilbrequin
 
 
 # =============================================================================

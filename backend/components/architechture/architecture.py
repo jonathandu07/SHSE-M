@@ -107,68 +107,68 @@ def estimer_pme_depuis_puissance_et_cylindree(
 # ============================================================
 
 try:
-    from backend.modules.architecture.calcul_cout_maintenance_archard import (
+    from backend.components.architechture.modules.calcul_cout_maintenance_archard import (
         calcul_cout_maintenance_estime,
         calcul_cout_maintenance_estime_auto_prix,
     )
 except Exception:
-    from backend.modules.architecture.calcul_cout_maintenance_archard import (  # type: ignore
+    from backend.components.architechture.modules.calcul_cout_maintenance_archard import (  # type: ignore
         calcul_cout_maintenance_estime,
         calcul_cout_maintenance_estime_auto_prix,
     )
 
 try:
-    from backend.modules.architecture.calcul_cylindree_admissible import (
+    from backend.components.architechture.modules.calcul_cylindree_admissible import (
         calcul_bore_max_admissible,
         calcul_cylindree_unit_max,
     )
 except Exception:
-    from backend.modules.architecture.calcul_cylindree_admissible import (  # type: ignore
+    from backend.components.architechture.modules.calcul_cylindree_admissible import (  # type: ignore
         calcul_bore_max_admissible,
         calcul_cylindree_unit_max,
     )
 
 try:
-    from backend.modules.architecture.calcul_cylindree_totale import (
+    from backend.components.architechture.modules.calcul_cylindree_totale import (
         calcul_cylindree_totale_requise,
     )
 except Exception:
-    from backend.modules.architecture.calcul_cylindree_totale import (  # type: ignore
+    from backend.components.architechture.modules.calcul_cylindree_totale import (  # type: ignore
         calcul_cylindree_totale_requise,
     )
 
 try:
-    from backend.modules.architecture.calcul_nombre_cylindres_min import (
+    from backend.components.architechture.modules.calcul_nombre_cylindres_min import (
         calcul_nombre_cylindres_min,
     )
 except Exception:
-    from backend.modules.architecture.calcul_nombre_cylindres_min import (  # type: ignore
+    from backend.components.architechture.modules.calcul_nombre_cylindres_min import (  # type: ignore
         calcul_nombre_cylindres_min,
     )
 
 try:
-    from backend.modules.architecture.choix_architecture_optimale import (
+    from backend.components.architechture.modules.choix_architecture_optimale import (
         choix_architecture_optimale,
         evaluer_architecture,
     )
 except Exception:
-    from backend.modules.architecture.choix_architecture_optimale import (  # type: ignore
+    from backend.components.architechture.modules.choix_architecture_optimale import (  # type: ignore
         choix_architecture_optimale,
         evaluer_architecture,
     )
 
 try:
-    from backend.modules.architecture.resolution_globale_architecture import (
+    from backend.components.architechture.modules.resolution_globale_architecture import (
         resoudre_architecture_globale,
     )
 except Exception:
-    from backend.modules.architecture.resolution_globale_architecture import (  # type: ignore
+    from backend.components.architechture.modules.resolution_globale_architecture import (  # type: ignore
         resoudre_architecture_globale,
     )
 
 # Solveur fin multi-cas
 try:
-    from backend.modules.architecture.architecture_fine_multicas import (
+    from backend.components.architechture.modules.architecture_fine_multicas import (
         resoudre_architecture_fine_multicas,
         ParametresPackagingArchitecture,
         ParametresMasseArchitecture,
@@ -179,7 +179,7 @@ try:
     )
 except Exception:
     try:
-        from backend.modules.architecture.architecture_fine_multicas import (  # type: ignore
+        from backend.components.architechture.modules.architecture_fine_multicas import (  # type: ignore
             resoudre_architecture_fine_multicas,
             ParametresPackagingArchitecture,
             ParametresMasseArchitecture,

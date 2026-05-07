@@ -1,2 +1,2 @@
 # backend\tests\pieces\test_piston.py
-from backend.pieces.piston import *
+from backend.components.moteur_thermique.pieces.piston import *

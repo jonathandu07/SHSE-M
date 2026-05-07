@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle, Circle
 
-from backend.pieces.deplaceur import Deplaceur
+from backend.components.moteur_thermique.pieces.deplaceur import Deplaceur
 
 
 # ============================================================

@@ -12,7 +12,7 @@ import math
 
 # --- Cylindrée / chambre ---
 try:
-    from backend.modules.moteur_thermique.calcul_cylindree import calcul_cylindree_unitaire
+    from backend.components.moteur_thermique.modules.calcul_cylindree import calcul_cylindree_unitaire
 except Exception:  # pragma: no cover
     def calcul_cylindree_unitaire(
         *,
@@ -36,7 +36,7 @@ except Exception:  # pragma: no cover
 
 # --- Pièce associée ---
 try:
-    from backend.pieces.cylindre import Cylindre
+    from backend.components.moteur_thermique.pieces.cylindre import Cylindre
 except Exception:  # pragma: no cover
     try:
         from pieces.cylindre import Cylindre  # type: ignore
@@ -45,7 +45,7 @@ except Exception:  # pragma: no cover
 
 # --- Précharge / visserie ---
 try:
-    from backend.modules.moteur_thermique.calcul_precharge_vis import (
+    from backend.components.moteur_thermique.modules.calcul_precharge_vis import (
         calcul_force_separation,
         calcul_precharge_vis_totale,
         calcul_couple_serrage,

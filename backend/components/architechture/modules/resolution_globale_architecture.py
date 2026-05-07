@@ -13,17 +13,17 @@ from typing import Any
 # - Si ça échoue, on ajoute le dossier racine du projet au sys.path, puis on ré-essaye.
 # =============================================================================
 try:
-    from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise
-    from backend.modules.architecture.calcul_cylindree_admissible import (
+    from backend.components.architechture.modules.calcul_cylindree_totale import calcul_cylindree_totale_requise
+    from backend.components.architechture.modules.calcul_cylindree_admissible import (
         calcul_bore_max_admissible,
         calcul_cylindree_unit_max,
     )
-    from backend.modules.architecture.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min
-    from backend.modules.architecture.choix_architecture_optimale import (
+    from backend.components.architechture.modules.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min
+    from backend.components.architechture.modules.choix_architecture_optimale import (
         choix_architecture_optimale,
         evaluer_architecture,
     )
-    from backend.modules.architecture.calcul_cout_maintenance_archard import calcul_cout_maintenance_estime
+    from backend.components.architechture.modules.calcul_cout_maintenance_archard import calcul_cout_maintenance_estime
 except ImportError:
     # Fallback : compatible exécution directe (script) depuis divers emplacements
     here = os.path.abspath(os.path.dirname(__file__))
@@ -31,17 +31,17 @@ except ImportError:
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
-    from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise
-    from backend.modules.architecture.calcul_cylindree_admissible import (
+    from backend.components.architechture.modules.calcul_cylindree_totale import calcul_cylindree_totale_requise
+    from backend.components.architechture.modules.calcul_cylindree_admissible import (
         calcul_bore_max_admissible,
         calcul_cylindree_unit_max,
     )
-    from backend.modules.architecture.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min
-    from backend.modules.architecture.choix_architecture_optimale import (
+    from backend.components.architechture.modules.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min
+    from backend.components.architechture.modules.choix_architecture_optimale import (
         choix_architecture_optimale,
         evaluer_architecture,
     )
-    from backend.modules.architecture.calcul_cout_maintenance_archard import calcul_cout_maintenance_estime
+    from backend.components.architechture.modules.calcul_cout_maintenance_archard import calcul_cout_maintenance_estime
 
 
 # =============================================================================

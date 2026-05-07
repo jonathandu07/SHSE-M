@@ -14,22 +14,22 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 try:
     # Arborescence préférée (cohérente avec tes fichiers uploadés)
-    from backend.modules.moteur_electrique.calcul_force_resistance_vitesse import calcul_force_resistance_totale
-    from backend.modules.moteur_electrique.calcul_puissance_roue import (
+    from backend.components.moteur_electrique.modules.calcul_force_resistance_vitesse import calcul_force_resistance_totale
+    from backend.components.moteur_electrique.modules.calcul_puissance_roue import (
         calcul_puissance_roue,
         calcul_couple_roue_total,
         calcul_couple_par_roue,
     )
-    from backend.modules.moteur_electrique.calcul_puissance_moteur import (
+    from backend.components.moteur_electrique.modules.calcul_puissance_moteur import (
         calcul_puissance_moteur_electrique,
         calcul_couple_moteur,
     )
-    from backend.modules.moteur_electrique.calcul_charge_essieu import calcul_charges_essieux
-    from backend.modules.moteur_electrique.calcul_acceleration_max import calcul_acceleration_max
+    from backend.components.moteur_electrique.modules.calcul_charge_essieu import calcul_charges_essieux
+    from backend.components.moteur_electrique.modules.calcul_acceleration_max import calcul_acceleration_max
 
     # optionnel (si présent dans ton projet)
     try:
-        from backend.modules.moteur_electrique.calcul_multi_domaine import (
+        from backend.components.moteur_electrique.modules.calcul_multi_domaine import (
             calcul_demande_nautique as _md_nautique,
             calcul_demande_aerien_rho as _md_aerien_rho,
             calcul_demande_ferroviaire_davis as _md_ferro_davis,

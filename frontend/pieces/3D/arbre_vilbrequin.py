@@ -20,7 +20,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import pyvista as pv
 
-from backend.pieces.arbre_vilbrequin import ArbreVilbrequin
+from backend.components.moteur_thermique.pieces.arbre_vilbrequin import ArbreVilbrequin
 
 
 # =============================================================================

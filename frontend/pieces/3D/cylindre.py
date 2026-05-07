@@ -26,7 +26,7 @@ import math
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.cylindre import Cylindre
+from backend.components.moteur_thermique.pieces.cylindre import Cylindre
 
 
 # =============================================================================

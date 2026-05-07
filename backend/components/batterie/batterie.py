@@ -11,26 +11,26 @@ import math
 
 # calcul_dimensionnement_batterie.py
 try:
-    from backend.modules.batterie.calcul_dimensionnement_batterie import (
+    from backend.components.batterie.modules.calcul_dimensionnement_batterie import (
         calcul_capacite_totale_batterie,
         calcul_poids_batterie,
     )
 except Exception:
-    from backend.modules.batterie.calcul_dimensionnement_batterie import (  # type: ignore
+    from backend.components.batterie.modules.calcul_dimensionnement_batterie import (  # type: ignore
         calcul_capacite_totale_batterie,
         calcul_poids_batterie,
     )
 
 # calcul_energie_utile.py
 try:
-    from backend.modules.batterie.calcul_energie_utile import (
+    from backend.components.batterie.modules.calcul_energie_utile import (
         calcul_energie_utile_cible,
         calcul_energie_utile_trajet,
         calcul_energie_utile_pic,
         choisir_energie_utile_finale,
     )
 except Exception:
-    from backend.modules.batterie.calcul_energie_utile import (  # type: ignore
+    from backend.components.batterie.modules.calcul_energie_utile import (  # type: ignore
         calcul_energie_utile_cible,
         calcul_energie_utile_trajet,
         calcul_energie_utile_pic,
@@ -39,13 +39,13 @@ except Exception:
 
 # calcul_temps_charge.py
 try:
-    from backend.modules.batterie.calcul_temps_charge import calcul_temps_charge
+    from backend.components.batterie.modules.calcul_temps_charge import calcul_temps_charge
 except Exception:
-    from backend.modules.batterie.calcul_temps_charge import calcul_temps_charge  # type: ignore
+    from backend.components.batterie.modules.calcul_temps_charge import calcul_temps_charge  # type: ignore
 
 # calcul_electrique_pack.py
 try:
-    from backend.modules.batterie.calcul_electrique_pack import (
+    from backend.components.batterie.modules.calcul_electrique_pack import (
         calcul_conso_kwh_km_depuis_puissance_vitesse,
         calcul_ah_depuis_kwh_tension,
         calcul_courant_depuis_kw_tension,
@@ -54,7 +54,7 @@ try:
         calcul_puissance_charge_requise,
     )
 except Exception:
-    from backend.modules.batterie.calcul_electrique_pack import (  # type: ignore
+    from backend.components.batterie.modules.calcul_electrique_pack import (  # type: ignore
         calcul_conso_kwh_km_depuis_puissance_vitesse,
         calcul_ah_depuis_kwh_tension,
         calcul_courant_depuis_kw_tension,
@@ -65,7 +65,7 @@ except Exception:
 
 # electrolyte_solide.py
 try:
-    from backend.modules.batterie.electrolyte_solide import (
+    from backend.components.batterie.modules.electrolyte_solide import (
         ElectrolyteSolide,
         CelluleSolide,
         PackSolide,
@@ -73,7 +73,7 @@ try:
         evaluer_electrolyte_solide,
     )
 except Exception:
-    from backend.modules.batterie.electrolyte_solide import (  # type: ignore
+    from backend.components.batterie.modules.electrolyte_solide import (  # type: ignore
         ElectrolyteSolide,
         CelluleSolide,
         PackSolide,
@@ -83,7 +83,7 @@ except Exception:
 
 # dimensionner_pack_cellules.py
 try:
-    from backend.modules.batterie.dimensionner_pack_cellules import (
+    from backend.components.batterie.modules.dimensionner_pack_cellules import (
         Cellule as CellulePack,
         PertesPassivesPack,
         ModeleThermiquePack,
@@ -92,7 +92,7 @@ try:
         dimensionner_pack_cellules,
     )
 except Exception:
-    from backend.modules.batterie.dimensionner_pack_cellules import (  # type: ignore
+    from backend.components.batterie.modules.dimensionner_pack_cellules import (  # type: ignore
         Cellule as CellulePack,
         PertesPassivesPack,
         ModeleThermiquePack,
@@ -103,7 +103,7 @@ except Exception:
 
 # scraping_cellules_batterie.py
 try:
-    from backend.modules.batterie.scraping_cellules_batterie import (
+    from backend.components.batterie.modules.scraping_cellules_batterie import (
         CelluleCommerciale,
         collecter_catalogue_cellules,
         classer_candidats_pre_dimensionnement,
@@ -111,7 +111,7 @@ try:
         cellule_vers_dict,
     )
 except Exception:
-    from backend.modules.batterie.scraping_cellules_batterie import (  # type: ignore
+    from backend.components.batterie.modules.scraping_cellules_batterie import (  # type: ignore
         CelluleCommerciale,
         collecter_catalogue_cellules,
         classer_candidats_pre_dimensionnement,

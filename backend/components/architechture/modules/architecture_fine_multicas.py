@@ -14,13 +14,13 @@ import numpy as np
 # Imports robustes
 # =============================================================================
 try:
-    from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise
-    from backend.modules.architecture.calcul_cylindree_admissible import calcul_nombre_cylindres_min, calcul_bore_max_admissible, calcul_cylindree_unit_max  # type: ignore
+    from backend.components.architechture.modules.calcul_cylindree_totale import calcul_cylindree_totale_requise
+    from backend.components.architechture.modules.calcul_cylindree_admissible import calcul_nombre_cylindres_min, calcul_bore_max_admissible, calcul_cylindree_unit_max  # type: ignore
 except Exception:
     try:
-        from backend.modules.architecture.calcul_cylindree_totale import calcul_cylindree_totale_requise  # type: ignore
-        from backend.modules.architecture.calcul_cylindree_admissible import calcul_bore_max_admissible, calcul_cylindree_unit_max  # type: ignore
-        from backend.modules.architecture.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min  # type: ignore
+        from backend.components.architechture.modules.calcul_cylindree_totale import calcul_cylindree_totale_requise  # type: ignore
+        from backend.components.architechture.modules.calcul_cylindree_admissible import calcul_bore_max_admissible, calcul_cylindree_unit_max  # type: ignore
+        from backend.components.architechture.modules.calcul_nombre_cylindres_min import calcul_nombre_cylindres_min  # type: ignore
     except Exception:
         here = os.path.abspath(os.path.dirname(__file__)) if "__file__" in globals() else os.getcwd()
         if here not in sys.path:
@@ -30,7 +30,7 @@ except Exception:
         from calcul_nombre_cylindres_min import calcul_nombre_cylindres_min  # type: ignore
 
 try:
-    from backend.modules.architecture.calcul_cout_maintenance_archard import calcul_cout_maintenance_estime
+    from backend.components.architechture.modules.calcul_cout_maintenance_archard import calcul_cout_maintenance_estime
 except Exception:
     try:
         from calcul_cout_maintenance_archard import calcul_cout_maintenance_estime  # type: ignore
@@ -38,7 +38,7 @@ except Exception:
         calcul_cout_maintenance_estime = None  # type: ignore
 
 try:
-    from backend.modules.moteur_thermique.calcul_cylindree import (
+    from backend.components.moteur_thermique.modules.calcul_cylindree import (
         CasChargePression,
         ParametresWiebe,
         evaluer_cas_charge_cylindre,

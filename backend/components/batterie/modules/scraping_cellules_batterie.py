@@ -942,6 +942,80 @@ def catalogue_vers_json(cellules: Sequence[CelluleCommerciale], *, indent: int =
     return json.dumps([cellule_vers_dict(c) for c in cellules], ensure_ascii=False, indent=indent)
 
 
+# =============================================================================
+# Cellule intégrée : Samsung INR18650-25R
+# =============================================================================
+
+
+def cellule_commerciale_samsung_25r_locale() -> CelluleCommerciale:
+    """
+    Fournit la Samsung INR18650-25R sans scraping réseau.
+
+    Utile lorsque tu veux dimensionner directement avec les valeurs constructeur
+    déjà connues, sans dépendre d'une page vendeur ou d'un PDF accessible en ligne.
+    """
+    seed = SeedSource(
+        reference="Samsung INR18650-25R",
+        vendor="local_datasheet",
+        product_url="local://samsung-inr18650-25r",
+        html_parser="none",
+        datasheet_url="Samsung SDI INR18650-25R",
+        pdf_parser=None,
+        notes="Fiche locale intégrée pour pré-dimensionnement hors ligne.",
+    )
+    spec = SpecCellulePartielle(
+        reference="Samsung INR18650-25R",
+        brand="Samsung SDI",
+        model="INR18650-25R",
+        chemistry="NCA",
+        format_cellule="18650",
+        capacite_typ_ah=2.56,
+        capacite_min_ah=2.5,
+        energie_typ_wh=9.38,
+        energie_min_wh=9.0,
+        tension_nominale_v=3.6,
+        tension_charge_max_v=4.2,
+        tension_decharge_min_v=2.5,
+        courant_decharge_max_a=20.0,
+        courant_charge_standard_a=1.25,
+        courant_charge_max_a=4.0,
+        resistance_ac_ohm=0.01320,
+        resistance_dc_ohm=0.02215,
+        poids_kg=0.045,
+        diametre_mm=18.33,
+        hauteur_mm=64.85,
+        extra={
+            "courant_decharge_prudent_a": 10.0,
+            "courant_decharge_performant_a": 15.0,
+            "courant_impulsion_moins_1s_a": 100.0,
+            "energie_typique_10a_wh": 8.74,
+            "resistance_ac_max_ohm": 0.018,
+            "resistance_dc_max_ohm": 0.030,
+            "table_temperature_decharge_c": {
+                5.0: 41.2,
+                10.0: 60.6,
+                15.0: 78.4,
+                20.0: 95.2,
+                25.0: 106.8,
+            },
+        },
+        source_urls=["local://samsung-inr18650-25r"],
+        warnings=[
+            "Cellule non protégée individuellement : prévoir BMS.",
+            "Pré-dimensionnement local : vérifier la fiche fournisseur réelle avant achat/assemblage.",
+        ],
+    )
+    offre = OffreCommerciale(
+        vendor="local_datasheet",
+        product_url="local://samsung-inr18650-25r",
+        status="datasheet_only",
+        title="Samsung INR18650-25R",
+        brand="Samsung SDI",
+        model="INR18650-25R",
+    )
+    return CelluleCommerciale(seed=seed, offre=offre, specs=spec)
+
+
 __all__ = [
     "SeedSource",
     "OffreCommerciale",
@@ -955,4 +1029,5 @@ __all__ = [
     "exigences_pour_cellule_complete",
     "cellule_vers_dict",
     "catalogue_vers_json",
+    "cellule_commerciale_samsung_25r_locale",
 ]

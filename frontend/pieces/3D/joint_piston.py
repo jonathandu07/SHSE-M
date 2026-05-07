@@ -19,7 +19,7 @@ import math
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.joint_piston import JointPiston
+from backend.components.moteur_thermique.pieces.joint_piston import JointPiston
 
 
 # =============================================================================

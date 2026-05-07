@@ -21,12 +21,12 @@ except Exception:  # pragma: no cover
 
 # --- Pièces (optionnel) ---
 try:
-    from backend.pieces.cylindre import Cylindre  # type: ignore
+    from backend.components.moteur_thermique.pieces.cylindre import Cylindre  # type: ignore
 except Exception:  # pragma: no cover
     Cylindre = None  # type: ignore
 
 try:
-    from backend.pieces.couvercle_cylindre import CouvercleCylindre  # type: ignore
+    from backend.components.moteur_thermique.pieces.couvercle_cylindre import CouvercleCylindre  # type: ignore
 except Exception:  # pragma: no cover
     CouvercleCylindre = None  # type: ignore
 

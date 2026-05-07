@@ -5,7 +5,7 @@
 # Strict "rien inventer" :
 # - Ne choisit PAS un standard, un ratio recommandé, ni un type de joint.
 # - Calcule tout ce qui est déductible si :
-#   * on a un Piston (objet backend.pieces.piston.Piston) et son rapport calculé
+#   * on a un Piston (objet backend.components.moteur_thermique.pieces.piston.Piston) et son rapport calculé
 #     (piston.analyser()) incluant la géométrie de gorge / CAO
 #   * et/ou un Cylindre (alesage_m)
 #   * et/ou un joint (ID/CS) explicitement fourni

@@ -41,7 +41,7 @@ except Exception:  # pragma: no cover
 
 # --- Cylindre ---
 try:
-    from backend.pieces.cylindre import Cylindre  # type: ignore
+    from backend.components.moteur_thermique.pieces.cylindre import Cylindre  # type: ignore
 except Exception:  # pragma: no cover
     try:
         from pieces.cylindre import Cylindre  # type: ignore
@@ -51,14 +51,14 @@ except Exception:  # pragma: no cover
 
 # --- Modules moteur thermique ---
 try:
-    from backend.modules.moteur_thermique.calcul_vitesse_piston import calcul_vitesse_moyenne_piston
+    from backend.components.moteur_thermique.modules.calcul_vitesse_piston import calcul_vitesse_moyenne_piston
 except Exception:  # pragma: no cover
     def calcul_vitesse_moyenne_piston(course_m: float, vitesse_rotation_tr_min: float) -> float:
         return 2.0 * float(course_m) * (float(vitesse_rotation_tr_min) / 60.0)
 
 
 try:
-    from backend.modules.moteur_thermique.calcul_gaz import (
+    from backend.components.moteur_thermique.modules.calcul_gaz import (
         calcul_force_gaz,
         calcul_debit_fuite_annulaire,
         calcul_masse_fuite,
@@ -121,7 +121,7 @@ except Exception:  # pragma: no cover
 
 
 try:
-    from backend.modules.moteur_thermique.calcul_pertes_frottement import (
+    from backend.components.moteur_thermique.modules.calcul_pertes_frottement import (
         calcul_puissance_frottement_segment,
     )
 except Exception:  # pragma: no cover
@@ -134,7 +134,7 @@ except Exception:  # pragma: no cover
 
 
 try:
-    from backend.modules.moteur_thermique.calcul_force_inertie import calcul_force_inertie_alternative
+    from backend.components.moteur_thermique.modules.calcul_force_inertie import calcul_force_inertie_alternative
 except Exception:  # pragma: no cover
     def calcul_force_inertie_alternative(
         masse_alternative_kg: float,
@@ -165,7 +165,7 @@ except Exception:  # pragma: no cover
 
 
 try:
-    from backend.modules.moteur_thermique.calcul_usure_archard import (
+    from backend.components.moteur_thermique.modules.calcul_usure_archard import (
         calcul_volume_usure_archard,
         calcul_perte_epaisseur,
     )

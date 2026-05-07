@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle, Rectangle
 
-from backend.pieces.arbre import ArbreMoteur
+from backend.components.moteur_thermique.pieces.arbre import ArbreMoteur
 
 
 # ============================================================

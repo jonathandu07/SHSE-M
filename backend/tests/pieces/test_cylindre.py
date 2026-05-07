@@ -12,14 +12,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from backend.pieces.cylindre import (
+from backend.components.moteur_thermique.pieces.cylindre import (
     Cylindre,
     EntreeConvectionTube,
     calcul_h_depuis_entree_convection,
 )
 
 # (optionnel) pour tests conditionnels (selon disponibilité des modules)
-from backend.pieces import cylindre as cyl_mod
+from backend.components.moteur_thermique.pieces import cylindre as cyl_mod
 
 
 # =============================================================================

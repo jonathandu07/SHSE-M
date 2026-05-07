@@ -14,7 +14,7 @@ _CYCLE_OK = False
 _CARBURANT_OK = False
 
 try:
-    from backend.modules.moteur_thermique.calcul_cylindree import (
+    from backend.components.moteur_thermique.modules.calcul_cylindree import (
         CourbePressionMesuree,
         ParametresWiebe,
         CasChargePression,
@@ -34,11 +34,11 @@ try:
         calculer_cycle_mecanique_depuis_cas_charge,
         evaluer_cycles_mecaniques_pour_cas_charge,
     )
-    from backend.modules.moteur_thermique.calcul_travail_indique import (
+    from backend.components.moteur_thermique.modules.calcul_travail_indique import (
         calcul_travail_indique_pme,
         calcul_puissance_indiquee,
     )
-    from backend.modules.moteur_thermique.calcul_gaz import (
+    from backend.components.moteur_thermique.modules.calcul_gaz import (
         calcul_force_gaz,
         calcul_pression_gaz_parfait,
         calcul_temperature_compression_adiabatique,
@@ -53,13 +53,13 @@ try:
         calcul_reynolds_fuite_annulaire,
         calculer_gaz_complet,
     )
-    from backend.modules.moteur_thermique.calcul_force_inertie import (
+    from backend.components.moteur_thermique.modules.calcul_force_inertie import (
         calcul_force_inertie_alternative,
     )
-    from backend.modules.moteur_thermique.calcul_couple_vilebrequin import (
+    from backend.components.moteur_thermique.modules.calcul_couple_vilebrequin import (
         calcul_couple_instantane,
     )
-    from backend.modules.moteur_thermique.calcul_pertes_frottement import (
+    from backend.components.moteur_thermique.modules.calcul_pertes_frottement import (
         calcul_puissance_frottement_segment,
         calcul_puissance_frottement_palier,
         calcul_vitesse_glissement_palier_depuis_diametre,
@@ -73,19 +73,19 @@ try:
         calcul_fmep_depuis_puissance_frottement,
         calcul_rendement_mecanique_depuis_puissances,
     )
-    from backend.modules.moteur_thermique.calcul_precharge_vis import (
+    from backend.components.moteur_thermique.modules.calcul_precharge_vis import (
         calcul_force_separation,
         calcul_precharge_vis_totale,
         calcul_couple_serrage,
     )
-    from backend.modules.moteur_thermique.calcul_vitesse_piston import (
+    from backend.components.moteur_thermique.modules.calcul_vitesse_piston import (
         calcul_vitesse_moyenne_piston,
     )
-    from backend.modules.moteur_thermique.calcul_usure_archard import (
+    from backend.components.moteur_thermique.modules.calcul_usure_archard import (
         calcul_volume_usure_archard,
         calcul_perte_epaisseur,
     )
-    from backend.modules.moteur_thermique.calcul_carburant import (
+    from backend.components.moteur_thermique.modules.calcul_carburant import (
         CompositionElementaireCombustible,
         Carburant,
         calcul_puissance_chimique_combustion,
@@ -111,7 +111,7 @@ try:
         calcul_flux_thermique_total_utile,
         calcul_bilan_carburant_simple,
     )
-    from backend.modules.moteur_thermique.cycle_mecanique import (
+    from backend.components.moteur_thermique.modules.cycle_mecanique import (
         CycleMecaniqueParams,
         calculer_cycle_mecanique,
     )
@@ -119,7 +119,7 @@ try:
     _CARBURANT_OK = True
 except Exception:
     try:
-        from modules.moteur_thermique.calcul_cylindree import (
+        from backend.components.moteur_thermique.modules.calcul_cylindree import (
             CourbePressionMesuree,
             ParametresWiebe,
             CasChargePression,
@@ -248,7 +248,7 @@ except Exception:
         calcul_flux_thermique_total_utile = None  # type: ignore
         calcul_bilan_carburant_simple = None  # type: ignore
         try:
-            from backend.modules.moteur_thermique.calcul_cylindree import (
+            from backend.components.moteur_thermique.modules.calcul_cylindree import (
                 CourbePressionMesuree,
                 ParametresWiebe,
                 CasChargePression,
@@ -268,11 +268,11 @@ except Exception:
                 calculer_cycle_mecanique_depuis_cas_charge,
                 evaluer_cycles_mecaniques_pour_cas_charge,
             )
-            from backend.modules.moteur_thermique.calcul_travail_indique import (
+            from backend.components.moteur_thermique.modules.calcul_travail_indique import (
                 calcul_travail_indique_pme,
                 calcul_puissance_indiquee,
             )
-            from backend.modules.moteur_thermique.calcul_gaz import (
+            from backend.components.moteur_thermique.modules.calcul_gaz import (
                 calcul_force_gaz,
                 calcul_pression_gaz_parfait,
                 calcul_temperature_compression_adiabatique,
@@ -287,13 +287,13 @@ except Exception:
                 calcul_reynolds_fuite_annulaire,
                 calculer_gaz_complet,
             )
-            from backend.modules.moteur_thermique.calcul_force_inertie import (
+            from backend.components.moteur_thermique.modules.calcul_force_inertie import (
                 calcul_force_inertie_alternative,
             )
-            from backend.modules.moteur_thermique.calcul_couple_vilebrequin import (
+            from backend.components.moteur_thermique.modules.calcul_couple_vilebrequin import (
                 calcul_couple_instantane,
             )
-            from backend.modules.moteur_thermique.calcul_pertes_frottement import (
+            from backend.components.moteur_thermique.modules.calcul_pertes_frottement import (
                 calcul_puissance_frottement_segment,
                 calcul_puissance_frottement_palier,
                 calcul_vitesse_glissement_palier_depuis_diametre,
@@ -307,20 +307,20 @@ except Exception:
                 calcul_fmep_depuis_puissance_frottement,
                 calcul_rendement_mecanique_depuis_puissances,
             )
-            from backend.modules.moteur_thermique.calcul_precharge_vis import (
+            from backend.components.moteur_thermique.modules.calcul_precharge_vis import (
                 calcul_force_separation,
                 calcul_precharge_vis_totale,
                 calcul_couple_serrage,
             )
-            from backend.modules.moteur_thermique.calcul_vitesse_piston import (
+            from backend.components.moteur_thermique.modules.calcul_vitesse_piston import (
                 calcul_vitesse_moyenne_piston,
             )
-            from backend.modules.moteur_thermique.calcul_usure_archard import (
+            from backend.components.moteur_thermique.modules.calcul_usure_archard import (
                 calcul_volume_usure_archard,
                 calcul_perte_epaisseur,
             )
             try:
-                from backend.modules.moteur_thermique.calcul_carburant import (
+                from backend.components.moteur_thermique.modules.calcul_carburant import (
                     CompositionElementaireCombustible,
                     Carburant,
                     calcul_puissance_chimique_combustion,
@@ -351,7 +351,7 @@ except Exception:
                 pass
 
             try:
-                from backend.modules.moteur_thermique.cycle_mecanique import (
+                from backend.components.moteur_thermique.modules.cycle_mecanique import (
                     CycleMecaniqueParams,
                     calculer_cycle_mecanique,
                 )
@@ -369,17 +369,17 @@ except Exception:
 
 _ARCHI_OK = True
 try:
-    from backend.modules.architecture.calcul_cylindree_totale import (
+    from backend.components.architechture.modules.calcul_cylindree_totale import (
         calcul_cylindree_totale_requise,
     )
-    from backend.modules.architecture.calcul_cylindree_admissible import (
+    from backend.components.architechture.modules.calcul_cylindree_admissible import (
         calcul_bore_max_admissible,
         calcul_cylindree_unit_max,
     )
-    from backend.modules.architecture.calcul_nombre_cylindres_min import (
+    from backend.components.architechture.modules.calcul_nombre_cylindres_min import (
         calcul_nombre_cylindres_min,
     )
-    from backend.modules.architecture.choix_architecture_optimale import (
+    from backend.components.architechture.modules.choix_architecture_optimale import (
         choix_architecture_optimale,
         evaluer_architecture,
     )
@@ -390,7 +390,7 @@ except Exception:
 # Imports pièce piston (optionnel)
 # ============================================================
 try:
-    from backend.pieces.piston import Piston as PiecePiston  # type: ignore
+    from backend.components.moteur_thermique.pieces.piston import Piston as PiecePiston  # type: ignore
 except Exception:
     try:
         from pieces.piston import Piston as PiecePiston  # type: ignore
@@ -737,7 +737,7 @@ class MoteurThermique:
     - analyser_point_de_fonctionnement(): calcule un point (forces, couple, pertes, usure, etc.)
     - definir_depuis_exigences(): définit un moteur (B, S, N, archi) UNIQUEMENT si calculable.
       Si une info manque, elle est listée comme inconnue et AUCUNE valeur n'est inventée.
-    - analyser_cycle_mecanique(): exploite backend.modules.moteur_thermique.cycle_mecanique
+    - analyser_cycle_mecanique(): exploite backend.components.moteur_thermique.modules.cycle_mecanique
       si et seulement si les entrées nécessaires existent.
 
     Ajouts importants :
@@ -1182,7 +1182,7 @@ class MoteurThermique:
                 rapport,
                 "impossibles",
                 "dimensionnement global (architecture)",
-                "Modules backend.modules.architecture.* indisponibles : impossible de définir B/S/N par ces calculs.",
+                "Modules backend.components.architechture.modules.* indisponibles : impossible de définir B/S/N par ces calculs.",
             )
             _dedup_inconnues(rapport)
             return rapport
@@ -1735,7 +1735,7 @@ class MoteurThermique:
                 rapport,
                 "impossibles",
                 "cycle mécanique complet",
-                "Module backend.modules.moteur_thermique.cycle_mecanique indisponible.",
+                "Module backend.components.moteur_thermique.modules.cycle_mecanique indisponible.",
             )
             _dedup_inconnues(rapport)
             return rapport

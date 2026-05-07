@@ -79,42 +79,42 @@ Architecture = _import_attr(
 )
 
 # Pièces
-Cylindre = _import_attr(("backend.pieces.cylindre", "cylindre"), "Cylindre")
-Piston = _import_attr(("backend.pieces.piston", "piston"), "Piston")
-JointPiston = _import_attr(("backend.pieces.joint_piston", "joint_piston"), "JointPiston")
-CorpsBielle = _import_attr(("backend.pieces.bielle", "bielle"), "CorpsBielle")
-ArbrePiston = _import_attr(("backend.pieces.arbre_piston", "arbre_piston"), "ArbrePiston")
+Cylindre = _import_attr(("backend.components.moteur_thermique.pieces.cylindre", "cylindre"), "Cylindre")
+Piston = _import_attr(("backend.components.moteur_thermique.pieces.piston", "piston"), "Piston")
+JointPiston = _import_attr(("backend.components.moteur_thermique.pieces.joint_piston", "joint_piston"), "JointPiston")
+CorpsBielle = _import_attr(("backend.components.moteur_thermique.pieces.bielle", "bielle"), "CorpsBielle")
+ArbrePiston = _import_attr(("backend.components.moteur_thermique.pieces.arbre_piston", "arbre_piston"), "ArbrePiston")
 CoussinetArbrePiston = _import_attr(
-    ("backend.pieces.coussinet_arbre_piston", "coussinet_arbre_piston"),
+    ("backend.components.moteur_thermique.pieces.coussinet_arbre_piston", "coussinet_arbre_piston"),
     "CoussinetArbrePiston",
 )
 ArbreVilbrequin = _import_attr(
-    ("backend.pieces.arbre_vilbrequin", "arbre_vilbrequin"),
+    ("backend.components.moteur_thermique.pieces.arbre_vilbrequin", "arbre_vilbrequin"),
     "ArbreVilbrequin",
 )
-Vilbrequin = _import_attr(("backend.pieces.vilbrequin", "vilbrequin"), "Vilbrequin")
+Vilbrequin = _import_attr(("backend.components.moteur_thermique.pieces.vilbrequin", "vilbrequin"), "Vilbrequin")
 RoulementAiguilleArbre = _import_attr(
-    ("backend.pieces.roulement_aiguille_arbre", "roulement_aiguille_arbre"),
+    ("backend.components.moteur_thermique.pieces.roulement_aiguille_arbre", "roulement_aiguille_arbre"),
     "RoulementAiguilleArbre",
 )
 RoulementAiguilleArbreVilebrequin = _import_attr(
-    ("backend.pieces.roulement_aiguille_arbre_vilebrequin", "roulement_aiguille_arbre_vilebrequin"),
+    ("backend.components.moteur_thermique.pieces.roulement_aiguille_arbre_vilebrequin", "roulement_aiguille_arbre_vilebrequin"),
     "RoulementAiguilleArbreVilebrequin",
 )
 CouvercleCylindre = _import_attr(
-    ("backend.pieces.couvercle_cylindre", "couvercle_cylindre"),
+    ("backend.components.moteur_thermique.pieces.couvercle_cylindre", "couvercle_cylindre"),
     "CouvercleCylindre",
 )
 VisCouvercleCylindre = _import_attr(
-    ("backend.pieces.vis_couvercle_cylindre", "vis_couvercle_cylindre"),
+    ("backend.components.moteur_thermique.pieces.vis_couvercle_cylindre", "vis_couvercle_cylindre"),
     "VisCouvercleCylindre",
 )
-Deplaceur = _import_attr(("backend.pieces.deplaceur", "deplaceur"), "Deplaceur")
+Deplaceur = _import_attr(("backend.components.moteur_thermique.pieces.deplaceur", "deplaceur"), "Deplaceur")
 JointDeplaceur = _import_attr(
-    ("backend.pieces.joint_deplaceur", "joint_deplaceur"),
+    ("backend.components.moteur_thermique.pieces.joint_deplaceur", "joint_deplaceur"),
     "JointDeplaceur",
 )
-ArbreMoteur = _import_attr(("backend.pieces.arbre", "arbre"), "ArbreMoteur")
+ArbreMoteur = _import_attr(("backend.components.moteur_thermique.pieces.arbre", "arbre"), "ArbreMoteur")
 
 
 # =============================================================================

@@ -22,10 +22,22 @@ from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
 import math
 
-# --- import de tes utilitaires pack électrique (courant, etc.) ---
-from backend.components.batterie.modules.calcul_electrique_pack import (
-    calcul_courant_depuis_kw_tension,
-)
+# --- import robuste de tes utilitaires pack électrique (courant, etc.) ---
+# Compatible avec plusieurs arborescences :
+# - backend.components.batterie.modules.*
+# - backend.modules.batterie.*
+# - fichiers posés dans le même dossier
+try:  # arborescence initialement utilisée dans certains fichiers
+    from backend.components.batterie.modules.calcul_electrique_pack import (
+        calcul_courant_depuis_kw_tension,
+    )
+except Exception:  # fallback projet classique
+    try:
+        from backend.modules.batterie.calcul_electrique_pack import (
+            calcul_courant_depuis_kw_tension,
+        )
+    except Exception:  # fallback local / tests unitaires
+        from calcul_electrique_pack import calcul_courant_depuis_kw_tension
 
 # =============================================================================
 # Validation robuste

@@ -21,7 +21,7 @@ import math
 import numpy as np
 import pyvista as pv
 
-from backend.pieces.roulement_aiguille_arbre import RoulementAiguilleArbre
+from backend.components.moteur_thermique.pieces.roulement_aiguille_arbre import RoulementAiguilleArbre
 
 
 # =============================================================================
