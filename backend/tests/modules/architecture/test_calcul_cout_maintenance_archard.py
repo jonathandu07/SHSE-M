@@ -4,7 +4,7 @@ import os
 import logging
 import math
 from unittest.mock import patch, MagicMock
-from backend.modules.architecture.calcul_cout_maintenance_archard import (
+from backend.components.architechture.modules.calcul_cout_maintenance_archard import (
     calcul_cout_maintenance_estime,
     _normaliser_montant_eur,
     _extraire_montants_eur

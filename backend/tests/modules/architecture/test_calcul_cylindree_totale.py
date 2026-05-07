@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.architecture.calcul_cylindree_totale import (
+from backend.components.architechture.modules.calcul_cylindree_totale import (
     calcul_cylindree_totale_requise
 )
 

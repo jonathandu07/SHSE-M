@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.architecture.calcul_cylindree_admissible import (
+from backend.components.architechture.modules.calcul_cylindree_admissible import (
     calcul_bore_max_admissible,
     calcul_cylindree_unit_max
 )

@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.architecture.choix_architecture_optimale import (
+from backend.components.architechture.modules.choix_architecture_optimale import (
     evaluer_architecture,
     choix_architecture_optimale
 )

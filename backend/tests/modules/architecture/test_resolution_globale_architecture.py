@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import json
-from backend.modules.architecture.resolution_globale_architecture import (
+from backend.components.architechture.modules.resolution_globale_architecture import (
     resoudre_architecture_globale
 )
 

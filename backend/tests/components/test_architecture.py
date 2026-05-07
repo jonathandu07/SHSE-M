@@ -1,2 +1,2 @@
 # backend\tests\components\test_architecture.py
-from backend.components.architecture import *
+from backend.components.architechture.architecture import *

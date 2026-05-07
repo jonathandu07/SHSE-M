@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.architecture.calcul_nombre_cylindres_min import (
+from backend.components.architechture.modules.calcul_nombre_cylindres_min import (
     calcul_nombre_cylindres_min
 )
 
