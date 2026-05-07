@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Mapping, Optional
+from itertools import product
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 
 UNIT_TO_W = {
@@ -65,6 +66,114 @@ def _dedup_unknowns(report: Dict[str, Any]) -> None:
                 seen.add(key)
                 out.append(item)
         report["inconnues"][kind] = out
+
+
+def _as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, (str, bytes)):
+        return [value]
+    if isinstance(value, Iterable):
+        return list(value)
+    return [value]
+
+
+def _positive_vector(name: str, value: Any) -> list[float]:
+    return [_require_positive(name, item) for item in _as_list(value)]
+
+
+def _ratio_vector(name: str, value: Any) -> list[float]:
+    out: list[float] = []
+    for item in _as_list(value):
+        ratio = _ratio(name, item)
+        if ratio is not None:
+            out.append(ratio)
+    return out
+
+
+def _int_vector(name: str, value: Any) -> list[int]:
+    out: list[int] = []
+    for item in _as_list(value):
+        number = _require_positive(name, item)
+        if abs(number - round(number)) > 1e-12:
+            raise ValueError(f"{name} doit contenir des entiers.")
+        out.append(int(round(number)))
+    return out
+
+
+def _string_vector(name: str, value: Any, allowed: set[str]) -> list[str]:
+    out: list[str] = []
+    for item in _as_list(value):
+        text = str(item)
+        if text not in allowed:
+            raise ValueError(f"{name} contient {text!r}, attendu parmi {sorted(allowed)}.")
+        out.append(text)
+    return out
+
+
+def _get_path(data: Mapping[str, Any], *path: str) -> Any:
+    current: Any = data
+    for key in path:
+        if not isinstance(current, Mapping) or key not in current:
+            return None
+        current = current[key]
+    return current
+
+
+METRIC_PATHS: dict[str, tuple[str, ...]] = {
+    "couple_sortie_nm": ("calculs", "couple_sortie_nm"),
+    "courant_dc_a": ("calculs", "courant_dc_a"),
+    "courant_triphase_ligne_a": ("calculs", "courant_triphase_ligne_a"),
+    "puissance_amont_requise_w": ("calculs", "puissance_amont_requise_w"),
+    "puissance_moteur_requise_w": ("calculs", "puissance_moteur_requise_w"),
+    "couple_moteur_nm": ("calculs", "couple_moteur_nm"),
+    "cylindree_totale_requise_l": ("calculs", "moteur_thermique", "cylindree_totale_requise_l"),
+    "alesage_mm": ("calculs", "moteur_thermique", "geometrie", "alesage_mm"),
+    "course_mm": ("calculs", "moteur_thermique", "geometrie", "course_mm"),
+    "nombre_cylindres": ("calculs", "moteur_thermique", "geometrie", "nombre_cylindres"),
+    "epaisseur_cylindre_mince_m": ("calculs", "moteur_thermique", "epaisseur_cylindre_mince_m"),
+    "energie_sortie_sur_duree_kwh": ("calculs", "energie_sortie_sur_duree_kwh"),
+    "energie_trajet_kwh": ("calculs", "energie_trajet_kwh"),
+}
+
+
+DEFAULT_SELECTIONS: dict[str, tuple[str, str]] = {
+    "couple_sortie_max": ("couple_sortie_nm", "max"),
+    "courant_dc_min": ("courant_dc_a", "min"),
+    "courant_triphase_min": ("courant_triphase_ligne_a", "min"),
+    "puissance_amont_min": ("puissance_amont_requise_w", "min"),
+    "couple_moteur_max": ("couple_moteur_nm", "max"),
+    "cylindree_min": ("cylindree_totale_requise_l", "min"),
+    "alesage_min": ("alesage_mm", "min"),
+    "course_min": ("course_mm", "min"),
+    "epaisseur_cylindre_min": ("epaisseur_cylindre_mince_m", "min"),
+}
+
+
+VECTOR_BUILDERS = {
+    "rpm_sortie": lambda value: _positive_vector("rpm_sortie", value),
+    "tension_dc_v": lambda value: _positive_vector("tension_dc_v", value),
+    "tension_ac_ligne_v": lambda value: _positive_vector("tension_ac_ligne_v", value),
+    "facteur_puissance": lambda value: _ratio_vector("facteur_puissance", value),
+    "rendement_total": lambda value: _ratio_vector("rendement_total", value),
+    "rendement_sortie_depuis_moteur": lambda value: _ratio_vector("rendement_sortie_depuis_moteur", value),
+    "puissance_moteur_requise_w": lambda value: _positive_vector("puissance_moteur_requise_w", value),
+    "rpm_moteur": lambda value: _positive_vector("rpm_moteur", value),
+    "pme_pa": lambda value: _positive_vector("pme_pa", value),
+    "temps_moteur": lambda value: _int_vector("temps_moteur", value),
+    "type_puissance_moteur": lambda value: _string_vector("type_puissance_moteur", value, {"frein", "indiquee"}),
+    "rendement_mecanique": lambda value: _ratio_vector("rendement_mecanique", value),
+    "nombre_cylindres": lambda value: _int_vector("nombre_cylindres", value),
+    "ratio_course_alesage_cible": lambda value: _positive_vector("ratio_course_alesage_cible", value),
+    "ratio_course_alesage_max": lambda value: _positive_vector("ratio_course_alesage_max", value),
+    "vitesse_piston_max_ms": lambda value: _positive_vector("vitesse_piston_max_ms", value),
+    "pression_max_pa": lambda value: _positive_vector("pression_max_pa", value),
+    "contrainte_admissible_pa": lambda value: _positive_vector("contrainte_admissible_pa", value),
+    "facteur_securite_cylindre": lambda value: _positive_vector("facteur_securite_cylindre", value),
+    "duree_h": lambda value: _positive_vector("duree_h", value),
+    "distance_km": lambda value: _positive_vector("distance_km", value),
+    "conso_kwh_km": lambda value: _positive_vector("conso_kwh_km", value),
+}
 
 
 def normaliser_puissance(puissance: float, unite: str = "kw") -> Dict[str, float | str]:
@@ -439,4 +548,292 @@ def analyser_puissance_sortie(
 
     _dedup_unknowns(report)
     report["niveau_definition"]["inconnues_total"] = len(report["inconnues"]["impossibles"]) + len(report["inconnues"]["partielles"])
+    return report
+
+
+def _metric(report: Mapping[str, Any], metric_name: str) -> Optional[float]:
+    path = METRIC_PATHS.get(metric_name)
+    if path is None:
+        return None
+    value = _get_path(report, *path)
+    return float(value) if _is_finite(value) else None
+
+
+def _candidate_summary(candidate: Mapping[str, Any]) -> Dict[str, Any]:
+    report = candidate["rapport"]
+    metrics = {
+        name: _metric(report, name)
+        for name in METRIC_PATHS
+        if _metric(report, name) is not None
+    }
+    return {
+        "index": candidate["index"],
+        "entrees": candidate["entrees"],
+        "metriques": metrics,
+        "inconnues_total": report.get("niveau_definition", {}).get("inconnues_total"),
+        "pret_pour_dimensionnement_pieces": report.get("niveau_definition", {}).get("pret_pour_dimensionnement_pieces"),
+    }
+
+
+def _constraint_metric_name(name: str) -> tuple[Optional[str], Optional[str]]:
+    if name.endswith("_max"):
+        return name[:-4], "max"
+    if name.endswith("_min"):
+        return name[:-4], "min"
+    return None, None
+
+
+def _passes_constraints(report: Mapping[str, Any], contraintes: Mapping[str, Any]) -> tuple[bool, list[Dict[str, Any]]]:
+    failures: list[Dict[str, Any]] = []
+    for raw_name, limit_raw in contraintes.items():
+        metric_name, direction = _constraint_metric_name(str(raw_name))
+        if metric_name is None or direction is None:
+            failures.append({"contrainte": raw_name, "raison": "Format attendu: nom_metrique_min ou nom_metrique_max."})
+            continue
+        if metric_name not in METRIC_PATHS:
+            failures.append({"contrainte": raw_name, "raison": f"Metrique inconnue: {metric_name}."})
+            continue
+        limit = _require_positive(str(raw_name), limit_raw)
+        value = _metric(report, metric_name)
+        if value is None:
+            failures.append({"contrainte": raw_name, "raison": f"Metrique {metric_name} non calculable pour ce candidat."})
+            continue
+        if direction == "max" and value > limit:
+            failures.append({"contrainte": raw_name, "valeur": value, "limite": limit, "raison": "Valeur au-dessus du maximum."})
+        if direction == "min" and value < limit:
+            failures.append({"contrainte": raw_name, "valeur": value, "limite": limit, "raison": "Valeur sous le minimum."})
+    return len(failures) == 0, failures
+
+
+def _build_candidate_vectors(
+    donnees_connues: Mapping[str, Any],
+    espace_recherche: Mapping[str, Any],
+) -> Dict[str, list[Any]]:
+    vectors: Dict[str, list[Any]] = {}
+    for name, builder in VECTOR_BUILDERS.items():
+        if name in donnees_connues and donnees_connues[name] is not None:
+            vectors[name] = builder(donnees_connues[name])
+        elif name in espace_recherche and espace_recherche[name] is not None:
+            values = builder(espace_recherche[name])
+            if values:
+                vectors[name] = values
+    return vectors
+
+
+def _select_best(candidates: list[Dict[str, Any]]) -> Dict[str, Any]:
+    selection: Dict[str, Any] = {}
+    for label, (metric_name, direction) in DEFAULT_SELECTIONS.items():
+        eligible: list[tuple[float, Dict[str, Any]]] = []
+        for candidate in candidates:
+            value = _metric(candidate["rapport"], metric_name)
+            if value is not None:
+                eligible.append((value, candidate))
+        if not eligible:
+            continue
+        best_value, best_candidate = max(eligible, key=lambda item: item[0]) if direction == "max" else min(eligible, key=lambda item: item[0])
+        selection[label] = {
+            "metrique": metric_name,
+            "objectif": direction,
+            "valeur": best_value,
+            "candidat": _candidate_summary(best_candidate),
+        }
+    return selection
+
+
+def _dominates(left: Mapping[str, Any], right: Mapping[str, Any], objectives: list[tuple[str, str]]) -> bool:
+    strictly_better = False
+    for metric_name, direction in objectives:
+        lv = _metric(left["rapport"], metric_name)
+        rv = _metric(right["rapport"], metric_name)
+        if lv is None or rv is None:
+            return False
+        if direction == "max":
+            if lv < rv:
+                return False
+            strictly_better = strictly_better or lv > rv
+        else:
+            if lv > rv:
+                return False
+            strictly_better = strictly_better or lv < rv
+    return strictly_better
+
+
+def _pareto_front(candidates: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    objectives = [
+        ("couple_sortie_nm", "max"),
+        ("courant_dc_a", "min"),
+        ("puissance_amont_requise_w", "min"),
+        ("epaisseur_cylindre_mince_m", "min"),
+    ]
+    usable_objectives = [
+        (name, direction)
+        for name, direction in objectives
+        if any(_metric(candidate["rapport"], name) is not None for candidate in candidates)
+    ]
+    if not usable_objectives:
+        return []
+
+    front: list[Dict[str, Any]] = []
+    for candidate in candidates:
+        if not any(_dominates(other, candidate, usable_objectives) for other in candidates if other is not candidate):
+            front.append(_candidate_summary(candidate))
+    return front
+
+
+def optimiser_puissance_sortie(
+    puissance: float,
+    unite: str = "kw",
+    *,
+    type_sortie: str = "sortie_utilisateur",
+    donnees_connues: Optional[Mapping[str, Any]] = None,
+    espace_recherche: Optional[Mapping[str, Any]] = None,
+    contraintes: Optional[Mapping[str, Any]] = None,
+    max_candidats: int = 50000,
+) -> Dict[str, Any]:
+    """Optimise les grandeurs calculables depuis une puissance.
+
+    L'optimiseur ne cree jamais de plage de recherche. Les meilleurs resultats
+    sont selectionnes uniquement parmi les valeurs fixes ou les listes fournies
+    dans `espace_recherche`.
+    """
+
+    known: Dict[str, Any] = dict(donnees_connues or {})
+    search: Dict[str, Any] = dict(espace_recherche or {})
+    limits: Dict[str, Any] = dict(contraintes or {})
+    max_candidats = int(_require_positive("max_candidats", max_candidats))
+
+    base = analyser_puissance_sortie(
+        puissance,
+        unite,
+        type_sortie=type_sortie,
+        donnees_connues=known,
+    )
+    report: Dict[str, Any] = {
+        "meta": {
+            "mode": "optimisation_puissance_sortie_stricte",
+            "type_sortie": type_sortie,
+        },
+        "analyse_base": base,
+        "entrees": {
+            "puissance": base["calculs"]["puissance_sortie"],
+            "donnees_connues": known,
+            "espace_recherche": search,
+            "contraintes": limits,
+            "max_candidats": max_candidats,
+        },
+        "candidats": [],
+        "candidats_valides": [],
+        "selection": {},
+        "pareto": [],
+        "inconnues": {"impossibles": [], "partielles": []},
+        "notes_modele": [
+            "Optimisation stricte: aucune plage n'est generee automatiquement.",
+            "Les selections sont faites uniquement sur les candidats fournis ou les valeurs connues.",
+        ],
+    }
+
+    vectors = _build_candidate_vectors(known, search)
+    if not vectors:
+        _push_unknown(
+            report,
+            "impossibles",
+            "espace_recherche",
+            "Aucun candidat fourni. Une puissance seule ne suffit pas a optimiser couple, courant ou geometrie.",
+            "candidats, selection",
+        )
+
+    if "rpm_sortie" not in vectors:
+        _push_unknown(
+            report,
+            "partielles",
+            "rpm_sortie",
+            "Fournir un ou plusieurs regimes de sortie pour optimiser le couple.",
+            "couple_sortie_max",
+        )
+    if "tension_dc_v" not in vectors:
+        _push_unknown(
+            report,
+            "partielles",
+            "tension_dc_v",
+            "Fournir une ou plusieurs tensions DC pour optimiser le courant.",
+            "courant_dc_min",
+        )
+
+    keys = list(vectors)
+    sizes = [len(vectors[key]) for key in keys]
+    total = math.prod(sizes) if sizes else 1
+    if total > max_candidats:
+        _push_unknown(
+            report,
+            "impossibles",
+            "nombre_candidats",
+            f"Espace de recherche trop grand: {total} candidats > max_candidats={max_candidats}.",
+            "optimisation",
+        )
+        _dedup_unknowns(report)
+        return report
+
+    combos = product(*(vectors[key] for key in keys)) if keys else [()]
+    for index, combo in enumerate(combos):
+        candidate_known = dict(known)
+        candidate_known.update({key: value for key, value in zip(keys, combo)})
+        candidate_report = analyser_puissance_sortie(
+            puissance,
+            unite,
+            type_sortie=type_sortie,
+            donnees_connues=candidate_known,
+        )
+        valid, failures = _passes_constraints(candidate_report, limits)
+        candidate = {
+            "index": index,
+            "entrees": candidate_known,
+            "rapport": candidate_report,
+            "respecte_contraintes": valid,
+            "contraintes_non_respectees": failures,
+        }
+        report["candidats"].append(_candidate_summary(candidate) | {"respecte_contraintes": valid})
+        if valid:
+            report["candidats_valides"].append(candidate)
+
+    valid_candidates: list[Dict[str, Any]] = report["candidats_valides"]
+    if not valid_candidates and report["candidats"]:
+        _push_unknown(
+            report,
+            "impossibles",
+            "candidats_valides",
+            "Aucun candidat ne respecte les contraintes fournies.",
+            "selection",
+        )
+
+    report["selection"] = _select_best(valid_candidates)
+    report["pareto"] = _pareto_front(valid_candidates)
+
+    if "couple_sortie_max" not in report["selection"]:
+        _push_unknown(
+            report,
+            "partielles",
+            "couple_sortie_max",
+            "Selection impossible sans couple_sortie_nm calculable sur au moins un candidat.",
+            "meilleur couple de sortie",
+        )
+    if "courant_dc_min" not in report["selection"]:
+        _push_unknown(
+            report,
+            "partielles",
+            "courant_dc_min",
+            "Selection impossible sans courant_dc_a calculable sur au moins un candidat.",
+            "meilleur courant DC",
+        )
+
+    report["resume"] = {
+        "nb_candidats": len(report["candidats"]),
+        "nb_candidats_valides": len(valid_candidates),
+        "metriques_selectionnees": sorted(report["selection"]),
+        "pret_pour_dimensionnement_pieces": any(
+            bool(candidate["rapport"].get("niveau_definition", {}).get("pret_pour_dimensionnement_pieces"))
+            for candidate in valid_candidates
+        ),
+    }
+
+    _dedup_unknowns(report)
     return report

@@ -80,10 +80,11 @@ except Exception:
     DriveChainGenerator = None  # type: ignore
 
 try:
-    from backend.modules.systeme.analyse_puissance_sortie import analyser_puissance_sortie, normaliser_puissance  # type: ignore
+    from backend.modules.systeme.analyse_puissance_sortie import analyser_puissance_sortie, normaliser_puissance, optimiser_puissance_sortie  # type: ignore
 except Exception:
     analyser_puissance_sortie = None  # type: ignore
     normaliser_puissance = None  # type: ignore
+    optimiser_puissance_sortie = None  # type: ignore
 
 
 # =============================================================================
@@ -1959,6 +1960,7 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
 realiser_systeme_complet = dimensionner_systeme_shsem
 concevoir_systeme_complet = dimensionner_systeme_shsem
 analyser_systeme_depuis_puissance = analyser_puissance_sortie
+optimiser_systeme_depuis_puissance = optimiser_puissance_sortie
 
 
 def exporter_rapport_json(rapport: Mapping[str, Any], path: str | os.PathLike[str], *, indent: int = 2) -> str:
