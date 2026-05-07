@@ -795,11 +795,487 @@ class LoadingScreen(Screen):
             res = db.load_resume_gui()
             app.simulation_results = res or {}
             app.current_report_name = report_name
+
         except Exception:
             app.simulation_results = {"__error__": traceback.format_exc()}
 
-        class DashboardScreen(Screen):
+        Clock.schedule_once(lambda dt: setattr(self.manager, "current", "dashboard"))
+
+
+class DashboardScreen(Screen):
     res_pwr = StringProperty("-- kW")
     res_mass = StringProperty("-- kg")
     res_vol = StringProperty("-- m³")
+    res_ncyl = StringProperty("--")
+    res_arch = StringProperty("--")
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
+        top = BoxLayout(size_hint_y=None, height=60, spacing=20)
+        ttl = Label(text="RÉSULTATS DE GÉNÉRATION", font_size="22sp", bold=True,
+                    color=COLORS["BF"], size_hint_x=0.55, halign="left", valign="middle")
+        ttl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        top.add_widget(ttl)
+        btn_adj = ModernButton(text="AJUSTER", size_hint_x=0.2, font_size="14sp")
+        btn_adj.bind(on_press=self.open_adjust_popup)
+        top.add_widget(btn_adj)
+        back = Button(text="RECONFIGURER", size_hint_x=0.25,
+                      background_color=(0, 0, 0, 0), color=COLORS["GAXD"])
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "config"))
+        top.add_widget(back)
+        layout.add_widget(top)
+
+        grid = GridLayout(cols=3, rows=2, spacing=20, size_hint_y=0.68)
+        c1 = PremiumCard(title="Performances")
+        lbl_pwr = Label(text=self.res_pwr, font_size="30sp", bold=True, color=COLORS["BF"])
+        self.bind(res_pwr=lambda _, v: setattr(lbl_pwr, "text", v))
+        c1.add_widget(lbl_pwr)
+        c1.add_widget(Label(text="Système Hybride Optimisé", color=COLORS["JV"]))
+        grid.add_widget(c1)
+
+        c2 = PremiumCard(title="Cylindrée")
+        lbl_vol = Label(text=self.res_vol, font_size="26sp", bold=True, color=COLORS["BF"])
+        self.bind(res_vol=lambda _, v: setattr(lbl_vol, "text", v))
+        c2.add_widget(lbl_vol)
+        lbl_mass = Label(text=self.res_mass, color=COLORS["BA"])
+        self.bind(res_mass=lambda _, v: setattr(lbl_mass, "text", v))
+        c2.add_widget(lbl_mass)
+        grid.add_widget(c2)
+
+        c3 = PremiumCard(title="Architecture")
+        lbl_arch = Label(text=self.res_arch, font_size="26sp", bold=True, color=COLORS["BF"])
+        self.bind(res_arch=lambda _, v: setattr(lbl_arch, "text", v))
+        c3.add_widget(lbl_arch)
+        lbl_ncyl = Label(text="-- cylindres", color=COLORS["GAXD"])
+        self.bind(res_ncyl=lambda _, v: setattr(lbl_ncyl, "text", f"{v} cyl."))
+        c3.add_widget(lbl_ncyl)
+        grid.add_widget(c3)
+
+        c4 = PremiumCard(title="Accès Rapide")
+        bg = GridLayout(cols=2, spacing=10)
+        for txt, screen in [("LISTE PIÈCES", "piece_library"), ("VUE VECT.", "vector_view"),
+                             ("DOSSIER PDF", "pdf_folder"), ("FICHE DÉTAIL", "detailed_datasheet")]:
+            b = ModernButton(text=txt, font_size="13sp")
+            b.bind(on_press=lambda _, s=screen: setattr(self.manager, "current", s))
+            bg.add_widget(b)
+        c4.add_widget(bg)
+        grid.add_widget(c4)
+
+        c5 = PremiumCard(title="Alertes Santé")
+        self.health_lbl = Label(text="OK", font_size="38sp", bold=True,
+                                color=(30/255, 180/255, 50/255, 1))
+        c5.add_widget(self.health_lbl)
+        c5.add_widget(Label(text="Facteur sécurité > 1.5", color=COLORS["GAXD"]))
+        grid.add_widget(c5)
+        layout.add_widget(grid)
+
+        self.dt_card = PremiumCard(title="CHAÎNE DE TRACTION", size_hint_y=0.3)
+        self.dt_grid = GridLayout(cols=3, spacing=15, padding=10)
+        self.dt_card.add_widget(self.dt_grid)
+        layout.add_widget(self.dt_card)
+        self.add_widget(layout)
+
+    def open_adjust_popup(self, *_):
+        app = App.get_running_app()
+        ep = app.engine_params or {}
+        content = BoxLayout(orientation="vertical", padding=20, spacing=12)
+        fields = {}
+        for lbl, key, default in [
+            ("Alésage (mm)", "alesage_mm", ep.get("alesage_mm", ep.get("alesage_m", 0.13) * 1000)),
+            ("Course (mm)", "course_mm", ep.get("course_mm", ep.get("course_m", 0.15) * 1000)),
+            ("RPM", "rpm_nominal", ep.get("rpm_nominal", 1500)),
+            ("PME (bar)", "pme_bar", ep.get("pme_pa", 15e5) / 1e5),
+        ]:
+            row = BoxLayout(size_hint_y=None, height=48, spacing=10)
+            row.add_widget(Label(text=lbl, color=COLORS["BF"], size_hint_x=0.45, font_size="13sp"))
+            inp = TextInput(text=str(round(float(default), 2)), multiline=False,
+                            font_size="16sp", size_hint_x=0.55, size_hint_y=None, height=44)
+            fields[key] = inp
+            row.add_widget(inp)
+            content.add_widget(row)
+
+        def do_recalc(*_):
+            new_ep = dict(ep)
+            for k, inp in fields.items():
+                try:
+                    v = float(inp.text.replace(",", "."))
+                    new_ep[k] = v
+                    if k == "alesage_mm":
+                        new_ep["alesage_m"] = v / 1000
+                    if k == "course_mm":
+                        new_ep["course_m"] = v / 1000
+                    if k == "pme_bar":
+                        new_ep["pme_pa"] = v * 1e5
+                except Exception:
+                    pass
+            app.engine_params = new_ep
+            popup.dismiss()
+            self.manager.current = "loading"
+
+        btn = ModernButton(text="RECALCULER", size_hint_y=None, height=52)
+        btn.bind(on_press=do_recalc)
+        content.add_widget(btn)
+        popup = Popup(title="Ajuster les paramètres", content=content, size_hint=(0.55, 0.72))
+        popup.open()
+
+    def on_enter(self, *args):
+        app = App.get_running_app()
+        res = app.simulation_results or {}
+        if "__error__" in res:
+            self.res_pwr = "ERREUR"
+            self.res_arch = "Voir logs"
+            self.res_ncyl = "--"
+            self.res_mass = "--"
+            self.res_vol = "--"
+            show_popup("Erreur backend", str(res["__error__"])[:400])
+            return
+        p = float(app.target_power)
+        n_cyl = res.get("N_cyl") or 0
+        self.res_pwr = f"{p:.1f} kW"
+        self.res_ncyl = str(n_cyl) if n_cyl else "--"
+        self.res_arch = str(res.get("Architecture") or "?")
+        self.res_mass = f"~{p * 0.6 + n_cyl * 10:.0f} kg"
+        vd = res.get("vd_tot_cc")
+        self.res_vol = f"{vd / 1000:.2f} L" if vd else "--"
+        self.dt_grid.clear_widgets()
+
+        def _f(v, u="", d=1):
+            if v is None:
+                return "—"
+            try:
+                return f"{float(v):.{d}f} {u}".strip()
+            except Exception:
+                return str(v)
+
+        bore_mm = res.get("Bore_mm")
+        stroke_mm = res.get("Stroke_mm")
+        rpm = res.get("RPM")
+        pme_pa = res.get("PME_Pa") or res.get("PME")
+        force_b = res.get("Force_bielle_N")
+        energie = res.get("energie_batterie_kwh")
+        score = res.get("score_coherence_100")
+        nb_inc = res.get("nb_inconnues", 0)
+        nb_al = res.get("nb_alertes", 0)
+        sc = (30/255, 180/255, 50/255, 1) if (score or 0) >= 80 else COLORS["RF"]
+
+        for title, lines in [
+            ("MOTEUR THERMIQUE", [
+                f"Alésage: {_f(bore_mm, 'mm')}  Course: {_f(stroke_mm, 'mm')}",
+                f"RPM: {_f(rpm, 'tr/min', 0)}",
+                f"PME: {_f((pme_pa / 1e5) if pme_pa else None, 'bar')}",
+                f"F bielle: {_f(force_b, 'N', 0)}",
+            ]),
+            ("BATTERIE", [f"Énergie: {_f(energie, 'kWh')}"]),
+            ("QUALITÉ", [f"Score: {_f(score, '%', 0)}", f"Inconnues: {nb_inc}  Alertes: {nb_al}"]),
+        ]:
+            box = BoxLayout(orientation="vertical", spacing=3)
+            box.add_widget(Label(text=title, color=COLORS["BF"], bold=True,
+                                 font_size="12sp", size_hint_y=None, height=26))
+            for ln in lines:
+                c = sc if "Score" in ln else COLORS["GAXD"]
+                box.add_widget(Label(text=ln, color=c, font_size="11sp",
+                                     size_hint_y=None, height=20))
+            self.dt_grid.add_widget(box)
+
+
+class VectorViewScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        root = BoxLayout(orientation="vertical", padding=20, spacing=20)
+        top = BoxLayout(size_hint_y=None, height=60, spacing=10)
+        top.add_widget(Label(text="VUE VECTORIELLE TECHNIQUE", font_size="22sp",
+                             bold=True, color=COLORS["BF"]))
+        back = ModernButton(text="RETOUR", size_hint_x=None, width=160)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
+        top.add_widget(back)
+        root.add_widget(top)
+        self.graph_box = PremiumCard(title="Graphiques")
+        root.add_widget(self.graph_box)
+        self.add_widget(root)
+
+    def on_enter(self, *args):
+        self.graph_box.clear_widgets()
+        app = App.get_running_app()
+        res = app.simulation_results or {}
+        if not (MATPLOTLIB_AVAILABLE and res) or "__error__" in res:
+            self.graph_box.add_widget(Label(text="Données indisponibles.", color=COLORS["GAXD"]))
+            return
+        try:
+            fig, ax = plt.subplots(figsize=(9, 4))
+            l_max = res.get("L_max_m")
+            w_max = res.get("W_max_m")
+            if isinstance(l_max, (int, float)) and isinstance(w_max, (int, float)) and l_max > 0 and w_max > 0:
+                ax.add_patch(plt.Rectangle((0, 0), l_max, w_max, fill=True, alpha=0.1))
+                ax.plot([0, l_max, l_max, 0, 0], [0, 0, w_max, w_max, 0], lw=2)
+                ax.set_title("Encombrement estimé")
+                ax.set_aspect("equal")
+                ax.grid(True, alpha=0.3)
+            else:
+                ax.text(0.5, 0.5, "Clés L_max_m / W_max_m absentes.", ha="center", va="center")
+                ax.axis("off")
+            self.graph_box.add_widget(FigureCanvasKivyAgg(fig))
+        except Exception as e:
+            self.graph_box.add_widget(Label(text=f"Erreur : {e}", color=COLORS["RF"]))
+
+
+class PdfFolderScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.root = BoxLayout(orientation="vertical", padding=20, spacing=20)
+        self.add_widget(self.root)
+
+    def on_enter(self, *args):
+        self.root.clear_widgets()
+        top = BoxLayout(size_hint_y=None, height=60, spacing=10)
+        top.add_widget(Label(text="DOSSIER DES FICHES PDF", font_size="22sp",
+                             bold=True, color=COLORS["BF"]))
+        back = ModernButton(text="RETOUR", size_hint_x=None, width=160)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
+        top.add_widget(back)
+        self.root.add_widget(top)
+        pdf_dir = os.path.join(BASE_DIR, "output", "datasheets", "pieces")
+        sc = ScrollView()
+        grid = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        grid.bind(minimum_height=grid.setter("height"))
+        if os.path.exists(pdf_dir):
+            for f in sorted(f for f in os.listdir(pdf_dir) if f.lower().endswith(".pdf")):
+                row = BoxLayout(size_hint_y=None, height=44, spacing=10)
+                row.add_widget(Label(text=f.replace(".pdf", "").upper(), color=COLORS["GAXD"]))
+                btn = ModernButton(text="OUVRIR", size_hint_x=None, width=140, font_size="13sp")
+                fp = os.path.join(pdf_dir, f)
+                btn.bind(on_press=lambda *_, p=fp: os.startfile(p))
+                row.add_widget(btn)
+                grid.add_widget(row)
+        else:
+            grid.add_widget(Label(text="Aucun PDF généré.", color=COLORS["RF"]))
+        sc.add_widget(grid)
+        self.root.add_widget(sc)
+
+
+class DetailedDatasheetScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.root = BoxLayout(orientation="vertical", padding=20, spacing=16)
+        self.add_widget(self.root)
+
+    def on_enter(self, *args):
+        self.root.clear_widgets()
+        app = App.get_running_app()
+        res = app.simulation_results or {}
+        top = BoxLayout(size_hint_y=None, height=62, spacing=10)
+        top.add_widget(Label(text="FICHE DÉTAILLÉE SYSTÈME", font_size="20sp",
+                             bold=True, color=COLORS["BF"]))
+        back = ModernButton(text="RETOUR", size_hint_x=None, width=160)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
+        top.add_widget(back)
+        self.root.add_widget(top)
+        sc = ScrollView(do_scroll_x=False)
+        page = GridLayout(cols=1, spacing=16, size_hint_y=None, padding=[2, 2])
+        page.bind(minimum_height=page.setter("height"))
+        sc.add_widget(page)
+        self.root.add_widget(sc)
+        for k, v in (res or {}).items():
+            if not isinstance(v, dict):
+                page.add_widget(TechRow(k.replace("_", " ").capitalize(),
+                                        "—" if v is None else str(v)))
+
+
+class PieceLibraryScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        l = BoxLayout(orientation="vertical", padding=20, spacing=20)
+        top = BoxLayout(size_hint_y=None, height=60, spacing=10)
+        top.add_widget(Label(text="BIBLIOTHÈQUE TECHNIQUE", font_size="22sp",
+                             bold=True, color=COLORS["BF"]))
+        back = ModernButton(text="RETOUR", size_hint_x=None, width=160)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
+        top.add_widget(back)
+        l.add_widget(top)
+        sc = ScrollView(do_scroll_x=False)
+        self.grid = GridLayout(cols=3, spacing=20, size_hint_y=None, padding=10)
+        self.grid.bind(minimum_height=self.grid.setter("height"))
+        sc.add_widget(self.grid)
+        l.add_widget(sc)
+        self.add_widget(l)
+
+    def on_enter(self, *args):
+        self.grid.clear_widgets()
+        pieces_path = os.path.join(BASE_DIR, "backend", "components", "moteur_thermique", "pieces")
+        if not os.path.exists(pieces_path):
+            self.grid.add_widget(Label(text=f"Dossier introuvable: {pieces_path}",
+                                       color=COLORS["RF"]))
+            return
+        for f in sorted(f for f in os.listdir(pieces_path)
+                        if f.endswith(".py") and f != "__init__.py"):
+            raw_name = f[:-3]
+            display_name = raw_name.replace("_", " ").upper()
+            card = PremiumCard(title=display_name, size_hint_y=None, height=120)
+            btn = ModernButton(text="VOIR DÉTAILS", font_size="12sp",
+                               size_hint_y=None, height=44)
+            btn.bind(on_press=lambda _, dn=display_name, rn=raw_name: self.view_details(dn, rn))
+            card.add_widget(btn)
+            self.grid.add_widget(card)
+
+    def view_details(self, display_name, raw_name):
+        app = App.get_running_app()
+        app.selected_piece_display = display_name
+        app.selected_piece_raw = raw_name
+        self.manager.current = "piece_detail"
+
+
+class PieceDetailScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=16)
+        self.add_widget(self.layout)
+
+    def on_enter(self, *args):
+        self.layout.clear_widgets()
+        app = App.get_running_app()
+        display_name = getattr(app, "selected_piece_display", "PIÈCE")
+        raw_name = getattr(app, "selected_piece_raw", "")
+        ep = app.engine_params or {}
+
+        top = BoxLayout(size_hint_y=None, height=62, spacing=10)
+        title = Label(text=display_name, font_size="24sp", bold=True,
+                      color=COLORS["BF"], halign="left", valign="middle")
+        title.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        top.add_widget(title)
+        back = ModernButton(text="RETOUR LISTE", size_hint_x=None, width=180)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "piece_library"))
+        top.add_widget(back)
+        self.layout.add_widget(top)
+
+        data = None
+        try:
+            from backend.modules.systeme.database import SecureDatabase
+            db = SecureDatabase(
+                db_path=os.path.join(BASE_DIR, "backend", "shse_technical_data.db"))
+            data = db.get_piece_data(raw_name) or db.get_piece_data(raw_name.replace("_", ""))
+        except Exception as ex:
+            print(f"[PIECE_DETAIL DB] {ex}")
+
+        class PO:
+            pass
+        p = PO()
+        p.nom = raw_name
+        if isinstance(data, dict):
+            for k, v in data.items():
+                setattr(p, k, v)
+        for k, v in ep.items():
+            if not hasattr(p, k):
+                setattr(p, k, v)
+
+        grid = GridLayout(cols=4, spacing=12)
+        sketch_card = PremiumCard(title="Croquis 2D")
+        radar_card = PremiumCard(title="Résistance Mécanique")
+        view3d_card = PremiumCard(title="Vue 3D")
+        data_card = PremiumCard(title="Données de dimensionnement")
+
+        if MATPLOTLIB_AVAILABLE:
+            try:
+                mod = importlib.import_module(f"frontend.pieces.sketches_2d.{raw_name}")
+                fig, ax = plt.subplots(figsize=(4, 4))
+                mod.draw(ax, p)
+                sketch_card.add_widget(FigureCanvasKivyAgg(fig))
+            except Exception as e:
+                sketch_card.add_widget(Label(text=f"Croquis indisponible\n{str(e)[:80]}",
+                                              color=COLORS["RF"], font_size="11sp"))
+            try:
+                chart_mod = importlib.import_module(f"frontend.pieces.charts.{raw_name}")
+                fig_r = plt.figure(figsize=(4, 4))
+                ax_r = fig_r.add_subplot(111, polar=True)
+                chart_mod.plot_data(ax_r, p)
+                radar_card.add_widget(FigureCanvasKivyAgg(fig_r))
+            except Exception as e:
+                radar_card.add_widget(Label(text=f"Radar indisponible\n{str(e)[:80]}",
+                                             color=COLORS["RF"], font_size="11sp"))
+            try:
+                from frontend.pieces.views_3d import get_draw_3d
+                from frontend.gui.piece_connector import get_piece_instance
+                from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+                draw_3d = get_draw_3d(raw_name)
+                piece_real = get_piece_instance(raw_name, ep)
+                fig3d = plt.figure(figsize=(4, 4))
+                ax3d = fig3d.add_subplot(111, projection="3d")
+                draw_3d(ax3d, piece_real if piece_real is not None else p)
+                view3d_card.add_widget(FigureCanvasKivyAgg(fig3d))
+            except Exception as e:
+                view3d_card.add_widget(Label(text=f"Vue 3D indisponible\n{str(e)[:80]}",
+                                              color=COLORS["RF"], font_size="11sp"))
+        else:
+            for card in (sketch_card, radar_card, view3d_card):
+                card.add_widget(Label(text="Matplotlib non disponible", color=COLORS["GAXD"]))
+
+        sc = ScrollView(do_scroll_x=False)
+        stack = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None, padding=[0, 6, 0, 0])
+        stack.bind(minimum_height=stack.setter("height"))
+
+        def _flat(d, prefix="", depth=0):
+            if depth > 4 or not isinstance(d, dict):
+                return
+            for k, v in sorted(d.items(), key=lambda x: str(x)):
+                key = f"{prefix}{k}".replace("_", " ").capitalize()
+                if v is None:
+                    yield key, "—"
+                elif isinstance(v, bool):
+                    yield key, "Oui" if v else "Non"
+                elif isinstance(v, (int, float)):
+                    try:
+                        fv = float(v)
+                        yield key, (f"{fv:.3e}" if abs(fv) >= 1e6 or (0 < abs(fv) < 1e-3)
+                                    else f"{fv:.4g}")
+                    except Exception:
+                        yield key, str(v)
+                elif isinstance(v, str):
+                    yield key, v[:80]
+                elif isinstance(v, (list, tuple)):
+                    yield key, f"[{len(v)} éléments]"
+                elif isinstance(v, dict):
+                    yield from _flat(v, f"{key} › ", depth + 1)
+
+        if isinstance(data, dict) and data:
+            for ks, vs in _flat(data):
+                stack.add_widget(TechRow(ks, vs))
+        else:
+            stack.add_widget(Label(text="Données non calculées.\nLancez une génération.",
+                                   color=COLORS["RF"], size_hint_y=None, height=70))
+        sc.add_widget(stack)
+        data_card.add_widget(sc)
+
+        grid.add_widget(sketch_card)
+        grid.add_widget(radar_card)
+        grid.add_widget(view3d_card)
+        grid.add_widget(data_card)
+        self.layout.add_widget(grid)
+
+
+# =========================
+# App
+# =========================
+class SHSEMApp(App):
+    target_power = StringProperty("150")
+    simulation_results = DictProperty({})
+    engine_params = DictProperty({})
+    current_report_name = StringProperty("")
+    selected_piece_display = StringProperty("")
+    selected_piece_raw = StringProperty("")
+
+    def build(self):
+        Window.clearcolor = COLORS["BL"]
+        Window.size = (1280, 860)
+        sm = ScreenManager(transition=FadeTransition())
+        sm.add_widget(ConfigScreen(name="config"))
+        sm.add_widget(LoadingScreen(name="loading"))
+        sm.add_widget(DashboardScreen(name="dashboard"))
+        sm.add_widget(PieceLibraryScreen(name="piece_library"))
+        sm.add_widget(PieceDetailScreen(name="piece_detail"))
+        sm.add_widget(VectorViewScreen(name="vector_view"))
+        sm.add_widget(PdfFolderScreen(name="pdf_folder"))
+        sm.add_widget(DetailedDatasheetScreen(name="detailed_datasheet"))
+        return sm
+
+
+if __name__ == "__main__":
+    SHSEMApp().run()
