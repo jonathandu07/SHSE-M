@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from backend.modules.alternateur.calcul_couple_alternateur import calcul_couple_alternateur
+from backend.components.alternateur.modules.calcul_couple_alternateur import calcul_couple_alternateur
 
 
 # =============================================================================

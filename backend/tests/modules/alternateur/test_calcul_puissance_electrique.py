@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from backend.modules.alternateur.calcul_puissance_electrique import (
+from backend.components.alternateur.modules.calcul_puissance_electrique import (
     calcul_puissance_dc,
     calcul_puissance_monophase,
     calcul_puissance_triphase,

@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from backend.modules.alternateur.calcul_pertes_cuivre import (
+from backend.components.alternateur.modules.calcul_pertes_cuivre import (
     calcul_pertes_cuivre_phase,
     calcul_pertes_cuivre_triphase,
     calcul_resistance_enroulement,

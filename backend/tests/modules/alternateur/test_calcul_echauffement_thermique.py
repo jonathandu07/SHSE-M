@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from backend.modules.alternateur.calcul_echauffement_thermique import calcul_echauffement_thermique
+from backend.components.alternateur.modules.calcul_echauffement_thermique import calcul_echauffement_thermique
 
 
 # =============================================================================

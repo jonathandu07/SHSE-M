@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from backend.modules.alternateur.calcul_vitesse_angulaire import calcul_vitesse_angulaire
+from backend.components.alternateur.modules.calcul_vitesse_angulaire import calcul_vitesse_angulaire
 
 
 # =============================================================================

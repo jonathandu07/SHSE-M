@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from backend.modules.alternateur.calcul_frequence_synchrone import *  # noqa: F403,F401
+from backend.components.alternateur.modules.calcul_frequence_synchrone import *  # noqa: F403,F401
 
 
 # =============================================================================

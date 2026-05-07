@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from backend.modules.alternateur.calcul_puissance_mecanique import calcul_puissance_mecanique
+from backend.components.alternateur.modules.calcul_puissance_mecanique import calcul_puissance_mecanique
 
 
 # =============================================================================
