@@ -1,5 +1,5 @@
-# backend\tests\main_test.py
 import importlib
+import json
 from typing import Any, Dict
 
 import pytest
@@ -490,6 +490,66 @@ def test_main_exposes_strict_power_optimizer(main_mod):
     assert report["meta"]["mode"] == "optimisation_puissance_sortie_stricte"
     assert report["selection"]["couple_sortie_max"]["valeur"] == pytest.approx(954.9296586)
     assert report["selection"]["courant_dc_min"]["valeur"] == pytest.approx(125.0)
+
+
+def test_generer_rapport_puissance_json_bdd_exports_and_saves(tmp_path, main_mod):
+    from backend.modules.systeme.database import SecureDatabase
+
+    db_path = tmp_path / "shse.db"
+    key_path = tmp_path / "secret.key"
+    out_dir = tmp_path / "rapports"
+
+    result = main_mod.generer_rapport_puissance_json_bdd(
+        100,
+        "kw",
+        report_name="test_100kw",
+        output_dir=out_dir,
+        db_path=db_path,
+        key_path=key_path,
+        espace_recherche={
+            "rpm_sortie": [1000.0, 2000.0],
+            "tension_dc_v": [400.0, 800.0],
+        },
+    )
+
+    assert result["report_name"] == "test_100kw"
+    assert result["records_saved"] > 0
+
+    json_path = out_dir / "test_100kw.json"
+    assert result["json_path"] == str(json_path.resolve())
+    exported = json.loads(json_path.read_text(encoding="utf-8"))
+    assert exported["meta"]["orchestrateur"] == "backend.main.generer_rapport_puissance_json_bdd"
+    assert exported["selection"]["couple_sortie_max"]["valeur"] == pytest.approx(954.9296586)
+    assert exported["selection"]["courant_dc_min"]["valeur"] == pytest.approx(125.0)
+
+    db = SecureDatabase(db_path=str(db_path), key_path=str(key_path))
+    saved = db.load_power_report("test_100kw")
+    assert saved["selection"]["courant_dc_min"]["valeur"] == pytest.approx(125.0)
+    assert db.load_power_section("test_100kw", "selection")["couple_sortie_max"]["valeur"] == pytest.approx(954.9296586)
+
+
+def test_generer_rapport_puissance_only_records_unknowns_without_invention(tmp_path, main_mod):
+    json_path = tmp_path / "moteur_200ch.json"
+
+    result = main_mod.generer_rapport_puissance_json_bdd(
+        200,
+        "ch",
+        output_path=json_path,
+        sauvegarder_bdd=False,
+    )
+
+    report = result["rapport"]
+    assert result["db_path"] is None
+    assert report["analyse_base"]["calculs"]["puissance_sortie"]["kw"] == pytest.approx(147.09975)
+    assert report["selection"] == {}
+
+    unknown_names = {item["nom"] for item in report["inconnues"]["impossibles"] + report["inconnues"]["partielles"]}
+    assert "espace_recherche" in unknown_names
+    assert "rpm_sortie" in unknown_names
+    assert "tension_dc_v" in unknown_names
+
+    exported = json.loads(json_path.read_text(encoding="utf-8"))
+    assert exported["selection"] == {}
 
 
 def test_print_resume_console_outputs_key_lines(main_mod, capsys):

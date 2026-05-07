@@ -1971,8 +1971,127 @@ optimiser_systeme_depuis_puissance = optimiser_puissance_sortie
 
 def exporter_rapport_json(rapport: Mapping[str, Any], path: str | os.PathLike[str], *, indent: int = 2) -> str:
     out = Path(path)
-    out.write_text(json.dumps(_to_jsonable(dict(rapport)), ensure_ascii=False, indent=indent), encoding="utf-8")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(_to_jsonable(dict(rapport), max_depth=12), ensure_ascii=False, indent=indent), encoding="utf-8")
     return str(out)
+
+
+def _slug_part(value: Any) -> str:
+    text = str(value).strip().lower().replace(",", ".")
+    out = []
+    last_sep = False
+    for char in text:
+        if char.isalnum():
+            out.append(char)
+            last_sep = False
+        elif char in (".", "-", "_", " "):
+            if not last_sep:
+                out.append("_")
+                last_sep = True
+    return "".join(out).strip("_") or "rapport"
+
+
+def _power_report_name(puissance: float, unite: str) -> str:
+    value = f"{float(puissance):g}".replace(".", "p")
+    return f"moteur_{_slug_part(value)}_{_slug_part(unite or 'kw')}"
+
+
+def generer_rapport_puissance_json_bdd(
+    puissance: float,
+    unite: str = "kw",
+    *,
+    type_sortie: str = "sortie_utilisateur",
+    donnees_connues: Optional[Mapping[str, Any]] = None,
+    espace_recherche: Optional[Mapping[str, Any]] = None,
+    contraintes: Optional[Mapping[str, Any]] = None,
+    max_candidats: int = 50000,
+    report_name: Optional[str] = None,
+    output_dir: str | os.PathLike[str] | None = None,
+    output_path: str | os.PathLike[str] | None = None,
+    db_path: str | os.PathLike[str] | None = None,
+    key_path: str | os.PathLike[str] | None = None,
+    exporter_json_file: bool = True,
+    sauvegarder_bdd: bool = True,
+) -> Dict[str, Any]:
+    """Genere le rapport strict puissance -> JSON + BDD.
+
+    Cette porte d'entree ne cree aucun regime, aucune tension et aucune
+    geometrie par defaut. Les meilleurs candidats sont choisis uniquement dans
+    `espace_recherche` ou parmi les valeurs deja fournies dans `donnees_connues`.
+    """
+    if normaliser_puissance is None or optimiser_puissance_sortie is None:
+        raise RuntimeError("Le module d'analyse de puissance n'est pas disponible.")
+
+    power = normaliser_puissance(puissance, unite)
+    name = _slug_part(report_name) if report_name else _power_report_name(float(power["valeur_entree"]), str(power["unite_entree"]))
+
+    rapport = optimiser_puissance_sortie(
+        float(power["valeur_entree"]),
+        str(power["unite_entree"]),
+        type_sortie=type_sortie,
+        donnees_connues=dict(donnees_connues or {}),
+        espace_recherche=dict(espace_recherche or {}),
+        contraintes=dict(contraintes or {}),
+        max_candidats=max_candidats,
+    )
+    rapport = _to_jsonable(dict(rapport), max_depth=12)
+    rapport.setdefault("meta", {})
+    rapport["meta"].update(
+        {
+            "orchestrateur": "backend.main.generer_rapport_puissance_json_bdd",
+            "contrat": "calcul_strict_sans_invention",
+        }
+    )
+    rapport["stockage"] = {
+        "report_name": name,
+        "json": {"active": bool(exporter_json_file), "path": None},
+        "bdd": {"active": bool(sauvegarder_bdd), "db_path": None, "records_saved": 0, "record_ids": {}},
+    }
+
+    json_path: Optional[str] = None
+    if exporter_json_file:
+        if output_path is not None:
+            json_file = Path(output_path)
+        else:
+            out_dir = Path(output_dir) if output_dir is not None else _THIS_DIR / "outputs"
+            json_file = out_dir / f"{name}.json"
+        json_path = str(json_file.resolve())
+        rapport["stockage"]["json"]["path"] = json_path
+
+    record_ids: Dict[str, int] = {}
+    db_file_path: Optional[str] = None
+    if sauvegarder_bdd:
+        from backend.modules.systeme.database import SecureDatabase
+
+        db_file = Path(db_path).resolve() if db_path is not None else (_THIS_DIR / "shse_technical_data.db").resolve()
+        key_file = Path(key_path).resolve() if key_path is not None else (_THIS_DIR / "secret.key").resolve()
+        db = SecureDatabase(db_path=str(db_file), key_path=str(key_file))
+        db_file_path = db.db_path
+        record_ids = db.save_power_report(rapport, report_name=name)
+        rapport["stockage"]["bdd"] = {
+            "active": True,
+            "db_path": db_file_path,
+            "records_saved": len(record_ids),
+            "record_ids": record_ids,
+        }
+        record_ids = db.save_power_report(rapport, report_name=name)
+        rapport["stockage"]["bdd"]["records_saved"] = len(record_ids)
+        rapport["stockage"]["bdd"]["record_ids"] = record_ids
+
+    if json_path is not None:
+        exporter_rapport_json(rapport, json_path)
+
+    return {
+        "report_name": name,
+        "json_path": json_path,
+        "db_path": db_file_path,
+        "records_saved": len(record_ids),
+        "record_ids": record_ids,
+        "rapport": rapport,
+    }
+
+
+generer_moteur_depuis_puissance = generer_rapport_puissance_json_bdd
 
 
 def realiser_systeme_et_exporter_json(path_json: str | os.PathLike[str], *args: Any, **kwargs: Any) -> Dict[str, Any]:

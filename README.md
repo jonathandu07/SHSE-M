@@ -26,9 +26,19 @@ python -m pytest
 - Analyse stricte depuis une puissance seule : `backend/main.py::analyser_systeme_depuis_puissance`
 - Optimisation stricte depuis une puissance : `backend/main.py::optimiser_systeme_depuis_puissance`
 - Mode simple GUI : `backend/main.py::dimensionner_systeme_shsem_simple`
-- Base locale chiffree : `backend/database.py`
+- Base locale chiffree : `backend/modules/systeme/database.py`
+- Generation puissance -> JSON + BDD : `backend/main.py::generer_rapport_puissance_json_bdd`
+- Script range : `backend/scripts/generer_rapport_puissance.py`
 
 Le mode `analyser_systeme_depuis_puissance` accepte une puissance en `W`, `kW`, `ch`, `cv` ou `hp` et ne cree aucune geometrie par defaut. Le mode `optimiser_systeme_depuis_puissance` cherche les meilleurs candidats uniquement dans les regimes, tensions, rendements, PME, rapports ou contraintes fournis. Aucun espace de recherche n'est invente. Le mode strict complet attend un scenario complet. L'interface utilise le mode simple pour produire un premier dimensionnement coherent a partir d'une puissance cible.
+
+Exemple strict avec stockage :
+
+```powershell
+python backend/scripts/generer_rapport_puissance.py 150 --unite kw --search-json "{""rpm_sortie"":[1000,2000],""tension_dc_v"":[400,800]}"
+```
+
+Sans `--search-json`, le rapport est quand meme ecrit, mais il indique les donnees manquantes au lieu de choisir un "meilleur" couple ou courant.
 
 Les fichiers generes (`__pycache__`, logs, base SQLite locale, cle locale, sorties PDF) sont ignores via `.gitignore`; s'ils sont deja presents dans le dossier, ils peuvent rester localement mais ne devraient pas etre ajoutes aux prochains commits.
 

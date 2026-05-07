@@ -36,6 +36,8 @@ class SecureDatabase:
         key_file = Path(key_path)
         self.db_path = str((db_file if db_file.is_absolute() else base_dir / db_file).resolve())
         self.key_path = str((key_file if key_file.is_absolute() else base_dir / key_file).resolve())
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.key_path).parent.mkdir(parents=True, exist_ok=True)
         self.key = self._load_or_generate_key()
         self.cipher = Fernet(self.key)
         self._init_db()
@@ -118,7 +120,7 @@ class SecureDatabase:
     # -----------------------------------------------------------------
     # Sérialisation robuste
     # -----------------------------------------------------------------
-    def _to_jsonable(self, value: Any, *, depth: int = 0, max_depth: int = 8) -> Any:
+    def _to_jsonable(self, value: Any, *, depth: int = 0, max_depth: int = 12) -> Any:
         if depth > max_depth:
             return {"type": type(value).__name__}
 
