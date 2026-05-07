@@ -798,30 +798,8 @@ class LoadingScreen(Screen):
         except Exception:
             app.simulation_results = {"__error__": traceback.format_exc()}
 
-        Clock.schedule_once(lambda dt: setattr(self.manager, "current", "dashboard"))
-
-
-
-
-class DashboardScreen(Screen):
+        class DashboardScreen(Screen):
     res_pwr = StringProperty("-- kW")
     res_mass = StringProperty("-- kg")
     res_vol = StringProperty("-- m³")
-        sm = ScreenManager(transition=FadeTransition())
-        sm.add_widget(ConfigScreen(name="config"))
-        sm.add_widget(LoadingScreen(name="loading"))
-        sm.add_widget(DashboardScreen(name="dashboard"))
-        sm.add_widget(PieceLibraryScreen(name="piece_library"))
-        sm.add_widget(PieceDetailScreen(name="piece_detail"))
-
-        # écrans des boutons "Accès rapide"
-        sm.add_widget(VectorViewScreen(name="vector_view"))
-        sm.add_widget(PdfFolderScreen(name="pdf_folder"))
-        sm.add_widget(DetailedDatasheetScreen(name="detailed_datasheet"))
-
-        return sm
-
-
-if __name__ == "__main__":
-    SHSEMApp().run()
 
