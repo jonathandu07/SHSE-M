@@ -70,7 +70,7 @@ if ArbreMoteur is None:
 ClavetteArbre = _import_attr(("backend.components.moteur_thermique.pieces.clavette_arbre", "clavette_arbre"), "ClavetteArbre", default=None)
 
 try:
-    from backend.definition_pieces import dimensionner_pieces_completes  # type: ignore
+    from backend.modules.systeme.definition_pieces import dimensionner_pieces_completes  # type: ignore
 except Exception:
     dimensionner_pieces_completes = None  # type: ignore
 
@@ -1884,7 +1884,7 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
     keys consumed by the screens.
     """
 
-    from backend.definition_pieces import dimensionner_pieces_completes
+    from backend.modules.systeme.definition_pieces import dimensionner_pieces_completes
     from backend.engineering_model import DimensioningEngine
     from backend.system_generator import DriveChainGenerator
 
