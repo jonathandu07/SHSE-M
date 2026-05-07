@@ -80,7 +80,7 @@ except Exception:
     DriveChainGenerator = None  # type: ignore
 
 try:
-    from backend.power_definition import analyser_puissance_sortie, normaliser_puissance  # type: ignore
+    from backend.modules.systeme.analyse_puissance_sortie import analyser_puissance_sortie, normaliser_puissance  # type: ignore
 except Exception:
     analyser_puissance_sortie = None  # type: ignore
     normaliser_puissance = None  # type: ignore

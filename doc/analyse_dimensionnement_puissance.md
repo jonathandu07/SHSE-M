@@ -60,7 +60,7 @@ Points faibles :
 
 ## Nouveau point d'entree ajoute
 
-`backend.power_definition.analyser_puissance_sortie`
+`backend.modules.systeme.analyse_puissance_sortie.analyser_puissance_sortie`
 
 Expose aussi via :
 

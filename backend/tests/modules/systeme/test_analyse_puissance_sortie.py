@@ -1,6 +1,6 @@
 import pytest
 
-from backend.power_definition import analyser_puissance_sortie, normaliser_puissance
+from backend.modules.systeme.analyse_puissance_sortie import analyser_puissance_sortie, normaliser_puissance
 
 
 def test_normaliser_puissance_accepts_kw_and_metric_horsepower():

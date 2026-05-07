@@ -117,7 +117,7 @@ def analyser_puissance_sortie(
     type_sortie: str = "sortie_utilisateur",
     donnees_connues: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Analyse stricte depuis une puissance de sortie.
+    """Analyse systeme stricte depuis une puissance de sortie.
 
     Cette fonction ne cree pas de composant par defaut. Elle calcule seulement
     les grandeurs fermees par les entrees et liste les donnees manquantes pour
