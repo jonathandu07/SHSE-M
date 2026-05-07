@@ -1065,16 +1065,42 @@ class PieceDetailScreen(Screen):
             sketch_card.add_widget(fallback)
             radar_card.add_widget(Label(text="Matplotlib non disponible", color=COLORS["GAXD"]))
 
-        # --- Data list (lisible)
+        # --- Data list (lisible) avec aplatissement récursif
         sc = ScrollView(do_scroll_x=False)
         stack = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None, padding=[0, 6, 0, 0])
         stack.bind(minimum_height=stack.setter("height"))
 
+        def _flat_items(d, prefix="", depth=0):
+            """Aplatit un dict imbriqué en paires (clé_lisible, valeur_str)."""
+            if depth > 4 or not isinstance(d, dict):
+                return
+            for k, v in sorted(d.items(), key=lambda x: str(x)):
+                full_key = f"{prefix}{k}".replace("_", " ").capitalize()
+                if v is None:
+                    yield full_key, "—"
+                elif isinstance(v, bool):
+                    yield full_key, "Oui" if v else "Non"
+                elif isinstance(v, int):
+                    yield full_key, str(v)
+                elif isinstance(v, float):
+                    if abs(v) >= 1e6 or (abs(v) < 1e-3 and v != 0.0):
+                        yield full_key, f"{v:.3e}"
+                    else:
+                        yield full_key, f"{v:.4g}"
+                elif isinstance(v, str):
+                    if len(v) <= 80:
+                        yield full_key, v
+                    else:
+                        yield full_key, v[:77] + "..."
+                elif isinstance(v, (list, tuple)):
+                    yield full_key, f"[{len(v)} éléments]"
+                elif isinstance(v, dict):
+                    # Descend récursivement avec préfixe
+                    yield from _flat_items(v, prefix=f"{full_key} › ", depth=depth + 1)
+
         if isinstance(data, dict) and data:
-            for k in sorted(data.keys(), key=lambda x: str(x)):
-                v = data[k]
-                val_str = f"{v:.6g}" if isinstance(v, float) else str(v)
-                stack.add_widget(TechRow(k.replace("_", " ").capitalize(), val_str))
+            for key_str, val_str in _flat_items(data):
+                stack.add_widget(TechRow(key_str, val_str))
         else:
             stack.add_widget(
                 Label(
