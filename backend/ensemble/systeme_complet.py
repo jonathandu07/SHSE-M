@@ -1037,6 +1037,9 @@ class SystemeComplet:
         moteur_th_rapport: Optional[Dict[str, Any]] = None
         if rpm_th is not None:
             params = dict(moteur_thermique_params or {})
+            params.pop("rpm", None)
+            params.pop("pression_moyenne_effective_pa", None)
+            params.pop("pression_max_pa", None)
             moteur_th_rapport = moteur_thermique_effectif.analyser_point_de_fonctionnement(
                 rpm=float(_require_positive("vitesse_moteur_thermique_rpm", rpm_th, strict=True)),
                 pression_moyenne_effective_pa=pme_utilisee_ou_requise_pa,
