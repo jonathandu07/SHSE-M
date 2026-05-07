@@ -1040,11 +1040,16 @@ class SystemeComplet:
             params.pop("rpm", None)
             params.pop("pression_moyenne_effective_pa", None)
             params.pop("pression_max_pa", None)
+            import inspect
+            sig = inspect.signature(moteur_thermique_effectif.analyser_point_de_fonctionnement)
+            valid_keys = set(sig.parameters.keys())
+            filtered_params = {k: v for k, v in params.items() if k in valid_keys}
+            
             moteur_th_rapport = moteur_thermique_effectif.analyser_point_de_fonctionnement(
                 rpm=float(_require_positive("vitesse_moteur_thermique_rpm", rpm_th, strict=True)),
                 pression_moyenne_effective_pa=pme_utilisee_ou_requise_pa,
                 pression_max_pa=pression_max_pa,
-                **params,
+                **filtered_params,
             )
             rapport["sous_systemes"]["moteur_thermique"] = moteur_th_rapport
             _merge_inconnues(rapport, moteur_th_rapport, prefix="moteur_thermique")
