@@ -33,7 +33,7 @@ try:  # arborescence initialement utilisée dans certains fichiers
     )
 except Exception:  # fallback projet classique
     try:
-        from backend.modules.batterie.calcul_electrique_pack import (
+        from backend.components.batterie.modules.calcul_electrique_pack import (
             calcul_courant_depuis_kw_tension,
         )
     except Exception:  # fallback local / tests unitaires

@@ -130,7 +130,7 @@ try:
     )
 except Exception:
     try:
-        from backend.modules.batterie.electrolyte_solide import (
+        from backend.components.batterie.modules.electrolyte_solide import (
             ElectrolyteSolide,
             CelluleSolide,
             PackSolide,
@@ -150,7 +150,7 @@ try:
     from backend.components.batterie.modules.calcul_electrique_pack import calcul_courant_depuis_kw_tension
 except Exception:
     try:
-        from backend.modules.batterie.calcul_electrique_pack import calcul_courant_depuis_kw_tension
+        from backend.components.batterie.modules.calcul_electrique_pack import calcul_courant_depuis_kw_tension
     except Exception:
         from calcul_electrique_pack import calcul_courant_depuis_kw_tension
 
