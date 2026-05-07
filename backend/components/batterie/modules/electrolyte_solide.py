@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 import math
 
 # --- import de tes utilitaires pack électrique (courant, etc.) ---
-from backend.modules.batterie.calcul_electrique_pack import (
+from backend.components.batterie.modules.calcul_electrique_pack import (
     calcul_courant_depuis_kw_tension,
 )
 

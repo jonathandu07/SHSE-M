@@ -119,7 +119,7 @@ class Thermique:
 # =============================================================================
 
 # Import du module que tu as ajouté (même arborescence que ton fichier /mnt/data/electrolyte_solide.py)
-from backend.modules.batterie.electrolyte_solide import (
+from backend.components.batterie.modules.electrolyte_solide import (
     ElectrolyteSolide,
     CelluleSolide,
     PackSolide,
@@ -128,7 +128,7 @@ from backend.modules.batterie.electrolyte_solide import (
 )
 
 # Si ton module calcul_electrique_pack contient déjà ce helper, on l’utilise pour rester homogène.
-from backend.modules.batterie.calcul_electrique_pack import calcul_courant_depuis_kw_tension
+from backend.components.batterie.modules.calcul_electrique_pack import calcul_courant_depuis_kw_tension
 
 
 @dataclass(frozen=True)

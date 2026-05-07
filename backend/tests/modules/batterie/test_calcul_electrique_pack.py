@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.batterie.calcul_electrique_pack import (
+from backend.components.batterie.modules.calcul_electrique_pack import (
     calcul_conso_kwh_km_depuis_puissance_vitesse,
     calcul_ah_depuis_kwh_tension,
     calcul_courant_depuis_kw_tension,

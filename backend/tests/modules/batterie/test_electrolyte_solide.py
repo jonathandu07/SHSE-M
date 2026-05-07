@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.batterie.electrolyte_solide import (
+from backend.components.batterie.modules.electrolyte_solide import (
     ElectrolyteSolide, CelluleSolide, PackSolide, Options,
     evaluer_electrolyte_solide
 )

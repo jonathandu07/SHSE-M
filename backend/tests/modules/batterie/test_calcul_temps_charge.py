@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.batterie.calcul_temps_charge import (
+from backend.components.batterie.modules.calcul_temps_charge import (
     calcul_temps_charge
 )
 

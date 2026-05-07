@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import numpy as np
-from backend.modules.batterie.calcul_ratio import (
+from backend.components.batterie.modules.calcul_ratio import (
     Carburant, Vehicule, Environnement, BatteriePack, Thermique,
     calcul_densite_air_sec,
     calcul_forces_traction,

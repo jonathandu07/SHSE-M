@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.batterie.calcul_energie_utile import (
+from backend.components.batterie.modules.calcul_energie_utile import (
     calcul_energie_utile_cible,
     calcul_energie_utile_trajet,
     calcul_energie_utile_pic,

@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.batterie.calcul_dimensionnement_batterie import (
+from backend.components.batterie.modules.calcul_dimensionnement_batterie import (
     calcul_capacite_totale_batterie,
     calcul_poids_batterie
 )
