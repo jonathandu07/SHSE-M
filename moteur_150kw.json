@@ -1,0 +1,235 @@
+{
+    "N_cyl": 4,
+    "Architecture": "L4",
+    "Score": 100.0,
+    "Cout_Maint_Estime": 1500.0,
+    "Bore_mm": 239.03574242349055,
+    "Stroke_mm": 239.03574242349055,
+    "RPM": 1000.0,
+    "PME": 2000000.0,
+    "PME_bar": 20.0,
+    "P_max": 5000000.0,
+    "Displacement_L": 42.90801334727825,
+    "vd_tot_cc": 42908.01334727825,
+    "masse_totale_kg": 1628.960266945565,
+    "masse_pieces_kg": 85.45964000000001,
+    "L_max_m": 1.7342144545409433,
+    "W_max_m": 0.6,
+    "volume_total_m3": 0.7461706313929375,
+    "couple_moyen_Nm": 2048.706726741707,
+    "drivetrain": {
+        "moteur_electrique": {
+            "puissance_roues": "150.0 kW",
+            "puissance_elec_moteur": "163.0 kW",
+            "rendement_moteur": "0.92"
+        },
+        "batterie": {
+            "energie_utile": "75.0 kWh",
+            "energie_nominale": "93.8 kWh",
+            "masse_estimee": "520.8 kg",
+            "tension_bus": "400 V",
+            "courant_bus_design": "483 A"
+        },
+        "alternateur": {
+            "puissance_electrique": "193.1 kW",
+            "puissance_mecanique": "214.5 kW",
+            "rendement": "0.90",
+            "couple_a_1000rpm": "2048.7 Nm"
+        },
+        "boite_crabots": {
+            "rendement": "0.96",
+            "couple_design": "2134.1 Nm",
+            "regime_reference": "1000 tr/min"
+        }
+    },
+    "pieces": {
+        "cylindre": {
+            "nom": "cylindre",
+            "masse_kg": 4.2233,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 104.217,
+            "diametre_caracteristique_mm": 57.898,
+            "facteur_securite_estime": 2.2
+        },
+        "couvercle_cylindre": {
+            "nom": "couvercle_cylindre",
+            "masse_kg": 4.37235,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 108.385,
+            "diametre_caracteristique_mm": 59.346,
+            "facteur_securite_estime": 2.175
+        },
+        "piston": {
+            "nom": "piston",
+            "masse_kg": 4.52141,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 112.554,
+            "diametre_caracteristique_mm": 60.793,
+            "facteur_securite_estime": 2.15
+        },
+        "deplaceur": {
+            "nom": "deplaceur",
+            "masse_kg": 4.67047,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 116.723,
+            "diametre_caracteristique_mm": 62.24,
+            "facteur_securite_estime": 2.125
+        },
+        "bielle": {
+            "nom": "bielle",
+            "masse_kg": 4.81953,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 120.891,
+            "diametre_caracteristique_mm": 63.688,
+            "facteur_securite_estime": 2.1
+        },
+        "arbre": {
+            "nom": "arbre",
+            "masse_kg": 4.96858,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 125.06,
+            "diametre_caracteristique_mm": 65.135,
+            "facteur_securite_estime": 2.075
+        },
+        "arbre_piston": {
+            "nom": "arbre_piston",
+            "masse_kg": 5.11764,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 129.229,
+            "diametre_caracteristique_mm": 66.583,
+            "facteur_securite_estime": 2.05
+        },
+        "arbre_vilbrequin": {
+            "nom": "arbre_vilbrequin",
+            "masse_kg": 5.2667,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 133.397,
+            "diametre_caracteristique_mm": 68.03,
+            "facteur_securite_estime": 2.025
+        },
+        "vilbrequin": {
+            "nom": "vilbrequin",
+            "masse_kg": 5.41576,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 137.566,
+            "diametre_caracteristique_mm": 69.478,
+            "facteur_securite_estime": 2.0
+        },
+        "joint_piston": {
+            "nom": "joint_piston",
+            "masse_kg": 5.56481,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 141.735,
+            "diametre_caracteristique_mm": 70.925,
+            "facteur_securite_estime": 1.975
+        },
+        "joint_deplaceur": {
+            "nom": "joint_deplaceur",
+            "masse_kg": 5.71387,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 145.903,
+            "diametre_caracteristique_mm": 72.373,
+            "facteur_securite_estime": 1.95
+        },
+        "coussinet_arbre_piston": {
+            "nom": "coussinet_arbre_piston",
+            "masse_kg": 5.86293,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 150.072,
+            "diametre_caracteristique_mm": 73.82,
+            "facteur_securite_estime": 1.925
+        },
+        "roulement_aiguille_arbre": {
+            "nom": "roulement_aiguille_arbre",
+            "masse_kg": 6.01199,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 154.241,
+            "diametre_caracteristique_mm": 75.268,
+            "facteur_securite_estime": 1.9
+        },
+        "roulement_aiguille_arbre_vilebrequin": {
+            "nom": "roulement_aiguille_arbre_vilebrequin",
+            "masse_kg": 6.16104,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 158.409,
+            "diametre_caracteristique_mm": 76.715,
+            "facteur_securite_estime": 1.875
+        },
+        "clavette_arbre": {
+            "nom": "clavette_arbre",
+            "masse_kg": 6.3101,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 162.578,
+            "diametre_caracteristique_mm": 78.162,
+            "facteur_securite_estime": 1.85
+        },
+        "vis_couvercle_cylindre": {
+            "nom": "vis_couvercle_cylindre",
+            "masse_kg": 6.45916,
+            "puissance_cible_w": 214540.06673639125,
+            "regime_tr_min": 1000.0,
+            "n_cyl": 4,
+            "pression_max_pa": 5000000.0,
+            "longueur_caracteristique_mm": 166.746,
+            "diametre_caracteristique_mm": 79.61,
+            "facteur_securite_estime": 1.825
+        }
+    },
+    "pieces_db_error": null,
+    "resume_gui": {
+        "N_cyl": 4,
+        "Architecture": "L4",
+        "Bore_mm": 239.03574242349055,
+        "Stroke_mm": 239.03574242349055,
+        "RPM": 1000.0,
+        "PME_Pa": 2000000.0,
+        "Pmax_Pa": 5000000.0,
+        "couple_moyen_Nm": 2048.706726741707,
+        "vd_tot_cc": 42908.01334727825
+    }
+}

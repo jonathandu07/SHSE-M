@@ -75,8 +75,9 @@ def dimensionner_pieces_completes(
 ) -> dict[str, Any]:
     """Creates a first-pass piece inventory and stores it in the local DB.
 
-    The detailed per-piece models still live in backend/pieces. This function
-    gives backend.main a stable orchestration point and a GUI-friendly data set.
+    The detailed per-piece models live in
+    backend/components/moteur_thermique/pieces. This function gives
+    backend.main a stable orchestration point and a GUI-friendly data set.
     """
 
     puissance_cible_w = _require_positive("puissance_cible_w", puissance_cible_w)

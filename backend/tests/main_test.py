@@ -122,6 +122,31 @@ def test_helpers_validation_and_navigation(main_mod):
     assert main_mod._get_nested({"a": 1}, "a", "b") is None
 
 
+def test_main_imports_real_reorganized_components(main_mod):
+    expected = {
+        "MoteurElectrique",
+        "Batterie",
+        "Alternateur",
+        "MoteurThermique",
+        "BoiteCrabots",
+        "Architecture",
+        "DriveChainGenerator",
+    }
+
+    for name in expected:
+        assert getattr(main_mod, name) is not None, name
+
+
+def test_dimensionner_systeme_shsem_simple_uses_reorganized_system_modules(main_mod):
+    result = main_mod.dimensionner_systeme_shsem_simple(40.0)
+
+    assert result["N_cyl"] == 4
+    assert result["Architecture"] == "L4"
+    assert result["Bore_mm"] > 0.0
+    assert result["Stroke_mm"] > 0.0
+    assert sorted(result["drivetrain"]) == ["alternateur", "batterie", "boite_crabots", "moteur_electrique"]
+
+
 def test_constructors_forward_expected_arguments(monkeypatch, main_mod):
     class FakeMoteurElectrique(_Recorder):
         pass
