@@ -66,6 +66,14 @@ Expose aussi via :
 
 `backend.main.analyser_systeme_depuis_puissance`
 
+Optimisation stricte :
+
+`backend.modules.systeme.analyse_puissance_sortie.optimiser_puissance_sortie`
+
+Expose aussi via :
+
+`backend.main.optimiser_systeme_depuis_puissance`
+
 Ce point d'entree :
 
 - accepte une puissance en `W`, `kW`, `ch`, `cv`, `hp`;
@@ -73,6 +81,20 @@ Ce point d'entree :
 - calcule uniquement ce qui est determine par les donnees fournies;
 - retourne les inconnues qui bloquent ou limitent la suite;
 - indique si le projet est pret ou non pour dimensionner les pieces.
+
+L'optimiseur vectorise les listes fournies dans `espace_recherche`, par exemple
+`rpm_sortie`, `tension_dc_v`, `rpm_moteur`, `pme_pa`,
+`nombre_cylindres` ou `ratio_course_alesage_cible`. Il selectionne ensuite les
+meilleurs candidats calculables :
+
+- couple de sortie maximal ;
+- courant DC minimal ;
+- courant triphase minimal ;
+- puissance amont minimale ;
+- cylindree minimale ;
+- epaisseur cylindre minimale.
+
+Si l'espace de recherche n'est pas fourni, il ne choisit rien.
 
 ## Jeu minimal de donnees pour commencer un moteur thermique
 

@@ -24,10 +24,11 @@ python -m pytest
 - Interface graphique : `frontend/gui/main.py`
 - Orchestrateur strict : `backend/main.py::dimensionner_systeme_shsem`
 - Analyse stricte depuis une puissance seule : `backend/main.py::analyser_systeme_depuis_puissance`
+- Optimisation stricte depuis une puissance : `backend/main.py::optimiser_systeme_depuis_puissance`
 - Mode simple GUI : `backend/main.py::dimensionner_systeme_shsem_simple`
 - Base locale chiffree : `backend/database.py`
 
-Le mode `analyser_systeme_depuis_puissance` accepte une puissance en `W`, `kW`, `ch`, `cv` ou `hp` et ne cree aucune geometrie par defaut. Il calcule ce qui est ferme par les entrees fournies et liste les donnees manquantes. Le mode strict complet attend un scenario complet. L'interface utilise le mode simple pour produire un premier dimensionnement coherent a partir d'une puissance cible.
+Le mode `analyser_systeme_depuis_puissance` accepte une puissance en `W`, `kW`, `ch`, `cv` ou `hp` et ne cree aucune geometrie par defaut. Le mode `optimiser_systeme_depuis_puissance` cherche les meilleurs candidats uniquement dans les regimes, tensions, rendements, PME, rapports ou contraintes fournis. Aucun espace de recherche n'est invente. Le mode strict complet attend un scenario complet. L'interface utilise le mode simple pour produire un premier dimensionnement coherent a partir d'une puissance cible.
 
 Les fichiers generes (`__pycache__`, logs, base SQLite locale, cle locale, sorties PDF) sont ignores via `.gitignore`; s'ils sont deja presents dans le dossier, ils peuvent rester localement mais ne devraient pas etre ajoutes aux prochains commits.
 

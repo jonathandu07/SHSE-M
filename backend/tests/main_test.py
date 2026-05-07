@@ -455,6 +455,18 @@ def test_dimensionner_systeme_shsem_rejects_non_positive_power(main_mod):
         main_mod.dimensionner_systeme_shsem(0)
 
 
+def test_main_exposes_strict_power_optimizer(main_mod):
+    report = main_mod.optimiser_systeme_depuis_puissance(
+        100,
+        "kw",
+        espace_recherche={"rpm_sortie": [1000.0], "tension_dc_v": [800.0]},
+    )
+
+    assert report["meta"]["mode"] == "optimisation_puissance_sortie_stricte"
+    assert report["selection"]["couple_sortie_max"]["valeur"] == pytest.approx(954.9296586)
+    assert report["selection"]["courant_dc_min"]["valeur"] == pytest.approx(125.0)
+
+
 def test_print_resume_console_outputs_key_lines(main_mod, capsys):
     config = {
         "resume_gui": {
