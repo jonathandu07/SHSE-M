@@ -1,4 +1,4 @@
-# backend\database.py
+# backend/modules/systeme/database.py
 from __future__ import annotations
 
 import base64
@@ -31,9 +31,11 @@ class SecureDatabase:
         db_path: str = "shse_technical_data.db",
         key_path: str = "secret.key",
     ) -> None:
-        base_dir = Path(__file__).resolve().parent
-        self.db_path = str((base_dir / db_path).resolve())
-        self.key_path = str((base_dir / key_path).resolve())
+        base_dir = Path(__file__).resolve().parents[2]
+        db_file = Path(db_path)
+        key_file = Path(key_path)
+        self.db_path = str((db_file if db_file.is_absolute() else base_dir / db_file).resolve())
+        self.key_path = str((key_file if key_file.is_absolute() else base_dir / key_file).resolve())
         self.key = self._load_or_generate_key()
         self.cipher = Fernet(self.key)
         self._init_db()
