@@ -4,7 +4,7 @@ import pytest
 import json
 from unittest.mock import MagicMock
 from backend.ensemble.systeme_complet import SystemeComplet
-from backend.components.moteur_electrique import MoteurElectrique
+from backend.components.moteur_electrique.moteur_electrique import MoteurElectrique
 from backend.components.batterie import Batterie
 from backend.components.alternateur import Alternateur
 from backend.components.moteur_thermique import MoteurThermique
