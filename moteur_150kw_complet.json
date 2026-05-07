@@ -18,6 +18,7 @@
             "alesage_m": 0.13,
             "course_m": 0.15,
             "rpm_nominal": 1500.0,
+            "puissance_nominale_visee_w": 165000.0,
             "pme_nominale_pa": 1500000.0,
             "pression_max_pa": 8000000.0,
             "rendement_mecanique_nominal": 0.85,
@@ -30,11 +31,16 @@
             "L_max_m": 2.0,
             "W_max_m": 1.0,
             "pme_pa": 1500000.0,
+            "type_puissance_nominale": "frein",
+            "puissance_requise_W": 165000.0,
             "cylindree_unitaire_m3": 0.001990984344212531,
             "cylindree_totale_m3": 0.011945906065275187,
             "cylindree_totale_cc": 11945.906065275187,
             "rayon_manivelle_m": 0.075,
-            "vitesse_piston_moyenne_ms": 7.5
+            "vitesse_piston_moyenne_ms": 7.5,
+            "couple_max_Nm": 1050.4226244065092,
+            "couple_requis_Nm": 1050.4226244065092,
+            "force_bielle_N": 14005.634992086789
         },
         "pieces_definition": {},
         "analyses_complementaires": {},
@@ -82,7 +88,7 @@
         "couple_moyen_Nm": null,
         "couple_indique_moyen_Nm": null,
         "couple_cible_moyen_Nm": null,
-        "Force_bielle_N": null,
+        "Force_bielle_N": 14005.634992086789,
         "vd_tot_cc": 11945.906065275187,
         "P_bus_dc_design_w": null,
         "energie_batterie_kwh": null,
@@ -324,7 +330,7 @@
             "entrees": {
                 "usage": null,
                 "commentaire_usage": "",
-                "puissance_cible_w": null,
+                "puissance_cible_w": 165000.0,
                 "regime_tr_min": null,
                 "pme_pa": 1500000.0,
                 "vitesse_piston_max_ms": 12.0,
@@ -364,10 +370,6 @@
             "inconnues": {
                 "impossibles": [
                     {
-                        "nom": "puissance_cible_w",
-                        "raison": "Nécessaire pour calculer la cylindrée totale requise."
-                    },
-                    {
                         "nom": "regime_tr_min",
                         "raison": "Nécessaire pour f(cycles/s), vitesse piston, et cylindrée."
                     }
@@ -382,7 +384,99 @@
             "notes_modele": []
         },
         "boite_point": {
-            "erreur": "BoiteCrabots.analyser_point() missing 1 required keyword-only argument: 'couple_nm'"
+            "entrees": {
+                "couple_nm": 1050.4226244065092,
+                "vitesse_rotation_tr_min": null
+            },
+            "resultats": {
+                "F_t_N": null,
+                "F_r_N": null,
+                "F_a_N": null
+            },
+            "contraintes": {
+                "sigma_H_Pa": null,
+                "sigma_F_Pa": null,
+                "tau_torsion_Pa": null,
+                "sigma_flexion_arbre_Pa": null,
+                "sigma_von_mises_Pa": null
+            },
+            "roulements": {
+                "P_eq_N": null,
+                "L10_millions_tours": null,
+                "L10_heures": null
+            },
+            "crabot": {
+                "T_cap_Nm": null,
+                "p_contact_Pa": null
+            },
+            "choc_engagement": {
+                "J_eq_kg_m2": null,
+                "energie_choc_J": null,
+                "couple_sync_moyen_Nm": null
+            },
+            "inconnues": {
+                "impossibles": [
+                    {
+                        "nom": "coefficients matériau/qualité denture",
+                        "raison": "Z_H (contact Hertz), Y (Lewis), limites admissibles, facteurs dynamiques/fatigue nécessitent normes/datasheet ou calibration."
+                    },
+                    {
+                        "nom": "géométrie complète + montage",
+                        "raison": "Sans entraxes, position des appuis, raideurs, alignements, on ne peut pas déduire les moments fléchissants et les répartitions réelles."
+                    },
+                    {
+                        "nom": "données roulement constructeur",
+                        "raison": "C, facteurs X/Y (selon type, montage, Fa/Fr) proviennent des catalogues/abaques."
+                    }
+                ],
+                "partielles": [
+                    {
+                        "nom": "force_tangentielle F_t",
+                        "raison": "Calculable si diametre_primitif_m est fourni (F_t = 2*T/d)."
+                    },
+                    {
+                        "nom": "contrainte_contact_hertz sigma_H",
+                        "raison": "Calculable si Ft, largeur_denture_b_m, diametre_primitif_m et coefficient_zh sont fournis."
+                    },
+                    {
+                        "nom": "contrainte_flexion_lewis sigma_F",
+                        "raison": "Calculable si Ft, largeur_denture_b_m, module_m et facteur_forme_y sont fournis."
+                    },
+                    {
+                        "nom": "contraintes arbre",
+                        "raison": "Calculables si diametre_arbre_m est fourni (et moment_flechissant_nm pour flexion/Von Mises)."
+                    },
+                    {
+                        "nom": "couple transmissible crabot T_cap",
+                        "raison": "Calculable si (crabot_nombre_dents, crabot_pression_admissible_pa, crabot_hauteur_dent_m, crabot_largeur_dent_m, crabot_rayon_moyen_m) sont fournis."
+                    },
+                    {
+                        "nom": "pression contact crabot p",
+                        "raison": "Calculable si (crabot_nombre_dents, crabot_hauteur_dent_m, crabot_largeur_dent_m, crabot_rayon_moyen_m) sont fournis."
+                    },
+                    {
+                        "nom": "charge équivalente roulement P",
+                        "raison": "Calculable si Fr, Fa et facteurs roulement_X/roulement_Y sont connus."
+                    },
+                    {
+                        "nom": "durée de vie roulement (L10)",
+                        "raison": "Calculable si charge équivalente P_eq et capacité dynamique roulement_C_N sont connues."
+                    },
+                    {
+                        "nom": "inertie équivalente J_eq",
+                        "raison": "Calculable si inertie_primaire_kg_m2 et inertie_secondaire_kg_m2 sont fournies."
+                    },
+                    {
+                        "nom": "énergie de choc ΔE",
+                        "raison": "Calculable si J_eq et delta_omega_rad_s sont fournis."
+                    },
+                    {
+                        "nom": "couple de synchronisation moyen T_sync",
+                        "raison": "Calculable si J_eq, delta_omega_rad_s et temps_engagement_s sont fournis."
+                    }
+                ]
+            },
+            "notes_modele": []
         },
         "boite_chaine": {
             "erreur": "BoiteCrabots.analyser_chaine_moteur_alternateur() missing 3 required keyword-only arguments: 'puissance_bus_dc_w', 'rpm_moteur', and 'rapports'"
@@ -772,7 +866,7 @@
                 "temperature_gaz_in_k": null,
                 "temperature_gaz_out_k": null,
                 "efficacite_echangeur": null,
-                "puissance_utile_w": null,
+                "puissance_utile_w": 165000.0,
                 "rendement_global": null,
                 "module_carburant_disponible": true
             },
@@ -1782,8 +1876,6 @@
     },
     "alertes": {},
     "notes_modele": [
-        "La puissance moteur thermique n'est pas déduite automatiquement depuis la puissance électrique : cela dépend des rendements alternateur/liaisons/mécanique, donc aucune valeur n'est inventée.",
-        "La puissance moteur thermique n'est pas déduite automatiquement depuis la puissance traction : cela dépend de la chaîne complète et des rendements, donc aucune valeur n'est inventée.",
         "Ce module normalise des sorties hétérogènes et vérifie les interfaces sans inventer de dimensions manquantes.",
         "Les corrections proposées sont prudentes : seulement des alignements directs sur des valeurs déjà calculées.",
         "Le score global agrège cohérence géométrique et pénalité de pertes de frottement connues."

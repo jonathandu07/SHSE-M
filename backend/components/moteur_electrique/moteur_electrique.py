@@ -1,4 +1,4 @@
-# backend/components/moteur_electrique.py
+# backend/components/moteur_electrique/moteur_electrique.py
 from __future__ import annotations
 
 import math
@@ -41,33 +41,12 @@ try:
         _md_ferro_davis = None  # type: ignore
         _md_rho_air_sec = None  # type: ignore
 
-except Exception:
-    try:
-        # fallback legacy: backend/modules/vehicule/...
-        from backend.modules.vehicule.calcul_force_resistance_vitesse import calcul_force_resistance_totale
-        from backend.modules.vehicule.calcul_puissance_roue import (
-            calcul_puissance_roue,
-            calcul_couple_roue_total,
-            calcul_couple_par_roue,
-        )
-        from backend.modules.vehicule.calcul_puissance_moteur import (
-            calcul_puissance_moteur_electrique,
-            calcul_couple_moteur,
-        )
-        from backend.modules.vehicule.calcul_charge_essieu import calcul_charges_essieux
-        from backend.modules.vehicule.calcul_acceleration_max import calcul_acceleration_max
-
-        _md_nautique = None  # type: ignore
-        _md_aerien_rho = None  # type: ignore
-        _md_ferro_davis = None  # type: ignore
-        _md_rho_air_sec = None  # type: ignore
-
-    except Exception as e:
-        raise ImportError(
-            "Impossible d'importer les modules de calcul. "
-            "Ajuste les chemins d'import dans backend/components/moteur_electrique.py "
-            f"(erreur d'import: {e})."
-        )
+except Exception as e:
+    raise ImportError(
+        "Impossible d'importer les modules de calcul. "
+        "Ajuste les chemins d'import dans backend/components/moteur_electrique/moteur_electrique.py "
+        f"(erreur d'import: {e})."
+    )
 
 
 # =============================================================================
