@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.moteur_thermique.calcul_force_inertie import (
+from backend.components.moteur_thermique.modules.calcul_force_inertie import (
     calcul_force_inertie_alternative
 )
 

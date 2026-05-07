@@ -4,7 +4,7 @@ import os
 import logging
 import math
 import json
-from backend.modules.moteur_thermique.calcul_gaz import (
+from backend.components.moteur_thermique.modules.calcul_gaz import (
     calcul_pression_gaz_parfait,
     calcul_masse_gaz_parfait,
     calcul_temperature_compression_adiabatique,

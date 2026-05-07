@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.moteur_thermique.calcul_pertes_frottement import (
+from backend.components.moteur_thermique.modules.calcul_pertes_frottement import (
     calcul_puissance_frottement_segment,
     calcul_puissance_frottement_palier
 )

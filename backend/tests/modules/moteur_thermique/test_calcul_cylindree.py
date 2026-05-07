@@ -4,7 +4,7 @@ import os
 import logging
 import math
 import json
-from backend.modules.moteur_thermique.calcul_cylindree import (
+from backend.components.moteur_thermique.modules.calcul_cylindree import (
     calcul_cylindree_unitaire,
     calcul_cylindree_totale,
     calcul_volume_mort,

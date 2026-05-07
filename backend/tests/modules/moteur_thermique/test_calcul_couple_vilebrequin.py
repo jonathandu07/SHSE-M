@@ -3,7 +3,7 @@ import pytest
 import os
 import logging
 import math
-from backend.modules.moteur_thermique.calcul_couple_vilebrequin import (
+from backend.components.moteur_thermique.modules.calcul_couple_vilebrequin import (
     calcul_couple_instantane
 )
 

@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.moteur_thermique.calcul_usure_archard import (
+from backend.components.moteur_thermique.modules.calcul_usure_archard import (
     calcul_volume_usure_archard,
     calcul_perte_epaisseur
 )

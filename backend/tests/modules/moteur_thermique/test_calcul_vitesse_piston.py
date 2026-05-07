@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.moteur_thermique.calcul_vitesse_piston import (
+from backend.components.moteur_thermique.modules.calcul_vitesse_piston import (
     calcul_vitesse_moyenne_piston
 )
 

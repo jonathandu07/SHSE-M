@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.moteur_thermique.calcul_travail_indique import (
+from backend.components.moteur_thermique.modules.calcul_travail_indique import (
     calcul_travail_indique_pme,
     calcul_puissance_indiquee
 )

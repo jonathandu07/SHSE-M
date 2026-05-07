@@ -2,7 +2,7 @@
 import pytest
 import os
 import logging
-from backend.modules.moteur_thermique.calcul_precharge_vis import (
+from backend.components.moteur_thermique.modules.calcul_precharge_vis import (
     calcul_force_separation,
     calcul_precharge_vis_totale,
     calcul_couple_serrage
