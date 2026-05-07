@@ -283,13 +283,19 @@ class SecureDatabase:
         """
         Retourne une vue fusionnée d'une pièce si elle a été sauvée depuis main.py.
         """
-        return {
+        data = {
             "piece": piece_name,
             "inventaire": self.get_record("piece_inventaire", piece_name),
             "rapport": self.get_record("piece_rapport", piece_name),
             "objet_serialise": self.get_record("piece_objet", piece_name),
             "construction": self.get_record("piece_construction", piece_name),
         }
+        for source_name in ("inventaire", "rapport", "objet_serialise", "construction"):
+            payload = data.get(source_name)
+            if isinstance(payload, Mapping):
+                for key, value in payload.items():
+                    data.setdefault(str(key), value)
+        return data
 
     def get_all_pieces(self) -> Dict[str, Any]:
         names = [row["name"] for row in self.list_records("piece_inventaire")]
@@ -333,6 +339,7 @@ class SecureDatabase:
             "inconnues",
             "alertes",
             "notes_modele",
+            "stockage",
             "synthese",
         )
         for section in top_sections:
@@ -368,6 +375,45 @@ class SecureDatabase:
 
     def load_main_report(self, report_name: str = "latest") -> Any:
         return self.get_record("main_report", report_name)
+
+    def save_power_report(self, report: Mapping[str, Any], *, report_name: str = "latest") -> Dict[str, int]:
+        """
+        Sauvegarde un rapport strict produit depuis une puissance de sortie.
+
+        Les sections sont indexees avec le nom du rapport pour pouvoir garder
+        plusieurs demandes de puissance sans qu'elles s'ecrasent entre elles.
+        """
+        report_jsonable = self._to_jsonable(dict(report))
+        saved: Dict[str, int] = {}
+        saved["power_report"] = self.save_record("power_report", report_name, report_jsonable)
+
+        for section in (
+            "meta",
+            "entrees",
+            "analyse_base",
+            "candidats",
+            "candidats_valides",
+            "selection",
+            "pareto",
+            "resume",
+            "inconnues",
+            "notes_modele",
+            "stockage",
+        ):
+            if section in report_jsonable:
+                saved[f"power_section:{section}"] = self.save_record(
+                    "power_section",
+                    f"{report_name}:{section}",
+                    report_jsonable[section],
+                )
+
+        return saved
+
+    def load_power_report(self, report_name: str = "latest") -> Any:
+        return self.get_record("power_report", report_name)
+
+    def load_power_section(self, report_name: str, section: str) -> Any:
+        return self.get_record("power_section", f"{report_name}:{section}")
 
     def load_resume_gui(self) -> Any:
         return self.get_record("main_section", "resume_gui")
