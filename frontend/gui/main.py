@@ -765,7 +765,7 @@ class DetailedDatasheetScreen(Screen):
         all_pieces = {}
         db_error = None
         try:
-            from backend.database import SecureDatabase
+            from backend.modules.systeme.database import SecureDatabase
 
             db_path_abs = os.path.join(BASE_DIR, "backend", "shse_technical_data.db")
             db = SecureDatabase(db_path=db_path_abs)

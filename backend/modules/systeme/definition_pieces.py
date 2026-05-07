@@ -101,7 +101,7 @@ def dimensionner_pieces_completes(
     db_error = None
     if save_to_db:
         try:
-            from backend.database import SecureDatabase
+            from backend.modules.systeme.database import SecureDatabase
 
             db = SecureDatabase()
             for piece in pieces.values():
