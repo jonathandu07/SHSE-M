@@ -1441,6 +1441,12 @@ def dimensionner_systeme_shsem(
     if moteur_thermique is None:
         try:
             moteur_thermique, rapport_construction_moteur = construire_moteur_thermique_complet(moteur_thermique_definition=definition_moteur, rapport=rapport_global)
+            if moteur_thermique is None:
+                moteur_thermique = construire_moteur_thermique_base()
+                rapport_construction_moteur = _merge_dict_non_none(
+                    rapport_construction_moteur,
+                    {"mode_construction_fallback": "compatibilite_base"},
+                )
         except Exception:
             moteur_thermique = construire_moteur_thermique_base()
             rapport_construction_moteur = {"mode_construction": "compatibilite_base"}
