@@ -144,6 +144,26 @@ def _make_arbre_vilebrequin(ep: Dict) -> Any:
     return ArbreVilebrequin(**kwargs)
 
 
+def _make_batterie(ep: Dict) -> Any:
+    from backend.components.batterie.batterie import Batterie
+    return Batterie(
+        tension_nominale_v=_f(ep, "tension_nominale_v", default=400.0),
+        puissance_charge_kw=_f(ep, "puissance_charge_kw", default=50.0),
+    )
+
+
+def _make_alternateur(ep: Dict) -> Any:
+    from backend.components.alternateur.alternateur import Alternateur
+    return Alternateur(
+        nombre_poles=int(_f(ep, "nombre_poles", default=12.0)),
+    )
+
+
+def _make_architecture(ep: Dict) -> Any:
+    from backend.components.architechture.architecture import Architecture
+    return Architecture()
+
+
 # ---------------------------------------------------------------------------
 # Registre
 # ---------------------------------------------------------------------------
@@ -156,6 +176,9 @@ _CONNECTORS = {
     "couvercle_cylindre": _make_couvercle_cylindre,
     "arbre_vilbrequin": _make_arbre_vilebrequin,
     "arbre_vilebrequin": _make_arbre_vilebrequin,
+    "batterie": _make_batterie,
+    "alternateur": _make_alternateur,
+    "architecture": _make_architecture,
 }
 
 

@@ -34,18 +34,6 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.popup import Popup
-from kivy.uix.image import Image as KivyImage
-from kivy.properties import StringProperty, DictProperty
-from kivy.graphics import Color, RoundedRectangle
-from kivy.core.window import Window
-from kivy.clock import Clock
-from kivy.lang import Builder
-
-# =========================
-# Palette
-# =========================
-COLORS = {
     "BL": (244 / 255, 254 / 255, 254 / 255, 1),
     "GW": (247 / 255, 247 / 255, 255 / 255, 1),
     "BG": (229 / 255, 229 / 255, 229 / 255, 1),
@@ -1098,6 +1086,83 @@ class VectorViewScreen(Screen):
 
             fig.tight_layout()
             self.graph_box.add_widget(FigureCanvasKivyAgg(fig))
+        except Exception as e:
+            self.graph_box.add_widget(Label(text=f"Erreur rendu: {e}", color=COLORS["RF"]))
+
+
+class AdvancedVisualsScreen(Screen):
+    """Écran exploitant les nouveaux croquis 2D spécialisés du backend."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=15)
+        
+        # Header
+        top = BoxLayout(size_hint_y=None, height=60, spacing=10)
+        top.add_widget(Label(text="INGÉNIERIE DÉTAILLÉE (2D SKETCHES)", font_size="20sp",
+                             bold=True, color=COLORS["BF"]))
+        back = ModernButton(text="RETOUR", size_hint_x=None, width=140)
+        back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
+        top.add_widget(back)
+        self.layout.add_widget(top)
+        
+        # Sélecteur de vue
+        self.nav = BoxLayout(size_hint_y=None, height=50, spacing=10)
+        self.view_btns = {}
+        for view in ["Architecture", "Alternateur", "Batterie"]:
+            btn = ArchButton(view, font_size="14sp")
+            btn.bind(on_press=lambda b, v=view: self.show_view(v))
+            self.nav.add_widget(btn)
+            self.view_btns[view] = btn
+        self.layout.add_widget(self.nav)
+        
+        # Zone d'affichage
+        self.display = PremiumCard(title="Vue technique")
+        self.layout.add_widget(self.display)
+        
+        self.add_widget(self.layout)
+        self.current_view = "Architecture"
+
+    def on_enter(self, *args):
+        self.show_view(self.current_view)
+
+    def show_view(self, view_name: str):
+        self.current_view = view_name
+        for k, b in self.view_btns.items():
+            b.set_selected(k == view_name)
+            
+        self.display.clear_widgets()
+        app = App.get_running_app()
+        ep = app.engine_params or {}
+        
+        try:
+            fig = None
+            if view_name == "Architecture":
+                arch_obj = get_piece_instance("architecture", ep)
+                if arch_obj:
+                    # On passe les paramètres pour que l'analyse soit faite
+                    # Note: Architecture.analyser() sera appelé dans tracer_croquis_architecture_2d
+                    # mais on pourrait injecter les résultats déjà calculés si on modifie le tracer.
+                    # Pour l'instant on laisse le tracer appeler analyser() (qui utilisera les params par défaut ou ceux de l'objet)
+                    fig = tracer_croquis_architecture_2d(arch_obj, titre="Configuration du Bloc Moteur")
+            
+            elif view_name == "Alternateur":
+                alt_obj = get_piece_instance("alternateur", ep)
+                if alt_obj:
+                    fig = tracer_croquis_alternateur_2d(alt_obj, titre="Coupe Stator/Rotor & Bilan Pertes")
+            
+            elif view_name == "Batterie":
+                batt_obj = get_piece_instance("batterie", ep)
+                if batt_obj:
+                    fig = tracer_croquis_batterie_2d(batt_obj, titre="Monitoring Pack Batterie (BMS/TMS)")
+
+            if fig:
+                self.display.add_widget(FigureCanvasKivyAgg(fig))
+            else:
+                self.display.add_widget(Label(text=f"Impossible d'instancier {view_name}", color=COLORS["RF"]))
+                
+        except Exception as e:
+            self.display.add_widget(Label(text=f"Erreur : {e}\n{traceback.format_exc()}", 
+                                          color=COLORS["RF"], font_size="12sp"))
             return
             l_max = res.get("L_max_m")
             w_max = res.get("W_max_m")
