@@ -65,7 +65,9 @@ def dimensionner_pieces_completes(
 
     return {
         "pieces": report.get("pieces", {}),
+        "inventaire": report.get("inventaire", {}),
         "masse_pieces_kg": dict(report.get("synthese", {}) or {}).get("masse_pieces_kg"),
+        "synthese": report.get("synthese", {}),
         "construction_pieces": report.get("construction_pieces", {}),
         "rapports_pieces": report.get("rapports_pieces", {}),
         "objets_serialises": report.get("objets_serialises", {}),
