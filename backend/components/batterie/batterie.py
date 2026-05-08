@@ -110,6 +110,10 @@ try:
         exigences_pour_cellule_complete,
         cellule_vers_dict,
     )
+
+    from backend.components.batterie.pieces.pack_batterie import PackBatterie
+    from backend.components.batterie.pieces.busbars_batterie import BusbarsBatterie
+    from backend.components.batterie.pieces.boitier_batterie import BoitierBatterie
 except Exception:
     from backend.components.batterie.modules.scraping_cellules_batterie import (  # type: ignore
         CelluleCommerciale,
@@ -118,6 +122,9 @@ except Exception:
         exigences_pour_cellule_complete,
         cellule_vers_dict,
     )
+    from backend.components.batterie.pieces.pack_batterie import PackBatterie  # type: ignore
+    from backend.components.batterie.pieces.busbars_batterie import BusbarsBatterie  # type: ignore
+    from backend.components.batterie.pieces.boitier_batterie import BoitierBatterie  # type: ignore
 
 
 # ============================================================
@@ -230,6 +237,11 @@ class Batterie:
     # Électrique pack
     tension_nominale_v: Optional[float] = None
     tension_charge_v: Optional[float] = None
+
+    # Pieces optionnelles
+    piece_pack: Optional[PackBatterie] = None
+    piece_busbars: Optional[BusbarsBatterie] = None
+    piece_boitier: Optional[BoitierBatterie] = None
 
     def analyser_dimensionnement(
         self,
@@ -888,6 +900,23 @@ class Batterie:
                 "thermique pack (refroidissement)",
                 "Impossible sans architecture pack, résistances internes, modèle thermique, conditions ambiantes et profils charge/décharge.",
             )
+
+        pieces_rapport: Dict[str, Any] = {}
+        pack_piece = self.piece_pack or PackBatterie(batterie=self, rapport_batterie=rapport)
+        busbars_piece = self.piece_busbars or BusbarsBatterie(batterie=self, rapport_batterie=rapport)
+        boitier_piece = self.piece_boitier or BoitierBatterie(batterie=self, rapport_batterie=rapport)
+        for nom, piece in (
+            ("pack", pack_piece),
+            ("busbars", busbars_piece),
+            ("boitier", boitier_piece),
+        ):
+            if piece is not None and hasattr(piece, "analyser"):
+                try:
+                    pieces_rapport[nom] = piece.analyser()
+                except Exception as exc:
+                    pieces_rapport[nom] = {"erreur": str(exc)}
+        if pieces_rapport:
+            rapport["pieces"] = pieces_rapport
 
         _dedup_inconnues(rapport)
         return rapport
