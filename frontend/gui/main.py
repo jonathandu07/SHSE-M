@@ -1051,8 +1051,9 @@ class VectorViewScreen(Screen):
     def on_enter(self, *args):
         self.graph_box.clear_widgets()
         app = App.get_running_app()
-        res = app.simulation_results or {}
-        if not (MATPLOTLIB_AVAILABLE and res) or "__error__" in res:
+        report = _safe_dict(app.simulation_results)
+        res = _report_resume(report)
+        if not (MATPLOTLIB_AVAILABLE and res) or "__error__" in report:
             self.graph_box.add_widget(Label(text="Données indisponibles.", color=COLORS["GAXD"]))
             return
         try:
