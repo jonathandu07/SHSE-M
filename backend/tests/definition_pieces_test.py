@@ -13,6 +13,7 @@ def test_definition_pieces_saves_structured_piece_records(monkeypatch):
                 "cylindre": {"nom": "cylindre", "indicateurs": {"masse_kg": 1.2}},
                 "piston": {"nom": "piston", "indicateurs": {"masse_kg": 0.4}},
             },
+            "inventaire": {"pieces": {"cylindre": {"construit": True}, "piston": {"construit": True}}},
             "rapports_pieces": {
                 "cylindre": {"geometrie": {"diametre_interieur_nominal_m": 0.08}},
             },
@@ -45,6 +46,7 @@ def test_definition_pieces_saves_structured_piece_records(monkeypatch):
 
     assert result["masse_pieces_kg"] == 1.6
     assert sorted(result["pieces"]) == ["cylindre", "piston"]
+    assert result["inventaire"]["pieces"]["cylindre"]["construit"] is True
     assert ("piece_inventaire", "cylindre", result["pieces"]["cylindre"]) in saved
     assert ("piece_rapport", "cylindre", result["rapports_pieces"]["cylindre"]) in saved
     assert ("piece_construction", "piston", {"construit": True}) in saved

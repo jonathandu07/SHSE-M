@@ -593,6 +593,33 @@ def test_generer_rapport_puissance_only_records_unknowns_without_invention(tmp_p
     assert exported["selection"] == {}
 
 
+def test_generer_rapport_puissance_can_embed_piece_orchestration(monkeypatch, tmp_path, main_mod):
+    def fake_enrich(report):
+        enriched = dict(report)
+        enriched["orchestration_pieces"] = {"active": True}
+        enriched["inventaire"] = {"pieces": {"cylindre": {"type": "Cylindre", "construit": True}}}
+        enriched["pieces"] = {"cylindre": {"nom": "cylindre"}}
+        enriched["rapports_pieces"] = {"cylindre": {"piece": "cylindre"}}
+        enriched["construction_pieces"] = {"construction": {"cylindre": {"construit": True}}}
+        return enriched
+
+    monkeypatch.setattr(main_mod, "enrichir_rapport_puissance_avec_pieces_systeme", fake_enrich)
+
+    json_path = tmp_path / "rapport.json"
+    result = main_mod.generer_rapport_puissance_json_bdd(
+        100,
+        "kw",
+        output_path=json_path,
+        sauvegarder_bdd=False,
+        espace_recherche={"rpm_sortie": [1000.0], "tension_dc_v": [800.0]},
+    )
+
+    assert result["rapport"]["orchestration_pieces"]["active"] is True
+    assert "cylindre" in result["rapport"]["pieces"]
+    exported = json.loads(json_path.read_text(encoding="utf-8"))
+    assert exported["inventaire"]["pieces"]["cylindre"]["construit"] is True
+
+
 def test_print_resume_console_outputs_key_lines(main_mod, capsys):
     config = {
         "resume_gui": {

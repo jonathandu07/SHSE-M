@@ -38,26 +38,31 @@ def executer_simulation():
     
     # Batterie avec SOC initial faible pour forcer la recharge
     batterie = Batterie(
-        capacite_totale_kwh=80.0, 
         tension_nominale_v=400,
         puissance_charge_kw=50.0 # Capacité de charge rapide
     )
     # Simulation d'un état : SOC=15%, Temp=45°C (Chaud, donc BMS va limiter)
     # Note: On injecte ces valeurs dans le BMS via les rapports de simulation
     
-    alternateur = Alternateur(nombre_poles=12, courant_max_a=150)
+    alternateur = Alternateur(nombre_poles=12)
     
     moteur_thermique = MoteurThermique(
         nombre_cylindres=6, 
         alesage_m=0.086, 
         course_m=0.086, 
-        rpm_nominal=3500
+        rpm_nominal=3500,
+        pme_nominale_pa=8e5
     )
     
     boite = BoiteCrabots()
     
     # Architecture forcée en V pour le test
-    profil_arch = ProfilUsageMoteur(architecture_forcee="V")
+    profil_arch = ProfilUsageMoteur(
+        usage="voiture",
+        longueur_dispo_m=0.8,
+        largeur_dispo_m=0.8,
+        architecture_forcee="V"
+    )
     arch = Architecture(profil_usage=profil_arch)
     
     # 2. Assemblage du système
@@ -71,15 +76,21 @@ def executer_simulation():
     )
     
     # 3. Analyse du scénario : Croisière + Recharge rapide
-    # On simule un bus DC demandant 40kW pour la batterie + 10kW pour les auxiliaires
     print("Analyse du point de fonctionnement (Recharge 40kW)...")
     rapport = systeme.analyser(
+        masse_kg=1500,
         vitesse_ms=25.0, # 90 km/h
         acceleration_ms2=0.0,
+        coef_roulement=0.015,
+        coef_trainee_aero_cda=0.32,
+        rayon_roue_m=0.3,
+        rapport_reduction_global=8.0,
+        rendement_transmission=0.96,
         scenario_bus_dc="charge",
         puissance_elec_alt_cible_w=45000.0, # 45kW demandés à l'alternateur
         vitesse_moteur_thermique_rpm=3000.0,
-        rapport_vitesse_alt_sur_moteur=2.0 # L'alternateur tourne à 6000 RPM
+        rapport_vitesse_alt_sur_moteur=2.0, # L'alternateur tourne à 6000 RPM
+        energie_utile_imposee_kwh=60.0
     )
     
     # 4. Génération des rapports visuels

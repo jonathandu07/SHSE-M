@@ -1,10 +1,10 @@
-2026-05-08 15:30:51,802 - INFO - Starting test_intervalle
-2026-05-08 15:30:51,802 - INFO - RESULT - test_intervalle: SUCCESS 
-2026-05-08 15:30:51,806 - INFO - Starting test_materiau_lookup
-2026-05-08 15:30:51,806 - INFO - RESULT - test_materiau_lookup: SUCCESS 
-2026-05-08 15:30:51,809 - INFO - Starting test_rdm_properties
-2026-05-08 15:30:51,809 - INFO - RESULT - test_rdm_properties: SUCCESS 
-2026-05-08 15:30:51,811 - INFO - Starting test_admissible_stresses
-2026-05-08 15:30:51,812 - INFO - RESULT - test_admissible_stresses: SUCCESS 
-2026-05-08 15:30:51,815 - INFO - Starting test_thermique
-2026-05-08 15:30:51,816 - INFO - RESULT - test_thermique: SUCCESS 
+2026-05-08 15:37:26,352 - INFO - Starting test_intervalle
+2026-05-08 15:37:26,353 - INFO - RESULT - test_intervalle: SUCCESS 
+2026-05-08 15:37:26,356 - INFO - Starting test_materiau_lookup
+2026-05-08 15:37:26,357 - INFO - RESULT - test_materiau_lookup: SUCCESS 
+2026-05-08 15:37:26,359 - INFO - Starting test_rdm_properties
+2026-05-08 15:37:26,360 - INFO - RESULT - test_rdm_properties: SUCCESS 
+2026-05-08 15:37:26,363 - INFO - Starting test_admissible_stresses
+2026-05-08 15:37:26,363 - INFO - RESULT - test_admissible_stresses: SUCCESS 
+2026-05-08 15:37:26,366 - INFO - Starting test_thermique
+2026-05-08 15:37:26,366 - INFO - RESULT - test_thermique: SUCCESS 
