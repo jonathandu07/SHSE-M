@@ -1012,8 +1012,16 @@ class DashboardScreen(Screen):
                 f"PME: {_f((pme_pa / 1e5) if pme_pa else None, 'bar')}",
                 f"F bielle: {_f(force_b, 'N', 0)}",
             ]),
-            ("BATTERIE", [f"Énergie: {_f(energie, 'kWh')}"]),
-            ("QUALITÉ", [f"Score: {_f(score, '%', 0)}", f"Inconnues: {nb_inc}  Alertes: {nb_al}"]),
+            ("SYSTEME", [
+                f"Bus DC: {_f((p_bus / 1000.0) if p_bus else None, 'kW')}",
+                f"Énergie batterie: {_f(energie, 'kWh')}",
+                f"CAO détaillée: {'Oui' if cao.get('solidworks_ready_detaille') else 'Non'}",
+            ]),
+            ("QUALITÉ", [
+                f"Score: {_f(score, '%', 0)}",
+                f"Inconnues: {nb_inc}  Alertes: {nb_al}",
+                f"BDD: {stockage.get('records_saved', 0)} enregistrements" if stockage else "BDD: -",
+            ]),
         ]:
             box = BoxLayout(orientation="vertical", spacing=3)
             box.add_widget(Label(text=title, color=COLORS["BF"], bold=True,
