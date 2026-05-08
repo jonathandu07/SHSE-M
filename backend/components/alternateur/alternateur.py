@@ -68,6 +68,20 @@ except Exception:
 
 
 # ============================================================
+# Imports des pièces
+# ============================================================
+try:
+    from backend.components.alternateur.pieces.rotor import Rotor
+    from backend.components.alternateur.pieces.stator import Stator
+    from backend.components.alternateur.pieces.arbre_alternateur import ArbreAlternateur
+    from backend.components.alternateur.pieces.carter_alternateur import CarterAlternateur
+except Exception:
+    Rotor = Any
+    Stator = Any
+    ArbreAlternateur = Any
+    CarterAlternateur = Any
+
+# ============================================================
 # Types & helpers
 # ============================================================
 
@@ -191,6 +205,12 @@ class Alternateur:
     # --- Thermique ---
     resistance_thermique_k_w: Optional[float] = None
     offset_temperature: float = 0.0
+
+    # --- Pièces (optionnel) ---
+    piece_rotor: Optional[Rotor] = None
+    piece_stator: Optional[Stator] = None
+    piece_arbre: Optional[ArbreAlternateur] = None
+    piece_carter: Optional[CarterAlternateur] = None
 
     clamp_non_negative: bool = True
 
@@ -635,6 +655,25 @@ class Alternateur:
 
         rep["entrees"]["nb_phases_chargees"] = nb_phases_chargees
         rep["entrees"]["courant_phase_rms_stator_a"] = courant_phase_rms_stator_a
+
+        # ============================================================
+        # 11) Analyse des pièces (si définies)
+        # ============================================================
+        pieces_rapport = {}
+        for nom, piece in [
+            ("rotor", self.piece_rotor),
+            ("stator", self.piece_stator),
+            ("arbre", self.piece_arbre),
+            ("carter", self.piece_carter),
+        ]:
+            if piece is not None and hasattr(piece, "analyser"):
+                try:
+                    pieces_rapport[nom] = piece.analyser()
+                except Exception as e:
+                    pieces_rapport[nom] = {"erreur": str(e)}
+        
+        if pieces_rapport:
+            rep["pieces"] = pieces_rapport
 
         _dedup_inconnues(rep)
         return rep
