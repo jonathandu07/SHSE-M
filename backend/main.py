@@ -1418,16 +1418,29 @@ def dimensionner_systeme_shsem(
         puissance_bus_dc_w = production_electrique_sortie_w
         _append_note(rapport_global, "puissance_bus_dc_w reprise exactement depuis production_electrique_sortie_w.")
 
-    if puissance_bus_dc_w is None and charger_batterie:
-        puissance_bus_dc_w = 20000.0
     if puissance_auxiliaire_w is None:
-        puissance_auxiliaire_w = 5000.0
+        puissance_auxiliaire_eval_w = 0.0
+        _push_inconnue(
+            rapport_global,
+            "partielles",
+            "puissance_auxiliaire_w",
+            "Non fournie : l'analyse systeme est menee hors auxiliaires, sans charge auxiliaire inventee.",
+        )
+        _append_note(
+            rapport_global,
+            "puissance_auxiliaire_w absente : le calcul systeme complet exclut les auxiliaires au lieu d'inventer une charge fixe.",
+        )
+    else:
+        puissance_auxiliaire_eval_w = puissance_auxiliaire_w
     if scenario_bus_dc is None:
         scenario_bus_dc = "traction_plus_charge" if charger_batterie else "traction"
     if puissance_pic_kw is None and puissance_traction_kw is not None and charger_batterie:
         puissance_pic_kw = puissance_traction_kw
     if rapports_boite_candidates is None:
-        rapports_boite_candidates = (1.0, 1.5, 2.0, 2.5, 3.0)
+        _append_note(
+            rapport_global,
+            "rapports_boite_candidates absents : aucune optimisation de chaine moteur-alternateur n'est forcee.",
+        )
 
     if definition_moteur.get("puissance_nominale_visee_w") is None and puissance_moteur_requise_W is None:
         if puissance_bus_dc_w is not None:
@@ -1548,7 +1561,7 @@ def dimensionner_systeme_shsem(
                 "couple_pertes_transmission_nm": couple_pertes_transmission_nm,
                 "marge_puissance": marge_puissance,
                 "marge_couple": marge_couple,
-                "puissance_auxiliaire_w": puissance_auxiliaire_w,
+                "puissance_auxiliaire_w": puissance_auxiliaire_eval_w,
                 "distance_km": distance_km,
                 "conso_kwh_km": conso_kwh_km,
                 "puissance_moyenne_kw": puissance_traction_kw,
