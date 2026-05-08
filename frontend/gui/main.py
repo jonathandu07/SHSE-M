@@ -27,6 +27,35 @@ Config.set("input", "mouse", "mouse,disable_multitouch")
 Config.set("graphics", "resizable", "1")
 
 from kivy.app import App
+# backend/gui/main.py
+# =========================================================
+# SHSE-M - Interface Technique Haute Fidélité (Kivy)
+# Design : Neumorphisme Premium & Bento Design
+# =========================================================
+
+# =========================
+# PATH + CONFIG (TOUT EN HAUT)
+# =========================
+import os
+import sys
+import io
+import threading
+import importlib
+import importlib.util
+import traceback
+
+# CONFIGURATION DU PATH (Doit être au tout début pour tous les threads)
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+# IMPORTANT : ces Config DOIVENT être avant tout autre import kivy
+from kivy.config import Config
+
+Config.set("input", "mouse", "mouse,disable_multitouch")
+Config.set("graphics", "resizable", "1")
+
+from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
@@ -34,6 +63,24 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.popup import Popup
+from kivy.uix.image import Image as KivyImage
+from kivy.properties import StringProperty, DictProperty
+from kivy.graphics import Color, RoundedRectangle
+from kivy.core.window import Window
+from kivy.clock import Clock
+from kivy.lang import Builder
+
+# Visualisations Spécialisées
+from frontend.pieces.sketches_2d.batterie_pack import tracer_croquis_batterie_2d
+from frontend.pieces.sketches_2d.alternateur_complet import tracer_croquis_alternateur_2d
+from frontend.pieces.sketches_2d.architecture_layout import tracer_croquis_architecture_2d
+from frontend.gui.piece_connector import get_piece_instance
+
+# =========================
+# Palette
+# =========================
+COLORS = {
     "BL": (244 / 255, 254 / 255, 254 / 255, 1),
     "GW": (247 / 255, 247 / 255, 255 / 255, 1),
     "BG": (229 / 255, 229 / 255, 229 / 255, 1),
