@@ -975,7 +975,6 @@ class DashboardScreen(Screen):
         self.res_pwr = f"{p:.1f} kW"
         self.res_ncyl = str(n_cyl) if n_cyl else "--"
         self.res_arch = str(res.get("Architecture") or "?")
-        self.res_mass = f"~{p * 0.6 + n_cyl * 10:.0f} kg"
         vd = res.get("vd_tot_cc")
         self.res_vol = f"{vd / 1000:.2f} L" if vd else "--"
         self.dt_grid.clear_widgets()
@@ -994,9 +993,16 @@ class DashboardScreen(Screen):
         pme_pa = res.get("PME_Pa") or res.get("PME")
         force_b = res.get("Force_bielle_N")
         energie = res.get("energie_batterie_kwh")
+        p_bus = res.get("P_bus_dc_design_w")
         score = res.get("score_coherence_100")
         nb_inc = res.get("nb_inconnues", 0)
         nb_al = res.get("nb_alertes", 0)
+        cao = _safe_dict(report.get("cao"))
+        stockage = _safe_dict(report.get("stockage_front"))
+        self.res_mass = (
+            f"{float(energie):.1f} kWh batterie" if isinstance(energie, (int, float))
+            else _f((float(p_bus) / 1000.0) if isinstance(p_bus, (int, float)) else None, "kW bus")
+        )
         sc = (30/255, 180/255, 50/255, 1) if (score or 0) >= 80 else COLORS["RF"]
 
         for title, lines in [
