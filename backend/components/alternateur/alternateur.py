@@ -76,7 +76,7 @@ try:
     from backend.components.alternateur.pieces.arbre_alternateur import ArbreAlternateur
     from backend.components.alternateur.pieces.carter_alternateur import CarterAlternateur
     from backend.components.alternateur.pieces.ventilateur import Ventilateur
-    from backend.components.alternateur.pieces.bobine_excitation import BobineExcitation
+    from backend.components.alternateur.pieces.bobine_excite import BobineExcitation
     from backend.components.alternateur.pieces.roulement_alternateur import RoulementAlternateur
 except Exception:
     Rotor = Any
