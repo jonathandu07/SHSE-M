@@ -1657,6 +1657,15 @@ def dimensionner_systeme_shsem(
                 regime_tr_min=_get_nested(mt_syn, "rpm_nominal"),
                 n_cyl=_get_nested(mt_syn, "nombre_cylindres"),
                 pression_max_pa=pression_max_pa,
+                pme_pa=_first_finite(_get_nested(mt_syn, "pme_pa"), _get_nested(mt_syn, "pme_nominale_pa")),
+                alesage_m=_get_nested(mt_syn, "alesage_m"),
+                course_m=_get_nested(mt_syn, "course_m"),
+                longueur_bielle_m=definition_moteur.get("longueur_bielle_m"),
+                definition_moteur_thermique=definition_moteur,
+                pieces_definition=pieces_definition,
+                rapport_systeme=rapport_systeme,
+                moteur_thermique_obj=moteur_thermique,
+                systeme_obj=systeme,
             )
         except Exception as exc:
             legacy["dimensionner_pieces_completes_erreur"] = str(exc)
@@ -1916,6 +1925,19 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
         regime_tr_min=eng.rpm,
         n_cyl=eng.n_cyl,
         pression_max_pa=eng.p_safety_bar * 1.0e5,
+        pme_pa=eng.p_mean_pa,
+        alesage_m=eng.bore_m,
+        course_m=eng.stroke_m,
+        definition_moteur_thermique={
+            "temps_moteur": 4,
+            "nombre_cylindres": eng.n_cyl,
+            "alesage_m": eng.bore_m,
+            "course_m": eng.stroke_m,
+            "rpm_nominal": eng.rpm,
+            "pme_nominale_pa": eng.p_mean_pa,
+            "pression_max_pa": eng.p_safety_bar * 1.0e5,
+            "puissance_nominale_visee_w": eng.p_meca_needed_w,
+        },
     )
 
     gen = DriveChainGenerator()
