@@ -928,6 +928,13 @@ class Batterie:
         if pieces_rapport:
             rapport["pieces"] = pieces_rapport
 
+        sd = rapport.get("dimensionnement", {})
+        rapport["energie_utile"] = {
+            "kwh_finale": sd.get("E_utile_finale_kwh"),
+            "kwh_trajet": sd.get("E_trajet_kwh"),
+            "kwh_pic": sd.get("E_pic_kwh"),
+        }
+
         _dedup_inconnues(rapport)
         return rapport
 
