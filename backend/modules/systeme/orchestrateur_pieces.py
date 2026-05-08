@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib
 import math
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 
 def _is_finite(x: Any) -> bool:
@@ -132,6 +132,223 @@ def _build_piece_inventory(
         }
         inventory[name] = entry
     return inventory
+
+
+def _build_piece_inventory_entry(*, name: str, piece_obj: Any, rapport_piece: Any, construction: Any, main_mod: Any) -> Dict[str, Any]:
+    objet = main_mod._collect_public_data(piece_obj) if piece_obj is not None else {"type": None}
+    indicateurs = _extract_indicators(objet)
+    if isinstance(rapport_piece, Mapping):
+        indicateurs = _merge_non_none(indicateurs, _extract_indicators(rapport_piece))
+    return {
+        "nom": name,
+        "type": type(piece_obj).__name__ if piece_obj is not None else None,
+        "construit": piece_obj is not None,
+        "rapport_disponible": isinstance(rapport_piece, Mapping),
+        "indicateurs": indicateurs,
+        "construction": construction if isinstance(construction, Mapping) else None,
+        "objet": objet,
+        "rapport": rapport_piece,
+    }
+
+
+def extraire_rapports_pieces_composants(rapports_composants: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+    nested: Dict[str, Any] = {}
+    for composant_nom, composant_rapport in dict(rapports_composants or {}).items():
+        if not isinstance(composant_rapport, Mapping):
+            continue
+        pieces_block = composant_rapport.get("pieces")
+        if not isinstance(pieces_block, Mapping):
+            continue
+        for piece_nom, piece_rapport in pieces_block.items():
+            nested[f"{composant_nom}.{piece_nom}"] = piece_rapport
+    return nested
+
+
+def construire_inventaire_pieces_imbrique(
+    *,
+    rapports_pieces: Mapping[str, Any],
+    main_mod: Any,
+) -> Dict[str, Any]:
+    inventory: Dict[str, Any] = {}
+    for full_name, rapport_piece in dict(rapports_pieces or {}).items():
+        if "." not in str(full_name):
+            continue
+        composant_nom, piece_nom = str(full_name).split(".", 1)
+        inventory[full_name] = {
+            "nom": full_name,
+            "type": rapport_piece.get("piece") if isinstance(rapport_piece, Mapping) else piece_nom,
+            "construit": True,
+            "rapport_disponible": isinstance(rapport_piece, Mapping),
+            "source_composant": composant_nom,
+            "piece_nom": piece_nom,
+            "indicateurs": _extract_indicators(rapport_piece) if isinstance(rapport_piece, Mapping) else {},
+            "objet": {"type": None},
+            "construction": None,
+            "rapport": rapport_piece,
+        }
+    return inventory
+
+
+def consolider_sortie_pieces(
+    *,
+    main_mod: Any,
+    pieces: Mapping[str, Any],
+    construction_report: Mapping[str, Any],
+    rapports_composants: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    rapports_pieces = _safe_dict(construction_report.get("rapports_pieces"))
+    rapports_pieces_composants = extraire_rapports_pieces_composants(rapports_composants)
+    if rapports_pieces_composants:
+        rapports_pieces = _merge_non_none(rapports_pieces, rapports_pieces_composants)
+
+    construction = _safe_dict(construction_report.get("construction"))
+    inventory = _build_piece_inventory(
+        main_mod=main_mod,
+        pieces=pieces,
+        rapports_pieces=rapports_pieces,
+        construction=construction,
+    )
+    inventory.update(
+        construire_inventaire_pieces_imbrique(
+            rapports_pieces=rapports_pieces_composants,
+            main_mod=main_mod,
+        )
+    )
+
+    masses = [
+        float(entry["indicateurs"]["masse_kg"])
+        for entry in inventory.values()
+        if isinstance(entry, Mapping)
+        and isinstance(entry.get("indicateurs"), Mapping)
+        and _is_finite(entry["indicateurs"].get("masse_kg"))
+    ]
+
+    return {
+        "pieces": inventory,
+        "rapports_pieces": rapports_pieces,
+        "construction_pieces": dict(construction_report),
+        "objets_serialises": {
+            "pieces": {
+                name: main_mod._collect_public_data(piece_obj)
+                for name, piece_obj in pieces.items()
+            }
+        },
+        "inventaire": {
+            "pieces": {
+                name: {
+                    "type": entry.get("type"),
+                    "construit": bool(entry.get("construit")),
+                    "rapport_disponible": bool(entry.get("rapport_disponible")),
+                    **({"source_composant": entry["source_composant"]} if entry.get("source_composant") else {}),
+                }
+                for name, entry in inventory.items()
+            }
+        },
+        "synthese": {
+            "pieces_construites": sorted(inventory.keys()),
+            "nombre_pieces_construites": len(inventory),
+            "masse_pieces_kg": sum(masses) if masses else None,
+        },
+    }
+
+
+def _find_selected_candidate(
+    rapport_puissance: Mapping[str, Any],
+    preferred_labels: Sequence[str],
+) -> Optional[Mapping[str, Any]]:
+    selection = _safe_dict(rapport_puissance.get("selection"))
+    candidates = list(rapport_puissance.get("candidats_valides") or [])
+    by_index = {
+        candidate.get("index"): candidate
+        for candidate in candidates
+        if isinstance(candidate, Mapping)
+    }
+    for label in preferred_labels:
+        entry = _safe_dict(selection.get(label))
+        candidate_summary = _safe_dict(entry.get("candidat"))
+        index = candidate_summary.get("index")
+        if index in by_index:
+            return by_index[index]
+    return candidates[0] if candidates else None
+
+
+def _piece_inputs_from_power_candidate(candidate: Mapping[str, Any]) -> Dict[str, Any]:
+    known = dict(candidate.get("entrees") or {})
+    candidate_report = _safe_dict(candidate.get("rapport"))
+    calc_mt = _safe_dict(_get_nested(candidate_report, "calculs", "moteur_thermique"))
+    geom = _safe_dict(calc_mt.get("geometrie"))
+
+    puissance_cible_w = _safe_float(
+        known.get("puissance_moteur_requise_w")
+        or known.get("puissance_moteur_requise_W")
+        or _get_nested(candidate_report, "calculs", "puissance_moteur_requise_w")
+        or calc_mt.get("puissance_indiquee_w")
+    )
+    regime_tr_min = _safe_float(known.get("rpm_moteur") or known.get("rpm_moteur_nominal"))
+    n_cyl = _safe_int(known.get("nombre_cylindres") or known.get("n_cyl") or geom.get("nombre_cylindres"))
+    pression_max_pa = _safe_float(known.get("pression_max_pa"))
+
+    return {
+        "puissance_cible_w": puissance_cible_w,
+        "regime_tr_min": regime_tr_min,
+        "n_cyl": n_cyl,
+        "pression_max_pa": pression_max_pa,
+        "pme_pa": _safe_float(known.get("pme_pa") or known.get("pme_nominale_pa")),
+        "alesage_m": _safe_float(geom.get("alesage_m") or known.get("alesage_m")),
+        "course_m": _safe_float(geom.get("course_m") or known.get("course_m")),
+        "definition_moteur_thermique": {
+            "temps_moteur": _safe_int(known.get("temps_moteur")),
+            "nombre_cylindres": n_cyl,
+            "alesage_m": _safe_float(geom.get("alesage_m") or known.get("alesage_m")),
+            "course_m": _safe_float(geom.get("course_m") or known.get("course_m")),
+            "rpm_nominal": regime_tr_min,
+            "pression_max_pa": pression_max_pa,
+            "pme_pa": _safe_float(known.get("pme_pa") or known.get("pme_nominale_pa")),
+            "type_puissance_nominale": known.get("type_puissance_moteur") or known.get("type_puissance_nominale"),
+        },
+    }
+
+
+def enrichir_rapport_puissance_avec_pieces(
+    rapport_puissance: Mapping[str, Any],
+    *,
+    preferred_labels: Sequence[str] = ("couple_sortie_max", "courant_dc_min"),
+) -> Dict[str, Any]:
+    report = dict(rapport_puissance)
+    selected_candidate = _find_selected_candidate(report, preferred_labels)
+    if selected_candidate is None:
+        report["orchestration_pieces"] = {
+            "active": False,
+            "raison": "Aucun candidat valide disponible pour lancer le dimensionnement des pieces.",
+        }
+        return report
+
+    piece_inputs = _piece_inputs_from_power_candidate(selected_candidate)
+    missing = [
+        name for name in ("puissance_cible_w", "regime_tr_min", "n_cyl", "pression_max_pa")
+        if piece_inputs.get(name) is None
+    ]
+    if missing:
+        report["orchestration_pieces"] = {
+            "active": False,
+            "raison": f"Donnees insuffisantes pour construire les pieces depuis le rapport puissance: {missing}.",
+            "candidate_index": selected_candidate.get("index"),
+        }
+        return report
+
+    pieces_report = dimensionner_pieces_moteur_thermique(**piece_inputs)
+    report["orchestration_pieces"] = {
+        "active": True,
+        "source": {
+            "candidate_index": selected_candidate.get("index"),
+            "entrees": dict(selected_candidate.get("entrees") or {}),
+        },
+        "resume": dict(pieces_report.get("synthese") or {}),
+    }
+    for section in ("pieces", "inventaire", "construction_pieces", "rapports_pieces", "objets_serialises"):
+        if section in pieces_report:
+            report[section] = pieces_report[section]
+    return report
 
 
 def _build_minimal_rapport_systeme(
@@ -274,37 +491,13 @@ def dimensionner_pieces_moteur_thermique(
         return_report=True,
     )
 
-    rapports_pieces = _safe_dict(construction_report.get("rapports_pieces"))
-    construction = _safe_dict(construction_report.get("construction"))
-    inventory = _build_piece_inventory(
-        main_mod=main_mod,
-        pieces=pieces,
-        rapports_pieces=rapports_pieces,
-        construction=construction,
+    report.update(
+        consolider_sortie_pieces(
+            main_mod=main_mod,
+            pieces=pieces,
+            construction_report=construction_report,
+        )
     )
-
-    masses = [
-        float(entry["indicateurs"]["masse_kg"])
-        for entry in inventory.values()
-        if isinstance(entry, Mapping)
-        and isinstance(entry.get("indicateurs"), Mapping)
-        and _is_finite(entry["indicateurs"].get("masse_kg"))
-    ]
-
-    report["pieces"] = inventory
-    report["construction_pieces"] = construction_report
-    report["rapports_pieces"] = rapports_pieces
-    report["objets_serialises"] = {
-        "pieces": {
-            name: main_mod._collect_public_data(piece_obj)
-            for name, piece_obj in pieces.items()
-        }
-    }
-    report["synthese"] = {
-        "pieces_construites": sorted(inventory.keys()),
-        "nombre_pieces_construites": len(inventory),
-        "masse_pieces_kg": sum(masses) if masses else None,
-    }
     report["inconnues"]["impossibles"].extend(
         list(_get_nested(construction_report, "inconnues", "impossibles") or [])
     )
