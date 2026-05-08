@@ -161,6 +161,9 @@ try:
     from backend.components.architechture.modules.resolution_globale_architecture import (
         resoudre_architecture_globale,
     )
+    from backend.components.architechture.pieces.vilebrequin_arch import VilebrequinArch
+    from backend.components.architechture.pieces.bloc_moteur_arch import BlocMoteurArch
+    from backend.components.architechture.pieces.culasse_arch import CulasseArch
 except Exception:
     from backend.components.architechture.modules.resolution_globale_architecture import (  # type: ignore
         resoudre_architecture_globale,
@@ -678,6 +681,11 @@ class Architecture:
     params_pertes_fins: Optional[Any] = None
     params_fiabilite_fins: Optional[Any] = None
     options_fines: Optional[Any] = None
+
+    # Pieces optionnelles
+    piece_vilebrequin: Optional[VilebrequinArch] = None
+    piece_bloc: Optional[BlocMoteurArch] = None
+    piece_culasse: Optional[CulasseArch] = None
 
     # ------------------------------------------------------------
     # Wrapper : usage/profil -> appel analyser()
@@ -1212,6 +1220,33 @@ class Architecture:
         _push_inconnue(rapport, "impossibles", "masse réelle moteur complet", "Une masse réelle exige ensuite le détail des pièces, matériaux, épaisseurs et accessoires.")
 
         _dedup_inconnues(rapport)
+
+        # ------------------------------------------------------------
+        # Analyse des conséquences physiques (Pièces)
+        # ------------------------------------------------------------
+        pieces_rapport: Dict[str, Any] = {}
+        best = rapport.get("meilleur")
+        arch_choisie = str(best.get("architecture", "L")) if best else "L"
+        nb_cyl_choisi = int(best.get("N_cyl", 4)) if best else 4
+        
+        vilebrequin_p = self.piece_vilebrequin or VilebrequinArch(architecture=arch_choisie, nb_cylindres=nb_cyl_choisi)
+        bloc_p = self.piece_bloc or BlocMoteurArch(architecture=arch_choisie, nb_cylindres=nb_cyl_choisi)
+        culasse_p = self.piece_culasse or CulasseArch(architecture=arch_choisie, nb_cylindres=nb_cyl_choisi)
+        
+        for nom, piece in (
+            ("vilebrequin", vilebrequin_p),
+            ("bloc", bloc_p),
+            ("culasse", culasse_p),
+        ):
+            if piece is not None and hasattr(piece, "analyser"):
+                try:
+                    pieces_rapport[nom] = piece.analyser()
+                except Exception as exc:
+                    pieces_rapport[nom] = {"erreur": str(exc)}
+        
+        if pieces_rapport:
+            rapport["pieces"] = pieces_rapport
+
         return rapport
 
 
