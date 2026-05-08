@@ -43,7 +43,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 
 # Visualisations Spécialisées
-from frontend.gui.viz_utils import resolve_viz_module, get_draw_3d_func
+from frontend.gui.viz_utils import resolve_viz_module, get_draw_3d_func, get_viz_figure
 from frontend.gui.piece_connector import get_piece_instance
 
 # =========================
@@ -1193,37 +1193,35 @@ class PieceDetailScreen(Screen):
         data_card = PremiumCard(title="Données de dimensionnement")
 
         if MATPLOTLIB_AVAILABLE:
+            # --- Croquis 2D ---
             try:
-                mod = resolve_viz_module(raw_name, "sketches_2d")
-                if mod:
-                    fig, ax = plt.subplots(figsize=(4, 4))
-                    mod.draw(ax, p)
-                    sketch_card.add_widget(FigureCanvasKivyAgg(fig))
+                fig2d = get_viz_figure(raw_name, p, "sketches_2d")
+                if fig2d:
+                    sketch_card.add_widget(FigureCanvasKivyAgg(fig2d))
                 else:
-                    raise ImportError("Module non trouvé")
+                    raise ImportError("Module 2D non trouvé")
             except Exception as e:
                 sketch_card.add_widget(Label(text=f"Croquis indisponible\n{str(e)[:80]}",
                                               color=COLORS["RF"], font_size="11sp"))
+
+            # --- Radar Chart ---
             try:
-                chart_mod = resolve_viz_module(raw_name, "charts")
-                if chart_mod:
-                    fig_r = plt.figure(figsize=(4, 4))
-                    ax_r = fig_r.add_subplot(111, polar=True)
-                    chart_mod.plot_data(ax_r, p)
+                fig_r = get_viz_figure(raw_name, p, "charts")
+                if fig_r:
                     radar_card.add_widget(FigureCanvasKivyAgg(fig_r))
                 else:
-                    raise ImportError("Module non trouvé")
+                    raise ImportError("Module Charts non trouvé")
             except Exception as e:
                 radar_card.add_widget(Label(text=f"Radar indisponible\n{str(e)[:80]}",
                                              color=COLORS["RF"], font_size="11sp"))
+
+            # --- Vue 3D ---
             try:
-                from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-                draw_3d = get_draw_3d_func(raw_name)
-                piece_real = get_piece_instance(raw_name, ep)
-                fig3d = plt.figure(figsize=(4, 4))
-                ax3d = fig3d.add_subplot(111, projection="3d")
-                draw_3d(ax3d, piece_real if piece_real is not None else p)
-                view3d_card.add_widget(FigureCanvasKivyAgg(fig3d))
+                fig3d = get_viz_figure(raw_name, p, "views_3d")
+                if fig3d:
+                    view3d_card.add_widget(FigureCanvasKivyAgg(fig3d))
+                else:
+                    raise ImportError("Module 3D non trouvé")
             except Exception as e:
                 view3d_card.add_widget(Label(text=f"Vue 3D indisponible\n{str(e)[:80]}",
                                               color=COLORS["RF"], font_size="11sp"))
@@ -1286,6 +1284,33 @@ class SHSEMApp(App):
     selected_piece_raw = StringProperty("")
     selected_piece_db = StringProperty("")
     selected_piece_component = StringProperty("")
+
+    def on_start(self):
+        # Chargement automatique de la dernière simulation au démarrage
+        try:
+            from backend.modules.systeme.database import SecureDatabase
+            db = SecureDatabase(
+                db_path=os.path.join(BASE_DIR, "backend", "shse_technical_data.db"),
+                key_path=os.path.join(BASE_DIR, "backend", "secret.key")
+            )
+            # On cherche le dernier rapport sauvegardé (par défaut "latest" ou le dernier par date)
+            records = db.list_records("main_report")
+            if records:
+                # Trier par date décroissante
+                records.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+                latest_name = records[0]["name"]
+                res = db.get_record("main_report", latest_name)
+                if res:
+                    self.simulation_results = res
+                    self.current_report_name = latest_name
+                    # Restauration des paramètres moteur si présents
+                    if "entrees" in res:
+                        self.engine_params = res["entrees"]
+                        if "puissance_traction_kw" in res["entrees"]:
+                            self.target_power = str(res["entrees"]["puissance_traction_kw"])
+            print(f"[SHSEM_DB] Auto-load completed: {self.current_report_name}")
+        except Exception as ex:
+            print(f"[SHSEM_DB] Auto-load skipped: {ex}")
 
     def build(self):
         Window.clearcolor = COLORS["BL"]

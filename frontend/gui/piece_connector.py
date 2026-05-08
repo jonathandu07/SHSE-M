@@ -105,6 +105,23 @@ def _make_architecture(ep: Dict[str, Any]) -> Any:
         nombre_cylindres=8
     )
 
+def _make_deplaceur(ep: Dict[str, Any]) -> Any:
+    from backend.components.moteur_thermique.pieces.deplaceur import Deplaceur
+    cylindre = _make_cylindre(ep)
+    return Deplaceur(
+        cylindre=cylindre,
+        diametre_deplaceur_m=_f(ep, "alesage_m", 0.130) * 0.98,
+        longueur_deplaceur_m=0.150,
+        materiau_cle="acier_310s"
+    )
+
+def _make_joint_deplaceur(ep: Dict[str, Any]) -> Any:
+    from backend.components.moteur_thermique.pieces.joint_deplaceur import JointDeplaceur
+    return JointDeplaceur(
+        diametre_nominal_m=_f(ep, "alesage_m", 0.130),
+        materiau_cle="graphite"
+    )
+
 # ---------------------------------------------------------------------------
 # Registre
 # ---------------------------------------------------------------------------
@@ -123,6 +140,8 @@ _CONNECTORS = {
     "alternateur": _make_alternateur,
     "batterie": _make_batterie,
     "architecture": _make_architecture,
+    "deplaceur": _make_deplaceur,
+    "joint_deplaceur": _make_joint_deplaceur,
 }
 
 def get_piece_instance(piece_name: str, engine_params: Dict) -> Optional[Any]:
