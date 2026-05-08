@@ -75,6 +75,19 @@ except Exception:
     dimensionner_pieces_completes = None  # type: ignore
 
 try:
+    from backend.modules.systeme.orchestrateur_pieces import (  # type: ignore
+        consolider_sortie_pieces as consolider_sortie_pieces_systeme,
+        extraire_rapports_pieces_composants as extraire_rapports_pieces_composants_systeme,
+        construire_inventaire_pieces_imbrique as construire_inventaire_pieces_imbrique_systeme,
+        enrichir_rapport_puissance_avec_pieces as enrichir_rapport_puissance_avec_pieces_systeme,
+    )
+except Exception:
+    consolider_sortie_pieces_systeme = None  # type: ignore
+    extraire_rapports_pieces_composants_systeme = None  # type: ignore
+    construire_inventaire_pieces_imbrique_systeme = None  # type: ignore
+    enrichir_rapport_puissance_avec_pieces_systeme = None  # type: ignore
+
+try:
     from backend.modules.systeme.system_generator import DriveChainGenerator  # type: ignore
 except Exception:
     DriveChainGenerator = None  # type: ignore
@@ -1634,7 +1647,10 @@ def dimensionner_systeme_shsem(
     if rapport_construction_moteur:
         rapports_composants["construction_moteur_thermique"] = rapport_construction_moteur
     rapports_composants.update(rapports_partiels)
-    rapports_pieces_composants = _extract_component_piece_reports(rapports_composants)
+    if callable(extraire_rapports_pieces_composants_systeme):
+        rapports_pieces_composants = extraire_rapports_pieces_composants_systeme(rapports_composants)
+    else:
+        rapports_pieces_composants = _extract_component_piece_reports(rapports_composants)
     if rapports_pieces_composants:
         rapports_pieces = _merge_dict_non_none(rapports_pieces, rapports_pieces_composants)
 
@@ -1731,7 +1747,15 @@ def dimensionner_systeme_shsem(
         "composants": {nom: {"type": None if obj is None else type(obj).__name__, "construit": obj is not None} for nom, obj in composants.items()},
         "pieces": {nom: {"type": None if obj is None else type(obj).__name__, "construit": obj is not None, "rapport_disponible": isinstance(rapports_pieces.get(nom), dict) and "inconnues" in rapports_pieces.get(nom, {})} for nom, obj in pieces.items()},
     }
-    inventaire["pieces"].update(_build_nested_piece_inventory(rapports_pieces_composants))
+    if callable(construire_inventaire_pieces_imbrique_systeme):
+        inventaire["pieces"].update(
+            construire_inventaire_pieces_imbrique_systeme(
+                rapports_pieces=rapports_pieces_composants,
+                main_mod=sys.modules[__name__],
+            )
+        )
+    else:
+        inventaire["pieces"].update(_build_nested_piece_inventory(rapports_pieces_composants))
 
     synth = _safe_dict(_safe_dict(rapport_systeme).get("synthese"))
     mt_syn = _safe_dict(synth.get("moteur_thermique"))
@@ -2006,6 +2030,9 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
         "couple_moyen_Nm": eng.torque_mean_nm,
         "drivetrain": gen.results,
         "pieces": pieces_report.get("pieces", {}),
+        "inventaire": pieces_report.get("inventaire", {}),
+        "construction_pieces": pieces_report.get("construction_pieces", {}),
+        "rapports_pieces": pieces_report.get("rapports_pieces", {}),
         "pieces_db_error": pieces_report.get("db_error"),
         "resume_gui": {
             "N_cyl": eng.n_cyl,
@@ -2092,6 +2119,8 @@ def generer_rapport_puissance_json_bdd(
         contraintes=dict(contraintes or {}),
         max_candidats=max_candidats,
     )
+    if callable(enrichir_rapport_puissance_avec_pieces_systeme):
+        rapport = enrichir_rapport_puissance_avec_pieces_systeme(rapport)
     rapport = _to_jsonable(dict(rapport), max_depth=12)
     rapport.setdefault("meta", {})
     rapport["meta"].update(
@@ -2132,9 +2161,6 @@ def generer_rapport_puissance_json_bdd(
             "records_saved": len(record_ids),
             "record_ids": record_ids,
         }
-        record_ids = db.save_power_report(rapport, report_name=name)
-        rapport["stockage"]["bdd"]["records_saved"] = len(record_ids)
-        rapport["stockage"]["bdd"]["record_ids"] = record_ids
 
     if json_path is not None:
         exporter_rapport_json(rapport, json_path)

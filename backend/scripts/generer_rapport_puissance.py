@@ -57,7 +57,11 @@ def main() -> int:
         exporter_json_file=not args.no_json,
         sauvegarder_bdd=not args.no_db,
     )
-    print(json.dumps({k: v for k, v in result.items() if k != "rapport"}, ensure_ascii=False, indent=2))
+    payload = {k: v for k, v in result.items() if k != "rapport"}
+    rapport = result.get("rapport", {}) or {}
+    payload["orchestration_pieces_active"] = bool((rapport.get("orchestration_pieces") or {}).get("active"))
+    payload["nombre_pieces"] = len((rapport.get("pieces") or {}))
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
 

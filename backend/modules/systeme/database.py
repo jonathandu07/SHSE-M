@@ -398,6 +398,11 @@ class SecureDatabase:
             "selection",
             "pareto",
             "resume",
+            "orchestration_pieces",
+            "inventaire",
+            "pieces",
+            "construction_pieces",
+            "rapports_pieces",
             "inconnues",
             "notes_modele",
             "stockage",
@@ -408,6 +413,27 @@ class SecureDatabase:
                     f"{report_name}:{section}",
                     report_jsonable[section],
                 )
+
+        inventaire = report_jsonable.get("inventaire", {}) if isinstance(report_jsonable, dict) else {}
+        for name, payload in dict(inventaire.get("pieces", {}) or {}).items():
+            saved[f"power_piece_inventaire:{name}"] = self.save_record(
+                "power_piece_inventaire",
+                f"{report_name}:{name}",
+                payload,
+            )
+        for name, payload in dict(report_jsonable.get("rapports_pieces", {}) or {}).items():
+            saved[f"power_piece_rapport:{name}"] = self.save_record(
+                "power_piece_rapport",
+                f"{report_name}:{name}",
+                payload,
+            )
+        construction_pieces = report_jsonable.get("construction_pieces", {}) or {}
+        for name, payload in dict(construction_pieces.get("construction", {}) or {}).items():
+            saved[f"power_piece_construction:{name}"] = self.save_record(
+                "power_piece_construction",
+                f"{report_name}:{name}",
+                payload,
+            )
 
         return saved
 
