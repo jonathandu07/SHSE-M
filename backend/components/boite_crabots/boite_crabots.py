@@ -79,6 +79,27 @@ except Exception:
 
 
 # ============================================================
+# Imports des pièces
+# ============================================================
+try:
+    from backend.components.boite_crabots.pieces.arbre_boite import ArbreBoite
+    from backend.components.boite_crabots.pieces.crabot import Crabot as PieceCrabot
+    from backend.components.boite_crabots.pieces.pignon_boite import PignonBoite
+    from backend.components.boite_crabots.pieces.roulement_boite import RoulementBoite
+    from backend.components.boite_crabots.pieces.baladeur import Baladeur
+    from backend.components.boite_crabots.pieces.fourchette import Fourchette
+    from backend.components.boite_crabots.pieces.carter_boite import CarterBoite
+except Exception:
+    ArbreBoite = Any
+    PieceCrabot = Any
+    PignonBoite = Any
+    RoulementBoite = Any
+    Baladeur = Any
+    Fourchette = Any
+    CarterBoite = Any
+
+
+# ============================================================
 # Helpers
 # ============================================================
 
@@ -215,6 +236,17 @@ class BoiteCrabots:
     # Options
     # -------------------------
     clamp_non_negative: bool = True
+
+    # -------------------------
+    # Pièces (optionnel)
+    # -------------------------
+    piece_arbre: Optional[ArbreBoite] = None
+    piece_crabot: Optional[PieceCrabot] = None
+    piece_pignon: Optional[PignonBoite] = None
+    piece_roulement: Optional[RoulementBoite] = None
+    piece_baladeur: Optional[Baladeur] = None
+    piece_fourchette: Optional[Fourchette] = None
+    piece_carter: Optional[CarterBoite] = None
 
     # ------------------------------------------------------------
     # Analyse mécanique locale (inchangé)
@@ -591,6 +623,28 @@ class BoiteCrabots:
             "données roulement constructeur",
             "C, facteurs X/Y (selon type, montage, Fa/Fr) proviennent des catalogues/abaques.",
         )
+
+        # ============================================================
+        # 8) Analyse des pièces (si définies)
+        # ============================================================
+        pieces_rapport = {}
+        for nom, piece in [
+            ("arbre", self.piece_arbre),
+            ("crabot", self.piece_crabot),
+            ("pignon", self.piece_pignon),
+            ("roulement", self.piece_roulement),
+            ("baladeur", self.piece_baladeur),
+            ("fourchette", self.piece_fourchette),
+            ("carter", self.piece_carter),
+        ]:
+            if piece is not None and hasattr(piece, "analyser"):
+                try:
+                    pieces_rapport[nom] = piece.analyser()
+                except Exception as e:
+                    pieces_rapport[nom] = {"erreur": str(e)}
+        
+        if pieces_rapport:
+            rapport["pieces"] = pieces_rapport
 
         _dedup_inconnues(rapport)
         return rapport
