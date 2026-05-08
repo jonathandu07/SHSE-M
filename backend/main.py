@@ -1219,6 +1219,61 @@ def analyser_composants_complementaires(*, composants: Mapping[str, Any], rappor
         if rep is not None:
             rapports["moteur_electrique"] = rep
 
+    electronique_puissance: Dict[str, Any] = {
+        "bus_dc": {},
+        "redressement": {},
+        "inconnues": {"partielles": [], "impossibles": []},
+    }
+    bus_dc_design_w = _first_finite(
+        _get_nested(rapport_systeme or {}, "liaisons", "bus_dc", "P_bus_dc_design_w"),
+        veh_synth.get("puissance_bus_dc_design_w"),
+        _get_nested(rapports, "alternateur_bus_dc", "bus_dc", "puissance_bus_dc_W"),
+    )
+    bus_dc_tension_v = _first_finite(
+        _get_nested(rapport_systeme or {}, "liaisons", "bus_dc", "V_bus_dc_v"),
+        veh_synth.get("tension_bus_dc_v"),
+        batt_synth.get("tension_nominale_v"),
+        _get_nested(rapports, "alternateur_bus_dc", "bus_dc", "tension_bus_dc_V"),
+    )
+    courant_bus_dc_a = None
+    if bus_dc_design_w is not None and bus_dc_tension_v is not None and float(bus_dc_tension_v) > 0.0:
+        courant_bus_dc_a = float(bus_dc_design_w) / float(bus_dc_tension_v)
+    else:
+        electronique_puissance["inconnues"]["partielles"].append(
+            {
+                "nom": "courant_bus_dc_a",
+                "raison": "Calculable si P_bus_dc_design_w et V_bus_dc_v sont disponibles.",
+            }
+        )
+
+    electronique_puissance["bus_dc"] = {
+        "puissance_design_w": bus_dc_design_w,
+        "tension_nominale_v": bus_dc_tension_v,
+        "courant_nominal_a": courant_bus_dc_a,
+        "scenario": _get_nested(rapport_systeme or {}, "liaisons", "bus_dc", "scenario_bus_dc"),
+        "energie_a_recharger_kwh": _get_nested(rapport_systeme or {}, "liaisons", "bus_dc", "energie_a_recharger_kwh"),
+    }
+    electronique_puissance["redressement"] = {
+        "source": "alternateur_triphasé_vers_bus_dc",
+        "puissance_entree_w": _first_finite(
+            _get_nested(rapports, "alternateur_bus_dc", "alternateur", "P_entree_mecanique_W"),
+            _get_nested(rapports, "alternateur_bus_dc", "alternateur", "P_entree_W"),
+        ),
+        "puissance_sortie_dc_w": _first_finite(
+            _get_nested(rapports, "alternateur_bus_dc", "bus_dc", "puissance_bus_dc_W"),
+            bus_dc_design_w,
+        ),
+        "tension_sortie_dc_v": _first_finite(
+            _get_nested(rapports, "alternateur_bus_dc", "bus_dc", "tension_bus_dc_V"),
+            bus_dc_tension_v,
+        ),
+        "courant_sortie_dc_a": _first_finite(
+            _get_nested(rapports, "alternateur_bus_dc", "bus_dc", "courant_bus_dc_A"),
+            courant_bus_dc_a,
+        ),
+    }
+    rapports["electronique_puissance"] = electronique_puissance
+
     return rapports
 
 
