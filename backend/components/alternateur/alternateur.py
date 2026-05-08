@@ -75,11 +75,17 @@ try:
     from backend.components.alternateur.pieces.stator import Stator
     from backend.components.alternateur.pieces.arbre_alternateur import ArbreAlternateur
     from backend.components.alternateur.pieces.carter_alternateur import CarterAlternateur
+    from backend.components.alternateur.pieces.ventilateur import Ventilateur
+    from backend.components.alternateur.pieces.bobine_excitation import BobineExcitation
+    from backend.components.alternateur.pieces.roulement_alternateur import RoulementAlternateur
 except Exception:
     Rotor = Any
     Stator = Any
     ArbreAlternateur = Any
     CarterAlternateur = Any
+    Ventilateur = Any
+    BobineExcitation = Any
+    RoulementAlternateur = Any
 
 # ============================================================
 # Types & helpers
@@ -211,6 +217,9 @@ class Alternateur:
     piece_stator: Optional[Stator] = None
     piece_arbre: Optional[ArbreAlternateur] = None
     piece_carter: Optional[CarterAlternateur] = None
+    piece_ventilateur: Optional[Ventilateur] = None
+    piece_bobine_excite: Optional[BobineExcitation] = None
+    piece_roulement: Optional[RoulementAlternateur] = None
 
     clamp_non_negative: bool = True
 
@@ -665,6 +674,9 @@ class Alternateur:
             ("stator", self.piece_stator),
             ("arbre", self.piece_arbre),
             ("carter", self.piece_carter),
+            ("ventilateur", self.piece_ventilateur),
+            ("bobine_excite", self.piece_bobine_excite),
+            ("roulement", self.piece_roulement),
         ]:
             if piece is not None and hasattr(piece, "analyser"):
                 try:
