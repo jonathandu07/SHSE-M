@@ -15,10 +15,17 @@ def resolve_viz_module(piece_name: str, viz_type: str) -> Optional[Any]:
     """
     key = piece_name.lower().replace(" ", "_").replace("vilbrequin", "vilebrequin")
     
-    # Mapping des chemins miroirs
-    if key in ["alternateur", "batterie", "architechture"]:
+    # Liste des composants racines (top-level components)
+    # On y inclut 'moteur_thermique' lui-même au cas où il aurait une vue d'ensemble.
+    subsystems = [
+        "alternateur", "batterie", "architechture", 
+        "boite_crabots", "moteur_electrique", "moteur_thermique"
+    ]
+    
+    if key in subsystems:
         path = f"frontend.components.{key}.{viz_type}"
     else:
+        # Par défaut, on cherche dans les pièces du moteur thermique
         path = f"frontend.components.moteur_thermique.pieces.{key}.{viz_type}"
         
     try:
@@ -44,7 +51,7 @@ def get_draw_3d_func(piece_name: str) -> Callable:
     
     # Fallback générique
     try:
-        from frontend.pieces.views_3d._generic import draw_3d
+        from frontend.ensemble.viz_3d_generic import draw_3d
         return draw_3d
     except ImportError:
         # Si on a aussi déplacé _generic
