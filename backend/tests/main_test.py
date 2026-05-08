@@ -475,6 +475,47 @@ def test_dimensionner_systeme_shsem_without_battery_charge_and_legacy_errors(mon
     assert "drivechain boom" in config["legacy"]["drivechain_erreur"]
 
 
+def test_dimensionner_systeme_shsem_surfaces_nested_component_piece_reports(monkeypatch, main_mod):
+    monkeypatch.setattr(main_mod, "construire_moteur_electrique", lambda: object())
+    monkeypatch.setattr(main_mod, "construire_batterie", lambda: object())
+    monkeypatch.setattr(main_mod, "construire_alternateur", lambda: object())
+    monkeypatch.setattr(main_mod, "construire_moteur_thermique_base", lambda: object())
+    monkeypatch.setattr(main_mod, "construire_boite_crabots", lambda: object())
+    monkeypatch.setattr(main_mod, "construire_architecture", lambda: object())
+    monkeypatch.setattr(main_mod, "SystemeComplet", lambda **kwargs: _FakeSystemeComplet(**kwargs))
+    monkeypatch.setattr(main_mod, "OptimisationSysteme", _FakeOptimisationSysteme)
+    monkeypatch.setattr(main_mod, "construire_pieces_depuis_systeme", lambda **kwargs: ({}, {"construction": {}, "inconnues": {"impossibles": [], "partielles": []}}))
+    monkeypatch.setattr(main_mod, "analyser_pieces", lambda pieces: {})
+    monkeypatch.setattr(main_mod, "dimensionner_pieces_completes", lambda **kwargs: {})
+
+    monkeypatch.setattr(
+        main_mod,
+        "analyser_composants_complementaires",
+        lambda **kwargs: {
+            "alternateur": {
+                "pieces": {
+                    "rotor": {"piece": "rotor", "inconnues": {"impossibles": [], "partielles": []}},
+                }
+            },
+            "boite_crabots_chaine": {
+                "pieces": {
+                    "crabot": {"piece": "crabot", "inconnues": {"impossibles": [], "partielles": []}},
+                }
+            },
+        },
+    )
+
+    config = main_mod.dimensionner_systeme_shsem(
+        puissance_traction_kw=40.0,
+        charger_batterie=False,
+    )
+
+    assert "alternateur.rotor" in config["inventaire"]["pieces"]
+    assert config["inventaire"]["pieces"]["alternateur.rotor"]["source_composant"] == "alternateur"
+    assert "boite_crabots_chaine.crabot" in config["rapports_pieces"]
+    assert config["rapports_pieces"]["boite_crabots_chaine.crabot"]["piece"] == "crabot"
+
+
 def test_dimensionner_systeme_shsem_rejects_non_positive_power(main_mod):
     with pytest.raises(ValueError, match="puissance_traction_kw doit être > 0"):
         main_mod.dimensionner_systeme_shsem(0)

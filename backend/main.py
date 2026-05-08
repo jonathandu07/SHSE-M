@@ -415,6 +415,38 @@ def _safe_call_report(obj: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _extract_component_piece_reports(rapports_composants: Mapping[str, Any]) -> Dict[str, Any]:
+    nested: Dict[str, Any] = {}
+    for composant_nom, composant_rapport in dict(rapports_composants or {}).items():
+        if not isinstance(composant_rapport, Mapping):
+            continue
+        pieces_block = composant_rapport.get("pieces")
+        if not isinstance(pieces_block, Mapping):
+            continue
+        for piece_nom, piece_rapport in pieces_block.items():
+            nested[f"{composant_nom}.{piece_nom}"] = piece_rapport
+    return nested
+
+
+def _build_nested_piece_inventory(rapports_pieces: Mapping[str, Any]) -> Dict[str, Any]:
+    inventory: Dict[str, Any] = {}
+    for full_name, rapport in dict(rapports_pieces or {}).items():
+        if "." not in str(full_name):
+            continue
+        composant_nom, piece_nom = str(full_name).split(".", 1)
+        piece_type = None
+        if isinstance(rapport, Mapping):
+            piece_type = rapport.get("piece")
+        inventory[full_name] = {
+            "type": piece_type or piece_nom,
+            "construit": True,
+            "rapport_disponible": isinstance(rapport, Mapping) and "inconnues" in rapport,
+            "source_composant": composant_nom,
+            "piece_nom": piece_nom,
+        }
+    return inventory
+
+
 # =============================================================================
 # Définition moteur thermique
 # =============================================================================
@@ -1602,6 +1634,9 @@ def dimensionner_systeme_shsem(
     if rapport_construction_moteur:
         rapports_composants["construction_moteur_thermique"] = rapport_construction_moteur
     rapports_composants.update(rapports_partiels)
+    rapports_pieces_composants = _extract_component_piece_reports(rapports_composants)
+    if rapports_pieces_composants:
+        rapports_pieces = _merge_dict_non_none(rapports_pieces, rapports_pieces_composants)
 
     # Optimisation
     rapport_optimisation: Dict[str, Any]
@@ -1696,6 +1731,7 @@ def dimensionner_systeme_shsem(
         "composants": {nom: {"type": None if obj is None else type(obj).__name__, "construit": obj is not None} for nom, obj in composants.items()},
         "pieces": {nom: {"type": None if obj is None else type(obj).__name__, "construit": obj is not None, "rapport_disponible": isinstance(rapports_pieces.get(nom), dict) and "inconnues" in rapports_pieces.get(nom, {})} for nom, obj in pieces.items()},
     }
+    inventaire["pieces"].update(_build_nested_piece_inventory(rapports_pieces_composants))
 
     synth = _safe_dict(_safe_dict(rapport_systeme).get("synthese"))
     mt_syn = _safe_dict(synth.get("moteur_thermique"))
