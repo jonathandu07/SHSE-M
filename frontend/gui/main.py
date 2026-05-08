@@ -87,6 +87,36 @@ def show_popup(title: str, message: str) -> None:
     pop.open()
 
 
+def _safe_dict(value):
+    return value if isinstance(value, dict) else {}
+
+
+def _report_resume(report):
+    report_dict = _safe_dict(report)
+    resume = _safe_dict(report_dict.get("resume_gui"))
+    return resume if resume else report_dict
+
+
+def _flatten_mapping(data, prefix="", depth=0, max_depth=3):
+    if depth > max_depth or not isinstance(data, dict):
+        return
+    for key, value in sorted(data.items(), key=lambda item: str(item[0])):
+        label = f"{prefix}{str(key).replace('_', ' ').capitalize()}"
+        if isinstance(value, dict):
+            yield from _flatten_mapping(value, f"{label} > ", depth + 1, max_depth=max_depth)
+        elif isinstance(value, (list, tuple)):
+            if not value:
+                yield label, "[]"
+            elif all(not isinstance(item, (dict, list, tuple)) for item in value[:6]):
+                yield label, ", ".join(str(item) for item in value[:6])
+            else:
+                yield label, f"[{len(value)} elements]"
+        elif value is None:
+            yield label, "-"
+        else:
+            yield label, str(value)
+
+
 # =========================
 # Matplotlib Bridge (Custom FigureCanvasKivyAgg)
 # =========================
@@ -766,19 +796,21 @@ class LoadingScreen(Screen):
         Clock.schedule_once(lambda dt, m=sub: setattr(self.sub_label, "text", m))
 
         try:
+            from backend.main import dimensionner_systeme_shsem
             from backend.modules.systeme.database import SecureDatabase
-            db = SecureDatabase()
-            report_name = f"gui_moteur_{int(p_target)}kw"
-            db.compute_and_save_from_main(
-                report_name=report_name,
-                function_name="dimensionner_systeme_shsem",
+
+            db = SecureDatabase(
+                db_path=os.path.join(BASE_DIR, "backend", "shse_technical_data.db"),
+                key_path=os.path.join(BASE_DIR, "backend", "secret.key"),
+            )
+            report_name = f"gui_moteur_{str(p_target).replace('.', 'p')}kw"
+            report = dimensionner_systeme_shsem(
                 puissance_traction_kw=p_target,
-                energie_utile_imposee_kwh=100.0,
-                puissance_moteur_requise_W=p_target * 1000.0 * 1.1,
                 charger_batterie=True,
                 vitesse_moteur_thermique_rpm=rpm,
+                pme_pa=pme_pa,
                 pression_max_pa=p_max_pa,
-                contrainte_admissible_pa=1.8e8,
+                contrainte_admissible_pa=p_max_pa * 22.5,
                 rendement_mecanique_cible_min=ep.get("rendement_mecanique_cible_min", 0.85),
                 moteur_thermique_definition={
                     "temps_moteur": ep.get("temps_moteur", 4),
@@ -790,9 +822,16 @@ class LoadingScreen(Screen):
                     "pme_pa": pme_pa,
                     "pression_max_pa": p_max_pa,
                     "carburant": carburant,
-                }
+                },
             )
-            res = db.load_resume_gui()
+            record_ids = db.save_main_report(report, report_name=report_name)
+            res = db.load_main_report(report_name) or {}
+            if isinstance(res, dict):
+                res["stockage_front"] = {
+                    "report_name": report_name,
+                    "db_path": db.db_path,
+                    "records_saved": len(record_ids),
+                }
             app.simulation_results = res or {}
             app.current_report_name = report_name
 
@@ -921,15 +960,16 @@ class DashboardScreen(Screen):
 
     def on_enter(self, *args):
         app = App.get_running_app()
-        res = app.simulation_results or {}
-        if "__error__" in res:
+        report = _safe_dict(app.simulation_results)
+        if "__error__" in report:
             self.res_pwr = "ERREUR"
             self.res_arch = "Voir logs"
             self.res_ncyl = "--"
             self.res_mass = "--"
             self.res_vol = "--"
-            show_popup("Erreur backend", str(res["__error__"])[:400])
+            show_popup("Erreur backend", str(report["__error__"])[:400])
             return
+        res = _report_resume(report)
         p = float(app.target_power)
         n_cyl = res.get("N_cyl") or 0
         self.res_pwr = f"{p:.1f} kW"
