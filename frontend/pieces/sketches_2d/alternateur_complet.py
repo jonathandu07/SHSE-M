@@ -74,7 +74,7 @@ def tracer_croquis_alternateur_2d(alternateur: Alternateur, titre: str = "Vue en
         angle = i * 30
         x = (r_stator-10) * math.cos(math.radians(angle))
         y = (r_stator-10) * math.sin(math.radians(angle))
-        ax1.add_patch(Circle((x, y), 5, color="copper", alpha=0.7))
+        ax1.add_patch(Circle((x, y), 5, color="#b87333", alpha=0.7))
     
     # Rotor (Intérieur)
     r_rotor = d.diametre_rotor_mm / 2 if d.diametre_rotor_mm > 0 else 70

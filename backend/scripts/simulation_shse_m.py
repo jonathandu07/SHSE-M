@@ -56,14 +56,8 @@ def executer_simulation():
     
     boite = BoiteCrabots()
     
-    # Architecture forcée en V pour le test
-    profil_arch = ProfilUsageMoteur(
-        usage="voiture",
-        longueur_dispo_m=0.8,
-        largeur_dispo_m=0.8,
-        architecture_forcee="V"
-    )
-    arch = Architecture(profil_usage=profil_arch)
+    # Architecture
+    arch = Architecture()
     
     # 2. Assemblage du système
     systeme = SystemeComplet(
@@ -89,6 +83,11 @@ def executer_simulation():
         scenario_bus_dc="charge",
         puissance_elec_alt_cible_w=45000.0, # 45kW demandés à l'alternateur
         vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=8e5,
+        longueur_dispo_m=0.8,
+        largeur_dispo_m=0.8,
+        vitesse_piston_max_ms=15.0,
+        architecture_forcee="V",
         rapport_vitesse_alt_sur_moteur=2.0, # L'alternateur tourne à 6000 RPM
         energie_utile_imposee_kwh=60.0
     )

@@ -32,7 +32,7 @@ class DonneesCroquisArchitecture:
 
 def extraire_donnees_croquis(arch: Architecture) -> DonneesCroquisArchitecture:
     rap = arch.analyser()
-    meilleur = rap.get("meilleur", {})
+    meilleur = rap.get("meilleur") or {}
     pieces = rap.get("pieces", {})
     
     vilebrequin = pieces.get("vilebrequin", {}).get("resultats", {})
