@@ -423,13 +423,18 @@ def test_dimensionner_systeme_shsem_returns_complete_config(monkeypatch, main_mo
     assert system_call["vitesse_moyenne_kmh"] == 80.0
     assert system_call["calculer_puissance_charge_requise"] is True
     assert system_call["scenario_bus_dc"] == "traction_plus_charge"
-    assert system_call["puissance_elec_alt_cible_w"] == 20000.0
-    assert system_call["puissance_auxiliaire_w"] == 5000.0
+    assert system_call["puissance_elec_alt_cible_w"] is None
+    assert system_call["puissance_auxiliaire_w"] == 0.0
     assert system_call["masse_estimee_max_kg"] == 500.0
     assert system_call["cout_matiere_max_eur"] == 1500.0
     assert system_call["indice_maintenance_max"] == 7.0
     assert system_call["duree_vie_cible_h"] == 4000.0
-    assert tuple(system_call["rapports_boite_candidates"]) == (1.0, 1.5, 2.0, 2.5, 3.0)
+    assert system_call["rapports_boite_candidates"] is None
+    assert "puissance_auxiliaire_w absente" in " ".join(config.get("notes_modele") or [])
+    assert any(
+        item.get("nom") == "puissance_auxiliaire_w"
+        for item in ((config.get("inconnues") or {}).get("partielles") or [])
+    )
 
 
 def test_dimensionner_systeme_shsem_without_battery_charge_and_legacy_errors(monkeypatch, main_mod):
@@ -618,6 +623,33 @@ def test_generer_rapport_puissance_can_embed_piece_orchestration(monkeypatch, tm
     assert "cylindre" in result["rapport"]["pieces"]
     exported = json.loads(json_path.read_text(encoding="utf-8"))
     assert exported["inventaire"]["pieces"]["cylindre"]["construit"] is True
+
+
+def test_analyser_composants_complementaires_exposes_power_electronics_block(main_mod):
+    rapports = main_mod.analyser_composants_complementaires(
+        composants={},
+        rapport_systeme={
+            "liaisons": {
+                "bus_dc": {
+                    "P_bus_dc_design_w": 48000.0,
+                    "V_bus_dc_v": 400.0,
+                    "scenario_bus_dc": "traction_plus_charge",
+                    "energie_a_recharger_kwh": 24.0,
+                }
+            },
+            "synthese": {
+                "vehicule": {"puissance_bus_dc_design_w": 48000.0},
+                "batterie": {"tension_nominale_v": 400.0},
+            },
+        },
+        definition_moteur={},
+    )
+
+    bloc = rapports["electronique_puissance"]
+    assert bloc["bus_dc"]["puissance_design_w"] == 48000.0
+    assert bloc["bus_dc"]["tension_nominale_v"] == 400.0
+    assert bloc["bus_dc"]["courant_nominal_a"] == pytest.approx(120.0)
+    assert bloc["redressement"]["puissance_sortie_dc_w"] == 48000.0
 
 
 def test_print_resume_console_outputs_key_lines(main_mod, capsys):

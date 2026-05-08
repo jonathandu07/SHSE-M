@@ -72,9 +72,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 
 # Visualisations Spécialisées
-from frontend.pieces.sketches_2d.batterie_pack import tracer_croquis_batterie_2d
-from frontend.pieces.sketches_2d.alternateur_complet import tracer_croquis_alternateur_2d
-from frontend.pieces.sketches_2d.architecture_layout import tracer_croquis_architecture_2d
+from frontend.gui.viz_utils import resolve_viz_module, get_draw_3d_func
 from frontend.gui.piece_connector import get_piece_instance
 
 # =========================
@@ -1185,23 +1183,22 @@ class AdvancedVisualsScreen(Screen):
         try:
             fig = None
             if view_name == "Architecture":
+                mod = resolve_viz_module("architechture", "sketches_2d")
                 arch_obj = get_piece_instance("architecture", ep)
-                if arch_obj:
-                    # On passe les paramètres pour que l'analyse soit faite
-                    # Note: Architecture.analyser() sera appelé dans tracer_croquis_architecture_2d
-                    # mais on pourrait injecter les résultats déjà calculés si on modifie le tracer.
-                    # Pour l'instant on laisse le tracer appeler analyser() (qui utilisera les params par défaut ou ceux de l'objet)
-                    fig = tracer_croquis_architecture_2d(arch_obj, titre="Configuration du Bloc Moteur")
+                if mod and arch_obj:
+                    fig = mod.tracer_croquis_architecture_2d(arch_obj, titre="Configuration du Bloc Moteur")
             
             elif view_name == "Alternateur":
+                mod = resolve_viz_module("alternateur", "sketches_2d")
                 alt_obj = get_piece_instance("alternateur", ep)
-                if alt_obj:
-                    fig = tracer_croquis_alternateur_2d(alt_obj, titre="Coupe Stator/Rotor & Bilan Pertes")
+                if mod and alt_obj:
+                    fig = mod.tracer_croquis_alternateur_2d(alt_obj, titre="Coupe Stator/Rotor & Bilan Pertes")
             
             elif view_name == "Batterie":
+                mod = resolve_viz_module("batterie", "sketches_2d")
                 batt_obj = get_piece_instance("batterie", ep)
-                if batt_obj:
-                    fig = tracer_croquis_batterie_2d(batt_obj, titre="Monitoring Pack Batterie (BMS/TMS)")
+                if mod and batt_obj:
+                    fig = mod.tracer_croquis_batterie_2d(batt_obj, titre="Monitoring Pack Batterie (BMS/TMS)")
 
             if fig:
                 self.display.add_widget(FigureCanvasKivyAgg(fig))
@@ -1344,7 +1341,7 @@ class PieceLibraryScreen(Screen):
                     "component": component_name,
                     "raw_name": raw_name,
                     "db_name": f"{component_name}.{raw_name}",
-                    "display_name": f"{component_name.replace('_', ' ').upper()} · {raw_name.replace('_', ' ').upper()}",
+                    "display_name": f"{component_name.replace('_', ' ').upper()} - {raw_name.replace('_', ' ').upper()}",
                 })
         if not entries:
             self.grid.add_widget(Label(text="Aucune pièce détectée dans backend/components.",
@@ -1419,27 +1416,31 @@ class PieceDetailScreen(Screen):
 
         if MATPLOTLIB_AVAILABLE:
             try:
-                mod = importlib.import_module(f"frontend.pieces.sketches_2d.{raw_name}")
-                fig, ax = plt.subplots(figsize=(4, 4))
-                mod.draw(ax, p)
-                sketch_card.add_widget(FigureCanvasKivyAgg(fig))
+                mod = resolve_viz_module(raw_name, "sketches_2d")
+                if mod:
+                    fig, ax = plt.subplots(figsize=(4, 4))
+                    mod.draw(ax, p)
+                    sketch_card.add_widget(FigureCanvasKivyAgg(fig))
+                else:
+                    raise ImportError("Module non trouvé")
             except Exception as e:
                 sketch_card.add_widget(Label(text=f"Croquis indisponible\n{str(e)[:80]}",
                                               color=COLORS["RF"], font_size="11sp"))
             try:
-                chart_mod = importlib.import_module(f"frontend.pieces.charts.{raw_name}")
-                fig_r = plt.figure(figsize=(4, 4))
-                ax_r = fig_r.add_subplot(111, polar=True)
-                chart_mod.plot_data(ax_r, p)
-                radar_card.add_widget(FigureCanvasKivyAgg(fig_r))
+                chart_mod = resolve_viz_module(raw_name, "charts")
+                if chart_mod:
+                    fig_r = plt.figure(figsize=(4, 4))
+                    ax_r = fig_r.add_subplot(111, polar=True)
+                    chart_mod.plot_data(ax_r, p)
+                    radar_card.add_widget(FigureCanvasKivyAgg(fig_r))
+                else:
+                    raise ImportError("Module non trouvé")
             except Exception as e:
                 radar_card.add_widget(Label(text=f"Radar indisponible\n{str(e)[:80]}",
                                              color=COLORS["RF"], font_size="11sp"))
             try:
-                from frontend.pieces.views_3d import get_draw_3d
-                from frontend.gui.piece_connector import get_piece_instance
                 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-                draw_3d = get_draw_3d(raw_name)
+                draw_3d = get_draw_3d_func(raw_name)
                 piece_real = get_piece_instance(raw_name, ep)
                 fig3d = plt.figure(figsize=(4, 4))
                 ax3d = fig3d.add_subplot(111, projection="3d")

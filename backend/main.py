@@ -2032,6 +2032,14 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
     from backend.modules.systeme.system_generator import DriveChainGenerator
 
     p_kw = _req_pos("puissance_traction_kw", puissance_traction_kw)
+    hypotheses_mode_simple = [
+        "Mode simple GUI : premier pre-dimensionnement coherent, non scenario strict complet.",
+        "Rendement onduleur fixe a 0.97.",
+        "Rendement moteur electrique fixe a 0.92.",
+        "Charge auxiliaire fixe a 5000 W.",
+        "Charge batterie fixe a 20000 W quand la recharge est active.",
+        "Regime nominal fixe a 1000 rpm, PME a 20 bar, 4 cylindres, ratio BN = 0.15.",
+    ]
 
     eta_inv = 0.97
     eta_mot = 0.92
@@ -2102,6 +2110,7 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
         "construction_pieces": pieces_report.get("construction_pieces", {}),
         "rapports_pieces": pieces_report.get("rapports_pieces", {}),
         "pieces_db_error": pieces_report.get("db_error"),
+        "notes_modele": hypotheses_mode_simple,
         "resume_gui": {
             "N_cyl": eng.n_cyl,
             "Architecture": f"L{eng.n_cyl}",
@@ -2112,6 +2121,7 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
             "Pmax_Pa": eng.p_safety_bar * 1.0e5,
             "couple_moyen_Nm": eng.torque_mean_nm,
             "vd_tot_cc": eng.vd_total_liters * 1000.0,
+            "modele": "simple_gui",
         },
     }
 

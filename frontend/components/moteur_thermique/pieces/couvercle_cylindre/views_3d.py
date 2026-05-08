@@ -1,7 +1,7 @@
 """Vue 3D matplotlib — Couvercle Cylindre"""
 from __future__ import annotations
 import numpy as np
-from frontend.pieces.views_3d._3d_template import _safe, cylinder_surface, disk_surface, apply_style
+from frontend.ensemble.viz_3d_template import _safe, cylinder_surface, disk_surface, apply_style
 
 
 def draw_3d(ax, piece) -> None:
