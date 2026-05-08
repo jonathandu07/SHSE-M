@@ -810,7 +810,6 @@ class LoadingScreen(Screen):
                 vitesse_moteur_thermique_rpm=rpm,
                 pme_pa=pme_pa,
                 pression_max_pa=p_max_pa,
-                contrainte_admissible_pa=p_max_pa * 22.5,
                 rendement_mecanique_cible_min=ep.get("rendement_mecanique_cible_min", 0.85),
                 moteur_thermique_definition={
                     "temps_moteur": ep.get("temps_moteur", 4),
@@ -1057,7 +1056,49 @@ class VectorViewScreen(Screen):
             self.graph_box.add_widget(Label(text="Données indisponibles.", color=COLORS["GAXD"]))
             return
         try:
-            fig, ax = plt.subplots(figsize=(9, 4))
+            fig, axes = plt.subplots(1, 2, figsize=(10, 4.2))
+            bore_mm = res.get("Bore_mm")
+            stroke_mm = res.get("Stroke_mm")
+            ep_cyl_mm = _safe_dict(_safe_dict(report.get("cao")).get("pieces")).get("cylindre", {}).get("epaisseur_cylindre_mm")
+            force_bielle = res.get("Force_bielle_N")
+
+            ax = axes[0]
+            dim_labels = []
+            dim_values = []
+            for label, value in (("AlÃ©sage", bore_mm), ("Course", stroke_mm), ("Ep. cylindre", ep_cyl_mm)):
+                if isinstance(value, (int, float)):
+                    dim_labels.append(label)
+                    dim_values.append(float(value))
+            if dim_values:
+                ax.bar(dim_labels, dim_values, color=["#0B4F6C", "#F4A259", "#5B8E7D"][:len(dim_values)])
+                ax.set_ylabel("mm")
+                ax.set_title("Cotes moteur")
+                ax.grid(True, axis="y", alpha=0.25)
+            else:
+                ax.text(0.5, 0.5, "Cotes moteur indisponibles.", ha="center", va="center")
+                ax.axis("off")
+
+            ax2 = axes[1]
+            effort_labels = []
+            effort_values = []
+            if isinstance(force_bielle, (int, float)):
+                effort_labels.append("F bielle (kN)")
+                effort_values.append(float(force_bielle) / 1000.0)
+            couple = res.get("couple_moyen_Nm")
+            if isinstance(couple, (int, float)):
+                effort_labels.append("Couple (Nm)")
+                effort_values.append(float(couple))
+            if effort_values:
+                ax2.bar(effort_labels, effort_values, color=["#BC4B51", "#7D5BA6"][:len(effort_values)])
+                ax2.set_title("Efforts principaux")
+                ax2.grid(True, axis="y", alpha=0.25)
+            else:
+                ax2.text(0.5, 0.5, "Efforts indisponibles.", ha="center", va="center")
+                ax2.axis("off")
+
+            fig.tight_layout()
+            self.graph_box.add_widget(FigureCanvasKivyAgg(fig))
+            return
             l_max = res.get("L_max_m")
             w_max = res.get("W_max_m")
             if isinstance(l_max, (int, float)) and isinstance(w_max, (int, float)) and l_max > 0 and w_max > 0:
@@ -1117,7 +1158,8 @@ class DetailedDatasheetScreen(Screen):
     def on_enter(self, *args):
         self.root.clear_widgets()
         app = App.get_running_app()
-        res = app.simulation_results or {}
+        report = _safe_dict(app.simulation_results)
+        res = _report_resume(report)
         top = BoxLayout(size_hint_y=None, height=62, spacing=10)
         top.add_widget(Label(text="FICHE DÉTAILLÉE SYSTÈME", font_size="20sp",
                              bold=True, color=COLORS["BF"]))
@@ -1130,10 +1172,27 @@ class DetailedDatasheetScreen(Screen):
         page.bind(minimum_height=page.setter("height"))
         sc.add_widget(page)
         self.root.add_widget(sc)
-        for k, v in (res or {}).items():
-            if not isinstance(v, dict):
-                page.add_widget(TechRow(k.replace("_", " ").capitalize(),
-                                        "—" if v is None else str(v)))
+        sections = [
+            ("Résumé", res),
+            ("Synthèse", _safe_dict(report.get("synthese"))),
+            ("CAO", _safe_dict(report.get("cao"))),
+            ("Inventaire", _safe_dict(report.get("inventaire"))),
+            ("Inconnues", _safe_dict(report.get("inconnues_resume"))),
+            ("Stockage", _safe_dict(report.get("stockage_front"))),
+        ]
+        for title, section_data in sections:
+            card = PremiumCard(title=title, size_hint_y=None)
+            card.bind(minimum_height=card.setter("height"))
+            stack = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None)
+            stack.bind(minimum_height=stack.setter("height"))
+            added = False
+            for label, value in _flatten_mapping(section_data):
+                stack.add_widget(TechRow(label, value))
+                added = True
+            if not added:
+                stack.add_widget(Label(text="Aucune donnée disponible.", color=COLORS["GAXD"], size_hint_y=None, height=28))
+            card.add_widget(stack)
+            page.add_widget(card)
 
 
 class PieceLibraryScreen(Screen):
