@@ -99,9 +99,9 @@ def _make_batterie(ep: Dict[str, Any]) -> Any:
     )
 
 def _make_architecture(ep: Dict[str, Any]) -> Any:
-    from backend.components.architechture.architecture import ArchitectureMoteur
-    return ArchitectureMoteur(
-        type_architecture="V",
+    from backend.components.architechture.architecture import Architecture
+    return Architecture(
+        architecture_forcee="V",
         nombre_cylindres=8
     )
 
