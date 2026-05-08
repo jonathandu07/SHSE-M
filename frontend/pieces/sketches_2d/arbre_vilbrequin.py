@@ -1,0 +1,1 @@
+from frontend.components.moteur_thermique.pieces.arbre_vilebrequin.sketches_2d import tracer_croquis_arbre_vilebrequin_2d as draw

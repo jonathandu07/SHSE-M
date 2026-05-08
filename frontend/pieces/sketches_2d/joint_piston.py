@@ -1,0 +1,1 @@
+from frontend.components.moteur_thermique.pieces.joint_piston.sketches_2d import tracer_croquis_joint_piston_2d as draw

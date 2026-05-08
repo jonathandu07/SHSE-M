@@ -1,0 +1,1 @@
+from frontend.components.moteur_thermique.pieces.arbre.sketches_2d import tracer_croquis_arbre_moteur_2d as draw

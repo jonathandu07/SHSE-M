@@ -13,10 +13,12 @@ def resolve_viz_module(piece_name: str, viz_type: str) -> Optional[Any]:
     Tente de charger le module de visualisation pour une pièce.
     viz_type: 'sketches_2d', 'views_3d' ou 'charts'
     """
-    key = piece_name.lower().replace(" ", "_").replace("vilbrequin", "vilebrequin")
+    # Harmonisation des noms et correction des fautes de frappe (miroir du backend)
+    key = piece_name.lower().replace(" ", "_")
+    key = key.replace("vilbrequin", "vilebrequin")
+    key = key.replace("architecture", "architechture")
     
     # Liste des composants racines (top-level components)
-    # On y inclut 'moteur_thermique' lui-même au cas où il aurait une vue d'ensemble.
     subsystems = [
         "alternateur", "batterie", "architechture", 
         "boite_crabots", "moteur_electrique", "moteur_thermique"

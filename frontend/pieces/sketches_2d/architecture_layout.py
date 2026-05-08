@@ -1,0 +1,2 @@
+from frontend.components.architechture.sketches_2d import tracer_croquis_architecture_2d
+

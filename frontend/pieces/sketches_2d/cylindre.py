@@ -1,0 +1,1 @@
+from frontend.components.moteur_thermique.pieces.cylindre.sketches_2d import tracer_croquis_cylindre_2d as draw

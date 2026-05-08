@@ -1,0 +1,1 @@
+from frontend.components.moteur_thermique.pieces.couvercle_cylindre.sketches_2d import tracer_croquis_couvercle_2d as draw

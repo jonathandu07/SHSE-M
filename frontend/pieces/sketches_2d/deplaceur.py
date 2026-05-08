@@ -1,0 +1,1 @@
+from frontend.components.moteur_thermique.pieces.deplaceur.sketches_2d import tracer_croquis_deplaceur_2d as draw

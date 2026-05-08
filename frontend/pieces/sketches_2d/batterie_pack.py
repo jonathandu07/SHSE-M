@@ -1,0 +1,2 @@
+from frontend.components.batterie.sketches_2d import tracer_croquis_batterie_2d
+
