@@ -1328,26 +1328,42 @@ class PieceLibraryScreen(Screen):
 
     def on_enter(self, *args):
         self.grid.clear_widgets()
-        pieces_path = os.path.join(BASE_DIR, "backend", "components", "moteur_thermique", "pieces")
-        if not os.path.exists(pieces_path):
-            self.grid.add_widget(Label(text=f"Dossier introuvable: {pieces_path}",
+        components_root = os.path.join(BASE_DIR, "backend", "components")
+        if not os.path.exists(components_root):
+            self.grid.add_widget(Label(text=f"Dossier introuvable: {components_root}",
                                        color=COLORS["RF"]))
             return
-        for f in sorted(f for f in os.listdir(pieces_path)
-                        if f.endswith(".py") and f != "__init__.py"):
-            raw_name = f[:-3]
-            display_name = raw_name.replace("_", " ").upper()
-            card = PremiumCard(title=display_name, size_hint_y=None, height=120)
+        entries = []
+        for component_name in sorted(os.listdir(components_root)):
+            pieces_path = os.path.join(components_root, component_name, "pieces")
+            if not os.path.isdir(pieces_path):
+                continue
+            for f in sorted(f for f in os.listdir(pieces_path) if f.endswith(".py") and f != "__init__.py"):
+                raw_name = f[:-3]
+                entries.append({
+                    "component": component_name,
+                    "raw_name": raw_name,
+                    "db_name": f"{component_name}.{raw_name}",
+                    "display_name": f"{component_name.replace('_', ' ').upper()} · {raw_name.replace('_', ' ').upper()}",
+                })
+        if not entries:
+            self.grid.add_widget(Label(text="Aucune pièce détectée dans backend/components.",
+                                       color=COLORS["RF"]))
+            return
+        for entry in entries:
+            card = PremiumCard(title=entry["display_name"], size_hint_y=None, height=120)
             btn = ModernButton(text="VOIR DÉTAILS", font_size="12sp",
                                size_hint_y=None, height=44)
-            btn.bind(on_press=lambda _, dn=display_name, rn=raw_name: self.view_details(dn, rn))
+            btn.bind(on_press=lambda _, e=entry: self.view_details(e["display_name"], e["raw_name"], e["db_name"], e["component"]))
             card.add_widget(btn)
             self.grid.add_widget(card)
 
-    def view_details(self, display_name, raw_name):
+    def view_details(self, display_name, raw_name, db_name, component_name):
         app = App.get_running_app()
         app.selected_piece_display = display_name
         app.selected_piece_raw = raw_name
+        app.selected_piece_db = db_name
+        app.selected_piece_component = component_name
         self.manager.current = "piece_detail"
 
 
@@ -1362,6 +1378,7 @@ class PieceDetailScreen(Screen):
         app = App.get_running_app()
         display_name = getattr(app, "selected_piece_display", "PIÈCE")
         raw_name = getattr(app, "selected_piece_raw", "")
+        db_name = getattr(app, "selected_piece_db", raw_name)
         ep = app.engine_params or {}
 
         top = BoxLayout(size_hint_y=None, height=62, spacing=10)
@@ -1379,7 +1396,7 @@ class PieceDetailScreen(Screen):
             from backend.modules.systeme.database import SecureDatabase
             db = SecureDatabase(
                 db_path=os.path.join(BASE_DIR, "backend", "shse_technical_data.db"))
-            data = db.get_piece_data(raw_name) or db.get_piece_data(raw_name.replace("_", ""))
+            data = db.get_piece_data(db_name) or db.get_piece_data(raw_name) or db.get_piece_data(raw_name.replace("_", ""))
         except Exception as ex:
             print(f"[PIECE_DETAIL DB] {ex}")
 
@@ -1488,6 +1505,8 @@ class SHSEMApp(App):
     current_report_name = StringProperty("")
     selected_piece_display = StringProperty("")
     selected_piece_raw = StringProperty("")
+    selected_piece_db = StringProperty("")
+    selected_piece_component = StringProperty("")
 
     def build(self):
         Window.clearcolor = COLORS["BL"]
