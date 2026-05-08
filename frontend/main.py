@@ -1158,16 +1158,33 @@ class PieceDetailScreen(Screen):
         except Exception as ex:
             print(f"[PIECE_DETAIL DB] {ex}")
 
-        class PO:
-            pass
-        p = PO()
-        p.nom = raw_name
+        p = get_piece_instance(raw_name, ep)
+        if p is None:
+            class PO: pass
+            p = PO()
+            p.nom = raw_name
+
         if isinstance(data, dict):
+            # Injection des données DB
             for k, v in data.items():
-                setattr(p, k, v)
+                if not hasattr(p, k) or getattr(p, k) is None:
+                    try: setattr(p, k, v)
+                    except Exception: pass
+            
+            # Si on a un rapport déjà calculé en DB, on mock la méthode analyser()
+            # pour éviter de recalculer et être fidèle aux résultats backend.
+            db_report = data.get("rapport")
+            if db_report and hasattr(p, "analyser"):
+                original_analyser = p.analyser
+                def mocked_analyser(*args, **kwargs):
+                    return db_report
+                p.analyser = mocked_analyser
+
+        # On s'assure que ep est aussi injecté
         for k, v in ep.items():
-            if not hasattr(p, k):
-                setattr(p, k, v)
+            if not hasattr(p, k) or getattr(p, k) is None:
+                try: setattr(p, k, v)
+                except Exception: pass
 
         grid = GridLayout(cols=4, spacing=12)
         sketch_card = PremiumCard(title="Croquis 2D")
