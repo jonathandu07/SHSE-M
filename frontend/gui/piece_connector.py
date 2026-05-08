@@ -28,7 +28,7 @@ def _make_cylindre(ep: Dict[str, Any]) -> Any:
         longueur_utile_m=_f(ep, "course_m", 0.150) * 1.5,
         pression_service_pa=10e6,
         pression_max_pa=15e6,
-        materiau_cle="acier_allie_trempe"
+        materiau_cle="acier_42crmo4_qt"
     )
 
 def _make_piston(ep: Dict[str, Any]) -> Any:
@@ -38,7 +38,7 @@ def _make_piston(ep: Dict[str, Any]) -> Any:
         cylindre=cylindre,
         alesage_nominal_m=_f(ep, "alesage_m", 0.130),
         course_m=_f(ep, "course_m", 0.150),
-        materiau_piston_cle="alliage_aluminium_silicium"
+        materiau_piston_cle="alu_6061_t6"
     )
 
 def _make_bielle(ep: Dict[str, Any]) -> Any:
@@ -47,14 +47,14 @@ def _make_bielle(ep: Dict[str, Any]) -> Any:
     return CorpsBielle(
         piston=piston,
         longueur_bielle_m=_f(ep, "course_m", 0.150) * 2.0,
-        materiau_cle="acier_forge"
+        materiau_cle="acier_42crmo4_qt"
     )
 
 def _make_arbre_vilebrequin(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.arbre_vilbrequin import ArbreVilbrequin
     return ArbreVilbrequin(
         course_m=_f(ep, "course_m", 0.150),
-        materiau_cle="acier_allie_trempe"
+        materiau_cle="acier_42crmo4_qt"
     )
 
 def _make_arbre_piston(ep: Dict[str, Any]) -> Any:
@@ -62,7 +62,7 @@ def _make_arbre_piston(ep: Dict[str, Any]) -> Any:
     return Arbre(
         diametre_arbre_m=0.030,
         longueur_arbre_m=0.100,
-        materiau_cle="acier_allie_trempe"
+        materiau_cle="acier_42crmo4_qt"
     )
 
 def _make_coussinet(ep: Dict[str, Any]) -> Any:
@@ -70,7 +70,7 @@ def _make_coussinet(ep: Dict[str, Any]) -> Any:
     return Coussinet(
         diametre_interieur_m=0.030,
         longueur_m=0.040,
-        materiau_cle="bronze_pb"
+        materiau_cle="bronze_cusn12"
     )
 
 def _make_couvercle(ep: Dict[str, Any]) -> Any:
@@ -78,7 +78,7 @@ def _make_couvercle(ep: Dict[str, Any]) -> Any:
     return Couvercle(
         diametre_exterieur_m=0.200,
         epaisseur_m=0.020,
-        materiau_cle="fonte_gs"
+        materiau_cle="fonte_en_gjl_250"
     )
 
 def _make_joint_piston(ep: Dict[str, Any]) -> Any:
