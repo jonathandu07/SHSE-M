@@ -16,7 +16,7 @@ import importlib.util
 import traceback
 
 # CONFIGURATION DU PATH (Doit être au tout début pour tous les threads)
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
