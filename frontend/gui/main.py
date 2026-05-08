@@ -927,8 +927,9 @@ class DashboardScreen(Screen):
 
         c4 = PremiumCard(title="Accès Rapide")
         bg = GridLayout(cols=2, spacing=10)
-        for txt, screen in [("LISTE PIÈCES", "piece_library"), ("VUE VECT.", "vector_view"),
-                             ("DOSSIER PDF", "pdf_folder"), ("FICHE DÉTAIL", "detailed_datasheet")]:
+        for txt, screen in [("LISTE PIÈCES", "piece_library"), ("CROQUIS 2D", "advanced_visuals"),
+                             ("VUE VECT.", "vector_view"), ("DOSSIER PDF", "pdf_folder"), 
+                             ("FICHE DÉTAIL", "detailed_datasheet")]:
             b = ModernButton(text=txt, font_size="13sp")
             b.bind(on_press=lambda _, s=screen: setattr(self.manager, "current", s))
             bg.add_widget(b)
@@ -1500,6 +1501,7 @@ class SHSEMApp(App):
         sm.add_widget(VectorViewScreen(name="vector_view"))
         sm.add_widget(PdfFolderScreen(name="pdf_folder"))
         sm.add_widget(DetailedDatasheetScreen(name="detailed_datasheet"))
+        sm.add_widget(AdvancedVisualsScreen(name="advanced_visuals"))
         return sm
 
 
