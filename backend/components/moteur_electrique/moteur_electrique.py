@@ -343,6 +343,53 @@ class MoteurElectrique:
             out["warning"] = "Pmax mécanique > V*I*eta (écart > 5%). Vérifier V/I/eta/Pmax."
         return out
 
+    def analyser_definition(self) -> Dict[str, Any]:
+        rapport: Dict[str, Any] = {
+            "piece": "moteur_electrique",
+            "definition": {
+                "puissance_max_w": float(self.puissance_max_w),
+                "regime_max_rpm": float(self.regime_max_rpm),
+                "regime_base_rpm": float(self.regime_base_rpm_calcule),
+                "couple_max_nm": float(self.couple_max_nm_calcule),
+                "tension_bus_v": self.tension_bus_v,
+                "courant_max_a": self.courant_max_a,
+                "rendement_moteur": self.rendement_moteur,
+            },
+            "coherence_electrique": self.verifie_coherence_electrique(),
+            "inconnues": {"impossibles": [], "partielles": []},
+            "notes_modele": [],
+        }
+        pieces_rapport: Dict[str, Any] = {}
+        rotor_piece = self.piece_rotor or RotorMoteurElectrique(moteur=self)
+        stator_piece = self.piece_stator or StatorMoteurElectrique(moteur=self)
+        for nom, piece in (("rotor", rotor_piece), ("stator", stator_piece)):
+            if piece is not None and hasattr(piece, "analyser"):
+                try:
+                    pieces_rapport[nom] = piece.analyser()
+                except Exception as exc:
+                    pieces_rapport[nom] = {"erreur": str(exc)}
+        if pieces_rapport:
+            rapport["pieces"] = pieces_rapport
+        if self.tension_bus_v is None:
+            _push_inc(rapport, "partielles", "tension_bus_v", "Necessaire pour caracteriser le bus DC et le stator.")
+        if self.courant_max_a is None:
+            _push_inc(rapport, "partielles", "courant_max_a", "Necessaire pour qualifier le niveau de courant du moteur.")
+        _dedup_inconnues(rapport)
+        return rapport
+
+    def analyser(
+        self,
+        *,
+        puissance_elec_dispo_w: Optional[float] = None,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        if puissance_elec_dispo_w is None or config is None:
+            return self.analyser_definition()
+        return AnalyseDepuisPuissance(tension_systeme_v=self.tension_bus_v).analyser(
+            puissance_elec_dispo_w=puissance_elec_dispo_w,
+            config=dict(config),
+        )
+
 
 # =============================================================================
 # Demande moteur à partir d'un état véhicule (modules routiers)
@@ -531,47 +578,7 @@ class AnalyseDepuisPuissance:
 
     tension_systeme_v: Optional[float] = None
 
-    def analyser(
-        self,
-        *,
-        puissance_elec_dispo_w: Optional[float] = None,
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        if puissance_elec_dispo_w is None or config is None:
-            rapport: Dict[str, Any] = {
-                "piece": "moteur_electrique",
-                "definition": {
-                    "puissance_max_w": float(self.puissance_max_w),
-                    "regime_max_rpm": float(self.regime_max_rpm),
-                    "regime_base_rpm": float(self.regime_base_rpm_calcule),
-                    "couple_max_nm": float(self.couple_max_nm_calcule),
-                    "tension_bus_v": self.tension_bus_v,
-                    "courant_max_a": self.courant_max_a,
-                    "rendement_moteur": self.rendement_moteur,
-                },
-                "coherence_electrique": self.verifie_coherence_electrique(),
-                "inconnues": {"impossibles": [], "partielles": []},
-                "notes_modele": [],
-            }
-            pieces_rapport: Dict[str, Any] = {}
-            rotor_piece = self.piece_rotor or RotorMoteurElectrique(moteur=self)
-            stator_piece = self.piece_stator or StatorMoteurElectrique(moteur=self)
-            for nom, piece in (("rotor", rotor_piece), ("stator", stator_piece)):
-                if piece is not None and hasattr(piece, "analyser"):
-                    try:
-                        pieces_rapport[nom] = piece.analyser()
-                    except Exception as exc:
-                        pieces_rapport[nom] = {"erreur": str(exc)}
-            if pieces_rapport:
-                rapport["pieces"] = pieces_rapport
-            if self.tension_bus_v is None:
-                _push_inc(rapport, "partielles", "tension_bus_v", "Necessaire pour caracteriser le bus DC et le stator.")
-            if self.courant_max_a is None:
-                _push_inc(rapport, "partielles", "courant_max_a", "Necessaire pour qualifier le niveau de courant du moteur.")
-            _dedup_inconnues(rapport)
-            return rapport
-
-        config = dict(config)
+    def analyser(self, *, puissance_elec_dispo_w: float, config: Dict[str, Any]) -> Dict[str, Any]:
         Pdispo = _req_pos("puissance_elec_dispo_w", puissance_elec_dispo_w, strict=False)
 
         rapport: Dict[str, Any] = {

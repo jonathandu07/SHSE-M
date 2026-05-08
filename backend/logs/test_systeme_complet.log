@@ -1,6 +1,6 @@
-2026-05-08 15:22:22,872 - INFO - Starting test_systeme_analyser_full
-2026-05-08 15:22:22,874 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
-2026-05-08 15:22:22,878 - INFO - {
+2026-05-08 15:30:51,835 - INFO - Starting test_systeme_analyser_full
+2026-05-08 15:30:51,838 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-08 15:30:51,841 - INFO - {
   "entrees": {
     "vehicule": {
       "masse_kg": 1200.0,
@@ -280,6 +280,123 @@
             "raison": "Calculable si E_utile_finale_kwh est déterminée et si (puissance_charge_kw ou temps_charge_cible_h) est fourni."
           }
         ]
+      },
+      "pieces": {
+        "pack": {
+          "piece": "pack_batterie",
+          "electrique": {
+            "energie_nominale_kwh": null,
+            "tension_nominale_v": 400.0,
+            "capacite_ah": null
+          },
+          "integration": {
+            "masse_kg": null,
+            "volume_m3": null,
+            "nb_series": null,
+            "nb_parallele": null
+          },
+          "inconnues": {
+            "impossibles": [],
+            "partielles": [
+              {
+                "nom": "energie_nominale_kwh",
+                "raison": "Calculable si la batterie a pu etre dimensionnee."
+              },
+              {
+                "nom": "capacite_ah",
+                "raison": "Calculable si energie et tension nominale sont connues."
+              },
+              {
+                "nom": "masse_kg",
+                "raison": "Calculable si la densite energetique pack est fournie."
+              },
+              {
+                "nom": "volume_m3",
+                "raison": "Disponible si le dimensionnement fin de pack a ete execute."
+              }
+            ]
+          },
+          "notes_modele": []
+        },
+        "busbars": {
+          "piece": "busbars_batterie",
+          "electrique": {
+            "courant_a": null
+          },
+          "dimensionnement": {
+            "densite_courant_a_mm2": null
+          },
+          "inconnues": {
+            "impossibles": [],
+            "partielles": [
+              {
+                "nom": "section_cuivre_estimee_mm2",
+                "raison": "Calculable si courant_a et densite_courant_a_mm2 sont fournis."
+              },
+              {
+                "nom": "courant_a",
+                "raison": "Courant de charge/decharge requis pour predimensionner les busbars."
+              }
+            ]
+          },
+          "notes_modele": []
+        },
+        "boitier": {
+          "piece": "boitier_batterie",
+          "integration": {
+            "masse_pack_kg": null,
+            "volume_interne_m3": null
+          },
+          "inconnues": {
+            "impossibles": [],
+            "partielles": [
+              {
+                "nom": "masse_pack_kg",
+                "raison": "Masse du pack requise pour qualifier le boitier."
+              },
+              {
+                "nom": "volume_interne_m3",
+                "raison": "Volume disponible si le dimensionnement fin de pack est fourni."
+              }
+            ]
+          },
+          "notes_modele": []
+        },
+        "bms": {
+          "piece": "bms",
+          "monitoring": {
+            "soc": 0.5,
+            "temperature_cellules_c": 25.0,
+            "soh": 1.0
+          },
+          "resultats": {},
+          "inconnues": {
+            "impossibles": [
+              {
+                "nom": "calcul_charge_securisee",
+                "raison": "Capacité Ah et Tension nominale requises."
+              }
+            ],
+            "partielles": []
+          }
+        },
+        "tms": {
+          "piece": "tms",
+          "technologie": {
+            "type": "Air",
+            "efficacite": 0.7
+          },
+          "resultats": {},
+          "inconnues": {
+            "impossibles": [],
+            "partielles": [
+              {
+                "nom": "besoin_refroidissement",
+                "raison": "Courant de charge et Résistance interne du pack requis."
+              }
+            ]
+          }
+        }
       }
     },
     "chaine_moteur_alternateur": null,
@@ -794,6 +911,6 @@
     "Le bloc 'cao' fourni ici est un paquet de cotes de haut niveau pour fermer l'architecture moteur ; les autres pièces devront ensuite consommer ces données."
   ]
 }
-2026-05-08 15:22:22,879 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
-2026-05-08 15:22:22,884 - INFO - Starting test_systeme_missing_inputs
-2026-05-08 15:22:22,884 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
+2026-05-08 15:30:51,841 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-08 15:30:51,845 - INFO - Starting test_systeme_missing_inputs
+2026-05-08 15:30:51,846 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 

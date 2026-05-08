@@ -18,7 +18,7 @@ def test_batterie_report_includes_piece_reports():
     )
 
     assert "pieces" in report
-    assert sorted(report["pieces"]) == ["boitier", "busbars", "pack"]
+    assert {"boitier", "busbars", "pack"}.issubset(report["pieces"].keys())
     assert report["pieces"]["pack"]["piece"] == "pack_batterie"
 
 

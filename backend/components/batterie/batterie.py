@@ -114,6 +114,8 @@ try:
     from backend.components.batterie.pieces.pack_batterie import PackBatterie
     from backend.components.batterie.pieces.busbars_batterie import BusbarsBatterie
     from backend.components.batterie.pieces.boitier_batterie import BoitierBatterie
+    from backend.components.batterie.pieces.bms_batterie import BMSBatterie
+    from backend.components.batterie.pieces.tms_batterie import TMSBatterie
 except Exception:
     from backend.components.batterie.modules.scraping_cellules_batterie import (  # type: ignore
         CelluleCommerciale,
@@ -125,6 +127,8 @@ except Exception:
     from backend.components.batterie.pieces.pack_batterie import PackBatterie  # type: ignore
     from backend.components.batterie.pieces.busbars_batterie import BusbarsBatterie  # type: ignore
     from backend.components.batterie.pieces.boitier_batterie import BoitierBatterie  # type: ignore
+    from backend.components.batterie.pieces.bms_batterie import BMSBatterie  # type: ignore
+    from backend.components.batterie.pieces.tms_batterie import TMSBatterie  # type: ignore
 
 
 # ============================================================
@@ -242,6 +246,8 @@ class Batterie:
     piece_pack: Optional[PackBatterie] = None
     piece_busbars: Optional[BusbarsBatterie] = None
     piece_boitier: Optional[BoitierBatterie] = None
+    piece_bms: Optional[BMSBatterie] = None
+    piece_tms: Optional[TMSBatterie] = None
 
     def analyser_dimensionnement(
         self,
@@ -905,10 +911,14 @@ class Batterie:
         pack_piece = self.piece_pack or PackBatterie(batterie=self, rapport_batterie=rapport)
         busbars_piece = self.piece_busbars or BusbarsBatterie(batterie=self, rapport_batterie=rapport)
         boitier_piece = self.piece_boitier or BoitierBatterie(batterie=self, rapport_batterie=rapport)
+        bms_piece = self.piece_bms or BMSBatterie(batterie=self, rapport_batterie=rapport)
+        tms_piece = self.piece_tms or TMSBatterie(batterie=self, rapport_batterie=rapport)
         for nom, piece in (
             ("pack", pack_piece),
             ("busbars", busbars_piece),
             ("boitier", boitier_piece),
+            ("bms", bms_piece),
+            ("tms", tms_piece),
         ):
             if piece is not None and hasattr(piece, "analyser"):
                 try:
@@ -920,3 +930,68 @@ class Batterie:
 
         _dedup_inconnues(rapport)
         return rapport
+
+    # ------------------------------------------------------------
+    # Analyse de l'intégration avec les autres composants (Alternateur, Moteur)
+    # ------------------------------------------------------------
+    def analyser_recharge_systeme(
+        self,
+        *,
+        rapport_alternateur: Optional[Dict[str, Any]] = None,
+        rapport_moteur_elec: Optional[Dict[str, Any]] = None,
+        soc_actuel: float = 0.5,
+        temperature_pack_c: float = 25.0
+    ) -> Dict[str, Any]:
+        """
+        Analyse la recharge en tenant compte de la puissance disponible de l'alternateur
+        et de la consommation éventuelle du moteur électrique.
+        
+        Objectif : Recharger le plus vite possible sans dégrader les cellules.
+        """
+        rep: Dict[str, Any] = {
+            "flux_energie_kw": {},
+            "securite_cellules": {},
+            "optimisation": {},
+            "inconnues": {"impossibles": [], "partielles": []}
+        }
+        
+        # 1. Puissance disponible (Source)
+        P_alternateur = 0.0
+        if rapport_alternateur:
+            # On cherche la puissance de sortie du bus DC de l'alternateur
+            P_alternateur = rapport_alternateur.get("bus_dc", {}).get("puissance_bus_dc_W", 0.0) / 1000.0
+        
+        # 2. Consommation moteur (Charge)
+        P_moteur = 0.0
+        if rapport_moteur_elec:
+            P_moteur = rapport_moteur_elec.get("electrique", {}).get("puissance_absorbee_kw", 0.0)
+            
+        P_dispo_recharge = P_alternateur - P_moteur
+        rep["flux_energie_kw"]["alternateur_prod"] = P_alternateur
+        rep["flux_energie_kw"]["moteur_conso"] = P_moteur
+        rep["flux_energie_kw"]["bilan_disponible"] = P_dispo_recharge
+        
+        # 3. Calcul de la charge optimale sécurisée via le BMS
+        # On simule un appel au BMS interne
+        if self.piece_bms:
+            # On configure temporairement le BMS pour l'état actuel
+            self.piece_bms.soc = soc_actuel
+            self.piece_bms.temperature_cellules_c = temperature_pack_c
+            bms_rep = self.piece_bms.analyser()
+            
+            P_max_safe = bms_rep.get("resultats", {}).get("puissance_charge_max_securisee_kw")
+            rep["securite_cellules"]["puissance_charge_max_autorisee_kw"] = P_max_safe
+            
+            if P_max_safe is not None:
+                P_recharge_finale = min(P_dispo_recharge, P_max_safe)
+                rep["optimisation"]["puissance_charge_reelle_kw"] = max(0.0, P_recharge_finale)
+                rep["optimisation"]["limitee_par"] = "BMS (Cellules)" if P_max_safe < P_dispo_recharge else "Source (Alternateur)"
+                
+                if P_dispo_recharge < 0:
+                    rep["optimisation"]["etat"] = "Decharge (Moteur > Alternateur)"
+                else:
+                    rep["optimisation"]["etat"] = "Recharge en cours"
+        else:
+            rep["inconnues"]["impossibles"].append({"nom": "optimisation_recharge", "reason": "BMS non configure pour l'analyse dynamique."})
+            
+        return rep
