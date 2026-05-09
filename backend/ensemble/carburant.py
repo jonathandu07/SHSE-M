@@ -52,14 +52,6 @@ class Carburant:
     indice_cetane: Optional[float] = None
     temperature_auto_inflammation_c: Optional[float] = None
     vitesse_flamme_laminaire_ms: Optional[float] = None
-    
-    # Composition élémentaire (massique 0..1)
-    fraction_carbone: float = 0.0
-    fraction_hydrogene: float = 0.0
-    fraction_oxygene: float = 0.0
-    fraction_azote: float = 0.0
-    
-    notes: str = ""
 
     def __post_init__(self):
         # Vérification sommaire de la cohérence de la fraction massique si renseignée
