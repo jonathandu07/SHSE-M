@@ -14,6 +14,7 @@ import threading
 import importlib
 import importlib.util
 import traceback
+from pathlib import Path
 
 # CONFIGURATION DU PATH (Doit être au tout début pour tous les threads)
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -45,6 +46,7 @@ from kivy.lang import Builder
 # Visualisations Spécialisées
 from frontend.gui.viz_utils import resolve_viz_module, get_draw_3d_func, get_viz_figure
 from frontend.gui.piece_connector import get_piece_instance
+from frontend.gui.pdf_export import export_element_pdf
 
 # =========================
 # Palette

@@ -106,6 +106,30 @@ def _make_architecture(ep: Dict[str, Any]) -> Any:
         nombre_cylindres=8
     )
 
+def _make_moteur_electrique(ep: Dict[str, Any]) -> Any:
+    from backend.components.moteur_electrique.moteur_electrique import MoteurElectrique
+    return MoteurElectrique(
+        puissance_max_w=_f(ep, "puissance_max_w", _f(ep, "puissance_moteur_w", 50000.0)),
+        regime_max_rpm=_f(ep, "regime_max_rpm", _f(ep, "rpm_nominal", 6000.0)),
+        couple_max_nm=_f(ep, "couple_max_nm", 180.0),
+        rendement_moteur=_f(ep, "rendement_moteur", 0.94),
+        tension_bus_v=_f(ep, "tension_nominale_v", 400.0),
+    )
+
+def _make_boite_crabots(ep: Dict[str, Any]) -> Any:
+    from backend.components.boite_crabots.boite_crabots import BoiteCrabots
+    return BoiteCrabots()
+
+def _make_moteur_thermique(ep: Dict[str, Any]) -> Any:
+    from backend.components.moteur_thermique.moteur_thermique import MoteurThermique
+    return MoteurThermique(
+        nombre_cylindres=int(_f(ep, "nombre_cylindres", _f(ep, "n_cyl", 4))),
+        alesage_m=_f(ep, "alesage_m", 0.130),
+        course_m=_f(ep, "course_m", 0.150),
+        rpm_nominal=_f(ep, "rpm_nominal", _f(ep, "rpm_moteur", 3000.0)),
+        pme_nominale_pa=_f(ep, "pme_pa", 8.0e5),
+    )
+
 def _make_deplaceur(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.deplaceur import Deplaceur
     cylindre = _make_cylindre(ep)
@@ -143,6 +167,9 @@ _CONNECTORS = {
     "alternateur": _make_alternateur,
     "batterie": _make_batterie,
     "architecture": _make_architecture,
+    "moteur_electrique": _make_moteur_electrique,
+    "boite_crabots": _make_boite_crabots,
+    "moteur_thermique": _make_moteur_thermique,
     "deplaceur": _make_deplaceur,
     "joint_deplaceur": _make_joint_deplaceur,
 }
