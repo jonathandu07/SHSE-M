@@ -230,6 +230,68 @@ def _piece_backend_status(payload):
     return {"label": "Non construite", "detail": "Données insuffisantes pour construire cette pièce.", "color": COLORS["RF"]}
 
 
+def _slugify_name(value: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in ("_", "-", ".") else "_" for ch in str(value).strip().lower())
+
+
+def _datasheet_root() -> Path:
+    return Path(BASE_DIR) / "output" / "datasheets"
+
+
+def _export_piece_pdf_from_report(report, engine_params, db_name: str, raw_name: str, display_name: str) -> Path:
+    payload = _current_piece_payload(report, db_name, raw_name)
+    piece_obj = get_piece_instance(raw_name, engine_params or {}, db_data=payload)
+    target = _datasheet_root() / "pieces" / f"{_slugify_name(db_name or raw_name)}.pdf"
+    return export_element_pdf(
+        element_name=raw_name,
+        display_name=display_name,
+        payload=payload,
+        element_obj=piece_obj,
+        output_path=target,
+        is_component=False,
+    )
+
+
+def _export_component_pdf_from_report(report, engine_params, component_name: str, display_name: str) -> Path:
+    payload = _current_component_payload(report, component_name)
+    component_obj = get_piece_instance(component_name, engine_params or {}, db_data=payload)
+    target = _datasheet_root() / "components" / f"{_slugify_name(component_name)}.pdf"
+    return export_element_pdf(
+        element_name=component_name,
+        display_name=display_name,
+        payload=payload,
+        element_obj=component_obj,
+        output_path=target,
+        is_component=True,
+    )
+
+
+def _export_full_report_pdfs(report, engine_params) -> Dict[str, Any]:
+    report = _safe_dict(report)
+    generated_pieces = []
+    generated_components = []
+
+    for piece_key, payload in sorted(_safe_dict(_safe_dict(report.get("inventaire")).get("pieces")).items(), key=lambda item: str(item[0])):
+        raw_name = str(piece_key).split(".")[-1]
+        component_name = (
+            _safe_dict(payload).get("source_composant")
+            or (str(piece_key).split(".", 1)[0] if "." in str(piece_key) else _safe_dict(payload).get("type"))
+            or "systeme"
+        )
+        display_name = f"{str(component_name).replace('_', ' ').upper()} - {raw_name.replace('_', ' ').upper()}"
+        generated_pieces.append(_export_piece_pdf_from_report(report, engine_params, str(piece_key), raw_name, display_name))
+
+    for component_name in sorted(_safe_dict(_safe_dict(report.get("inventaire")).get("composants")).keys()):
+        display_name = str(component_name).replace("_", " ").upper()
+        generated_components.append(_export_component_pdf_from_report(report, engine_params, str(component_name), display_name))
+
+    return {
+        "pieces": generated_pieces,
+        "components": generated_components,
+        "root": _datasheet_root(),
+    }
+
+
 # =========================
 # Matplotlib Bridge (Custom FigureCanvasKivyAgg)
 # =========================
@@ -1039,6 +1101,9 @@ class AdvancedVisualsScreen(Screen):
         top = BoxLayout(size_hint_y=None, height=60, spacing=10)
         top.add_widget(Label(text="INGÉNIERIE DÉTAILLÉE (2D SKETCHES)", font_size="20sp",
                              bold=True, color=COLORS["BF"]))
+        export = ModernButton(text="PDF", size_hint_x=None, width=120)
+        export.bind(on_press=lambda *_: self.export_current_view_pdf())
+        top.add_widget(export)
         back = ModernButton(text="RETOUR", size_hint_x=None, width=140)
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
         top.add_widget(back)
@@ -1114,6 +1179,21 @@ class AdvancedVisualsScreen(Screen):
         except Exception as e:
             self.display.add_widget(Label(text=f"Erreur : {e}\n{traceback.format_exc()}", 
                                           color=COLORS["RF"], font_size="12sp"))
+
+    def export_current_view_pdf(self):
+        app = App.get_running_app()
+        report = _safe_dict(app.simulation_results)
+        mapping = {
+            "Architecture": ("architecture", "ARCHITECTURE"),
+            "Alternateur": ("alternateur", "ALTERNATEUR"),
+            "Batterie": ("batterie", "BATTERIE"),
+        }
+        component_name, display_name = mapping.get(self.current_view, ("architecture", self.current_view.upper()))
+        try:
+            pdf_path = _export_component_pdf_from_report(report, app.engine_params or {}, component_name, display_name)
+            show_popup("PDF généré", f"Fiche créée :\n{pdf_path}")
+        except Exception as exc:
+            show_popup("Erreur PDF", str(exc))
 
 
 class PdfFolderScreen(Screen):
@@ -1308,6 +1388,9 @@ class PieceDetailScreen(Screen):
                       color=COLORS["BF"], halign="left", valign="middle")
         title.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         top.add_widget(title)
+        export_btn = ModernButton(text="PDF", size_hint_x=None, width=120)
+        export_btn.bind(on_press=lambda *_: self.export_piece_pdf())
+        top.add_widget(export_btn)
         back = ModernButton(text="RETOUR LISTE", size_hint_x=None, width=180)
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "piece_library"))
         top.add_widget(back)
@@ -1447,6 +1530,18 @@ class PieceDetailScreen(Screen):
         grid.add_widget(view3d_card)
         grid.add_widget(data_card)
         self.layout.add_widget(grid)
+
+    def export_piece_pdf(self):
+        app = App.get_running_app()
+        report = _safe_dict(app.simulation_results)
+        raw_name = getattr(app, "selected_piece_raw", "")
+        db_name = getattr(app, "selected_piece_db", raw_name)
+        display_name = getattr(app, "selected_piece_display", raw_name or "PIÈCE")
+        try:
+            pdf_path = _export_piece_pdf_from_report(report, app.engine_params or {}, db_name, raw_name, display_name)
+            show_popup("PDF généré", f"Fiche créée :\n{pdf_path}")
+        except Exception as exc:
+            show_popup("Erreur PDF", str(exc))
 
 
 # =========================
