@@ -1175,24 +1175,43 @@ class PieceLibraryScreen(Screen):
 
     def on_enter(self, *args):
         self.grid.clear_widgets()
-        components_root = os.path.join(BASE_DIR, "backend", "components")
-        if not os.path.exists(components_root):
-            self.grid.add_widget(Label(text=f"Dossier introuvable: {components_root}",
-                                       color=COLORS["RF"]))
-            return
         entries = []
-        for component_name in sorted(os.listdir(components_root)):
-            pieces_path = os.path.join(components_root, component_name, "pieces")
-            if not os.path.isdir(pieces_path):
-                continue
-            for f in sorted(f for f in os.listdir(pieces_path) if f.endswith(".py") and f != "__init__.py"):
-                raw_name = f[:-3]
+        app = App.get_running_app()
+        report = _safe_dict(app.simulation_results)
+        report_pieces = _safe_dict(_safe_dict(report.get("inventaire")).get("pieces"))
+        if report_pieces:
+            for piece_key, payload in sorted(report_pieces.items(), key=lambda item: str(item[0])):
+                piece_data = _safe_dict(payload)
+                component_name = (
+                    piece_data.get("source_composant")
+                    or (str(piece_key).split(".", 1)[0] if "." in str(piece_key) else piece_data.get("type"))
+                    or "systeme"
+                )
+                raw_name = str(piece_key).split(".")[-1]
                 entries.append({
                     "component": component_name,
                     "raw_name": raw_name,
-                    "db_name": f"{component_name}.{raw_name}",
+                    "db_name": str(piece_key),
                     "display_name": f"{component_name.replace('_', ' ').upper()} - {raw_name.replace('_', ' ').upper()}",
                 })
+        else:
+            components_root = os.path.join(BASE_DIR, "backend", "components")
+            if not os.path.exists(components_root):
+                self.grid.add_widget(Label(text=f"Dossier introuvable: {components_root}",
+                                           color=COLORS["RF"]))
+                return
+            for component_name in sorted(os.listdir(components_root)):
+                pieces_path = os.path.join(components_root, component_name, "pieces")
+                if not os.path.isdir(pieces_path):
+                    continue
+                for f in sorted(f for f in os.listdir(pieces_path) if f.endswith(".py") and f != "__init__.py"):
+                    raw_name = f[:-3]
+                    entries.append({
+                        "component": component_name,
+                        "raw_name": raw_name,
+                        "db_name": f"{component_name}.{raw_name}",
+                        "display_name": f"{component_name.replace('_', ' ').upper()} - {raw_name.replace('_', ' ').upper()}",
+                    })
         if not entries:
             self.grid.add_widget(Label(text="Aucune pièce détectée dans backend/components.",
                                        color=COLORS["RF"]))
@@ -1227,6 +1246,7 @@ class PieceDetailScreen(Screen):
         raw_name = getattr(app, "selected_piece_raw", "")
         db_name = getattr(app, "selected_piece_db", raw_name)
         ep = app.engine_params or {}
+        report = _safe_dict(app.simulation_results)
 
         top = BoxLayout(size_hint_y=None, height=62, spacing=10)
         title = Label(text=display_name, font_size="24sp", bold=True,
@@ -1238,12 +1258,18 @@ class PieceDetailScreen(Screen):
         top.add_widget(back)
         self.layout.add_widget(top)
 
-        data = None
+        data = _current_piece_payload(report, db_name, raw_name)
         try:
             from backend.modules.systeme.database import SecureDatabase
             db = SecureDatabase(
                 db_path=os.path.join(BASE_DIR, "backend", "shse_technical_data.db"))
-            data = db.get_piece_data(db_name) or db.get_piece_data(raw_name) or db.get_piece_data(raw_name.replace("_", ""))
+            db_data = (
+                db.get_piece_data(db_name)
+                or db.get_piece_data(raw_name)
+                or db.get_piece_data(raw_name.replace("_", ""))
+            )
+            if isinstance(db_data, dict):
+                data = _merge_front_dicts(data, db_data)
         except Exception as ex:
             print(f"[PIECE_DETAIL DB] {ex}")
 
