@@ -1,5 +1,5 @@
 import pytest
-from frontend.gui.piece_connector import get_piece_instance
+from frontend.gui.piece_connector import get_piece_instance, hydrate_piece
 
 def test_get_piece_instance_moteur_thermique():
     """Vérifie l'instanciation des pièces du moteur thermique."""
@@ -31,3 +31,24 @@ def test_get_piece_instance_subsystems():
 def test_get_piece_instance_fallback():
     """Vérifie le comportement si la pièce est inconnue."""
     assert get_piece_instance("flux_flux", {}) is None
+
+
+def test_hydrate_piece_uses_backend_serialized_object():
+    """Le front doit relire les attributs et rapports calculés par le backend."""
+    ep = {"alesage_m": 0.130, "course_m": 0.150}
+    piston = get_piece_instance("piston", ep)
+    data = {
+        "objet_serialise": {
+            "alesage_nominal_m": 0.222,
+            "course_m": 0.333,
+        },
+        "rapport": {
+            "resultat": 42,
+        },
+    }
+
+    hydrate_piece(piston, data)
+
+    assert piston.alesage_nominal_m == pytest.approx(0.222)
+    assert piston.course_m == pytest.approx(0.333)
+    assert piston.analyser()["resultat"] == 42

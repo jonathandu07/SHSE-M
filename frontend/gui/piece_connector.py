@@ -144,6 +144,29 @@ _CONNECTORS = {
     "joint_deplaceur": _make_joint_deplaceur,
 }
 
+
+def _first_mapping(*values: Any) -> Dict[str, Any]:
+    for value in values:
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def _apply_attrs(target: Any, attrs: Dict[str, Any]) -> None:
+    for key, value in attrs.items():
+        if key.startswith("_"):
+            continue
+        current = getattr(target, key, None)
+        if isinstance(value, dict) and current is not None and hasattr(current, "__dict__"):
+            _apply_attrs(current, value)
+            continue
+        if callable(current):
+            continue
+        try:
+            setattr(target, key, value)
+        except Exception:
+            pass
+
 def hydrate_piece(piece_obj: Any, db_data: Dict[str, Any]) -> Any:
     """
     Force l'injection des données calculées en backend dans une instance de pièce.
@@ -153,29 +176,34 @@ def hydrate_piece(piece_obj: Any, db_data: Dict[str, Any]) -> Any:
         return piece_obj
 
     # 1. Extraction des attributs sérialisés (haute fidélité)
-    attrs = db_data.get("attributs")
-    if not isinstance(attrs, dict):
-        # Fallback si les attributs sont au premier niveau (cas de get_piece_data fusionné)
+    inventaire = _first_mapping(db_data.get("inventaire"))
+    attrs = _first_mapping(
+        db_data.get("objet_serialise"),
+        db_data.get("objet"),
+        inventaire.get("objet"),
+        db_data.get("attributs"),
+    )
+    if not attrs:
         attrs = db_data
-    
+
     # 2. Injection forcée
-    for k, v in attrs.items():
-        # On évite d'écraser les méthodes ou les attributs privés critiques
-        if k.startswith("_") or callable(getattr(piece_obj, k, None)):
-            continue
-        try:
-            setattr(piece_obj, k, v)
-        except Exception:
-            pass
+    _apply_attrs(piece_obj, attrs)
 
     # 3. Mock de la méthode analyser() si un rapport est présent
     # Cela permet aux visualisations d'utiliser le rapport calculé par le backend
     # au lieu de relancer des calculs potentiellement différents.
-    rapport = db_data.get("rapport")
+    rapport = _first_mapping(
+        db_data.get("rapport"),
+        inventaire.get("rapport"),
+    )
     if rapport and hasattr(piece_obj, "analyser"):
         def mocked_analyser(*args, **kwargs):
             return rapport
         piece_obj.analyser = mocked_analyser
+    if rapport and hasattr(piece_obj, "calculer"):
+        def mocked_calculer(*args, **kwargs):
+            return rapport
+        piece_obj.calculer = mocked_calculer
 
     return piece_obj
 

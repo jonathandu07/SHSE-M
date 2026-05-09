@@ -1044,24 +1044,37 @@ class AdvancedVisualsScreen(Screen):
         self.display.clear_widgets()
         app = App.get_running_app()
         ep = app.engine_params or {}
-        
+        report = _safe_dict(app.simulation_results)
+
         try:
             fig = None
             if view_name == "Architecture":
                 mod = resolve_viz_module("architechture", "sketches_2d")
-                arch_obj = get_piece_instance("architecture", ep)
+                arch_obj = get_piece_instance(
+                    "architecture",
+                    ep,
+                    db_data=_current_component_payload(report, "architecture"),
+                )
                 if mod and arch_obj:
                     fig = mod.tracer_croquis_architecture_2d(arch_obj, titre="Configuration du Bloc Moteur")
-            
+
             elif view_name == "Alternateur":
                 mod = resolve_viz_module("alternateur", "sketches_2d")
-                alt_obj = get_piece_instance("alternateur", ep)
+                alt_obj = get_piece_instance(
+                    "alternateur",
+                    ep,
+                    db_data=_current_component_payload(report, "alternateur"),
+                )
                 if mod and alt_obj:
                     fig = mod.tracer_croquis_alternateur_2d(alt_obj, titre="Coupe Stator/Rotor & Bilan Pertes")
-            
+
             elif view_name == "Batterie":
                 mod = resolve_viz_module("batterie", "sketches_2d")
-                batt_obj = get_piece_instance("batterie", ep)
+                batt_obj = get_piece_instance(
+                    "batterie",
+                    ep,
+                    db_data=_current_component_payload(report, "batterie"),
+                )
                 if mod and batt_obj:
                     fig = mod.tracer_croquis_batterie_2d(batt_obj, titre="Monitoring Pack Batterie (BMS/TMS)")
 
