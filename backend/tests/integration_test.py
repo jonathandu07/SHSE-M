@@ -40,16 +40,20 @@ def test_real_system_report_keeps_piece_inventory_consistent():
     for name, piece_obj in pieces.items():
         assert name in inventory, name
         assert name in objets, name
-        assert isinstance(objets[name], dict), name
         construit = bool(inventory[name]["construit"])
         if construit:
+            assert isinstance(objets[name], dict), name
             assert name in rapports, name
             assert name in construction, name
-            assert inventory[name]["rapport_disponible"] is True
             assert isinstance(rapports[name], dict), name
+            if inventory[name]["rapport_disponible"]:
+                assert rapports[name], name
+            else:
+                assert "note" in rapports[name] or "erreur" in rapports[name], name
             assert piece_obj is not None or objets[name].get("type") is not None, name
         else:
             assert piece_obj is None, name
+            assert objets[name] is None, name
 
     nested = {name: payload for name, payload in inventory.items() if "." in name}
     assert nested, "Aucune pièce imbriquée remontée par les composants."
