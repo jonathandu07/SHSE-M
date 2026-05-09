@@ -312,6 +312,18 @@ def _resoudre_materiau(
                             Re = float(v)
                     except Exception:
                         pass
+                if Re is None:
+                    try:
+                        segs = list(getattr(mat, "resistance_par_section", ()) or ())
+                        vals = [
+                            float(seg.rp02_pa_min)
+                            for seg in segs
+                            if _is_finite(getattr(seg, "rp02_pa_min", None))
+                        ]
+                        if vals:
+                            Re = min(vals)
+                    except Exception:
+                        pass
                 E = E if E is not None else g(mat, "module_young_pa", "E_pa", "young_pa", "young_modulus_pa")
                 Rm = Rm if Rm is not None else g(mat, "resistance_traction_pa", "Rm_pa", "uts_pa", "ultimate_strength_pa", mode="min")
                 if Rm is None and hasattr(mat, "resistance_traction_effective_pa"):
@@ -319,6 +331,19 @@ def _resoudre_materiau(
                         v = mat.resistance_traction_effective_pa(mode="min")
                         if _is_finite(v):
                             Rm = float(v)
+                    except Exception:
+                        pass
+                if Rm is None:
+                    try:
+                        segs = list(getattr(mat, "resistance_par_section", ()) or ())
+                        vals = []
+                        for seg in segs:
+                            rm = getattr(seg, "rm_pa", None)
+                            out = valeur(rm, mode="min") if callable(valeur) else rm
+                            if _is_finite(out):
+                                vals.append(float(out))
+                        if vals:
+                            Rm = min(vals)
                     except Exception:
                         pass
                 Se = Se if Se is not None else g(mat, "limite_fatigue_pa", "limite_endurance_pa", "Sf_pa", "endurance_limit_pa", mode="min")

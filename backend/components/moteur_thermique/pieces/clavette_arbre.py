@@ -230,6 +230,18 @@ def _resoudre_materiau(
                                 Re = float(v)
                         except Exception:
                             pass
+                    if Re is None:
+                        try:
+                            segs = list(getattr(mat, "resistance_par_section", ()) or ())
+                            vals = [
+                                float(seg.rp02_pa_min)
+                                for seg in segs
+                                if _is_finite(getattr(seg, "rp02_pa_min", None))
+                            ]
+                            if vals:
+                                Re = min(vals)
+                        except Exception:
+                            pass
                 if E is None:
                     E = g(mat, "module_young_pa", "E_pa", "young_pa", "young_modulus_pa")
                 break

@@ -177,6 +177,18 @@ def _resoudre_materiau(
                             Re = float(v)
                     except Exception:
                         pass
+                if Re is None:
+                    try:
+                        segs = list(getattr(mat, "resistance_par_section", ()) or ())
+                        vals = [
+                            float(seg.rp02_pa_min)
+                            for seg in segs
+                            if _is_finite(getattr(seg, "rp02_pa_min", None))
+                        ]
+                        if vals:
+                            Re = min(vals)
+                    except Exception:
+                        pass
                 E = E if E is not None else g(
                     mat, "module_young_pa", "E_pa", "young_pa", "young_modulus_pa"
                 )
@@ -189,6 +201,19 @@ def _resoudre_materiau(
                         v = mat.resistance_traction_effective_pa(mode="min")
                         if _is_finite(v):
                             Rm = float(v)
+                    except Exception:
+                        pass
+                if Rm is None:
+                    try:
+                        segs = list(getattr(mat, "resistance_par_section", ()) or ())
+                        vals = []
+                        for seg in segs:
+                            rm = getattr(seg, "rm_pa", None)
+                            out = valeur(rm, mode="min") if callable(valeur) else rm
+                            if _is_finite(out):
+                                vals.append(float(out))
+                        if vals:
+                            Rm = min(vals)
                     except Exception:
                         pass
                 Sf = Sf if Sf is not None else g(
