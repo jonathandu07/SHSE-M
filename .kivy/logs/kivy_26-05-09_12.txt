@@ -17838,3 +17838,4 @@
 [DEBUG  ] Writing TrueType font.
 [DEBUG  ] Embedding font C:\Python312\Lib\site-packages\matplotlib\mpl-data\fonts\ttf\DejaVuSansMono.ttf.
 [DEBUG  ] Writing TrueType font.
+[INFO   ] Base: Leaving application in progress...
