@@ -1286,6 +1286,67 @@ class DashboardScreen(Screen):
             self.dt_grid.add_widget(box)
 
 
+class AutoDashboardScreen(DashboardScreen):
+    def open_adjust_popup(self, *_):
+        app = App.get_running_app()
+        ep = app.engine_params or {}
+        content = BoxLayout(orientation="vertical", padding=20, spacing=12)
+        fields = {}
+        for lbl, key, default in [
+            ("Alesage (mm)", "alesage_mm", ep.get("alesage_mm")),
+            ("Course (mm)", "course_mm", ep.get("course_mm")),
+            ("RPM", "rpm_nominal", ep.get("rpm_nominal")),
+            ("PME (bar)", "pme_bar", (ep.get("pme_pa") / 1e5) if ep.get("pme_pa") is not None else None),
+        ]:
+            row = BoxLayout(size_hint_y=None, height=48, spacing=10)
+            row.add_widget(Label(text=lbl, color=COLORS["BF"], size_hint_x=0.45, font_size="13sp"))
+            inp = TextInput(
+                text="" if default is None else str(round(float(default), 2)),
+                multiline=False,
+                font_size="16sp",
+                size_hint_x=0.55,
+                size_hint_y=None,
+                height=44,
+            )
+            fields[key] = inp
+            row.add_widget(inp)
+            content.add_widget(row)
+
+        def do_recalc(*_):
+            new_ep = dict(ep)
+            for k, inp in fields.items():
+                raw = (inp.text or "").strip().replace(",", ".")
+                if not raw:
+                    new_ep[k] = None
+                    if k == "alesage_mm":
+                        new_ep["alesage_m"] = None
+                    if k == "course_mm":
+                        new_ep["course_m"] = None
+                    if k == "pme_bar":
+                        new_ep["pme_pa"] = None
+                    continue
+                try:
+                    v = float(raw)
+                except Exception:
+                    continue
+                new_ep[k] = v
+                if k == "alesage_mm":
+                    new_ep["alesage_m"] = v / 1000.0
+                if k == "course_mm":
+                    new_ep["course_m"] = v / 1000.0
+                if k == "pme_bar":
+                    new_ep["pme_pa"] = v * 1e5
+            app.engine_params = new_ep
+            popup.dismiss()
+            self.manager.current = "loading"
+
+        btn = ModernButton(text="RECALCULER", size_hint_y=None, height=52)
+        btn.bind(on_press=do_recalc)
+        content.add_widget(btn)
+        popup = Popup(title="Ajuster les parametres", content=content, size_hint=(0.55, 0.72))
+        popup.open()
+
+
 class VectorViewScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1931,9 +1992,9 @@ class SHSEMApp(App):
         Window.clearcolor = COLORS["BL"]
         Window.size = (1280, 860)
         sm = ScreenManager(transition=FadeTransition())
-        sm.add_widget(ConfigScreen(name="config"))
-        sm.add_widget(LoadingScreen(name="loading"))
-        sm.add_widget(DashboardScreen(name="dashboard"))
+        sm.add_widget(AutoConfigScreen(name="config"))
+        sm.add_widget(AutoLoadingScreen(name="loading"))
+        sm.add_widget(AutoDashboardScreen(name="dashboard"))
         sm.add_widget(PieceLibraryScreen(name="piece_library"))
         sm.add_widget(PieceDetailScreen(name="piece_detail"))
         sm.add_widget(VectorViewScreen(name="vector_view"))

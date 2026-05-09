@@ -1,6 +1,6 @@
-2026-05-09 16:12:06,165 - INFO - Starting test_systeme_analyser_full
-2026-05-09 16:12:06,168 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
-2026-05-09 16:12:06,172 - INFO - {
+2026-05-09 16:28:42,629 - INFO - Starting test_systeme_analyser_full
+2026-05-09 16:28:42,631 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-09 16:28:42,635 - INFO - {
   "entrees": {
     "vehicule": {
       "masse_kg": 1200.0,
@@ -153,6 +153,7 @@
       }
     },
     "batterie": {
+      "composant": "batterie",
       "entrees": {
         "fenetre_soc": 0.8,
         "densite_energetique_kwh_kg": 0.2,
@@ -169,41 +170,22 @@
         "duree_pic_s": null,
         "energie_utile_imposee_kwh": null,
         "mode_aggregation_energie": "max",
-        "calculer_puissance_charge_requise": true,
         "activer_electrolyte_solide": false,
         "nb_series": null,
         "nb_parallele": null,
-        "tension_cellule_v": null,
-        "capacite_cellule_ah": null,
-        "courant_cellule_max_a": null,
-        "conductivite_ionique_s_m": null,
-        "epaisseur_electrolyte_m": null,
-        "surface_active_m2": null,
-        "resistance_interface_ohm": null,
-        "puissance_pack_continue_kw": null,
-        "puissance_pack_pic_kw": null,
-        "rendement_chaine": null,
-        "electrolyte_strict": false,
         "activer_catalogue_cellules": false,
-        "catalogue_top_n": 5,
-        "catalogue_sleep_s": 0.0,
         "activer_dimensionnement_fin": false,
-        "cellule_pack": null,
-        "energie_nominale_cible_pack_kwh": null,
-        "tension_bus_min_v": null,
-        "tension_bus_max_v": null,
-        "tension_nominale_cible_pack_v": null,
-        "pertes_passives_pack": null,
-        "modele_thermique_pack": null,
-        "nb_series_min_dim": null,
-        "nb_series_max_dim": null
+        "activer_samsung_25r": false,
+        "activer_samsung_25r_twingo": false,
+        "activer_ratio_conso": false
       },
       "energies_utiles": {
         "conso_kwh_km_derivee": null,
         "E_trajet_kwh": null,
         "E_charge_cible_kwh": null,
         "E_pic_kwh": null,
-        "E_imposee_kwh": null
+        "E_imposee_kwh": null,
+        "E_utile_finale_kwh": null
       },
       "dimensionnement": {
         "E_utile_finale_kwh": null,
@@ -231,55 +213,11 @@
       "dimensionnement_fin": {
         "active": false
       },
-      "hypotheses": [],
-      "unites": {
-        "E_*": "kWh",
-        "capacite_totale": "kWh",
-        "masse_batterie": "kg",
-        "temps_charge": "h",
-        "puissance_*": "kW",
-        "tension_*": "V",
-        "courant_*": "A",
-        "capacite_Ah": "Ah",
-        "C_rate_*": "h^-1",
-        "asr": "ohm*m^2",
-        "R_cell": "ohm",
-        "P_pertes": "W",
-        "dV_cell": "V"
+      "samsung_25r": {
+        "active": false
       },
-      "inconnues": {
-        "impossibles": [
-          {
-            "nom": "E_utile_finale_kwh",
-            "raison": "Impossible sans au moins un critère (trajet, charge cible, pic, ou énergie imposée)."
-          },
-          {
-            "nom": "vieillissement / durée de vie",
-            "raison": "Impossible sans modèle de vieillissement (cycles, DoD, C-rate, température, chimie) + données fabricant."
-          },
-          {
-            "nom": "courbe CC/CV et taper fin de charge",
-            "raison": "Le calcul de temps de charge reste un modèle à puissance constante."
-          },
-          {
-            "nom": "thermique pack (refroidissement)",
-            "raison": "Impossible sans architecture pack, résistances internes, modèle thermique, conditions ambiantes et profils charge/décharge."
-          }
-        ],
-        "partielles": [
-          {
-            "nom": "E_pic_kwh",
-            "raison": "Calculable si puissance_pic_kw ET duree_pic_s sont fournis."
-          },
-          {
-            "nom": "capacite_totale_kwh",
-            "raison": "Calculable si E_utile_finale_kwh est déterminée."
-          },
-          {
-            "nom": "charge",
-            "raison": "Calculable si E_utile_finale_kwh est déterminée et si (puissance_charge_kw ou temps_charge_cible_h) est fourni."
-          }
-        ]
+      "ratio_conso": {
+        "active": false
       },
       "pieces": {
         "pack": {
@@ -397,6 +335,53 @@
             ]
           }
         }
+      },
+      "hypotheses": [],
+      "notes_modele": [],
+      "unites": {
+        "energie": "kWh",
+        "puissance": "kW",
+        "courant": "A",
+        "tension": "V",
+        "masse": "kg",
+        "temps": "h",
+        "résistance": "ohm",
+        "pertes": "W"
+      },
+      "imports_manquants": {},
+      "inconnues": {
+        "impossibles": [
+          {
+            "nom": "E_utile_finale_kwh",
+            "raison": "Impossible sans au moins un critère : trajet, charge cible, pic ou énergie imposée."
+          },
+          {
+            "nom": "vieillissement / durée de vie",
+            "raison": "Impossible sans modèle de vieillissement : cycles, DoD, C-rate, température, chimie, données fabricant."
+          },
+          {
+            "nom": "courbe CC/CV complète",
+            "raison": "Le temps de charge simple reste un modèle à puissance constante ; la phase CV réelle doit venir d'une fiche cellule ou d'essais."
+          },
+          {
+            "nom": "thermique pack détaillée",
+            "raison": "Impossible sans architecture pack, résistances internes, modèle thermique, ambiance et profils de charge/décharge."
+          }
+        ],
+        "partielles": [
+          {
+            "nom": "E_pic_kwh",
+            "raison": "Calculable si puissance_pic_kw ET duree_pic_s sont fournis."
+          },
+          {
+            "nom": "capacite_totale_kwh",
+            "raison": "Calculable si E_utile_finale_kwh est déterminée."
+          },
+          {
+            "nom": "charge",
+            "raison": "Calculable si E_utile_finale_kwh est déterminée."
+          }
+        ]
       },
       "energie_utile": {
         "kwh_finale": null,
@@ -792,19 +777,19 @@
     "impossibles": [
       {
         "nom": "batterie :: E_utile_finale_kwh",
-        "raison": "Impossible sans au moins un critère (trajet, charge cible, pic, ou énergie imposée)."
+        "raison": "Impossible sans au moins un critère : trajet, charge cible, pic ou énergie imposée."
       },
       {
         "nom": "batterie :: vieillissement / durée de vie",
-        "raison": "Impossible sans modèle de vieillissement (cycles, DoD, C-rate, température, chimie) + données fabricant."
+        "raison": "Impossible sans modèle de vieillissement : cycles, DoD, C-rate, température, chimie, données fabricant."
       },
       {
-        "nom": "batterie :: courbe CC/CV et taper fin de charge",
-        "raison": "Le calcul de temps de charge reste un modèle à puissance constante."
+        "nom": "batterie :: courbe CC/CV complète",
+        "raison": "Le temps de charge simple reste un modèle à puissance constante ; la phase CV réelle doit venir d'une fiche cellule ou d'essais."
       },
       {
-        "nom": "batterie :: thermique pack (refroidissement)",
-        "raison": "Impossible sans architecture pack, résistances internes, modèle thermique, conditions ambiantes et profils charge/décharge."
+        "nom": "batterie :: thermique pack détaillée",
+        "raison": "Impossible sans architecture pack, résistances internes, modèle thermique, ambiance et profils de charge/décharge."
       },
       {
         "nom": "moteur_thermique :: usure segments (valeur absolue)",
@@ -834,7 +819,7 @@
       },
       {
         "nom": "batterie :: charge",
-        "raison": "Calculable si E_utile_finale_kwh est déterminée et si (puissance_charge_kw ou temps_charge_cible_h) est fourni."
+        "raison": "Calculable si E_utile_finale_kwh est déterminée."
       },
       {
         "nom": "vitesse alternateur",
@@ -916,6 +901,6 @@
     "Le bloc 'cao' fourni ici est un paquet de cotes de haut niveau pour fermer l'architecture moteur ; les autres pièces devront ensuite consommer ces données."
   ]
 }
-2026-05-09 16:12:06,174 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
-2026-05-09 16:12:06,177 - INFO - Starting test_systeme_missing_inputs
-2026-05-09 16:12:06,178 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
+2026-05-09 16:28:42,637 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-09 16:28:42,641 - INFO - Starting test_systeme_missing_inputs
+2026-05-09 16:28:42,643 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 

@@ -129,4 +129,5 @@ def test_simulation_script_runs_end_to_end_with_monkeypatched_visuals(tmp_path, 
     }
     assert captured["systeme_analyser"]["scenario_bus_dc"] == "charge"
     assert captured["systeme_analyser"]["puissance_elec_alt_cible_w"] == 45000.0
-    assert captured["systeme_analyser"]["architecture_forcee"] == "V"
+    assert captured["systeme_analyser"]["architectures_autorisees"] == ["L", "V", "W", "Etoile", "Boxer"]
+    assert "architecture_forcee" not in captured["systeme_analyser"]

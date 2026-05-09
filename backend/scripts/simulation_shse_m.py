@@ -87,7 +87,7 @@ def executer_simulation():
         longueur_dispo_m=0.8,
         largeur_dispo_m=0.8,
         vitesse_piston_max_ms=15.0,
-        architecture_forcee="V",
+        architectures_autorisees=["L", "V", "W", "Etoile", "Boxer"],
         rapport_vitesse_alt_sur_moteur=2.0, # L'alternateur tourne à 6000 RPM
         energie_utile_imposee_kwh=60.0
     )
