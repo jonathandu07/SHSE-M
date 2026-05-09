@@ -60,3 +60,31 @@ def test_export_element_pdf_handles_missing_views(tmp_path, monkeypatch):
     assert result == output
     assert output.exists()
     assert output.stat().st_size > 0
+
+
+def test_build_element_display_lines_filters_internal_backend_noise():
+    from frontend.gui.pdf_export import build_element_display_lines
+
+    lines = build_element_display_lines(
+        {
+            "construit": True,
+            "inventaire": {"type": "ArbreMoteur", "source_composant": "moteur_thermique"},
+            "construction": {
+                "construit": True,
+                "kwargs": {"moteur_thermique": {"resume": {"puissance_nominale_w": 150000.0}}},
+            },
+            "rapport": {
+                "dimensionnements": {"couple_max_Nm": 447.6, "rpm": 3200.0},
+                "cao": {"diametre_nominal_arbre_m": 0.052, "longueur_totale_m": 0.41},
+                "inconnues": {"impossibles": ["tau_admissible_arbre_pa"], "partielles": []},
+            },
+        }
+    )
+
+    text = "\n".join(lines)
+    assert "Dimensionnements" in text
+    assert "couple_max_Nm" not in text
+    assert "Couple max nm" in text
+    assert "construction > kwargs" not in text.lower()
+    assert "puissance_nominale_w" not in text
+    assert "tau_admissible_arbre_pa" in text
