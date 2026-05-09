@@ -1,54 +1,40 @@
 import unittest
-import matplotlib.pyplot as plt
+
+from frontend.gui.piece_connector import get_piece_instance
+from frontend.gui.viz_utils import get_viz_figure
 from frontend.tests.base import FrontendBaseTest
-from frontend.pieces.sketches_2d import cylindre, piston, bielle, vilbrequin, couvercle_cylindre
+
 
 class TestSketches2D(FrontendBaseTest):
-    
-    def test_draw_cylindre(self):
-        self.logger.info("Test de dessin : Cylindre")
-        p = self.get_mock_piece("moteur_thermique")
-        fig, ax = plt.subplots()
-        cylindre.draw(ax, p)
+    def _assert_piece_viz(self, piece_name: str) -> None:
+        self.logger.info("Test de dessin : %s", piece_name)
+        piece = get_piece_instance(piece_name, {}) or self.get_mock_piece("moteur_thermique")
+        fig = get_viz_figure(piece_name, piece, "sketches_2d")
+        self.assertIsNotNone(fig, f"Aucune figure generée pour {piece_name}.")
+        ax = fig.axes[0]
         self.assert_sketch_valid(ax)
+        fig.clf()
+
+    def test_draw_cylindre(self):
+        self._assert_piece_viz("cylindre")
         self.logger.info("Cylindre validé avec succès.")
-        plt.close(fig)
 
     def test_draw_piston(self):
-        self.logger.info("Test de dessin : Piston")
-        p = self.get_mock_piece("moteur_thermique")
-        fig, ax = plt.subplots()
-        piston.draw(ax, p)
-        self.assert_sketch_valid(ax)
+        self._assert_piece_viz("piston")
         self.logger.info("Piston validé avec succès.")
-        plt.close(fig)
 
     def test_draw_bielle(self):
-        self.logger.info("Test de dessin : Bielle")
-        p = self.get_mock_piece("moteur_thermique")
-        fig, ax = plt.subplots()
-        bielle.draw(ax, p)
-        self.assert_sketch_valid(ax)
+        self._assert_piece_viz("bielle")
         self.logger.info("Bielle validée avec succès.")
-        plt.close(fig)
 
     def test_draw_vilbrequin(self):
-        self.logger.info("Test de dessin : Vilbrequin")
-        p = self.get_mock_piece("moteur_thermique")
-        fig, ax = plt.subplots()
-        vilbrequin.draw(ax, p)
-        self.assert_sketch_valid(ax)
+        self._assert_piece_viz("vilbrequin")
         self.logger.info("Vilbrequin validé avec succès.")
-        plt.close(fig)
 
     def test_draw_couvercle_cylindre(self):
-        self.logger.info("Test de dessin : Couvercle Cylindre")
-        p = self.get_mock_piece("moteur_thermique")
-        fig, ax = plt.subplots()
-        couvercle_cylindre.draw(ax, p)
-        self.assert_sketch_valid(ax)
+        self._assert_piece_viz("couvercle_cylindre")
         self.logger.info("Couvercle Cylindre validé avec succès.")
-        plt.close(fig)
+
 
 if __name__ == "__main__":
     unittest.main()

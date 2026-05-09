@@ -21,9 +21,9 @@ from backend.components.boite_crabots.boite_crabots import BoiteCrabots
 from backend.components.architechture.architecture import Architecture, ProfilUsageMoteur
 
 # Visualisations
-from frontend.pieces.sketches_2d.batterie_pack import tracer_croquis_batterie_2d
-from frontend.pieces.sketches_2d.alternateur_complet import tracer_croquis_alternateur_2d
-from frontend.pieces.sketches_2d.architecture_layout import tracer_croquis_architecture_2d
+from frontend.components.batterie.sketches_2d import tracer_croquis_batterie_2d
+from frontend.components.alternateur.sketches_2d import tracer_croquis_alternateur_2d
+from frontend.components.architechture.sketches_2d import tracer_croquis_architecture_2d
 
 def executer_simulation():
     print("--- Démarrage de la simulation globale SHSE-M ---")
