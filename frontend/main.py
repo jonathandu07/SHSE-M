@@ -54,7 +54,7 @@ from kivy.lang import Builder
 # Visualisations Spécialisées
 from frontend.gui.viz_utils import resolve_viz_module, get_draw_3d_func, get_viz_figure
 from frontend.gui.piece_connector import get_piece_instance
-from frontend.gui.pdf_export import export_element_pdf
+from frontend.gui.pdf_export import build_element_display_sections, export_element_pdf
 
 # =========================
 # Palette
@@ -851,7 +851,7 @@ class AutoConfigScreen(Screen):
                          size_hint_y=None, height=22)
         page.add_widget(self.err)
 
-        self.gen_btn = ModernButton(text="GÃ‰NÃ‰RER LE SYSTÃˆME", size_hint_y=None, height=64)
+        self.gen_btn = ModernButton(text="GENERER LE SYSTEME", size_hint_y=None, height=64)
         self.gen_btn.bind(on_press=self.launch_generation)
         page.add_widget(self.gen_btn)
 
@@ -1807,7 +1807,7 @@ class PieceDetailScreen(Screen):
         status = _piece_backend_status(data)
         status_row = BoxLayout(size_hint_y=None, height=38, spacing=10)
         status_row.add_widget(Label(
-            text=f"État backend : {status['label']} | {status['detail']}",
+            text=f"Etat backend : {status['label']} | {status['detail']}",
             color=status["color"],
             font_size="12sp",
             halign="left",
@@ -1846,9 +1846,9 @@ class PieceDetailScreen(Screen):
 
         grid = GridLayout(cols=4, spacing=12)
         sketch_card = PremiumCard(title="Croquis 2D")
-        radar_card = PremiumCard(title="Résistance Mécanique")
+        radar_card = PremiumCard(title="Resistance mecanique")
         view3d_card = PremiumCard(title="Vue 3D")
-        data_card = PremiumCard(title="Données de dimensionnement")
+        data_card = PremiumCard(title="Donnees de dimensionnement")
 
         can_render_piece = bool(data.get("construit")) or p is not None
 
@@ -1859,7 +1859,7 @@ class PieceDetailScreen(Screen):
                 if fig2d:
                     sketch_card.add_widget(FigureCanvasKivyAgg(fig2d))
                 else:
-                    raise ImportError("Module 2D non trouvé")
+                    raise ImportError("Module 2D non trouve")
             except Exception as e:
                 sketch_card.add_widget(Label(text=f"Croquis indisponible\n{str(e)[:80]}",
                                               color=COLORS["RF"], font_size="11sp"))
@@ -1870,7 +1870,7 @@ class PieceDetailScreen(Screen):
                 if fig_r:
                     radar_card.add_widget(FigureCanvasKivyAgg(fig_r))
                 else:
-                    raise ImportError("Module Charts non trouvé")
+                    raise ImportError("Module Charts non trouve")
             except Exception as e:
                 radar_card.add_widget(Label(text=f"Radar indisponible\n{str(e)[:80]}",
                                              color=COLORS["RF"], font_size="11sp"))
@@ -1881,13 +1881,13 @@ class PieceDetailScreen(Screen):
                 if fig3d:
                     view3d_card.add_widget(FigureCanvasKivyAgg(fig3d))
                 else:
-                    raise ImportError("Module 3D non trouvé")
+                    raise ImportError("Module 3D non trouve")
             except Exception as e:
                 view3d_card.add_widget(Label(text=f"Vue 3D indisponible\n{str(e)[:80]}",
                                               color=COLORS["RF"], font_size="11sp"))
         elif MATPLOTLIB_AVAILABLE:
             for card in (sketch_card, radar_card, view3d_card):
-                card.add_widget(Label(text="Pièce non construite avec les données actuelles", color=COLORS["RF"]))
+                card.add_widget(Label(text="Piece non construite avec les donnees actuelles", color=COLORS["RF"]))
         else:
             for card in (sketch_card, radar_card, view3d_card):
                 card.add_widget(Label(text="Matplotlib non disponible", color=COLORS["GAXD"]))
@@ -1896,34 +1896,25 @@ class PieceDetailScreen(Screen):
         stack = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None, padding=[0, 6, 0, 0])
         stack.bind(minimum_height=stack.setter("height"))
 
-        def _flat(d, prefix="", depth=0):
-            if depth > 4 or not isinstance(d, dict):
-                return
-            for k, v in sorted(d.items(), key=lambda x: str(x)):
-                key = f"{prefix}{k}".replace("_", " ").capitalize()
-                if v is None:
-                    yield key, "—"
-                elif isinstance(v, bool):
-                    yield key, "Oui" if v else "Non"
-                elif isinstance(v, (int, float)):
-                    try:
-                        fv = float(v)
-                        yield key, (f"{fv:.3e}" if abs(fv) >= 1e6 or (0 < abs(fv) < 1e-3)
-                                    else f"{fv:.4g}")
-                    except Exception:
-                        yield key, str(v)
-                elif isinstance(v, str):
-                    yield key, v[:80]
-                elif isinstance(v, (list, tuple)):
-                    yield key, f"[{len(v)} éléments]"
-                elif isinstance(v, dict):
-                    yield from _flat(v, f"{key} › ", depth + 1)
-
-        if isinstance(data, dict) and data:
-            for ks, vs in _flat(data):
-                stack.add_widget(TechRow(ks, vs))
+        sections = build_element_display_sections(data)
+        if sections:
+            for title, rows in sections:
+                section_label = Label(
+                    text=title.upper(),
+                    color=COLORS["BF"],
+                    bold=True,
+                    font_size="13sp",
+                    size_hint_y=None,
+                    height=28,
+                    halign="left",
+                    valign="middle",
+                )
+                section_label.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+                stack.add_widget(section_label)
+                for ks, vs in rows:
+                    stack.add_widget(TechRow(ks, vs))
         else:
-            stack.add_widget(Label(text="Données non calculées.\nLancez une génération.",
+            stack.add_widget(Label(text="Donnees non calculees.\nLancez une generation.",
                                    color=COLORS["RF"], size_hint_y=None, height=70))
         sc.add_widget(stack)
         data_card.add_widget(sc)

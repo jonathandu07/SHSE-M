@@ -1,81 +1,90 @@
 """
 frontend/gui/viz_utils.py
-Utilitaire pour résoudre les chemins des modules de visualisation (2D, 3D, Charts)
+Utilitaire pour resoudre les chemins des modules de visualisation (2D, 3D, Charts)
 en respectant l'architecture miroir du backend.
 """
 from __future__ import annotations
+
 import importlib
-import traceback
-from typing import Any, Optional, Callable
+from typing import Any, Callable, Optional
+
 
 def resolve_viz_module(piece_name: str, viz_type: str) -> Optional[Any]:
     """
-    Tente de charger le module de visualisation pour une pièce.
+    Tente de charger le module de visualisation pour une piece.
     viz_type: 'sketches_2d', 'views_3d' ou 'charts'
     """
-    # Harmonisation des noms et correction des fautes de frappe (miroir du backend)
     key = piece_name.lower().replace(" ", "_")
-    # Mapping vers les dossiers réels du frontend
     mapping = {
         "vilebrequin": "arbre_vilebrequin",
         "vilbrequin": "vilbrequin",
         "arbre_vilbrequin": "arbre_vilebrequin",
         "arbre_vilebrequin": "arbre_vilebrequin",
+        "arbremoteur": "arbre",
         "architecture": "architechture",
         "architechture": "architechture",
         "couvercle": "couvercle_cylindre",
         "coussinet": "coussinet_arbre_piston",
     }
     key = mapping.get(key, key)
-    
-    # Liste des composants racines (top-level components)
+
     subsystems = [
-        "alternateur", "batterie", "architechture", 
-        "boite_crabots", "moteur_electrique", "moteur_thermique"
+        "alternateur",
+        "batterie",
+        "architechture",
+        "boite_crabots",
+        "moteur_electrique",
+        "moteur_thermique",
     ]
-    
+
     if key in subsystems:
-        path = f"frontend.components.{key}.{viz_type}"
+        paths = [f"frontend.components.{key}.{viz_type}"]
     else:
-        # Par défaut, on cherche dans les pièces du moteur thermique
-        path = f"frontend.components.moteur_thermique.pieces.{key}.{viz_type}"
-        
-    try:
-        return importlib.import_module(path)
-    except ImportError:
-        # Fallback pour vilbrequin/vilebrequin si l'utilisateur a utilisé l'ancienne orthographe
-        if "vilebrequin" in key:
-            try:
-                alt_path = path.replace("vilebrequin", "vilbrequin")
-                return importlib.import_module(alt_path)
-            except ImportError:
-                pass
-        return None
-    except Exception as e:
-        print(f"[viz_utils] Erreur lors du chargement de {path}: {e}")
-        return None
+        paths = [f"frontend.components.moteur_thermique.pieces.{key}.{viz_type}"]
+
+    if viz_type == "views_3d":
+        paths.extend(path.replace(".views_3d", ".mesh_3d") for path in list(paths))
+
+    if "vilebrequin" in key:
+        paths.extend(path.replace("vilebrequin", "vilbrequin") for path in list(paths))
+
+    seen = set()
+    for path in paths:
+        if path in seen:
+            continue
+        seen.add(path)
+        try:
+            return importlib.import_module(path)
+        except ImportError:
+            continue
+        except Exception as exc:
+            print(f"[viz_utils] Erreur lors du chargement de {path}: {exc}")
+            return None
+    return None
+
 
 def get_draw_3d_func(piece_name: str) -> Callable:
-    """Version mise à jour de get_draw_3d."""
     mod = resolve_viz_module(piece_name, "views_3d")
     if mod and hasattr(mod, "draw_3d"):
         return mod.draw_3d
     if mod and hasattr(mod, "draw"):
         return mod.draw
-    
-    # Fallback générique
+
     try:
         from frontend.ensemble.viz_3d_generic import draw_3d
+
         return draw_3d
     except ImportError:
         return lambda ax, p: None
 
+
 def get_viz_figure(piece_name: str, piece_obj: Any, viz_type: str) -> Optional[Any]:
     """
-    Récupère une Figure Matplotlib pour une pièce donnée.
+    Recupere une Figure Matplotlib pour une piece donnee.
     viz_type: 'sketches_2d', 'views_3d' ou 'charts'
     """
     import matplotlib.pyplot as plt
+
     mod = resolve_viz_module(piece_name, viz_type)
     if not mod:
         return None
@@ -83,35 +92,32 @@ def get_viz_figure(piece_name: str, piece_obj: Any, viz_type: str) -> Optional[A
     try:
         if viz_type == "views_3d":
             draw_fn = get_draw_3d_func(piece_name)
-            from mpl_toolkits.mplot3d import Axes3D # noqa: F401
+            from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+
             fig = plt.figure(figsize=(5, 5))
-            ax = fig.add_subplot(111, projection='3d')
+            ax = fig.add_subplot(111, projection="3d")
             draw_fn(ax, piece_obj)
             return fig
 
-        elif viz_type == "charts":
-            if hasattr(mod, "plot_data"):
-                fig = plt.figure(figsize=(5, 5))
-                ax = fig.add_subplot(111, polar=True)
-                mod.plot_data(ax, piece_obj)
-                return fig
+        if viz_type == "charts" and hasattr(mod, "plot_data"):
+            fig = plt.figure(figsize=(5, 5))
+            ax = fig.add_subplot(111, polar=True)
+            mod.plot_data(ax, piece_obj)
+            return fig
 
-        elif viz_type == "sketches_2d":
-            # Cas 1: draw(ax, piece)
+        if viz_type == "sketches_2d":
             if hasattr(mod, "draw"):
                 fig, ax = plt.subplots(figsize=(6, 6))
                 mod.draw(ax, piece_obj)
                 return fig
-            
-            # Cas 2: tracer_croquis_[piece]_2d(piece, ...)
+
             for attr in dir(mod):
                 if attr.startswith("tracer_croquis_") and attr.endswith("_2d"):
                     fn = getattr(mod, attr)
                     if callable(fn):
-                        # On appelle avec afficher=False pour récupérer l'objet figure
                         res = fn(piece_obj, afficher=False)
                         return res[0] if isinstance(res, (tuple, list)) else res
-    except Exception as e:
-        print(f"[viz_utils] Erreur get_viz_figure({piece_name}, {viz_type}): {e}")
-    
+    except Exception as exc:
+        print(f"[viz_utils] Erreur get_viz_figure({piece_name}, {viz_type}): {exc}")
+
     return None

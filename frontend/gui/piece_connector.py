@@ -101,9 +101,17 @@ def _make_batterie(ep: Dict[str, Any]) -> Any:
 
 def _make_architecture(ep: Dict[str, Any]) -> Any:
     from backend.components.architechture.architecture import Architecture
-    return Architecture(
-        architecture_forcee="V",
-        nombre_cylindres=8
+    return Architecture()
+
+def _make_arbre(ep: Dict[str, Any]) -> Any:
+    from backend.components.moteur_thermique.pieces.arbre import ArbreMoteur
+    return ArbreMoteur(
+        couple_max_Nm=_f(ep, "couple_max_Nm", _f(ep, "couple_max_nm", 0.0)) or None,
+        rpm=_f(ep, "rpm_nominal", _f(ep, "rpm_moteur", 0.0)) or None,
+        nombre_cylindres=int(_f(ep, "nombre_cylindres", _f(ep, "n_cyl", 0.0)) or 0) or None,
+        entraxe_cylindres_m=_f(ep, "entraxe_cylindres_m", 0.0) or None,
+        diametre_externe_cylindre_m=_f(ep, "diametre_externe_cylindre_m", 0.0) or None,
+        diametre_arbre_m=_f(ep, "diametre_arbre_m", 0.0) or None,
     )
 
 def _make_moteur_electrique(ep: Dict[str, Any]) -> Any:
@@ -158,6 +166,8 @@ _CONNECTORS = {
     "corps_bielle": _make_bielle,
     "arbre_vilbrequin": _make_arbre_vilebrequin,
     "arbre_vilebrequin": _make_arbre_vilebrequin,
+    "arbre": _make_arbre,
+    "arbremoteur": _make_arbre,
     "arbre_piston": _make_arbre_piston,
     "coussinet": _make_coussinet,
     "coussinet_arbre_piston": _make_coussinet,
