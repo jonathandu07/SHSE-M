@@ -569,14 +569,13 @@ class EntreesOrchestrateurMoteurThermique:
 # =============================================================================
 
 @dataclass
-class OrchestrateurMoteurThermique:
-    entrees: EntreesOrchestrateurMoteurThermique = field(default_factory=EntreesOrchestrateurMoteurThermique)
+class OrchestrateurMoteurThermique(EntreesOrchestrateurMoteurThermique):
 
     # ------------------------------------------------------------------
     # API principale
     # ------------------------------------------------------------------
     def analyser(self, *, strict: bool = False, **overrides: Any) -> Dict[str, Any]:
-        e = self.entrees.with_overrides(**overrides)
+        e = self.with_overrides(**overrides)
         report = self._nouveau_rapport(e)
 
         self._analyser_geometrie(e, report)

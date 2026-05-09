@@ -172,6 +172,181 @@ Architecture = _import_attr_optional(
 )
 
 
+# Constructeurs / orchestrateurs haut niveau des composants.
+# Ils sont utilisés quand disponibles afin que STHO_ME pilote les scripts complets,
+# et non seulement les classes internes.
+construire_moteur_electrique = _import_attr_optional(
+    (
+        "backend.components.moteur_electrique.moteur_electrique",
+        "backend.components.moteur_electrique",
+        "components.moteur_electrique.moteur_electrique",
+        "components.moteur_electrique",
+        "moteur_electrique",
+    ),
+    "construire_moteur_electrique",
+)
+concevoir_moteur_electrique = _import_attr_optional(
+    (
+        "backend.components.moteur_electrique.moteur_electrique",
+        "backend.components.moteur_electrique",
+        "components.moteur_electrique.moteur_electrique",
+        "components.moteur_electrique",
+        "moteur_electrique",
+    ),
+    "concevoir_moteur_electrique",
+)
+
+construire_batterie = _import_attr_optional(
+    (
+        "backend.components.batterie.batterie",
+        "backend.components.batterie",
+        "components.batterie.batterie",
+        "components.batterie",
+        "batterie",
+    ),
+    "construire_batterie",
+)
+concevoir_batterie = _import_attr_optional(
+    (
+        "backend.components.batterie.batterie",
+        "backend.components.batterie",
+        "components.batterie.batterie",
+        "components.batterie",
+        "batterie",
+    ),
+    "concevoir_batterie",
+)
+
+construire_alternateur = _import_attr_optional(
+    (
+        "backend.components.alternateur.alternateur",
+        "backend.components.alternateur",
+        "components.alternateur.alternateur",
+        "components.alternateur",
+        "alternateur",
+    ),
+    "construire_alternateur",
+)
+concevoir_alternateur = _import_attr_optional(
+    (
+        "backend.components.alternateur.alternateur",
+        "backend.components.alternateur",
+        "components.alternateur.alternateur",
+        "components.alternateur",
+        "alternateur",
+    ),
+    "concevoir_alternateur",
+)
+
+construire_boite_crabots = _import_attr_optional(
+    (
+        "backend.components.boite_crabots.boite_crabots",
+        "backend.components.boite_crabots",
+        "components.boite_crabots.boite_crabots",
+        "components.boite_crabots",
+        "boite_crabots",
+    ),
+    "construire_boite_crabots",
+)
+concevoir_boite_crabots = _import_attr_optional(
+    (
+        "backend.components.boite_crabots.boite_crabots",
+        "backend.components.boite_crabots",
+        "components.boite_crabots.boite_crabots",
+        "components.boite_crabots",
+        "boite_crabots",
+    ),
+    "concevoir_boite_crabots",
+)
+
+concevoir_architecture = _import_attr_optional(
+    (
+        "backend.components.architechture.architecture",
+        "backend.components.architecture.architecture",
+        "backend.components.architechture",
+        "backend.components.architecture",
+        "components.architechture.architecture",
+        "components.architecture.architecture",
+        "architecture",
+    ),
+    "concevoir_architecture",
+)
+
+OrchestrateurMoteurThermique = _import_attr_optional(
+    (
+        "backend.components.moteur_thermique.moteur_thermique",
+        "backend.components.moteur_thermique.orchestrateur_moteur_thermique",
+        "components.moteur_thermique.moteur_thermique",
+        "components.moteur_thermique.orchestrateur_moteur_thermique",
+        "moteur_thermique",
+        "orchestrateur_moteur_thermique",
+    ),
+    "OrchestrateurMoteurThermique",
+)
+EntreesOrchestrateurMoteurThermique = _import_attr_optional(
+    (
+        "backend.components.moteur_thermique.moteur_thermique",
+        "backend.components.moteur_thermique.orchestrateur_moteur_thermique",
+        "components.moteur_thermique.moteur_thermique",
+        "components.moteur_thermique.orchestrateur_moteur_thermique",
+        "moteur_thermique",
+        "orchestrateur_moteur_thermique",
+    ),
+    "EntreesOrchestrateurMoteurThermique",
+)
+
+get_carburant = _import_attr_optional(("backend.ensemble.carburant", "ensemble.carburant", "carburant"), "get_carburant")
+get_pire_carburant = _import_attr_optional(("backend.ensemble.carburant", "ensemble.carburant", "carburant"), "get_pire_carburant")
+creer_melange = _import_attr_optional(("backend.ensemble.carburant", "ensemble.carburant", "carburant"), "creer_melange")
+lister_carburants = _import_attr_optional(("backend.ensemble.carburant", "ensemble.carburant", "carburant"), "lister_carburants")
+
+
+# Fallback de compatibilité : ton fichier moteur_thermique.py récent expose
+# OrchestrateurMoteurThermique plutôt qu'une classe MoteurThermique. Ce wrapper
+# garde l'API attendue par STHO_ME et par certains anciens orchestrateurs.
+if MoteurThermique is None and OrchestrateurMoteurThermique is not None:
+    class MoteurThermique:  # type: ignore[no-redef]
+        def __init__(self, **kwargs: Any) -> None:
+            if EntreesOrchestrateurMoteurThermique is not None:
+                filt = _filter_kwargs_for_callable(EntreesOrchestrateurMoteurThermique, kwargs)
+                self.entrees = EntreesOrchestrateurMoteurThermique(**filt)
+            else:
+                self.entrees = kwargs
+            self.orchestrateur = OrchestrateurMoteurThermique(self.entrees) if EntreesOrchestrateurMoteurThermique is not None else OrchestrateurMoteurThermique()
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+        @classmethod
+        def definir_depuis_exigences(cls, **kwargs: Any) -> Dict[str, Any]:
+            moteur = cls(**kwargs)
+            rapport = moteur.analyser(strict=False)
+            return {
+                "moteur_defini": moteur,
+                "rapport": rapport,
+                "synthese": _safe_dict(rapport.get("synthese")),
+                "inconnues": _safe_dict(rapport.get("inconnues")),
+                "notes_modele": ["Moteur thermique défini via OrchestrateurMoteurThermique fallback."],
+            }
+
+        def analyser(self, *, strict: bool = False, **overrides: Any) -> Dict[str, Any]:
+            return self.orchestrateur.analyser(strict=strict, **overrides)
+
+        def calculer(self, *, strict: bool = False, **overrides: Any) -> Dict[str, Any]:
+            return self.analyser(strict=strict, **overrides)
+
+        def analyser_geometrie_definition(self, **kwargs: Any) -> Dict[str, Any]:
+            return self.analyser(**kwargs)
+
+        def analyser_cycle_mecanique(self, **kwargs: Any) -> Dict[str, Any]:
+            return self.analyser(**kwargs)
+
+        def analyser_point_de_fonctionnement(self, **kwargs: Any) -> Dict[str, Any]:
+            return self.analyser(**kwargs)
+
+        def analyser_bilan_carburant(self, **kwargs: Any) -> Dict[str, Any]:
+            return self.analyser(**kwargs)
+
+
 # Pièces moteur thermique — optionnelles.
 Cylindre = _import_attr_optional(("backend.components.moteur_thermique.pieces.cylindre", "components.moteur_thermique.pieces.cylindre", "cylindre"), "Cylindre")
 Piston = _import_attr_optional(("backend.components.moteur_thermique.pieces.piston", "components.moteur_thermique.pieces.piston", "piston"), "Piston")
@@ -243,6 +418,34 @@ def _first_finite(*vals: Any) -> Optional[float]:
     for v in vals:
         if _is_finite(v):
             return float(v)
+    return None
+
+
+def _deep_merge(base: Optional[Mapping[str, Any]], extra: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Fusion récursive simple : extra écrase base uniquement aux clés fournies."""
+    out: Dict[str, Any] = dict(base or {})
+    for key, value in dict(extra or {}).items():
+        if isinstance(value, Mapping) and isinstance(out.get(key), Mapping):
+            out[key] = _deep_merge(out[key], value)  # type: ignore[arg-type]
+        else:
+            out[key] = value
+    return out
+
+
+def _extract_first_report_value(report: Optional[Dict[str, Any]], *paths: str) -> Any:
+    for path in paths:
+        cur: Any = report
+        ok = True
+        for part in path.split("."):
+            if isinstance(cur, dict):
+                cur = cur.get(part)
+            else:
+                cur = getattr(cur, part, None)
+            if cur is None:
+                ok = False
+                break
+        if ok and cur is not None:
+            return cur
     return None
 
 
@@ -975,9 +1178,220 @@ class STHO_ME:
             )
 
     # ------------------------------------------------------------------
+    # Orchestrateurs complets des composants
+    # ------------------------------------------------------------------
+    def _component_full_config(self, name: str, *extra_keys: str) -> Dict[str, Any]:
+        cfg: Dict[str, Any] = {}
+        bloc = self.composants.get(name)
+        if isinstance(bloc, Mapping):
+            cfg = _deep_merge(cfg, bloc)
+        elif bloc is not None:
+            cfg["instance"] = bloc
+
+        # Analyses explicitement liées au composant.
+        for key in (name, f"{name}_analyse", f"{name}_orchestrateur", *extra_keys):
+            bloc_a = self.analyses.get(key)
+            if isinstance(bloc_a, Mapping):
+                cfg = _deep_merge(cfg, bloc_a)
+        return cfg
+
+    def _run_component_orchestrateurs_directs(self, rapport: Dict[str, Any]) -> None:
+        """
+        Lance les fonctions concevoir_* quand elles existent. C'est ce qui fait
+        de STHO_ME l'orchestrateur des scripts complets, au lieu de seulement
+        instancier des classes et d'appeler une méthode générique.
+        """
+        runners: Dict[str, Tuple[Any, Tuple[str, ...]]] = {
+            "moteur_electrique": (concevoir_moteur_electrique, ("moteur_electrique_puissance", "moteur_electrique_vehicule")),
+            "batterie": (concevoir_batterie, ("batterie_dimensionnement", "batterie_recharge_systeme")),
+            "alternateur": (concevoir_alternateur, ("alternateur_point", "alternateur_bus_dc")),
+            "boite_crabots": (concevoir_boite_crabots, ("boite_point", "boite_chaine")),
+            "architecture": (concevoir_architecture, ("architecture_profil",)),
+        }
+
+        for name, (runner, aliases) in runners.items():
+            if not callable(runner):
+                continue
+            cfg = self._component_full_config(name, *aliases)
+            if not cfg and self.composants_obj.get(name) is None:
+                continue
+            if self.composants_obj.get(name) is not None and "instance" not in cfg:
+                cfg["instance"] = self.composants_obj[name]
+            # Les fonctions concevoir_* des composants filtrent déjà leurs clés.
+            try:
+                rep = runner(cfg)
+            except Exception as exc:
+                _push_inconnue(rapport, "partielles", f"{name}.concevoir", f"Orchestrateur composant non concluant : {exc}")
+                continue
+            if isinstance(rep, dict):
+                key = f"{name}_orchestrateur"
+                rapport["rapports"]["composants"][key] = _to_jsonable(rep)
+                _merge_inconnues(rapport, rep, prefix=key)
+
+        # Moteur thermique : pas de concevoir_* dans ton fichier actuel, mais
+        # l'objet wrapper / OrchestrateurMoteurThermique produit un rapport complet.
+        mt_obj = self.composants_obj.get("moteur_thermique")
+        if mt_obj is not None:
+            params = self._component_full_config("moteur_thermique", "moteur_thermique_definition", "moteur_thermique_point")
+            rep_mt = _call_method_filtered(
+                mt_obj,
+                "analyser",
+                params,
+                rapport=rapport,
+                label="moteur_thermique.analyser",
+                add_strict_false=True,
+            )
+            if rep_mt is not None:
+                rapport["rapports"]["composants"]["moteur_thermique_orchestrateur"] = _to_jsonable(rep_mt)
+                _merge_inconnues(rapport, rep_mt, prefix="moteur_thermique_orchestrateur")
+
+    def _run_carburant_analysis(self, rapport: Dict[str, Any]) -> None:
+        cfg = self.analyses.get("carburant")
+        if not isinstance(cfg, Mapping) or not cfg:
+            return
+        bloc: Dict[str, Any] = {"configuration": _to_jsonable(dict(cfg))}
+        try:
+            if cfg.get("melange") and callable(creer_melange):
+                melange_cfg = cfg.get("melange")
+                if isinstance(melange_cfg, Mapping):
+                    composants = melange_cfg.get("composants")
+                    nom = str(melange_cfg.get("nom", "Melange Personnalise"))
+                    if isinstance(composants, Mapping):
+                        carburant = creer_melange(dict(composants), nom=nom)
+                        bloc["melange"] = _to_jsonable(carburant.resume() if hasattr(carburant, "resume") else carburant)
+            if cfg.get("cle") and callable(get_carburant):
+                carburant = get_carburant(str(cfg.get("cle")))
+                bloc["carburant"] = _to_jsonable(carburant.resume() if hasattr(carburant, "resume") else carburant)
+            if cfg.get("pire_cas") and callable(get_pire_carburant):
+                pire_cfg = cfg.get("pire_cas")
+                if isinstance(pire_cfg, Mapping):
+                    cles = pire_cfg.get("cles")
+                    objectif = str(pire_cfg.get("objectif", "puissance"))
+                else:
+                    cles = cfg.get("cles")
+                    objectif = str(cfg.get("objectif", "puissance"))
+                carburant = get_pire_carburant(cles=cles, objectif=objectif)
+                bloc["pire_cas"] = _to_jsonable(carburant.resume() if hasattr(carburant, "resume") else carburant)
+            if cfg.get("lister") and callable(lister_carburants):
+                bloc["bibliotheque"] = _to_jsonable(lister_carburants())
+        except Exception as exc:
+            bloc["erreur"] = str(exc)
+            _push_inconnue(rapport, "partielles", "carburant", str(exc))
+        rapport["rapports"]["composants"]["carburant"] = bloc
+
+    def _build_systeme_complet_fallback(self, rapport: Dict[str, Any]) -> None:
+        """
+        Synthèse système interne utilisée seulement quand SystemeComplet ne tourne pas.
+        Elle ne remplace pas les calculs spécialisés : elle agrège ce qui existe déjà.
+        """
+        if isinstance(_deep_get(rapport, "rapports", "composants", "systeme_complet"), dict):
+            return
+
+        composants = _safe_dict(_deep_get(rapport, "rapports", "composants"))
+        analyses_sys = self.analyses.get("systeme_complet") if isinstance(self.analyses.get("systeme_complet"), Mapping) else {}
+
+        rep_me = _safe_dict(composants.get("moteur_electrique_orchestrateur") or composants.get("moteur_electrique"))
+        rep_batt = _safe_dict(composants.get("batterie_orchestrateur") or composants.get("batterie"))
+        rep_alt = _safe_dict(composants.get("alternateur_orchestrateur") or composants.get("alternateur_bus_dc") or composants.get("alternateur_point"))
+        rep_mt = _safe_dict(composants.get("moteur_thermique_orchestrateur") or composants.get("moteur_thermique_definition"))
+        rep_boite = _safe_dict(composants.get("boite_crabots_orchestrateur") or composants.get("boite_point") or composants.get("boite_chaine"))
+        rep_arch = _safe_dict(composants.get("architecture_orchestrateur") or composants.get("architecture"))
+
+        tension_bus = _first_finite(
+            _extract_first_report_value(rep_me, "definition.tension_bus_v", "entree.tension_systeme_v"),
+            _extract_first_report_value(rep_batt, "entrees.tension_nominale_v", "electrique.tension_nominale_v", "dimensionnement_fin.rapport.tension_nominale_pack_v"),
+            _extract_first_report_value(rep_alt, "sortie_electrique.tension_v"),
+            _safe_dict(analyses_sys).get("tension_bus_dc_v"),
+        )
+        puissance_bus = _first_finite(
+            _extract_first_report_value(rep_alt, "sortie_electrique.puissance_utile_w", "mecanique.puissance_mecanique_dimensionnante_w"),
+            _extract_first_report_value(rep_me, "synthese.puissance_max_w", "definition.puissance_max_w"),
+            _safe_dict(analyses_sys).get("puissance_elec_alt_cible_w"),
+            _safe_dict(analyses_sys).get("puissance_pic_kw") * 1000.0 if _is_finite(_safe_dict(analyses_sys).get("puissance_pic_kw")) else None,
+        )
+
+        # Contexte moteur thermique, directement compatible avec _context_moteur.
+        mt_entrees = _safe_dict(rep_mt.get("entrees"))
+        mt_synth = _safe_dict(rep_mt.get("synthese"))
+        mt_puissance = _first_finite(
+            mt_synth.get("puissance_frein_estimee_w"),
+            mt_synth.get("puissance_indiquee_w"),
+            _safe_dict(analyses_sys).get("puissance_utile_w"),
+            _safe_dict(self.analyses.get("moteur_thermique_definition")).get("puissance_visee_w"),
+        )
+        mt_rpm = _first_finite(
+            mt_entrees.get("regime_tr_min"),
+            _safe_dict(analyses_sys).get("vitesse_moteur_thermique_rpm"),
+            _safe_dict(self.analyses.get("moteur_thermique_definition")).get("rpm"),
+        )
+        mt_couple = None
+        if mt_puissance is not None and mt_rpm is not None and mt_rpm > 0:
+            mt_couple = mt_puissance / (2.0 * math.pi * mt_rpm / 60.0)
+
+        fallback = {
+            "meta": {
+                "mode": "fallback_STHO_ME_sans_SystemeComplet",
+                "role": "agrégation des rapports composants déjà calculés",
+            },
+            "synthese": {
+                "vehicule": {
+                    "tension_bus_dc_v": tension_bus,
+                    "puissance_bus_dc_design_w": puissance_bus,
+                },
+                "moteur_thermique": {
+                    "architecture": _first_non_none(mt_entrees.get("architecture"), _safe_dict(analyses_sys).get("architecture_forcee")),
+                    "nombre_cylindres": _safe_int(mt_entrees.get("nombre_cylindres")),
+                    "alesage_m": _first_finite(mt_entrees.get("alesage_m"), _safe_dict(analyses_sys).get("alesage_m")),
+                    "course_m": _first_finite(mt_entrees.get("course_m"), _safe_dict(analyses_sys).get("course_m")),
+                    "rpm_nominal": mt_rpm,
+                    "pression_max_pa": _first_finite(mt_entrees.get("pression_max_pa"), _safe_dict(analyses_sys).get("pression_max_pa")),
+                    "pme_pa": _first_finite(mt_entrees.get("pression_moyenne_effective_pa"), _safe_dict(analyses_sys).get("pme_pa")),
+                    "couple_requis_Nm": mt_couple,
+                    "puissance_requise_W": mt_puissance,
+                },
+                "batterie": {
+                    "energie_utile_kwh": _first_finite(
+                        _extract_first_report_value(rep_batt, "energies_utiles.energie_utile_finale_kwh", "dimensionnement.capacite_totale_kwh"),
+                        _safe_dict(analyses_sys).get("energie_utile_imposee_kwh"),
+                    ),
+                },
+                "alternateur": {
+                    "P_mecanique_W": _first_finite(_extract_first_report_value(rep_alt, "mecanique.puissance_mecanique_dimensionnante_w", "mecanique.puissance_mecanique_sur_pertes_connues_w")),
+                    "couple_mecanique_Nm": _first_finite(_extract_first_report_value(rep_alt, "mecanique.couple_mecanique_dimensionnant_nm", "mecanique.couple_sur_pertes_connues_nm")),
+                },
+                "boite_crabots": _safe_dict(rep_boite.get("synthese")),
+                "architecture": _safe_dict(rep_arch.get("synthese")),
+            },
+            "liaisons": {
+                "bus_dc": {"V_bus_dc_v": tension_bus, "P_bus_dc_design_w": puissance_bus},
+                "rpm_moteur_thermique": mt_rpm,
+                "pression_max_pa": _first_finite(mt_entrees.get("pression_max_pa"), _safe_dict(analyses_sys).get("pression_max_pa")),
+                "pme": {"pme_pa_utilisee_ou_requise": _first_finite(mt_entrees.get("pression_moyenne_effective_pa"), _safe_dict(analyses_sys).get("pme_pa"))},
+            },
+            "sources": sorted(k for k, v in composants.items() if isinstance(v, dict)),
+            "inconnues": {"impossibles": [], "partielles": []},
+            "notes_modele": [
+                "SystemeComplet n'est pas disponible ou n'a pas retourné de rapport ; STHO_ME produit une synthèse de secours sans ajouter de cotes.",
+                "Cette synthèse de secours agrège seulement les grandeurs déjà présentes dans les composants et analyses.",
+            ],
+        }
+        if tension_bus is None:
+            _push_inconnue(fallback, "partielles", "tension_bus_dc_v", "Non trouvée dans moteur électrique, batterie, alternateur ou analyses systeme_complet.")
+        if puissance_bus is None:
+            _push_inconnue(fallback, "partielles", "puissance_bus_dc_design_w", "Non trouvée dans alternateur, moteur électrique ou analyses systeme_complet.")
+        if mt_rpm is None:
+            _push_inconnue(fallback, "partielles", "rpm_moteur_thermique", "Non trouvé dans moteur thermique ou analyses systeme_complet.")
+
+        rapport["rapports"]["composants"]["systeme_complet"] = _to_jsonable(fallback)
+        _merge_inconnues(rapport, fallback, prefix="systeme_complet_fallback")
+        _add_note(rapport, "Synthèse systeme_complet générée par fallback interne STHO_ME.")
+
+    # ------------------------------------------------------------------
     # Analyses des composants
     # ------------------------------------------------------------------
     def _run_component_analyses(self, rapport: Dict[str, Any]) -> None:
+        self._run_carburant_analysis(rapport)
+        self._run_component_orchestrateurs_directs(rapport)
         self._run_systeme_complet_analysis(rapport)
         self._run_optional_component_analysis(rapport, "moteur_electrique", "moteur_electrique", "analyser")
         self._run_optional_component_analysis(rapport, "batterie", "batterie", "analyser_dimensionnement")
@@ -992,6 +1406,7 @@ class STHO_ME:
         self._run_optional_component_analysis(rapport, "moteur_thermique_bilan_carburant", "moteur_thermique", "analyser_bilan_carburant")
         self._run_optional_component_analysis(rapport, "boite_point", "boite_crabots", "analyser_point")
         self._run_optional_component_analysis(rapport, "boite_chaine", "boite_crabots", "analyser_chaine_moteur_alternateur")
+        self._build_systeme_complet_fallback(rapport)
 
     def _run_systeme_complet_analysis(self, rapport: Dict[str, Any]) -> None:
         payload = self.analyses.get("systeme_complet")
@@ -1191,11 +1606,19 @@ class STHO_ME:
             return
 
         kwargs = {
-            "systeme_complet": self.systeme_complet_obj,
+            "systeme_complet": self.systeme_complet_obj or _deep_get(rapport, "rapports", "composants", "systeme_complet"),
             "moteur_thermique": self.composants_obj.get("moteur_thermique"),
+            "moteur_electrique": self.composants_obj.get("moteur_electrique"),
+            "batterie": self.composants_obj.get("batterie"),
+            "alternateur": self.composants_obj.get("alternateur"),
+            "boite_crabots": self.composants_obj.get("boite_crabots"),
+            "architecture": self.composants_obj.get("architecture"),
             "rapport_backend": _deep_get(rapport, "rapports", "composants", "systeme_complet"),
             "rapports_pieces": _safe_dict(_deep_get(rapport, "rapports", "pieces")),
             "analyses_composants": _safe_dict(_deep_get(rapport, "rapports", "composants")),
+            "objets_serialises": _safe_dict(rapport.get("objets")),
+            "configs_composants": _safe_dict(self.composants),
+            "configs_analyses": _safe_dict(self.analyses),
             **{k: self.pieces_obj.get(k) for k in PIECE_BUILD_ORDER},
         }
         try:
@@ -1205,7 +1628,17 @@ class STHO_ME:
             rapport["rapports"]["optimisation"] = {"erreur": str(exc)}
             return
 
-        rep = _call_method_filtered(opt, "analyser", {}, rapport=rapport, label="optimisation.analyser")
+        opt_params = dict(self.analyses.get("optimisation", {}) or {})
+        active_method = "optimiser_et_recalculer" if hasattr(opt, "optimiser_et_recalculer") else ("optimiser_composants" if hasattr(opt, "optimiser_composants") else "analyser")
+        rep = _call_method_filtered(
+            opt,
+            active_method,
+            opt_params,
+            rapport=rapport,
+            label=f"optimisation.{active_method}",
+        )
+        if rep is None and active_method != "analyser":
+            rep = _call_method_filtered(opt, "analyser", {}, rapport=rapport, label="optimisation.analyser")
         rapport["rapports"]["optimisation"] = _to_jsonable(rep) if rep is not None else {"note": "Aucun rapport d'optimisation retourné."}
         if rep is not None:
             _merge_inconnues(rapport, rep, prefix="optimisation")
