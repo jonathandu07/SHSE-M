@@ -1204,30 +1204,88 @@ class PdfFolderScreen(Screen):
 
     def on_enter(self, *args):
         self.root.clear_widgets()
+        app = App.get_running_app()
         top = BoxLayout(size_hint_y=None, height=60, spacing=10)
         top.add_widget(Label(text="DOSSIER DES FICHES PDF", font_size="22sp",
                              bold=True, color=COLORS["BF"]))
+        export_all = ModernButton(text="GÉNÉRER TOUT", size_hint_x=None, width=180)
+        export_all.bind(on_press=lambda *_: self.generate_all_pdfs(app))
+        top.add_widget(export_all)
         back = ModernButton(text="RETOUR", size_hint_x=None, width=160)
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
         top.add_widget(back)
         self.root.add_widget(top)
-        pdf_dir = os.path.join(BASE_DIR, "output", "datasheets", "pieces")
+
+        actions = BoxLayout(size_hint_y=None, height=52, spacing=10)
+        open_root = ModernButton(text="OUVRIR DOSSIER", size_hint_x=None, width=180)
+        open_root.bind(on_press=lambda *_: self.open_datasheet_root())
+        actions.add_widget(open_root)
+        gen_components = ModernButton(text="PDF COMPOSANTS", size_hint_x=None, width=180)
+        gen_components.bind(on_press=lambda *_: self.generate_component_pdfs(app))
+        actions.add_widget(gen_components)
+        gen_pieces = ModernButton(text="PDF PIÈCES", size_hint_x=None, width=180)
+        gen_pieces.bind(on_press=lambda *_: self.generate_piece_pdfs(app))
+        actions.add_widget(gen_pieces)
+        self.root.add_widget(actions)
+
         sc = ScrollView()
         grid = GridLayout(cols=1, spacing=10, size_hint_y=None)
         grid.bind(minimum_height=grid.setter("height"))
-        if os.path.exists(pdf_dir):
-            for f in sorted(f for f in os.listdir(pdf_dir) if f.lower().endswith(".pdf")):
-                row = BoxLayout(size_hint_y=None, height=44, spacing=10)
-                row.add_widget(Label(text=f.replace(".pdf", "").upper(), color=COLORS["GAXD"]))
-                btn = ModernButton(text="OUVRIR", size_hint_x=None, width=140, font_size="13sp")
-                fp = os.path.join(pdf_dir, f)
-                btn.bind(on_press=lambda *_, p=fp: os.startfile(p))
-                row.add_widget(btn)
-                grid.add_widget(row)
-        else:
-            grid.add_widget(Label(text="Aucun PDF généré.", color=COLORS["RF"]))
+        self._add_pdf_section(grid, "PIÈCES", _datasheet_root() / "pieces")
+        self._add_pdf_section(grid, "COMPOSANTS", _datasheet_root() / "components")
         sc.add_widget(grid)
         self.root.add_widget(sc)
+
+    def _add_pdf_section(self, parent, title: str, directory: Path):
+        parent.add_widget(Label(text=title, color=COLORS["BF"], bold=True, size_hint_y=None, height=32))
+        if directory.exists():
+            files = sorted(f for f in directory.iterdir() if f.suffix.lower() == ".pdf")
+            if files:
+                for fp in files:
+                    row = BoxLayout(size_hint_y=None, height=44, spacing=10)
+                    row.add_widget(Label(text=fp.stem.upper(), color=COLORS["GAXD"]))
+                    btn = ModernButton(text="OUVRIR", size_hint_x=None, width=140, font_size="13sp")
+                    btn.bind(on_press=lambda *_, p=str(fp): os.startfile(p))
+                    row.add_widget(btn)
+                    parent.add_widget(row)
+                return
+        parent.add_widget(Label(text=f"Aucun PDF généré pour {title.lower()}.", color=COLORS["RF"], size_hint_y=None, height=30))
+
+    def open_datasheet_root(self):
+        root = _datasheet_root()
+        root.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(root))
+
+    def generate_piece_pdfs(self, app):
+        report = _safe_dict(app.simulation_results)
+        try:
+            generated = _export_full_report_pdfs(report, app.engine_params or {})
+            show_popup("PDF générés", f"{len(generated['pieces'])} fiches pièces générées.")
+            self.on_enter()
+        except Exception as exc:
+            show_popup("Erreur PDF", str(exc))
+
+    def generate_component_pdfs(self, app):
+        report = _safe_dict(app.simulation_results)
+        generated = []
+        try:
+            for component_name in sorted(_safe_dict(_safe_dict(report.get("inventaire")).get("composants")).keys()):
+                display_name = str(component_name).replace("_", " ").upper()
+                generated.append(_export_component_pdf_from_report(report, app.engine_params or {}, component_name, display_name))
+            show_popup("PDF générés", f"{len(generated)} fiches composants générées.")
+            self.on_enter()
+        except Exception as exc:
+            show_popup("Erreur PDF", str(exc))
+
+    def generate_all_pdfs(self, app):
+        report = _safe_dict(app.simulation_results)
+        try:
+            generated = _export_full_report_pdfs(report, app.engine_params or {})
+            total = len(generated["pieces"]) + len(generated["components"])
+            show_popup("PDF générés", f"{total} fiches générées dans :\n{generated['root']}")
+            self.on_enter()
+        except Exception as exc:
+            show_popup("Erreur PDF", str(exc))
 
 
 class DetailedDatasheetScreen(Screen):
