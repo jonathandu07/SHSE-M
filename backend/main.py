@@ -49,6 +49,8 @@ Alternateur = _import_attr(("backend.components.alternateur.alternateur", "backe
 MoteurThermique = _import_attr(("backend.components.moteur_thermique.moteur_thermique", "backend.components.moteur_thermique", "moteur_thermique"), "MoteurThermique", default=None)
 BoiteCrabots = _import_attr(("backend.components.boite_crabots.boite_crabots", "backend.components.boite_crabots", "boite_crabots"), "BoiteCrabots", default=None)
 Architecture = _import_attr(("backend.components.architechture.architecture", "backend.components.architecture.architecture", "backend.components.architechture", "architecture"), "Architecture", default=None)
+Carburant = _import_attr(("backend.components.moteur_thermique.modules.calcul_carburant", "backend.components.moteur_thermique.modules.calcul_carburant"), "Carburant", default=None)
+CompositionElementaireCombustible = _import_attr(("backend.components.moteur_thermique.modules.calcul_carburant", "backend.components.moteur_thermique.modules.calcul_carburant"), "CompositionElementaireCombustible", default=None)
 
 Cylindre = _import_attr(("backend.components.moteur_thermique.pieces.cylindre", "cylindre"), "Cylindre", default=None)
 Piston = _import_attr(("backend.components.moteur_thermique.pieces.piston", "piston"), "Piston", default=None)
@@ -426,6 +428,183 @@ def _safe_call_report(obj: Any) -> Optional[Dict[str, Any]]:
         except Exception:
             pass
     return None
+
+
+def _fuel_catalog() -> Dict[str, Any]:
+    if Carburant is None or CompositionElementaireCombustible is None:
+        return {}
+    return {
+        "diesel": Carburant(
+            nom="diesel",
+            pci_j_kg=42.7e6,
+            densite_kg_m3=835.0,
+            composition=CompositionElementaireCombustible(carbone_mol=12.0, hydrogene_mol=23.0),
+        ),
+        "essence": Carburant(
+            nom="essence",
+            pci_j_kg=43.0e6,
+            densite_kg_m3=745.0,
+            composition=CompositionElementaireCombustible(carbone_mol=8.0, hydrogene_mol=18.0),
+        ),
+        "ethanol": Carburant(
+            nom="ethanol",
+            pci_j_kg=26.8e6,
+            densite_kg_m3=789.0,
+            composition=CompositionElementaireCombustible(carbone_mol=2.0, hydrogene_mol=6.0, oxygene_mol=1.0),
+        ),
+        "methanol": Carburant(
+            nom="methanol",
+            pci_j_kg=19.9e6,
+            densite_kg_m3=792.0,
+            composition=CompositionElementaireCombustible(carbone_mol=1.0, hydrogene_mol=4.0, oxygene_mol=1.0),
+        ),
+        "gpl": Carburant(
+            nom="gpl",
+            pci_j_kg=46.1e6,
+            densite_kg_m3=540.0,
+            composition=CompositionElementaireCombustible(carbone_mol=3.0, hydrogene_mol=8.0),
+        ),
+        "gnv": Carburant(
+            nom="gnv",
+            pci_j_kg=50.0e6,
+            densite_kg_m3=0.72,
+            composition=CompositionElementaireCombustible(carbone_mol=1.0, hydrogene_mol=4.0),
+        ),
+        "hydrogene": Carburant(
+            nom="hydrogene",
+            pci_j_kg=120.0e6,
+            densite_kg_m3=0.084,
+            composition=CompositionElementaireCombustible(carbone_mol=0.0, hydrogene_mol=2.0),
+        ),
+    }
+
+
+def _normalize_multifuel_names(
+    carburant: Optional[Any],
+    carburants_autorises: Optional[Sequence[Any]] = None,
+    *,
+    mode_carburant: Optional[str] = None,
+) -> Tuple[str, ...]:
+    catalog = _fuel_catalog()
+    if not catalog:
+        return ()
+
+    names: list[str] = []
+    for raw in list(carburants_autorises or []):
+        key = str(raw).strip().lower()
+        if key in catalog and key not in names:
+            names.append(key)
+
+    fuel_token = None if carburant is None else str(carburant).strip().lower()
+    mode_token = None if mode_carburant is None else str(mode_carburant).strip().lower()
+    is_multi = mode_token in {"multi", "multicarburant", "multi_carburant", "multi_optimise_pire_cas"} or fuel_token in {None, "", "multi", "multicarburant", "multi_carburant"}
+
+    if names:
+        return tuple(names)
+    if is_multi:
+        return tuple(catalog.keys())
+    if fuel_token in catalog:
+        return (fuel_token,)
+    return ()
+
+
+def _build_multifuel_strategy_report(
+    *,
+    moteur_thermique: Any,
+    definition_moteur: Mapping[str, Any],
+    puissance_utile_w: Optional[float],
+) -> Optional[Dict[str, Any]]:
+    fuel_names = _normalize_multifuel_names(
+        definition_moteur.get("carburant"),
+        definition_moteur.get("carburants_autorises"),
+        mode_carburant=definition_moteur.get("mode_carburant"),
+    )
+    if len(fuel_names) <= 1:
+        return None
+
+    catalog = _fuel_catalog()
+    rendement_global = _safe_float(definition_moteur.get("rendement_global"))
+    resultats: Dict[str, Any] = {}
+    dimensionnant_nom: Optional[str] = None
+    dimensionnant_sig: Tuple[float, float, float] = (-1.0, -1.0, -1.0)
+    meilleur_nom: Optional[str] = None
+    meilleur_sig: Tuple[float, float, float] = (float("inf"), float("inf"), float("inf"))
+
+    for fuel_name in fuel_names:
+        carburant_obj = catalog.get(fuel_name)
+        if carburant_obj is None:
+            continue
+
+        item: Dict[str, Any] = {
+            "carburant": fuel_name,
+            "intrinseque": {
+                "pci_mj_kg": carburant_obj.pci_j_kg / 1e6,
+                "densite_kg_m3": carburant_obj.densite_kg_m3,
+                "densite_energetique_volumique_mj_l": (
+                    carburant_obj.densite_energetique_volumique_j_m3() / 1e9
+                    if carburant_obj.densite_kg_m3 is not None
+                    else None
+                ),
+                "afr_stoech_massique": carburant_obj.rapport_air_stoech_massique() if carburant_obj.composition is not None else carburant_obj.rapport_air_carburant_stoech_massique,
+            },
+        }
+
+        bilan = None
+        if moteur_thermique is not None and hasattr(moteur_thermique, "analyser_bilan_carburant"):
+            kwargs = _filter_kwargs_for_callable(
+                moteur_thermique.analyser_bilan_carburant,
+                {
+                    "carburant": carburant_obj,
+                    "puissance_utile_w": puissance_utile_w,
+                    "rendement_global": rendement_global,
+                },
+            )
+            try:
+                bilan = moteur_thermique.analyser_bilan_carburant(**kwargs)
+            except Exception as exc:
+                bilan = {"erreur": str(exc)}
+        item["bilan"] = bilan
+
+        bilan_block = _safe_dict(_safe_dict(bilan).get("bilan"))
+        debit_massique = _safe_float(bilan_block.get("debit_massique_carburant_kg_s"))
+        debit_volumique = _safe_float(bilan_block.get("debit_volumique_carburant_m3_s"))
+        puissance_chimique = _safe_float(bilan_block.get("puissance_chimique_w"))
+        item["dimensionnement"] = {
+            "debit_massique_carburant_kg_s": debit_massique,
+            "debit_volumique_carburant_m3_s": debit_volumique,
+            "puissance_chimique_w": puissance_chimique,
+        }
+        resultats[fuel_name] = item
+
+        worst_sig = (
+            -1.0 if debit_volumique is None else float(debit_volumique),
+            -1.0 if debit_massique is None else float(debit_massique),
+            -1.0 if puissance_chimique is None else float(puissance_chimique),
+        )
+        if worst_sig > dimensionnant_sig:
+            dimensionnant_sig = worst_sig
+            dimensionnant_nom = fuel_name
+
+        best_sig = (
+            float("inf") if debit_volumique is None else float(debit_volumique),
+            float("inf") if debit_massique is None else float(debit_massique),
+            float("inf") if puissance_chimique is None else float(puissance_chimique),
+        )
+        if best_sig < meilleur_sig:
+            meilleur_sig = best_sig
+            meilleur_nom = fuel_name
+
+    return {
+        "mode": "multi_carburant_optimise_sur_pire_cas",
+        "carburants_consideres": list(fuel_names),
+        "carburant_dimensionnant": dimensionnant_nom,
+        "carburant_optimal": meilleur_nom,
+        "comparatif": resultats,
+        "notes_modele": [
+            "Le dimensionnement conservatif retient le carburant le plus penalisant en debit massique et volumique.",
+            "Le carburant optimal est le plus favorable parmi ceux explicitement compares sur les donnees calculables disponibles.",
+        ],
+    }
 
 
 def _extract_component_piece_reports(rapports_composants: Mapping[str, Any]) -> Dict[str, Any]:
