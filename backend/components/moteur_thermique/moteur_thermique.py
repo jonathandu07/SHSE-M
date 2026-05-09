@@ -1576,6 +1576,268 @@ def exemple_minimal() -> Dict[str, Any]:
     return orch.analyser()
 
 
+@dataclass
+class MoteurThermique:
+    nombre_cylindres: Optional[int] = None
+    temps_moteur: int = 4
+    alesage_m: Optional[float] = None
+    course_m: Optional[float] = None
+    rpm_nominal: Optional[float] = None
+    pme_nominale_pa: Optional[float] = None
+    rendement_mecanique_nominal: Optional[float] = 0.85
+    architecture: Optional[str] = None
+    puissance_nominale_visee_w: Optional[float] = None
+    type_puissance_nominale: Optional[str] = "frein"
+    pression_max_pa: Optional[float] = None
+    contrainte_admissible_pa: Optional[float] = None
+    densite_materiau_kg_m3: Optional[float] = None
+    cout_matiere_eur_kg: Optional[float] = None
+    rendement_indique_cible_min: Optional[float] = None
+    rendement_mecanique_cible_min: Optional[float] = None
+    masse_estimee_max_kg: Optional[float] = None
+    cout_matiere_max_eur: Optional[float] = None
+    indice_maintenance_max: Optional[float] = None
+    duree_vie_cible_h: Optional[float] = None
+    vitesse_piston_max_ms: Optional[float] = None
+    ratio_course_alesage_max: Optional[float] = None
+    ratio_course_alesage_cible: Optional[float] = None
+    taux_compression_nominal: Optional[float] = None
+    volume_mort_nominal_m3: Optional[float] = None
+    facteur_securite_cylindre: float = 1.5
+    carburant: Optional[Any] = None
+    architectures_autorisees: Optional[Tuple[str, ...]] = None
+    architecture_forcee: Optional[str] = None
+
+    def _to_entrees(self, **overrides: Any) -> EntreesOrchestrateurMoteurThermique:
+        regime = _first_finite(overrides.get("rpm"), overrides.get("regime_tr_min"), self.rpm_nominal)
+        pme = _first_finite(
+            overrides.get("pression_moyenne_effective_pa"),
+            overrides.get("pme_pa"),
+            self.pme_nominale_pa,
+        )
+        return EntreesOrchestrateurMoteurThermique(
+            alesage_m=_first_finite(overrides.get("alesage_m"), self.alesage_m),
+            course_m=_first_finite(overrides.get("course_m"), self.course_m),
+            nombre_cylindres=_safe_int(_first_non_none(overrides.get("nombre_cylindres"), self.nombre_cylindres)),
+            temps_moteur=_safe_int(_first_non_none(overrides.get("temps_moteur"), self.temps_moteur)) or 4,
+            regime_tr_min=regime,
+            pression_moyenne_effective_pa=pme,
+            pression_max_pa=_first_finite(overrides.get("pression_max_pa"), self.pression_max_pa),
+            rendement_global=_first_finite(overrides.get("rendement_global"), self.rendement_mecanique_nominal, self.rendement_mecanique_cible_min),
+            puissance_utile_w=_first_finite(overrides.get("puissance_utile_w"), self.puissance_nominale_visee_w),
+            taux_compression=_first_finite(overrides.get("taux_compression"), self.taux_compression_nominal),
+            volume_mort_m3=_first_finite(overrides.get("volume_mort_m3"), self.volume_mort_nominal_m3),
+            vitesse_piston_max_ms=_first_finite(overrides.get("vitesse_piston_max_ms"), self.vitesse_piston_max_ms),
+            ratio_mince_max=0.1,
+            contrainte_admissible_pa=_first_finite(overrides.get("contrainte_admissible_pa"), self.contrainte_admissible_pa),
+            facteur_securite_cylindre=float(_first_non_none(overrides.get("facteur_securite_cylindre"), self.facteur_securite_cylindre, 1.5)),
+            carburant=_first_non_none(overrides.get("carburant"), self.carburant),
+        )
+
+    @staticmethod
+    def _from_orchestrateur_report(report: Dict[str, Any]) -> Dict[str, Any]:
+        synth = _safe_dict(report.get("synthese"))
+        geo = _safe_dict(report.get("geometrie"))
+        bore_m = _first_finite(_extract_first_number(report.get("entrees"), "alesage_m"), _extract_first_number(geo.get("cylindree_unitaire"), "B"))
+        course_m = _first_finite(_extract_first_number(report.get("entrees"), "course_m"), _extract_first_number(geo.get("cylindree_unitaire"), "S"))
+        cyl_tot = _first_finite(synth.get("cylindree_totale_m3"), geo.get("cylindree_totale_m3"))
+        couple = _first_finite(synth.get("couple_reference_nm"))
+        p_ind = _first_finite(synth.get("puissance_indiquee_w"))
+        p_frein = _first_finite(synth.get("puissance_frein_estimee_w"), p_ind)
+        ep = _first_finite(_extract_first_number(geo.get("epaisseur_paroi"), "t", "epaisseur_m", "epaisseur_retenue_m"))
+        return {
+            "conception": {
+                "alesage_m": bore_m,
+                "course_m": course_m,
+                "nombre_cylindres": _safe_int(_extract_first_number(report.get("entrees"), "nombre_cylindres")),
+                "temps_moteur": _safe_int(_extract_first_number(report.get("entrees"), "temps_moteur")),
+            },
+            "dimensionnement": {
+                "cylindree_totale_m3": cyl_tot,
+                "cylindree_totale_cc": cyl_tot * 1e6 if cyl_tot is not None else None,
+                "epaisseur_cylindre_retenue_m": ep,
+                "couple_max_Nm": couple,
+            },
+            "resultats": {
+                "puissance_indiquee_W": p_ind,
+                "puissance_frein_estimee_W": p_frein,
+                "couple_estime_Nm": couple,
+                "rendement_mecanique_estime": _first_finite(synth.get("rendement_mecanique_estime")),
+            },
+            "pertes": {
+                "puissance_frottement_total_W": _first_finite(synth.get("puissance_frottement_total_w")),
+            },
+            "rapport_brut": report,
+            "inconnues": _safe_dict(report.get("inconnues")),
+            "alertes": _safe_dict(report.get("alertes")),
+            "notes_modele": list(report.get("notes_modele", []) or []),
+        }
+
+    @classmethod
+    def definir_depuis_exigences(
+        cls,
+        *,
+        puissance_visee_w: float,
+        type_puissance: str = "frein",
+        rpm: float,
+        pression_moyenne_effective_pa: float,
+        temps_moteur: int,
+        rendement_mecanique: Optional[float] = None,
+        vitesse_piston_max_ms: Optional[float] = None,
+        ratio_course_alesage_max: Optional[float] = None,
+        ratio_course_alesage_cible: Optional[float] = None,
+        L_max_m: Optional[float] = None,
+        W_max_m: Optional[float] = None,
+        architectures_autorisees: Optional[Tuple[str, ...]] = None,
+        architecture_forcee: Optional[str] = None,
+        pression_max_pa: Optional[float] = None,
+        contrainte_admissible_pa: Optional[float] = None,
+        facteur_securite_cylindre: Optional[float] = None,
+        densite_materiau_kg_m3: Optional[float] = None,
+        cout_matiere_eur_kg: Optional[float] = None,
+        rendement_indique_cible_min: Optional[float] = None,
+        rendement_mecanique_cible_min: Optional[float] = None,
+        masse_estimee_max_kg: Optional[float] = None,
+        cout_matiere_max_eur: Optional[float] = None,
+        indice_maintenance_max: Optional[float] = None,
+        duree_vie_cible_h: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        report: Dict[str, Any] = {"inconnues": {"impossibles": [], "partielles": []}, "notes_modele": []}
+        try:
+            P = _require_positive("puissance_visee_w", puissance_visee_w, strict=True)
+            n = _require_positive("rpm", rpm, strict=True)
+            pme = _require_positive("pression_moyenne_effective_pa", pression_moyenne_effective_pa, strict=True)
+            tm = _safe_int(temps_moteur) or 4
+            eta = _first_finite(rendement_mecanique, rendement_mecanique_cible_min, 0.85) or 0.85
+            f = (n / 120.0) if tm == 4 else (n / 60.0)
+            vd_tot = P / max(pme * f * eta, 1e-12)
+            allowed = tuple(architectures_autorisees or ("L", "V", "W", "Etoile", "Boxer"))
+            arch = architecture_forcee or allowed[0]
+            n_cyl = 4 if arch in {"L", "Boxer"} else 6 if arch == "V" else 8
+            if L_max_m is not None and W_max_m is not None:
+                arch_mod = _import_module_any("backend.components.architechture.architecture", "backend.components.architecture")
+                ArchCls = getattr(arch_mod, "Architecture", None) if arch_mod else None
+                if ArchCls is not None:
+                    try:
+                        arch_report = ArchCls().analyser(
+                            puissance_cible_w=P,
+                            regime_tr_min=n,
+                            pme_pa=pme,
+                            vitesse_piston_max_ms=vitesse_piston_max_ms,
+                            longueur_dispo_m=L_max_m,
+                            largeur_dispo_m=W_max_m,
+                            architectures_autorisees=list(allowed),
+                            architecture_forcee=architecture_forcee,
+                        )
+                        best = _safe_dict(arch_report.get("meilleur"))
+                        n_cyl = _safe_int(best.get("N_cyl")) or n_cyl
+                        arch = str(best.get("architecture") or arch)
+                        report["evaluation_conception"] = arch_report
+                    except Exception as exc:
+                        report["notes_modele"].append(f"Analyse architecture indisponible: {exc}")
+            ratio = _first_finite(ratio_course_alesage_cible, ratio_course_alesage_max, 1.0) or 1.0
+            bore = ((4.0 * (vd_tot / max(n_cyl, 1))) / (math.pi * ratio)) ** (1.0 / 3.0)
+            course = ratio * bore
+            moteur = cls(
+                nombre_cylindres=n_cyl,
+                temps_moteur=tm,
+                alesage_m=bore,
+                course_m=course,
+                rpm_nominal=n,
+                pme_nominale_pa=pme,
+                rendement_mecanique_nominal=eta,
+                architecture=arch,
+                puissance_nominale_visee_w=P,
+                type_puissance_nominale=type_puissance,
+                pression_max_pa=pression_max_pa,
+                contrainte_admissible_pa=contrainte_admissible_pa,
+                densite_materiau_kg_m3=densite_materiau_kg_m3,
+                cout_matiere_eur_kg=cout_matiere_eur_kg,
+                rendement_indique_cible_min=rendement_indique_cible_min,
+                rendement_mecanique_cible_min=rendement_mecanique_cible_min,
+                masse_estimee_max_kg=masse_estimee_max_kg,
+                cout_matiere_max_eur=cout_matiere_max_eur,
+                indice_maintenance_max=indice_maintenance_max,
+                duree_vie_cible_h=duree_vie_cible_h,
+                vitesse_piston_max_ms=vitesse_piston_max_ms,
+                ratio_course_alesage_max=ratio_course_alesage_max,
+                ratio_course_alesage_cible=ratio_course_alesage_cible,
+                facteur_securite_cylindre=float(facteur_securite_cylindre or 1.5),
+                architectures_autorisees=allowed,
+                architecture_forcee=architecture_forcee,
+            )
+            report["moteur_defini"] = moteur
+            report["dimensionnement"] = {
+                "cylindree_totale_m3": vd_tot,
+                "cylindree_totale_cc": vd_tot * 1e6,
+                "alesage_m": bore,
+                "course_m": course,
+                "nombre_cylindres": n_cyl,
+                "architecture": arch,
+            }
+            return report
+        except Exception as exc:
+            _push_inconnue(report, "impossibles", "moteur_thermique_definition", str(exc))
+            return report
+
+    def analyser(self, *, strict: bool = False, **overrides: Any) -> Dict[str, Any]:
+        return OrchestrateurMoteurThermique(self._to_entrees(**overrides)).analyser(strict=strict)
+
+    def analyser_geometrie_definition(self, **kwargs: Any) -> Dict[str, Any]:
+        report = self.analyser(**kwargs)
+        return {
+            "geometrie": _safe_dict(report.get("geometrie")),
+            "cylindre_complet": _safe_dict(report.get("cylindre")),
+            "rapport_brut": report,
+            "inconnues": _safe_dict(report.get("inconnues")),
+            "notes_modele": list(report.get("notes_modele", []) or []),
+        }
+
+    def analyser_cycle_mecanique(self, **kwargs: Any) -> Dict[str, Any]:
+        report = self.analyser(**kwargs)
+        return {
+            "cinematique": _safe_dict(report.get("cinematique")),
+            "efforts": _safe_dict(report.get("efforts")),
+            "cycle_mecanique": _safe_dict(report.get("cycle_mecanique")),
+            "rapport_piston": _safe_dict(report.get("assemblage")).get("rapport_piston"),
+            "rapport_brut": report,
+            "inconnues": _safe_dict(report.get("inconnues")),
+            "notes_modele": list(report.get("notes_modele", []) or []),
+        }
+
+    def analyser_point_de_fonctionnement(self, **kwargs: Any) -> Dict[str, Any]:
+        report = self.analyser(**kwargs)
+        out = self._from_orchestrateur_report(report)
+        out["entrees"] = _safe_dict(report.get("entrees"))
+        return out
+
+    def analyser_bilan_carburant(self, *, carburant: Optional[Any] = None, puissance_utile_w: Optional[float] = None, rendement_global: Optional[float] = None, **kwargs: Any) -> Dict[str, Any]:
+        fuel = carburant if carburant is not None else self.carburant
+        power = _first_finite(puissance_utile_w, self.puissance_nominale_visee_w)
+        eta = _first_finite(rendement_global, self.rendement_mecanique_nominal, self.rendement_mecanique_cible_min)
+        report: Dict[str, Any] = {"entrees": {}, "bilan": {}, "inconnues": {"impossibles": [], "partielles": []}, "notes_modele": []}
+        if fuel is None:
+            _push_inconnue(report, "partielles", "carburant", "Carburant requis pour evaluer le bilan.")
+            return report
+        pci = _first_finite(getattr(fuel, "pci_j_kg", None))
+        rho = _first_finite(getattr(fuel, "densite_kg_m3", None))
+        report["entrees"]["carburant"] = getattr(fuel, "nom", str(fuel))
+        report["entrees"]["puissance_utile_w"] = power
+        report["entrees"]["rendement_global"] = eta
+        if power is None or pci is None or eta is None or eta <= 0.0:
+            _push_inconnue(report, "partielles", "debit_carburant", "Puissance utile, PCI et rendement global sont requis.")
+            return report
+        pchim = power / eta
+        mdot = pchim / pci
+        vdot = mdot / rho if rho is not None and rho > 0.0 else None
+        report["bilan"] = {
+            "puissance_chimique_w": pchim,
+            "debit_massique_carburant_kg_s": mdot,
+            "debit_volumique_carburant_m3_s": vdot,
+        }
+        return report
+
+
 __all__ = [
     "ConfigurationCarburant",
     "EntreesOrchestrateurMoteurThermique",
@@ -1583,11 +1845,6 @@ __all__ = [
     "MoteurThermique",
     "exemple_minimal",
 ]
-
-
-# Couche de compatibilite projet : le reste du backend attend encore un
-# symbole `MoteurThermique` exporte par ce module.
-MoteurThermique = OrchestrateurMoteurThermique
 
 
 if __name__ == "__main__":

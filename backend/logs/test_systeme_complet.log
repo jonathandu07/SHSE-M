@@ -1,0 +1,573 @@
+2026-05-09 20:50:56,029 - INFO - Starting test_systeme_analyser_full
+2026-05-09 20:50:56,033 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-09 20:50:56,036 - INFO - {
+  "meta": {
+    "orchestrateur": "SystemeComplet",
+    "mode": "compatibilite_calculable"
+  },
+  "entrees": {
+    "mission_batterie": {
+      "distance_km": null,
+      "conso_kwh_km": null,
+      "puissance_moyenne_kw": null,
+      "vitesse_moyenne_kmh": null,
+      "temps_charge_cible_h": null,
+      "puissance_pic_kw": null,
+      "duree_pic_s": null,
+      "energie_utile_imposee_kwh": null
+    },
+    "architecture": {
+      "longueur_dispo_m": null,
+      "largeur_dispo_m": null,
+      "hauteur_dispo_m": null
+    },
+    "boite": {
+      "rapports_boite_candidates": null,
+      "moment_flechissant_nm": null
+    },
+    "puissance_bus_dc_w": null,
+    "production_electrique_sortie_w": null,
+    "moteur_thermique_criteres": {
+      "pression_max_pa": null
+    }
+  },
+  "sous_systemes": {
+    "traction": {
+      "puissance_traction_w": 18716.600000000002,
+      "puissance_auxiliaire_w": 0.0
+    },
+    "alternateur": {
+      "composant": "alternateur_bus_dc",
+      "entrees": {
+        "puissance_bus_dc_w": 18716.600000000002,
+        "tension_bus_dc_v": 420.0,
+        "courant_bus_dc_a": 44.56333333333334,
+        "energie_a_recharger_kwh": null
+      },
+      "alternateur": {
+        "composant": "alternateur",
+        "entrees": {
+          "vitesse_rotation_rpm": 3000.0,
+          "vitesse_angulaire_rad_s": null,
+          "mode_electrique": "dc",
+          "tension_v": 420.0,
+          "courant_a": 44.56333333333334,
+          "facteur_puissance": 1.0,
+          "entree_puissance_ac": "VLL_IL",
+          "courant_est_ligne": true,
+          "puissance_electrique_cible_w": 18716.600000000002,
+          "connexion": "Y",
+          "nombre_poles": 12
+        },
+        "cinematique": {
+          "vitesse_rotation_rpm": 3000.0,
+          "vitesse_angulaire_rad_s": 314.1592653589793,
+          "frequence_synchrone_hz": 300.0
+        },
+        "electromagnetique": {
+          "flux_max_pole_wb": null,
+          "fem_phase_rms_v": null,
+          "fem_ligne_ligne_rms_v": null,
+          "nombre_spires_serie": null,
+          "facteur_enroulement": null,
+          "onde": "sinus"
+        },
+        "sortie_electrique": {
+          "mode": "dc",
+          "tension_v": 420.0,
+          "courant_a": 44.56333333333334,
+          "facteur_puissance": 1.0,
+          "puissance_utile_w": 18716.600000000002,
+          "courant_phase_rms_stator_a": null
+        },
+        "pertes": {
+          "resistance_phase_ohm": null,
+          "pertes_cuivre_w": null,
+          "pertes_fer_w": null,
+          "pertes_fixes_w": 0.0,
+          "pertes_connues_total_w": 0.0,
+          "pertes_connues_incompletes": true
+        },
+        "rendement": {
+          "rendement_impose": null,
+          "eta_sur_pertes_connues": 1.0,
+          "eta_sur_pertes_connues_est_partiel": true
+        },
+        "mecanique": {
+          "puissance_mecanique_sur_pertes_connues_w": 18716.600000000002,
+          "couple_sur_pertes_connues_nm": 59.57678815747537
+        },
+        "thermique": {},
+        "charge_batterie": {},
+        "pieces": {
+          "rotor": {
+            "piece": "rotor",
+            "resultats": {
+              "frequence_synchrone_hz": 300.0
+            },
+            "inconnues": {
+              "impossibles": [],
+              "partielles": [
+                {
+                  "nom": "couple_resistant_nm",
+                  "raison": "P_out, rendement imposé et vitesse non nulle requis pour une valeur dimensionnante."
+                }
+              ]
+            }
+          },
+          "stator": {
+            "piece": "stator",
+            "resultats": {
+              "fem_phase_rms_v": null,
+              "fem_ligne_ligne_rms_v": null,
+              "resistance_phase_ohm": null
+            },
+            "pertes": {
+              "P_cuivre_total_w": null,
+              "P_fer_total_w": null
+            },
+            "inconnues": {
+              "impossibles": [],
+              "partielles": [
+                {
+                  "nom": "fem_phase_rms_v",
+                  "raison": "Fréquence, spires, flux et facteur d'enroulement requis."
+                },
+                {
+                  "nom": "P_cuivre_total_w",
+                  "raison": "Courant phase et résistance phase requis."
+                },
+                {
+                  "nom": "P_fer_total_w",
+                  "raison": "Paramètres Steinmetz requis."
+                }
+              ]
+            }
+          },
+          "arbre": {
+            "piece": "arbre_alternateur",
+            "entrees": {
+              "couple_nm": 59.57678815747537
+            },
+            "contraintes": {
+              "couple_base": "sur_pertes_connues"
+            },
+            "inconnues": {
+              "impossibles": [],
+              "partielles": [
+                {
+                  "nom": "diametre_arbre_m",
+                  "raison": "Requis pour calculer la contrainte de torsion."
+                }
+              ]
+            }
+          },
+          "carter": {
+            "piece": "carter_alternateur",
+            "thermique": {
+              "puissance_pertes_connues_w": 0.0
+            },
+            "inconnues": {
+              "impossibles": [],
+              "partielles": [
+                {
+                  "nom": "echauffement",
+                  "raison": "Pertes connues et résistance thermique requises."
+                }
+              ]
+            }
+          },
+          "ventilateur": {
+            "piece": "ventilateur",
+            "resultats": {
+              "coeff_convection_estime_w_m2k": 5.477225575051662
+            },
+            "inconnues": {
+              "impossibles": [],
+              "partielles": [
+                {
+                  "nom": "delta_t_refroidissement_proxy_k",
+                  "raison": "h, surface d'échange et pertes connues requis."
+                }
+              ]
+            },
+            "notes_modele": [
+              "Coefficient de convection proxy h=0.1*sqrt(rpm), à remplacer par corrélation aéraulique réelle."
+            ]
+          },
+          "bobine_excitation": {
+            "piece": "bobine_excitation",
+            "entrees": {},
+            "resultats": {},
+            "inconnues": {
+              "impossibles": [],
+              "partielles": [
+                {
+                  "nom": "nombre_spires_excitation",
+                  "raison": "Requis pour caractériser la bobine d'excitation."
+                },
+                {
+                  "nom": "courant_excitation_a",
+                  "raison": "Requis pour calculer les pertes d'excitation."
+                },
+                {
+                  "nom": "resistance_excitation_ohm",
+                  "raison": "Fournir R excitation ou géométrie du fil."
+                }
+              ]
+            }
+          },
+          "roulement": {
+            "piece": "roulement_alternateur",
+            "entrees": {},
+            "resultats": {},
+            "inconnues": {
+              "impossibles": [],
+              "partielles": [
+                {
+                  "nom": "charge_radiale_roulement_n",
+                  "raison": "Requise pour la durée de vie L10."
+                }
+              ]
+            }
+          }
+        },
+        "imports": {
+          "erreurs_optionnelles": {}
+        },
+        "inconnues": {
+          "impossibles": [],
+          "partielles": [
+            {
+              "nom": "flux_max_pole_wb",
+              "raison": "Fournir flux_max_pole_wb ou induction_gap_t + aire_pole_m2."
+            },
+            {
+              "nom": "fem_induite",
+              "raison": "Calculable si fréquence, spires, flux et facteur d'enroulement sont fournis."
+            },
+            {
+              "nom": "resistance_phase_ohm",
+              "raison": "Fournir R_phase ou résistivité + longueur_fil + section_fil."
+            },
+            {
+              "nom": "pertes_fer_w",
+              "raison": "Calculables si fréquence, induction_max, k_h, k_e et exposant Steinmetz sont fournis."
+            },
+            {
+              "nom": "rendement_alternateur_impose",
+              "raison": "Requis pour conclure la puissance mécanique et le couple dimensionnants sans supposer les pertes manquantes."
+            },
+            {
+              "nom": "resistance_thermique_k_w",
+              "raison": "Requise pour évaluer l'échauffement."
+            }
+          ]
+        },
+        "notes_modele": [
+          "Les pertes totales réelles ne sont pas conclues : les pertes cuivre et/ou fer sont manquantes."
+        ]
+      },
+      "inconnues": {
+        "impossibles": [],
+        "partielles": []
+      },
+      "notes_modele": []
+    },
+    "batterie": {
+      "composant": "batterie",
+      "entrees": {
+        "fenetre_soc": 0.8,
+        "densite_energetique_kwh_kg": 0.2,
+        "rendement_charge": 0.95,
+        "puissance_charge_kw": null,
+        "tension_nominale_v": 400.0,
+        "tension_charge_v": 420.0,
+        "distance_km": null,
+        "conso_kwh_km": null,
+        "puissance_moyenne_kw": null,
+        "vitesse_moyenne_kmh": null,
+        "temps_charge_cible_h": null,
+        "puissance_pic_kw": null,
+        "duree_pic_s": null,
+        "energie_utile_imposee_kwh": null,
+        "mode_aggregation_energie": "max",
+        "activer_electrolyte_solide": false,
+        "nb_series": null,
+        "nb_parallele": null,
+        "activer_catalogue_cellules": false,
+        "activer_dimensionnement_fin": false,
+        "activer_samsung_25r": false,
+        "activer_samsung_25r_twingo": false,
+        "activer_ratio_conso": false
+      },
+      "energies_utiles": {
+        "conso_kwh_km_derivee": null,
+        "E_trajet_kwh": null,
+        "E_charge_cible_kwh": null,
+        "E_pic_kwh": null,
+        "E_imposee_kwh": null,
+        "E_utile_finale_kwh": null
+      },
+      "dimensionnement": {
+        "E_utile_finale_kwh": null,
+        "capacite_totale_kwh": null,
+        "masse_batterie_kg": null
+      },
+      "charge": {
+        "temps_charge_h": null,
+        "puissance_effective_stockee_kw": null,
+        "puissance_charge_requise_kw": null,
+        "courant_charge_A": null
+      },
+      "electrique": {
+        "capacite_Ah_estimee": null,
+        "courant_decharge_A_estime": null,
+        "C_rate_decharge_estime": null,
+        "C_rate_charge_estime": null
+      },
+      "electrolyte_solide": {
+        "active": false
+      },
+      "catalogue_cellules": {
+        "active": false
+      },
+      "dimensionnement_fin": {
+        "active": false
+      },
+      "samsung_25r": {
+        "active": false
+      },
+      "ratio_conso": {
+        "active": false
+      },
+      "pieces": {
+        "pack": {
+          "piece": "pack_batterie",
+          "electrique": {
+            "energie_nominale_kwh": null,
+            "tension_nominale_v": 400.0,
+            "capacite_ah": null
+          },
+          "integration": {
+            "masse_kg": null,
+            "volume_m3": null,
+            "nb_series": null,
+            "nb_parallele": null
+          },
+          "inconnues": {
+            "impossibles": [],
+            "partielles": [
+              {
+                "nom": "energie_nominale_kwh",
+                "raison": "Calculable si la batterie a pu etre dimensionnee."
+              },
+              {
+                "nom": "capacite_ah",
+                "raison": "Calculable si energie et tension nominale sont connues."
+              },
+              {
+                "nom": "masse_kg",
+                "raison": "Calculable si la densite energetique pack est fournie."
+              },
+              {
+                "nom": "volume_m3",
+                "raison": "Disponible si le dimensionnement fin de pack a ete execute."
+              }
+            ]
+          },
+          "notes_modele": []
+        },
+        "busbars": {
+          "piece": "busbars_batterie",
+          "electrique": {
+            "courant_a": null
+          },
+          "dimensionnement": {
+            "densite_courant_a_mm2": null
+          },
+          "inconnues": {
+            "impossibles": [],
+            "partielles": [
+              {
+                "nom": "section_cuivre_estimee_mm2",
+                "raison": "Calculable si courant_a et densite_courant_a_mm2 sont fournis."
+              },
+              {
+                "nom": "courant_a",
+                "raison": "Courant de charge/decharge requis pour predimensionner les busbars."
+              }
+            ]
+          },
+          "notes_modele": []
+        },
+        "boitier": {
+          "piece": "boitier_batterie",
+          "integration": {
+            "masse_pack_kg": null,
+            "volume_interne_m3": null
+          },
+          "inconnues": {
+            "impossibles": [],
+            "partielles": [
+              {
+                "nom": "masse_pack_kg",
+                "raison": "Masse du pack requise pour qualifier le boitier."
+              },
+              {
+                "nom": "volume_interne_m3",
+                "raison": "Volume disponible si le dimensionnement fin de pack est fourni."
+              }
+            ]
+          },
+          "notes_modele": []
+        },
+        "bms": {
+          "piece": "bms",
+          "monitoring": {
+            "soc": 0.5,
+            "temperature_cellules_c": 25.0,
+            "soh": 1.0
+          },
+          "resultats": {},
+          "inconnues": {
+            "impossibles": [
+              {
+                "nom": "calcul_charge_securisee",
+                "raison": "Capacité Ah et Tension nominale requises."
+              }
+            ],
+            "partielles": []
+          }
+        },
+        "tms": {
+          "piece": "tms",
+          "technologie": {
+            "type": "Air",
+            "efficacite": 0.7
+          },
+          "resultats": {},
+          "inconnues": {
+            "impossibles": [],
+            "partielles": [
+              {
+                "nom": "besoin_refroidissement",
+                "raison": "Courant de charge et Résistance interne du pack requis."
+              }
+            ]
+          }
+        }
+      },
+      "hypotheses": [],
+      "notes_modele": [],
+      "unites": {
+        "energie": "kWh",
+        "puissance": "kW",
+        "courant": "A",
+        "tension": "V",
+        "masse": "kg",
+        "temps": "h",
+        "résistance": "ohm",
+        "pertes": "W"
+      },
+      "imports_manquants": {},
+      "inconnues": {
+        "impossibles": [
+          {
+            "nom": "E_utile_finale_kwh",
+            "raison": "Impossible sans au moins un critère : trajet, charge cible, pic ou énergie imposée."
+          },
+          {
+            "nom": "vieillissement / durée de vie",
+            "raison": "Impossible sans modèle de vieillissement : cycles, DoD, C-rate, température, chimie, données fabricant."
+          },
+          {
+            "nom": "courbe CC/CV complète",
+            "raison": "Le temps de charge simple reste un modèle à puissance constante ; la phase CV réelle doit venir d'une fiche cellule ou d'essais."
+          },
+          {
+            "nom": "thermique pack détaillée",
+            "raison": "Impossible sans architecture pack, résistances internes, modèle thermique, ambiance et profils de charge/décharge."
+          }
+        ],
+        "partielles": [
+          {
+            "nom": "capacite_totale_kwh",
+            "raison": "Calculable si E_utile_finale_kwh est déterminée."
+          },
+          {
+            "nom": "charge",
+            "raison": "Calculable si E_utile_finale_kwh est déterminée."
+          }
+        ]
+      },
+      "energie_utile": {
+        "kwh_finale": null,
+        "kwh_trajet": null,
+        "kwh_pic": null
+      }
+    }
+  },
+  "liaisons": {
+    "bus_dc": {
+      "P_bus_dc_design_w": 18716.600000000002,
+      "V_bus_dc_v": null,
+      "scenario_bus_dc": null,
+      "energie_a_recharger_kwh": null
+    },
+    "alternateur": {
+      "vitesse_rotation_rpm": 3000.0
+    },
+    "moteur_thermique_exigences": {
+      "rpm_moteur_thermique": 3000.0
+    }
+  },
+  "synthese": {
+    "vehicule": {
+      "puissance_bus_dc_design_w": 18716.600000000002,
+      "tension_bus_dc_v": null
+    },
+    "batterie": {
+      "energie_utile_kwh": null,
+      "tension_nominale_v": null
+    },
+    "alternateur": {
+      "P_electrique_sortie_W": 18716.600000000002,
+      "vitesse_rotation_rpm": 3000.0
+    },
+    "moteur_thermique": {
+      "architecture": null,
+      "nombre_cylindres": 4,
+      "alesage_m": 0.08,
+      "course_m": 0.08,
+      "rpm_nominal": 3000.0,
+      "pme_pa": 1000000.0,
+      "cylindree_totale_cc": 1608.4954386379743,
+      "puissance_requise_W": 18716.600000000002,
+      "couple_requis_Nm": 59.57678815747537,
+      "couple_max_Nm": 59.57678815747537,
+      "epaisseur_cylindre_retenue_m": null,
+      "pression_max_pa": null
+    }
+  },
+  "cao": {
+    "solidworks_ready_detaille": false,
+    "moteur_thermique": {
+      "alesage_mm": 80.0,
+      "course_mm": 80.0
+    }
+  },
+  "inconnues": {
+    "impossibles": [],
+    "partielles": [
+      {
+        "nom": "moteur_thermique_point",
+        "raison": "EntreesOrchestrateurMoteurThermique.__init__() got an unexpected keyword argument 'vitesse_piston_max_ms'"
+      }
+    ]
+  },
+  "notes_modele": []
+}
+2026-05-09 20:50:56,037 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-09 20:50:56,042 - INFO - Starting test_systeme_missing_inputs
+2026-05-09 20:50:56,043 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
