@@ -28,6 +28,16 @@ def test_get_piece_instance_subsystems():
     alt = get_piece_instance("alternateur", ep)
     assert alt is not None
 
+
+def test_get_piece_instance_supports_backend_piece_names():
+    ep = {"alesage_m": 0.130, "course_m": 0.150}
+
+    coussinet = get_piece_instance("coussinet_arbre_piston", ep)
+    couvercle = get_piece_instance("couvercle_cylindre", ep)
+
+    assert coussinet is not None
+    assert couvercle is not None
+
 def test_get_piece_instance_fallback():
     """Vérifie le comportement si la pièce est inconnue."""
     assert get_piece_instance("flux_flux", {}) is None

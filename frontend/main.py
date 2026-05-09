@@ -1459,6 +1459,7 @@ class SHSEMApp(App):
     selected_piece_raw = StringProperty("")
     selected_piece_db = StringProperty("")
     selected_piece_component = StringProperty("")
+    selected_piece_payload = DictProperty({})
 
     def on_start(self):
         # Chargement automatique de la dernière simulation au démarrage

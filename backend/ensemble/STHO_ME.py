@@ -1,11 +1,38 @@
-# backend\ensemble\STHO_ME.py
+# backend/ensemble/STHO_ME.py
 from __future__ import annotations
 
+"""
+STHO_ME.py
+===============================================================================
+Orchestrateur haut niveau STHO-ME
+===============================================================================
+
+Rôle du fichier :
+- assembler les composants fournis : moteur électrique, batterie, alternateur,
+  moteur thermique, boîte à crabots, architecture ;
+- appeler SystemeComplet quand les quatre composants cœur sont disponibles ;
+- appeler les analyses spécialisées des composants uniquement quand les paramètres
+  correspondants sont fournis ;
+- construire les pièces moteur quand elles sont déclarées dans la configuration ;
+- réinjecter les grandeurs déjà calculées par le système complet dans les pièces
+  sans inventer de dimensions ;
+- agréger les rapports, les inconnues, les alertes et une synthèse exploitable ;
+- rester importable même si une partie de l'arborescence n'est pas présente.
+
+Contrat :
+- aucune hypothèse cachée ;
+- aucun défaut métier inventé ;
+- les données absentes deviennent des inconnues explicites ;
+- les signatures des sous-modules sont respectées par filtrage prudent des kwargs.
+"""
+
+import importlib
+import inspect
 import json
 import math
 import os
 import sys
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -17,104 +44,153 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Seque
 _THIS_FILE = Path(__file__).resolve()
 _THIS_DIR = _THIS_FILE.parent
 
-# Cas nominal : fichier placé dans backend/ensemble/STHO_ME.py
-# Fallback : fichier exécuté seul ailleurs.
+# Cas nominal : backend/ensemble/STHO_ME.py
+# Cas de test : fichier lancé depuis un dossier isolé contenant les scripts.
 for candidate in (
     _THIS_DIR,
     _THIS_DIR.parent,
     _THIS_DIR.parent.parent,
     Path.cwd(),
 ):
-    if str(candidate) not in sys.path:
-        sys.path.append(str(candidate))
+    candidate_str = str(candidate)
+    if candidate_str not in sys.path:
+        sys.path.append(candidate_str)
 
 
 # =============================================================================
-# Imports robustes des composants / pièces
+# Imports robustes et non bloquants
 # =============================================================================
 
+_IMPORT_ERRORS: Dict[str, str] = {}
 
-def _import_attr(module_names: Sequence[str], attr: str) -> Any:
-    last_error: Optional[Exception] = None
+
+def _import_attr_optional(module_names: Sequence[str], attr: str) -> Any:
+    """
+    Essaie plusieurs chemins d'import et retourne l'attribut demandé.
+    Ne bloque jamais l'import de STHO_ME.py : l'erreur est enregistrée et sera
+    remontée dans le rapport d'analyse.
+    """
+    last_error: Optional[BaseException] = None
     for module_name in module_names:
         try:
-            module = __import__(module_name, fromlist=[attr])
-            return getattr(module, attr)
-        except Exception as exc:  # pragma: no cover - robustesse runtime
+            module = importlib.import_module(module_name)
+            value = getattr(module, attr)
+            return value
+        except BaseException as exc:  # volontairement large : robustesse d'orchestrateur
             last_error = exc
             continue
-    if last_error is None:
-        raise ImportError(f"Impossible d'importer {attr}.")
-    raise ImportError(f"Impossible d'importer {attr} : {last_error}") from last_error
+
+    _IMPORT_ERRORS[attr] = str(last_error) if last_error is not None else "chemin d'import absent"
+    return None
 
 
-# Composants
-SystemeComplet = _import_attr(
-    ("backend.ensemble.systeme_complet", "systeme_complet"),
+# Composants principaux
+SystemeComplet = _import_attr_optional(
+    (
+        "backend.ensemble.systeme_complet",
+        "ensemble.systeme_complet",
+        "systeme_complet",
+    ),
     "SystemeComplet",
 )
-MoteurElectrique = _import_attr(
-    ("backend.components.moteur_electrique", "moteur_electrique"),
+
+OptimisationSysteme = _import_attr_optional(
+    (
+        "backend.ensemble.optimisation",
+        "ensemble.optimisation",
+        "optimisation",
+    ),
+    "OptimisationSysteme",
+)
+
+MoteurElectrique = _import_attr_optional(
+    (
+        "backend.components.moteur_electrique.moteur_electrique",
+        "backend.components.moteur_electrique",
+        "components.moteur_electrique.moteur_electrique",
+        "components.moteur_electrique",
+        "moteur_electrique",
+    ),
     "MoteurElectrique",
 )
-Batterie = _import_attr(
-    ("backend.components.batterie", "batterie"),
+
+Batterie = _import_attr_optional(
+    (
+        "backend.components.batterie.batterie",
+        "backend.components.batterie",
+        "components.batterie.batterie",
+        "components.batterie",
+        "batterie",
+    ),
     "Batterie",
 )
-Alternateur = _import_attr(
-    ("backend.components.alternateur", "alternateur"),
+
+Alternateur = _import_attr_optional(
+    (
+        "backend.components.alternateur.alternateur",
+        "backend.components.alternateur",
+        "components.alternateur.alternateur",
+        "components.alternateur",
+        "alternateur",
+    ),
     "Alternateur",
 )
-MoteurThermique = _import_attr(
-    ("backend.components.moteur_thermique", "moteur_thermique"),
+
+MoteurThermique = _import_attr_optional(
+    (
+        "backend.components.moteur_thermique.moteur_thermique",
+        "backend.components.moteur_thermique",
+        "components.moteur_thermique.moteur_thermique",
+        "components.moteur_thermique",
+        "moteur_thermique",
+    ),
     "MoteurThermique",
 )
-BoiteCrabots = _import_attr(
-    ("backend.components.boite_crabots", "boite_crabots"),
+
+BoiteCrabots = _import_attr_optional(
+    (
+        "backend.components.boite_crabots.boite_crabots",
+        "backend.components.boite_crabots",
+        "components.boite_crabots.boite_crabots",
+        "components.boite_crabots",
+        "boite_crabots",
+    ),
     "BoiteCrabots",
 )
-Architecture = _import_attr(
-    ("backend.components.architecture", "architecture"),
+
+Architecture = _import_attr_optional(
+    (
+        "backend.components.architechture.architecture",  # orthographe utilisée par plusieurs scripts du projet
+        "backend.components.architecture.architecture",
+        "backend.components.architechture",
+        "backend.components.architecture",
+        "components.architechture.architecture",
+        "components.architecture.architecture",
+        "architecture",
+    ),
     "Architecture",
 )
 
-# Pièces
-Cylindre = _import_attr(("backend.components.moteur_thermique.pieces.cylindre", "cylindre"), "Cylindre")
-Piston = _import_attr(("backend.components.moteur_thermique.pieces.piston", "piston"), "Piston")
-JointPiston = _import_attr(("backend.components.moteur_thermique.pieces.joint_piston", "joint_piston"), "JointPiston")
-CorpsBielle = _import_attr(("backend.components.moteur_thermique.pieces.bielle", "bielle"), "CorpsBielle")
-ArbrePiston = _import_attr(("backend.components.moteur_thermique.pieces.arbre_piston", "arbre_piston"), "ArbrePiston")
-CoussinetArbrePiston = _import_attr(
-    ("backend.components.moteur_thermique.pieces.coussinet_arbre_piston", "coussinet_arbre_piston"),
-    "CoussinetArbrePiston",
-)
-ArbreVilbrequin = _import_attr(
-    ("backend.components.moteur_thermique.pieces.arbre_vilbrequin", "arbre_vilbrequin"),
-    "ArbreVilbrequin",
-)
-Vilbrequin = _import_attr(("backend.components.moteur_thermique.pieces.vilbrequin", "vilbrequin"), "Vilbrequin")
-RoulementAiguilleArbre = _import_attr(
-    ("backend.components.moteur_thermique.pieces.roulement_aiguille_arbre", "roulement_aiguille_arbre"),
-    "RoulementAiguilleArbre",
-)
-RoulementAiguilleArbreVilebrequin = _import_attr(
-    ("backend.components.moteur_thermique.pieces.roulement_aiguille_arbre_vilebrequin", "roulement_aiguille_arbre_vilebrequin"),
-    "RoulementAiguilleArbreVilebrequin",
-)
-CouvercleCylindre = _import_attr(
-    ("backend.components.moteur_thermique.pieces.couvercle_cylindre", "couvercle_cylindre"),
-    "CouvercleCylindre",
-)
-VisCouvercleCylindre = _import_attr(
-    ("backend.components.moteur_thermique.pieces.vis_couvercle_cylindre", "vis_couvercle_cylindre"),
-    "VisCouvercleCylindre",
-)
-Deplaceur = _import_attr(("backend.components.moteur_thermique.pieces.deplaceur", "deplaceur"), "Deplaceur")
-JointDeplaceur = _import_attr(
-    ("backend.components.moteur_thermique.pieces.joint_deplaceur", "joint_deplaceur"),
-    "JointDeplaceur",
-)
-ArbreMoteur = _import_attr(("backend.components.moteur_thermique.pieces.arbre", "arbre"), "ArbreMoteur")
+
+# Pièces moteur thermique — optionnelles.
+Cylindre = _import_attr_optional(("backend.components.moteur_thermique.pieces.cylindre", "components.moteur_thermique.pieces.cylindre", "cylindre"), "Cylindre")
+Piston = _import_attr_optional(("backend.components.moteur_thermique.pieces.piston", "components.moteur_thermique.pieces.piston", "piston"), "Piston")
+JointPiston = _import_attr_optional(("backend.components.moteur_thermique.pieces.joint_piston", "components.moteur_thermique.pieces.joint_piston", "joint_piston"), "JointPiston")
+CorpsBielle = _import_attr_optional(("backend.components.moteur_thermique.pieces.bielle", "components.moteur_thermique.pieces.bielle", "bielle"), "CorpsBielle")
+ArbrePiston = _import_attr_optional(("backend.components.moteur_thermique.pieces.arbre_piston", "components.moteur_thermique.pieces.arbre_piston", "arbre_piston"), "ArbrePiston")
+CoussinetArbrePiston = _import_attr_optional(("backend.components.moteur_thermique.pieces.coussinet_arbre_piston", "components.moteur_thermique.pieces.coussinet_arbre_piston", "coussinet_arbre_piston"), "CoussinetArbrePiston")
+ArbreVilbrequin = _import_attr_optional(("backend.components.moteur_thermique.pieces.arbre_vilbrequin", "components.moteur_thermique.pieces.arbre_vilbrequin", "arbre_vilbrequin"), "ArbreVilbrequin")
+Vilbrequin = _import_attr_optional(("backend.components.moteur_thermique.pieces.vilbrequin", "components.moteur_thermique.pieces.vilbrequin", "vilbrequin"), "Vilbrequin")
+RoulementAiguilleArbre = _import_attr_optional(("backend.components.moteur_thermique.pieces.roulement_aiguille_arbre", "components.moteur_thermique.pieces.roulement_aiguille_arbre", "roulement_aiguille_arbre"), "RoulementAiguilleArbre")
+RoulementAiguilleArbreVilebrequin = _import_attr_optional(("backend.components.moteur_thermique.pieces.roulement_aiguille_arbre_vilebrequin", "components.moteur_thermique.pieces.roulement_aiguille_arbre_vilebrequin", "roulement_aiguille_arbre_vilebrequin"), "RoulementAiguilleArbreVilebrequin")
+CouvercleCylindre = _import_attr_optional(("backend.components.moteur_thermique.pieces.couvercle_cylindre", "components.moteur_thermique.pieces.couvercle_cylindre", "couvercle_cylindre"), "CouvercleCylindre")
+VisCouvercleCylindre = _import_attr_optional(("backend.components.moteur_thermique.pieces.vis_couvercle_cylindre", "components.moteur_thermique.pieces.vis_couvercle_cylindre", "vis_couvercle_cylindre"), "VisCouvercleCylindre")
+Deplaceur = _import_attr_optional(("backend.components.moteur_thermique.pieces.deplaceur", "components.moteur_thermique.pieces.deplaceur", "deplaceur"), "Deplaceur")
+JointDeplaceur = _import_attr_optional(("backend.components.moteur_thermique.pieces.joint_deplaceur", "components.moteur_thermique.pieces.joint_deplaceur", "joint_deplaceur"), "JointDeplaceur")
+ArbreMoteur = _import_attr_optional(("backend.components.moteur_thermique.pieces.arbre", "components.moteur_thermique.pieces.arbre", "arbre"), "ArbreMoteur")
+if ArbreMoteur is None:
+    ArbreMoteur = _import_attr_optional(("backend.components.moteur_thermique.pieces.arbre", "components.moteur_thermique.pieces.arbre", "arbre"), "Arbre")
+ClavetteArbre = _import_attr_optional(("backend.components.moteur_thermique.pieces.clavette_arbre", "components.moteur_thermique.pieces.clavette_arbre", "clavette_arbre"), "ClavetteArbre")
 
 
 # =============================================================================
@@ -126,37 +202,34 @@ def _is_finite(x: Any) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(float(x))
 
 
-
 def _safe_float(x: Any) -> Optional[float]:
     return float(x) if _is_finite(x) else None
-
 
 
 def _safe_int(x: Any) -> Optional[int]:
     if isinstance(x, int) and not isinstance(x, bool):
         return int(x)
     if _is_finite(x):
-        return int(float(x))
+        xf = float(x)
+        if abs(xf - round(xf)) <= 1e-9:
+            return int(round(xf))
     return None
-
 
 
 def _safe_dict(x: Any) -> Dict[str, Any]:
     return x if isinstance(x, dict) else {}
 
 
-
 def _deep_get(x: Any, *path: str) -> Any:
     cur = x
     for key in path:
+        if cur is None:
+            return None
         if isinstance(cur, dict):
             cur = cur.get(key)
         else:
             cur = getattr(cur, key, None)
-        if cur is None:
-            return None
     return cur
-
 
 
 def _first_non_none(*vals: Any) -> Any:
@@ -166,7 +239,6 @@ def _first_non_none(*vals: Any) -> Any:
     return None
 
 
-
 def _first_finite(*vals: Any) -> Optional[float]:
     for v in vals:
         if _is_finite(v):
@@ -174,25 +246,9 @@ def _first_finite(*vals: Any) -> Optional[float]:
     return None
 
 
-
-def _serialize_minimal(x: Any) -> Any:
-    if x is None:
-        return None
-    if isinstance(x, (str, int, float, bool)):
-        return x
-    if isinstance(x, dict):
-        return {k: _serialize_minimal(v) for k, v in x.items()}
-    if isinstance(x, (list, tuple)):
-        return [_serialize_minimal(v) for v in x]
-    if is_dataclass(x):
-        return asdict(x)
-    if hasattr(x, "en_dict") and callable(getattr(x, "en_dict")):
-        try:
-            return x.en_dict()
-        except Exception:
-            pass
-    return {"type": type(x).__name__}
-
+def _append_unique(dst: List[Any], value: Any) -> None:
+    if value not in dst:
+        dst.append(value)
 
 
 def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: str) -> None:
@@ -201,74 +257,249 @@ def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: st
     )
 
 
+def _push_alerte(rapport: Dict[str, Any], categorie: str, nom: str, detail: str) -> None:
+    rapport.setdefault("alertes", {}).setdefault(categorie, []).append(
+        {"nom": str(nom), "detail": str(detail)}
+    )
 
-def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
+
+def _add_note(rapport: Dict[str, Any], note: str) -> None:
+    rapport.setdefault("notes_modele", [])
+    _append_unique(rapport["notes_modele"], str(note))
+
+
+def _dedup_items(items: Iterable[Any], keys: Tuple[str, ...]) -> List[Any]:
+    seen: set[Tuple[str, ...]] = set()
+    out: List[Any] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        sig = tuple(str(item.get(k, "")) for k in keys)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        out.append(item)
+    return out
+
+
+def _dedup_report_lists(rapport: Dict[str, Any]) -> None:
     inc = rapport.setdefault("inconnues", {})
     for categorie in ("impossibles", "partielles"):
-        seen: set[Tuple[str, str]] = set()
-        out: List[Dict[str, str]] = []
-        for item in list(inc.get(categorie, []) or []):
-            key = (str(item.get("nom", "")), str(item.get("raison", "")))
-            if key not in seen:
-                seen.add(key)
-                out.append({"nom": key[0], "raison": key[1]})
-        inc[categorie] = out
+        inc[categorie] = _dedup_items(list(inc.get(categorie, []) or []), ("nom", "raison"))
 
+    alerts = rapport.setdefault("alertes", {})
+    for categorie, items in list(alerts.items()):
+        alerts[categorie] = _dedup_items(list(items or []), ("nom", "detail"))
+
+    notes = []
+    for note in list(rapport.get("notes_modele", []) or []):
+        _append_unique(notes, str(note))
+    rapport["notes_modele"] = notes
 
 
 def _merge_inconnues(dst: Dict[str, Any], src_report: Optional[Dict[str, Any]], *, prefix: str) -> None:
     if not isinstance(src_report, dict):
         return
-    inc = src_report.get("inconnues", {})
+    inc = _safe_dict(src_report.get("inconnues"))
     for categorie in ("impossibles", "partielles"):
-        for item in list(_safe_dict(inc).get(categorie, []) or []):
-            _push_inconnue(
-                dst,
-                categorie,
-                f"{prefix} :: {item.get('nom', '')}",
-                str(item.get("raison", "")),
-            )
+        for item in list(inc.get(categorie, []) or []):
+            if isinstance(item, dict):
+                _push_inconnue(
+                    dst,
+                    categorie,
+                    f"{prefix} :: {item.get('nom', '')}",
+                    str(item.get("raison", "")),
+                )
+
+    alerts = _safe_dict(src_report.get("alertes"))
+    for categorie, items in alerts.items():
+        for item in list(items or []):
+            if isinstance(item, dict):
+                _push_alerte(
+                    dst,
+                    str(categorie),
+                    f"{prefix} :: {item.get('nom', '')}",
+                    str(item.get("detail", item.get("raison", ""))),
+                )
+
+    for note in list(src_report.get("notes_modele", []) or []):
+        _add_note(dst, f"{prefix} :: {note}")
 
 
+def _to_jsonable(value: Any, *, depth: int = 0, max_depth: int = 8) -> Any:
+    """Convertit un objet technique en structure JSON sûre, sans récursion infinie."""
+    if depth > max_depth:
+        return {"type": type(value).__name__, "truncated": True}
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(k): _to_jsonable(v, depth=depth + 1, max_depth=max_depth) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(v, depth=depth + 1, max_depth=max_depth) for v in value]
+    if is_dataclass(value) and not isinstance(value, type):
+        try:
+            return _to_jsonable(asdict(value), depth=depth + 1, max_depth=max_depth)
+        except Exception:
+            pass
+    if hasattr(value, "en_dict") and callable(getattr(value, "en_dict")):
+        try:
+            return _to_jsonable(value.en_dict(), depth=depth + 1, max_depth=max_depth)
+        except Exception:
+            pass
+    if hasattr(value, "__dict__"):
+        try:
+            attrs = {
+                k: v
+                for k, v in vars(value).items()
+                if not k.startswith("_") and not callable(v)
+            }
+            simple_attrs = {}
+            for k, v in attrs.items():
+                if v is None or isinstance(v, (str, int, float, bool)):
+                    simple_attrs[k] = v
+                elif isinstance(v, (list, tuple, dict)):
+                    simple_attrs[k] = _to_jsonable(v, depth=depth + 1, max_depth=max_depth)
+                else:
+                    simple_attrs[k] = {"type": type(v).__name__}
+            return {"type": type(value).__name__, "attributs": simple_attrs}
+        except Exception:
+            pass
+    return {"type": type(value).__name__}
 
-def _add_note(rapport: Dict[str, Any], note: str) -> None:
-    rapport.setdefault("notes_modele", []).append(str(note))
+
+def _is_report_like(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    # Indices forts d'un rapport déjà calculé, par opposition à des paramètres.
+    report_keys = {"synthese", "rapports", "construction", "inconnues", "alertes", "meta"}
+    return len(report_keys.intersection(payload.keys())) >= 2 or "synthese" in payload
 
 
-
-def _safe_call_report(obj: Any) -> Optional[Dict[str, Any]]:
-    if obj is None:
+def _callable_signature(fn: Callable[..., Any]) -> Optional[inspect.Signature]:
+    try:
+        return inspect.signature(fn)
+    except Exception:
         return None
-    for method_name in ("analyser", "calculer"):
-        fn = getattr(obj, method_name, None)
-        if callable(fn):
-            try:
-                out = fn(strict=False)
-                return out if isinstance(out, dict) else None
-            except TypeError:
-                try:
-                    out = fn()
-                    return out if isinstance(out, dict) else None
-                except Exception:
-                    continue
-            except Exception:
-                continue
-    return None
 
 
+def _callable_accepts_varkw(fn: Callable[..., Any]) -> bool:
+    sig = _callable_signature(fn)
+    if sig is None:
+        return True
+    return any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
 
-def _run_named_analysis(obj: Any, method_name: str, kwargs: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+
+def _filter_kwargs_for_callable(fn: Callable[..., Any], kwargs: Mapping[str, Any]) -> Dict[str, Any]:
+    clean = {str(k): v for k, v in dict(kwargs or {}).items() if k is not None}
+    if _callable_accepts_varkw(fn):
+        return clean
+    sig = _callable_signature(fn)
+    if sig is None:
+        return clean
+    accepted = set(sig.parameters.keys())
+    accepted.discard("self")
+    accepted.discard("cls")
+    return {k: v for k, v in clean.items() if k in accepted}
+
+
+def _missing_required_kwargs(fn: Callable[..., Any], kwargs: Mapping[str, Any]) -> List[str]:
+    sig = _callable_signature(fn)
+    if sig is None:
+        return []
+    missing: List[str] = []
+    for name, param in sig.parameters.items():
+        if name in ("self", "cls"):
+            continue
+        if param.kind in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL):
+            continue
+        if param.default is inspect._empty and name not in kwargs:
+            missing.append(name)
+    return missing
+
+
+def _call_method_filtered(
+    obj: Any,
+    method_name: str,
+    kwargs: Optional[Mapping[str, Any]],
+    *,
+    rapport: Optional[Dict[str, Any]] = None,
+    label: Optional[str] = None,
+    add_strict_false: bool = False,
+) -> Optional[Dict[str, Any]]:
     if obj is None:
         return None
     fn = getattr(obj, method_name, None)
     if not callable(fn):
         return None
-    out = fn(**dict(kwargs))
-    return out if isinstance(out, dict) else {"resultat": out}
+
+    raw_kwargs = dict(kwargs or {})
+    call_kwargs = _filter_kwargs_for_callable(fn, raw_kwargs)
+    sig = _callable_signature(fn)
+    if add_strict_false and sig is not None and "strict" in sig.parameters and "strict" not in call_kwargs:
+        call_kwargs["strict"] = False
+
+    missing = _missing_required_kwargs(fn, call_kwargs)
+    if missing:
+        if rapport is not None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                label or method_name,
+                "Paramètres obligatoires manquants pour l'appel : " + ", ".join(missing),
+            )
+        return None
+
+    try:
+        out = fn(**call_kwargs)
+    except TypeError:
+        # Dernier recours pour méthodes sans paramètre ou méthodes ne supportant pas strict=False.
+        if call_kwargs:
+            try:
+                out = fn()
+            except Exception as exc:
+                if rapport is not None:
+                    _push_inconnue(rapport, "impossibles", label or method_name, str(exc))
+                return None
+        else:
+            raise
+    except Exception as exc:
+        if rapport is not None:
+            _push_inconnue(rapport, "impossibles", label or method_name, str(exc))
+        return None
+
+    if isinstance(out, dict):
+        return out
+    return {"resultat": _to_jsonable(out)}
 
 
+def _safe_call_report(obj: Any, *, rapport: Optional[Dict[str, Any]] = None, label: str = "analyse") -> Optional[Dict[str, Any]]:
+    if obj is None:
+        return None
+    for method_name in (
+        "analyser",
+        "calculer",
+        "analyser_definition",
+        "analyser_dimensionnement",
+        "analyser_geometrie_definition",
+        "analyser_point_de_fonctionnement",
+        "analyser_point",
+    ):
+        rep = _call_method_filtered(
+            obj,
+            method_name,
+            {},
+            rapport=rapport,
+            label=f"{label}.{method_name}",
+            add_strict_false=True,
+        )
+        if rep is not None:
+            return rep
+    return None
 
-def _instantiate_or_passthrough(
+
+def _construct_from_payload(
     cls: Any,
     payload: Any,
     *,
@@ -277,44 +508,120 @@ def _instantiate_or_passthrough(
 ) -> Any:
     if payload is None:
         return None
-    if isinstance(payload, cls):
-        return payload
-    if isinstance(payload, dict):
+
+    if cls is not None:
         try:
-            return cls(**payload)
-        except Exception as exc:
+            if isinstance(payload, cls):
+                return payload
+        except TypeError:
+            # cls peut être typing.Any dans certains environnements.
+            pass
+
+    if not isinstance(payload, dict):
+        return payload
+
+    if cls is None:
+        _push_inconnue(
+            rapport,
+            "impossibles",
+            f"construction {nom}",
+            "Classe introuvable : import du module impossible dans l'environnement courant.",
+        )
+        return None
+
+    try:
+        return cls(**payload)
+    except Exception as direct_exc:
+        # Si la classe ne supporte pas certains champs, on tente un filtrage par signature.
+        try:
+            kwargs = _filter_kwargs_for_callable(cls, payload)
+            obj = cls(**kwargs)
+            ignored = sorted(set(payload.keys()) - set(kwargs.keys()))
+            if ignored:
+                _add_note(
+                    rapport,
+                    f"{nom} : champs ignorés par filtrage de signature : {', '.join(map(str, ignored))}.",
+                )
+            return obj
+        except Exception as filtered_exc:
             _push_inconnue(
                 rapport,
                 "impossibles",
                 f"construction {nom}",
-                f"Instantiation impossible avec les paramètres fournis : {exc}",
+                f"Instantiation impossible avec les paramètres fournis : {direct_exc} ; après filtrage : {filtered_exc}",
             )
             return None
-    return payload
 
+
+def _collect_public_data(obj: Any) -> Dict[str, Any]:
+    data: Dict[str, Any] = {"type": type(obj).__name__ if obj is not None else None}
+    if obj is None:
+        return data
+    try:
+        attrs = vars(obj)
+        data["attributs"] = _to_jsonable({k: v for k, v in attrs.items() if not k.startswith("_")})
+    except Exception:
+        data["attributs"] = {}
+    methods: Dict[str, str] = {}
+    for name in (
+        "analyser",
+        "calculer",
+        "analyser_definition",
+        "analyser_dimensionnement",
+        "analyser_recharge_systeme",
+        "analyser_pour_bus_dc",
+        "analyser_point_de_fonctionnement",
+        "analyser_geometrie_definition",
+        "analyser_cycle_mecanique",
+        "analyser_bilan_carburant",
+        "analyser_point",
+        "analyser_chaine_moteur_alternateur",
+    ):
+        fn = getattr(obj, name, None)
+        if callable(fn):
+            try:
+                methods[name] = str(inspect.signature(fn))
+            except Exception:
+                methods[name] = "signature_indisponible"
+    data["methodes"] = methods
+    return data
 
 
 def _context_moteur(systeme_report: Optional[Dict[str, Any]], moteur_thermique: Any) -> Dict[str, Any]:
-    synth_mt = _safe_dict(_deep_get(systeme_report, "synthese", "moteur_thermique"))
+    synth = _safe_dict(_deep_get(systeme_report, "synthese"))
+    synth_mt = _safe_dict(synth.get("moteur_thermique"))
+    cao = _safe_dict(_deep_get(systeme_report, "cao", "moteur_thermique"))
+    liaisons = _safe_dict(_deep_get(systeme_report, "liaisons"))
+    pme_bloc = _safe_dict(liaisons.get("pme"))
+
     return {
         "alesage_m": _first_finite(
             synth_mt.get("alesage_m"),
+            cao.get("alesage_m"),
+            cao.get("alesage_mm") / 1000.0 if _is_finite(cao.get("alesage_mm")) else None,
             getattr(moteur_thermique, "alesage_m", None),
         ),
         "course_m": _first_finite(
             synth_mt.get("course_m"),
+            cao.get("course_m"),
+            cao.get("course_mm") / 1000.0 if _is_finite(cao.get("course_mm")) else None,
             getattr(moteur_thermique, "course_m", None),
         ),
         "pression_max_pa": _first_finite(
             synth_mt.get("pression_max_pa"),
+            liaisons.get("pression_max_pa"),
             getattr(moteur_thermique, "pression_max_pa", None),
         ),
         "pme_pa": _first_finite(
             synth_mt.get("pme_pa"),
+            synth_mt.get("pme_nominale_pa"),
+            pme_bloc.get("pme_pa_utilisee_ou_requise"),
+            getattr(moteur_thermique, "pme_nominale_pa", None),
             getattr(moteur_thermique, "pression_moyenne_effective_pa", None),
         ),
         "rpm_nominal": _first_finite(
             synth_mt.get("rpm_nominal"),
+            liaisons.get("rpm_moteur_thermique"),
             getattr(moteur_thermique, "rpm_nominal", None),
         ),
         "nombre_cylindres": _safe_int(
@@ -327,13 +634,20 @@ def _context_moteur(systeme_report: Optional[Dict[str, Any]], moteur_thermique: 
             synth_mt.get("architecture"),
             getattr(moteur_thermique, "architecture", None),
         ),
+        "couple_requis_Nm": _first_finite(
+            synth_mt.get("couple_requis_Nm"),
+            synth_mt.get("couple_moteur_thermique_Nm"),
+        ),
+        "puissance_requise_W": _first_finite(
+            synth_mt.get("puissance_requise_W"),
+            synth_mt.get("puissance_moteur_thermique_W"),
+        ),
     }
 
 
 # =============================================================================
 # Cartographie des sous-ensembles
 # =============================================================================
-
 
 COMPONENT_CLASSES: Dict[str, Any] = {
     "moteur_electrique": MoteurElectrique,
@@ -343,6 +657,13 @@ COMPONENT_CLASSES: Dict[str, Any] = {
     "boite_crabots": BoiteCrabots,
     "architecture": Architecture,
 }
+
+CORE_COMPONENTS: Tuple[str, ...] = (
+    "moteur_electrique",
+    "batterie",
+    "alternateur",
+    "moteur_thermique",
+)
 
 PIECE_CLASSES: Dict[str, Any] = {
     "cylindre": Cylindre,
@@ -360,6 +681,7 @@ PIECE_CLASSES: Dict[str, Any] = {
     "deplaceur": Deplaceur,
     "joint_deplaceur": JointDeplaceur,
     "arbre": ArbreMoteur,
+    "clavette_arbre": ClavetteArbre,
 }
 
 PIECE_BUILD_ORDER: Tuple[str, ...] = (
@@ -378,6 +700,7 @@ PIECE_BUILD_ORDER: Tuple[str, ...] = (
     "roulement_aiguille_arbre",
     "roulement_aiguille_arbre_vilebrequin",
     "arbre",
+    "clavette_arbre",
 )
 
 PIECE_DEPENDENCIES: Dict[str, Dict[str, str]] = {
@@ -437,17 +760,37 @@ PIECE_DEPENDENCIES: Dict[str, Dict[str, str]] = {
 # Orchestrateur principal
 # =============================================================================
 
-
 @dataclass
 class STHO_ME:
     """
     Orchestrateur haut niveau pour la conception du système STHO-ME.
 
-    Philosophie :
-    - ne rien inventer ;
-    - construire les composants uniquement à partir des paramètres fournis ;
-    - réinjecter uniquement les valeurs déjà calculées par le système global ;
-    - analyser chaque brique et agréger les inconnues restantes.
+    Entrée attendue :
+    {
+      "meta": {...},
+      "composants": {
+        "moteur_electrique": {...},
+        "batterie": {...},
+        "alternateur": {...},
+        "moteur_thermique": {...},
+        "boite_crabots": {...},
+        "architecture": {...}
+      },
+      "analyses": {
+        "systeme_complet": {... paramètres OU rapport déjà calculé ...},
+        "moteur_thermique_definition": {...},
+        "batterie": {...},
+        "alternateur_bus_dc": {...},
+        "alternateur_point": {...},
+        "architecture": {...},
+        "boite_point": {...},
+        "boite_chaine": {...}
+      },
+      "pieces": {
+        "cylindre": {...},
+        "piston": {...}
+      }
+    }
     """
 
     composants: Dict[str, Any] = field(default_factory=dict)
@@ -460,179 +803,252 @@ class STHO_ME:
     systeme_complet_obj: Optional[Any] = field(default=None, init=False)
     rapport_definition_moteur_thermique: Optional[Dict[str, Any]] = field(default=None, init=False)
 
-    # ---------------------------------------------------------------------
+    def _reset_runtime(self) -> None:
+        self.composants_obj = {}
+        self.pieces_obj = {}
+        self.systeme_complet_obj = None
+        self.rapport_definition_moteur_thermique = None
+
+    def _new_report(self) -> Dict[str, Any]:
+        rapport: Dict[str, Any] = {
+            "meta": {
+                "orchestrateur": "STHO_ME.py",
+                "classe": type(self).__name__,
+                "version": "2.0.0-corrige",
+                "repertoire": str(_THIS_DIR),
+                "meta_utilisateur": _to_jsonable(self.meta),
+                "contrat": "calcul_strict_sans_invention",
+            },
+            "imports": {
+                "ok": sorted([name for name, cls in {**COMPONENT_CLASSES, **PIECE_CLASSES, "SystemeComplet": SystemeComplet, "OptimisationSysteme": OptimisationSysteme}.items() if cls is not None]),
+                "erreurs": dict(_IMPORT_ERRORS),
+            },
+            "construction": {"composants": {}, "pieces": {}},
+            "objets": {"composants": {}, "pieces": {}},
+            "rapports": {"composants": {}, "pieces": {}, "optimisation": None},
+            "synthese": {},
+            "inconnues": {"impossibles": [], "partielles": []},
+            "alertes": {},
+            "notes_modele": [],
+        }
+        return rapport
+
+    # ------------------------------------------------------------------
     # Construction des composants
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def _build_components(self, rapport: Dict[str, Any]) -> None:
-        rapport.setdefault("construction", {}).setdefault("composants", {})
-
         for name, cls in COMPONENT_CLASSES.items():
-            payload = self.composants.get(name)
-            obj = _instantiate_or_passthrough(cls, payload, rapport=rapport, nom=name)
-            if obj is not None:
-                self.composants_obj[name] = obj
-                rapport["construction"]["composants"][name] = {
-                    "type": type(obj).__name__,
-                    "source": "objet" if not isinstance(payload, dict) else "dict",
-                }
+            if name not in self.composants:
+                continue
+            obj = _construct_from_payload(cls, self.composants.get(name), rapport=rapport, nom=name)
+            if obj is None:
+                continue
+            self.composants_obj[name] = obj
+            rapport["construction"]["composants"][name] = {
+                "type": type(obj).__name__,
+                "source": "dict" if isinstance(self.composants.get(name), dict) else "objet",
+            }
+            rapport["objets"]["composants"][name] = _collect_public_data(obj)
 
+        # Moteur thermique défini par exigences si aucun objet n'est fourni.
         if self.composants_obj.get("moteur_thermique") is None:
-            definition = self.analyses.get("moteur_thermique_definition")
-            if definition:
-                try:
-                    rep_def = MoteurThermique.definir_depuis_exigences(**definition)
-                    self.rapport_definition_moteur_thermique = rep_def if isinstance(rep_def, dict) else None
-                    moteur_defini = _deep_get(rep_def, "moteur_defini")
-                    if moteur_defini is not None:
-                        self.composants_obj["moteur_thermique"] = moteur_defini
-                        rapport["construction"]["composants"]["moteur_thermique"] = {
-                            "type": type(moteur_defini).__name__,
-                            "source": "definition_depuis_exigences",
-                        }
-                    else:
-                        _push_inconnue(
-                            rapport,
-                            "impossibles",
-                            "moteur_thermique",
-                            "La définition par exigences n'a pas produit de moteur exploitable.",
-                        )
-                except Exception as exc:
-                    _push_inconnue(
-                        rapport,
-                        "impossibles",
-                        "moteur_thermique",
-                        f"Définition par exigences impossible : {exc}",
-                    )
+            self._build_moteur_thermique_from_requirements(rapport)
 
-        core_names = ("moteur_electrique", "batterie", "alternateur", "moteur_thermique")
-        if all(self.composants_obj.get(n) is not None for n in core_names):
-            try:
-                self.systeme_complet_obj = SystemeComplet(
-                    moteur_electrique=self.composants_obj["moteur_electrique"],
-                    batterie=self.composants_obj["batterie"],
-                    alternateur=self.composants_obj["alternateur"],
-                    moteur_thermique=self.composants_obj["moteur_thermique"],
-                    boite_crabots=self.composants_obj.get("boite_crabots"),
-                    architecture=self.composants_obj.get("architecture"),
-                )
-                rapport["construction"]["composants"]["systeme_complet"] = {
-                    "type": type(self.systeme_complet_obj).__name__,
-                    "source": "assemblage",
-                }
-            except Exception as exc:
-                _push_inconnue(
-                    rapport,
-                    "impossibles",
-                    "systeme_complet",
-                    f"Assemblage de SystemeComplet impossible : {exc}",
-                )
-        else:
-            missing = [n for n in core_names if self.composants_obj.get(n) is None]
+        # SystemeComplet déjà fourni explicitement.
+        explicit_system = self.composants.get("systeme_complet")
+        if explicit_system is not None:
+            self.systeme_complet_obj = explicit_system
+            rapport["construction"]["composants"]["systeme_complet"] = {
+                "type": type(explicit_system).__name__,
+                "source": "objet_explicitement_fourni",
+            }
+            return
+
+        if SystemeComplet is None:
             _push_inconnue(
                 rapport,
                 "partielles",
                 "systeme_complet",
-                f"Assemblage incomplet : composants manquants = {', '.join(missing)}.",
+                "Classe SystemeComplet indisponible : l'assemblage global ne peut pas être lancé dans cet environnement.",
+            )
+            return
+
+        missing = [n for n in CORE_COMPONENTS if self.composants_obj.get(n) is None]
+        if missing:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "systeme_complet",
+                "Assemblage incomplet : composants manquants = " + ", ".join(missing),
+            )
+            return
+
+        try:
+            self.systeme_complet_obj = SystemeComplet(
+                moteur_electrique=self.composants_obj["moteur_electrique"],
+                batterie=self.composants_obj["batterie"],
+                alternateur=self.composants_obj["alternateur"],
+                moteur_thermique=self.composants_obj["moteur_thermique"],
+                boite_crabots=self.composants_obj.get("boite_crabots"),
+                architecture=self.composants_obj.get("architecture"),
+            )
+            rapport["construction"]["composants"]["systeme_complet"] = {
+                "type": type(self.systeme_complet_obj).__name__,
+                "source": "assemblage_composants",
+            }
+            rapport["objets"]["composants"]["systeme_complet"] = _collect_public_data(self.systeme_complet_obj)
+        except Exception as exc:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "systeme_complet",
+                f"Assemblage de SystemeComplet impossible : {exc}",
             )
 
-    # ---------------------------------------------------------------------
+    def _build_moteur_thermique_from_requirements(self, rapport: Dict[str, Any]) -> None:
+        definition = self.analyses.get("moteur_thermique_definition")
+        if not isinstance(definition, dict) or not definition:
+            return
+        if MoteurThermique is None:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "moteur_thermique_definition",
+                "MoteurThermique indisponible : définition depuis exigences impossible.",
+            )
+            return
+
+        fn = getattr(MoteurThermique, "definir_depuis_exigences", None)
+        if not callable(fn):
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "moteur_thermique_definition",
+                "La méthode MoteurThermique.definir_depuis_exigences est absente.",
+            )
+            return
+
+        params = _filter_kwargs_for_callable(fn, definition)
+        missing = _missing_required_kwargs(fn, params)
+        if missing:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "moteur_thermique_definition",
+                "Paramètres obligatoires manquants : " + ", ".join(missing),
+            )
+            return
+
+        try:
+            rep_def = fn(**params)
+        except Exception as exc:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "moteur_thermique_definition",
+                f"Définition par exigences impossible : {exc}",
+            )
+            return
+
+        if isinstance(rep_def, dict):
+            self.rapport_definition_moteur_thermique = rep_def
+            rapport["rapports"]["composants"]["moteur_thermique_definition"] = _to_jsonable(rep_def)
+            _merge_inconnues(rapport, rep_def, prefix="moteur_thermique_definition")
+            moteur_defini = _deep_get(rep_def, "moteur_defini")
+        else:
+            self.rapport_definition_moteur_thermique = {"resultat": _to_jsonable(rep_def)}
+            moteur_defini = rep_def
+
+        if moteur_defini is not None:
+            self.composants_obj["moteur_thermique"] = moteur_defini
+            rapport["construction"]["composants"]["moteur_thermique"] = {
+                "type": type(moteur_defini).__name__,
+                "source": "definition_depuis_exigences",
+            }
+            rapport["objets"]["composants"]["moteur_thermique"] = _collect_public_data(moteur_defini)
+        else:
+            _push_inconnue(
+                rapport,
+                "impossibles",
+                "moteur_thermique",
+                "La définition par exigences n'a pas retourné de moteur exploitable.",
+            )
+
+    # ------------------------------------------------------------------
     # Analyses des composants
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def _run_component_analyses(self, rapport: Dict[str, Any]) -> None:
-        rapport.setdefault("rapports", {}).setdefault("composants", {})
+        self._run_systeme_complet_analysis(rapport)
+        self._run_optional_component_analysis(rapport, "moteur_electrique", "moteur_electrique", "analyser")
+        self._run_optional_component_analysis(rapport, "batterie", "batterie", "analyser_dimensionnement")
+        self._run_optional_component_analysis(rapport, "batterie_recharge_systeme", "batterie", "analyser_recharge_systeme")
+        self._run_optional_component_analysis(rapport, "alternateur_bus_dc", "alternateur", "analyser_pour_bus_dc")
+        self._run_optional_component_analysis(rapport, "alternateur_point", "alternateur", "analyser_point_de_fonctionnement")
+        self._run_optional_component_analysis(rapport, "architecture", "architecture", "analyser")
+        self._run_optional_component_analysis(rapport, "architecture_profil", "architecture", "recommander_pour_profil")
+        self._run_optional_component_analysis(rapport, "moteur_thermique_geometrie", "moteur_thermique", "analyser_geometrie_definition")
+        self._run_optional_component_analysis(rapport, "moteur_thermique_cycle", "moteur_thermique", "analyser_cycle_mecanique")
+        self._run_optional_component_analysis(rapport, "moteur_thermique_point", "moteur_thermique", "analyser_point_de_fonctionnement")
+        self._run_optional_component_analysis(rapport, "moteur_thermique_bilan_carburant", "moteur_thermique", "analyser_bilan_carburant")
+        self._run_optional_component_analysis(rapport, "boite_point", "boite_crabots", "analyser_point")
+        self._run_optional_component_analysis(rapport, "boite_chaine", "boite_crabots", "analyser_chaine_moteur_alternateur")
 
-        if self.rapport_definition_moteur_thermique is not None:
-            rapport["rapports"]["composants"]["moteur_thermique_definition"] = self.rapport_definition_moteur_thermique
-            _merge_inconnues(rapport, self.rapport_definition_moteur_thermique, prefix="moteur_thermique_definition")
+    def _run_systeme_complet_analysis(self, rapport: Dict[str, Any]) -> None:
+        payload = self.analyses.get("systeme_complet")
+        if _is_report_like(payload):
+            rapport["rapports"]["composants"]["systeme_complet"] = _to_jsonable(payload)
+            _merge_inconnues(rapport, payload, prefix="systeme_complet_importe")
+            _add_note(rapport, "Rapport systeme_complet déjà fourni : il est intégré sans recalcul.")
+            return
 
-        if self.systeme_complet_obj is not None:
-            params = self.analyses.get("systeme_complet", {})
-            try:
-                rep_systeme = self.systeme_complet_obj.analyser(**params)
-                rapport["rapports"]["composants"]["systeme_complet"] = rep_systeme
-                _merge_inconnues(rapport, rep_systeme, prefix="systeme_complet")
-            except Exception as exc:
-                _push_inconnue(
-                    rapport,
-                    "impossibles",
-                    "analyse systeme_complet",
-                    f"Appel SystemeComplet.analyser impossible : {exc}",
-                )
+        if self.systeme_complet_obj is None:
+            return
 
-        batterie = self.composants_obj.get("batterie")
-        if batterie is not None and self.analyses.get("batterie"):
-            try:
-                rep = batterie.analyser_dimensionnement(**self.analyses["batterie"])
-                rapport["rapports"]["composants"]["batterie_dimensionnement"] = rep
-                _merge_inconnues(rapport, rep, prefix="batterie_dimensionnement")
-            except Exception as exc:
-                _push_inconnue(rapport, "impossibles", "batterie_dimensionnement", str(exc))
+        params = dict(payload or {}) if isinstance(payload, dict) else {}
+        rep = _call_method_filtered(
+            self.systeme_complet_obj,
+            "analyser",
+            params,
+            rapport=rapport,
+            label="systeme_complet.analyser",
+        )
+        if rep is not None:
+            rapport["rapports"]["composants"]["systeme_complet"] = _to_jsonable(rep)
+            _merge_inconnues(rapport, rep, prefix="systeme_complet")
 
-        alternateur = self.composants_obj.get("alternateur")
-        if alternateur is not None and self.analyses.get("alternateur_bus_dc"):
-            try:
-                rep = alternateur.analyser_pour_bus_dc(**self.analyses["alternateur_bus_dc"])
-                rapport["rapports"]["composants"]["alternateur_bus_dc"] = rep
-                _merge_inconnues(rapport, rep, prefix="alternateur_bus_dc")
-            except Exception as exc:
-                _push_inconnue(rapport, "impossibles", "alternateur_bus_dc", str(exc))
+    def _run_optional_component_analysis(
+        self,
+        rapport: Dict[str, Any],
+        analysis_key: str,
+        component_key: str,
+        method_name: str,
+    ) -> None:
+        params = self.analyses.get(analysis_key)
+        if not isinstance(params, dict) or not params:
+            return
+        obj = self.composants_obj.get(component_key)
+        if obj is None:
+            _push_inconnue(
+                rapport,
+                "partielles",
+                analysis_key,
+                f"Analyse demandée mais composant {component_key!r} absent ou non construit.",
+            )
+            return
+        rep = _call_method_filtered(
+            obj,
+            method_name,
+            params,
+            rapport=rapport,
+            label=f"{component_key}.{method_name}",
+        )
+        if rep is not None:
+            rapport["rapports"]["composants"][analysis_key] = _to_jsonable(rep)
+            _merge_inconnues(rapport, rep, prefix=analysis_key)
 
-        if alternateur is not None and self.analyses.get("alternateur_point"):
-            try:
-                rep = alternateur.analyser_point_de_fonctionnement(**self.analyses["alternateur_point"])
-                rapport["rapports"]["composants"]["alternateur_point"] = rep
-                _merge_inconnues(rapport, rep, prefix="alternateur_point")
-            except Exception as exc:
-                _push_inconnue(rapport, "impossibles", "alternateur_point", str(exc))
-
-        architecture = self.composants_obj.get("architecture")
-        if architecture is not None and self.analyses.get("architecture"):
-            try:
-                rep = architecture.analyser(**self.analyses["architecture"])
-                rapport["rapports"]["composants"]["architecture"] = rep
-                _merge_inconnues(rapport, rep, prefix="architecture")
-            except Exception as exc:
-                _push_inconnue(rapport, "impossibles", "architecture", str(exc))
-
-        moteur_thermique = self.composants_obj.get("moteur_thermique")
-        if moteur_thermique is not None:
-            for key, method_name in (
-                ("moteur_thermique_geometrie", "analyser_geometrie_definition"),
-                ("moteur_thermique_cycle", "analyser_cycle_mecanique"),
-                ("moteur_thermique_point", "analyser_point_de_fonctionnement"),
-                ("moteur_thermique_bilan_carburant", "analyser_bilan_carburant"),
-            ):
-                params = self.analyses.get(key)
-                if not params:
-                    continue
-                try:
-                    rep = _run_named_analysis(moteur_thermique, method_name, params)
-                    if rep is not None:
-                        rapport["rapports"]["composants"][key] = rep
-                        _merge_inconnues(rapport, rep, prefix=key)
-                except Exception as exc:
-                    _push_inconnue(rapport, "impossibles", key, str(exc))
-
-        boite = self.composants_obj.get("boite_crabots")
-        if boite is not None:
-            if self.analyses.get("boite_point"):
-                try:
-                    rep = boite.analyser_point(**self.analyses["boite_point"])
-                    rapport["rapports"]["composants"]["boite_point"] = rep
-                    _merge_inconnues(rapport, rep, prefix="boite_point")
-                except Exception as exc:
-                    _push_inconnue(rapport, "impossibles", "boite_point", str(exc))
-            if self.analyses.get("boite_chaine"):
-                try:
-                    rep = boite.analyser_chaine_moteur_alternateur(**self.analyses["boite_chaine"])
-                    rapport["rapports"]["composants"]["boite_chaine"] = rep
-                    _merge_inconnues(rapport, rep, prefix="boite_chaine")
-                except Exception as exc:
-                    _push_inconnue(rapport, "impossibles", "boite_chaine", str(exc))
-
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # Construction des pièces
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def _prepare_piece_kwargs(self, name: str, rapport: Dict[str, Any]) -> Dict[str, Any]:
         raw = self.pieces.get(name)
         if raw is None:
@@ -644,7 +1060,7 @@ class STHO_ME:
         sys_rep = _deep_get(rapport, "rapports", "composants", "systeme_complet")
         mt_ctx = _context_moteur(sys_rep, self.composants_obj.get("moteur_thermique"))
 
-        # Dépendances objets
+        # Dépendances objets déjà construits.
         for param_name, source_name in PIECE_DEPENDENCIES.get(name, {}).items():
             value = self.pieces_obj.get(source_name)
             if value is None and source_name == "moteur_thermique":
@@ -654,7 +1070,7 @@ class STHO_ME:
             if value is not None:
                 kwargs.setdefault(param_name, value)
 
-        # Enrichissements strictement déductibles du système
+        # Enrichissements uniquement déduits du rapport global ou du moteur défini.
         if name == "cylindre":
             if mt_ctx["alesage_m"] is not None:
                 kwargs.setdefault("alesage_m", mt_ctx["alesage_m"])
@@ -665,7 +1081,7 @@ class STHO_ME:
             if mt_ctx["pme_pa"] is not None:
                 kwargs.setdefault("pression_service_pa", mt_ctx["pme_pa"])
 
-        if name in {"piston", "arbre_piston", "coussinet_arbre_piston"}:
+        if name in {"piston", "arbre_piston", "coussinet_arbre_piston", "arbre_vilebrequin", "vilbrequin", "roulement_aiguille_arbre", "arbre"}:
             if mt_ctx["rpm_nominal"] is not None:
                 kwargs.setdefault("rpm", mt_ctx["rpm_nominal"])
 
@@ -683,132 +1099,139 @@ class STHO_ME:
                     rapport,
                     "partielles",
                     "bielle.longueur_bielle_m",
-                    "Aucune longueur de bielle fournie ; aucune règle interne n'est appliquée automatiquement ici.",
+                    "Aucune longueur de bielle fournie ; aucune règle interne n'est appliquée automatiquement.",
                 )
 
-        if name == "arbre_vilebrequin":
+        if name in {"arbre_vilebrequin", "vilbrequin", "roulement_aiguille_arbre", "arbre"}:
             if mt_ctx["course_m"] is not None:
                 kwargs.setdefault("course_m", mt_ctx["course_m"])
-            if mt_ctx["rpm_nominal"] is not None:
-                kwargs.setdefault("rpm", mt_ctx["rpm_nominal"])
-            couple = _deep_get(sys_rep, "synthese", "moteur_thermique", "couple_requis_Nm")
-            if couple is not None:
-                kwargs.setdefault("couple_max_Nm", couple)
+            if mt_ctx["couple_requis_Nm"] is not None:
+                kwargs.setdefault("couple_max_Nm", mt_ctx["couple_requis_Nm"])
 
-        if name == "vilbrequin":
-            if mt_ctx["course_m"] is not None:
-                kwargs.setdefault("course_m", mt_ctx["course_m"])
-            if mt_ctx["rpm_nominal"] is not None:
-                kwargs.setdefault("rpm", mt_ctx["rpm_nominal"])
-            couple = _deep_get(sys_rep, "synthese", "moteur_thermique", "couple_requis_Nm")
-            if couple is not None:
-                kwargs.setdefault("couple_max_Nm", couple)
+        if name == "roulement_aiguille_arbre" and mt_ctx["course_m"] is not None:
+            kwargs.setdefault("rayon_manivelle_m", 0.5 * float(mt_ctx["course_m"]))
 
-        if name == "roulement_aiguille_arbre":
-            if mt_ctx["rpm_nominal"] is not None:
-                kwargs.setdefault("rpm", mt_ctx["rpm_nominal"])
-            couple = _deep_get(sys_rep, "synthese", "moteur_thermique", "couple_requis_Nm")
-            if couple is not None:
-                kwargs.setdefault("couple_max_Nm", couple)
-            if mt_ctx["course_m"] is not None:
-                kwargs.setdefault("rayon_manivelle_m", 0.5 * float(mt_ctx["course_m"]))
+        if name == "roulement_aiguille_arbre_vilebrequin" and mt_ctx["rpm_nominal"] is not None:
+            kwargs.setdefault("rpm_vilebrequin", mt_ctx["rpm_nominal"])
 
-        if name == "roulement_aiguille_arbre_vilebrequin":
-            if mt_ctx["rpm_nominal"] is not None:
-                kwargs.setdefault("rpm_vilebrequin", mt_ctx["rpm_nominal"])
-
-        if name == "couvercle_cylindre":
+        if name in {"couvercle_cylindre", "vis_couvercle_cylindre"}:
             if mt_ctx["pression_max_pa"] is not None:
                 kwargs.setdefault("pression_max_pa", mt_ctx["pression_max_pa"])
-            if mt_ctx["pme_pa"] is not None:
+            if name == "couvercle_cylindre" and mt_ctx["pme_pa"] is not None:
                 kwargs.setdefault("pression_service_pa", mt_ctx["pme_pa"])
 
-        if name == "vis_couvercle_cylindre":
-            if mt_ctx["pression_max_pa"] is not None:
-                kwargs.setdefault("pression_max_pa", mt_ctx["pression_max_pa"])
+        if name == "deplaceur" and mt_ctx["pression_max_pa"] is not None:
+            kwargs.setdefault("pression_froid_pa", mt_ctx["pression_max_pa"])
 
-        if name == "deplaceur":
-            if mt_ctx["pression_max_pa"] is not None:
-                kwargs.setdefault("pression_froid_pa", mt_ctx["pression_max_pa"])
-
-        if name == "arbre":
-            if mt_ctx["rpm_nominal"] is not None:
-                kwargs.setdefault("rpm", mt_ctx["rpm_nominal"])
-            couple = _deep_get(sys_rep, "synthese", "moteur_thermique", "couple_requis_Nm")
-            if couple is not None:
-                kwargs.setdefault("couple_max_Nm", couple)
-            nb_cyl = mt_ctx["nombre_cylindres"]
-            if nb_cyl is not None:
-                kwargs.setdefault("nombre_cylindres", nb_cyl)
+        if name == "arbre" and mt_ctx["nombre_cylindres"] is not None:
+            kwargs.setdefault("nombre_cylindres", mt_ctx["nombre_cylindres"])
 
         return kwargs
 
     def _build_pieces(self, rapport: Dict[str, Any]) -> None:
-        rapport.setdefault("construction", {}).setdefault("pieces", {})
-
         for name in PIECE_BUILD_ORDER:
             if name not in self.pieces:
                 continue
-            payload = self.pieces.get(name)
-            if not isinstance(payload, dict):
-                obj = _instantiate_or_passthrough(PIECE_CLASSES[name], payload, rapport=rapport, nom=name)
-                if obj is not None:
-                    self.pieces_obj[name] = obj
-                    rapport["construction"]["pieces"][name] = {
-                        "type": type(obj).__name__,
-                        "source": "objet",
-                    }
-                continue
-
+            cls = PIECE_CLASSES.get(name)
             kwargs = self._prepare_piece_kwargs(name, rapport)
-            kwargs.pop("__passthrough__", None)
-            try:
-                obj = PIECE_CLASSES[name](**kwargs)
-                self.pieces_obj[name] = obj
-                rapport["construction"]["pieces"][name] = {
-                    "type": type(obj).__name__,
-                    "source": "dict_enrichi",
-                }
-            except Exception as exc:
-                self.pieces_obj[name] = None
-                _push_inconnue(
-                    rapport,
-                    "impossibles",
-                    f"construction pièce {name}",
-                    f"Instantiation impossible : {exc}",
-                )
+            passthrough = kwargs.pop("__passthrough__", None)
+            payload = passthrough if passthrough is not None else kwargs
+            obj = _construct_from_payload(cls, payload, rapport=rapport, nom=f"pièce {name}")
+            if obj is None:
+                continue
+            self.pieces_obj[name] = obj
+            rapport["construction"]["pieces"][name] = {
+                "type": type(obj).__name__,
+                "source": "dict_enrichi" if isinstance(payload, dict) else "objet",
+            }
+            rapport["objets"]["pieces"][name] = _collect_public_data(obj)
 
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # Analyses des pièces
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def _run_piece_analyses(self, rapport: Dict[str, Any]) -> None:
-        rapport.setdefault("rapports", {}).setdefault("pieces", {})
         for name in PIECE_BUILD_ORDER:
             obj = self.pieces_obj.get(name)
             if obj is None:
                 continue
-            rep = _safe_call_report(obj)
+            specific_params = self.analyses.get(f"piece_{name}", {})
+            rep = None
+            if isinstance(specific_params, dict) and specific_params:
+                for method_name in ("analyser", "calculer"):
+                    rep = _call_method_filtered(
+                        obj,
+                        method_name,
+                        specific_params,
+                        rapport=rapport,
+                        label=f"piece_{name}.{method_name}",
+                        add_strict_false=True,
+                    )
+                    if rep is not None:
+                        break
+            if rep is None:
+                rep = _safe_call_report(obj, rapport=rapport, label=f"piece_{name}")
+
             if rep is not None:
-                rapport["rapports"]["pieces"][name] = rep
+                rapport["rapports"]["pieces"][name] = _to_jsonable(rep)
                 _merge_inconnues(rapport, rep, prefix=name)
             else:
-                rapport["rapports"]["pieces"][name] = {"note": "Pas de rapport dict retourné."}
+                rapport["rapports"]["pieces"][name] = {"note": "Aucune méthode d'analyse exploitable n'a retourné de dict."}
 
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Optimisation inter-pièces optionnelle
+    # ------------------------------------------------------------------
+    def _run_optimisation(self, rapport: Dict[str, Any]) -> None:
+        should_run = bool(self.analyses.get("optimisation", {}).get("active", False)) if isinstance(self.analyses.get("optimisation"), dict) else False
+        if not should_run:
+            rapport["rapports"]["optimisation"] = {"note": "Optimisation inter-pièces non demandée."}
+            return
+        if OptimisationSysteme is None:
+            rapport["rapports"]["optimisation"] = {"note": "OptimisationSysteme indisponible."}
+            _push_inconnue(rapport, "partielles", "optimisation", "Classe OptimisationSysteme indisponible.")
+            return
+
+        kwargs = {
+            "systeme_complet": self.systeme_complet_obj,
+            "moteur_thermique": self.composants_obj.get("moteur_thermique"),
+            "rapport_backend": _deep_get(rapport, "rapports", "composants", "systeme_complet"),
+            "rapports_pieces": _safe_dict(_deep_get(rapport, "rapports", "pieces")),
+            "analyses_composants": _safe_dict(_deep_get(rapport, "rapports", "composants")),
+            **{k: self.pieces_obj.get(k) for k in PIECE_BUILD_ORDER},
+        }
+        try:
+            opt = OptimisationSysteme(**_filter_kwargs_for_callable(OptimisationSysteme, kwargs))
+        except Exception as exc:
+            _push_inconnue(rapport, "impossibles", "optimisation", f"Construction OptimisationSysteme impossible : {exc}")
+            rapport["rapports"]["optimisation"] = {"erreur": str(exc)}
+            return
+
+        rep = _call_method_filtered(opt, "analyser", {}, rapport=rapport, label="optimisation.analyser")
+        rapport["rapports"]["optimisation"] = _to_jsonable(rep) if rep is not None else {"note": "Aucun rapport d'optimisation retourné."}
+        if rep is not None:
+            _merge_inconnues(rapport, rep, prefix="optimisation")
+
+    # ------------------------------------------------------------------
     # Synthèse
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def _build_synthesis(self, rapport: Dict[str, Any]) -> None:
-        rapport.setdefault("synthese", {})
         rep_sys = _deep_get(rapport, "rapports", "composants", "systeme_complet")
         rep_mt_def = _deep_get(rapport, "rapports", "composants", "moteur_thermique_definition")
-
-        rep_pieces = _safe_dict(_deep_get(rapport, "rapports", "pieces"))
-        piece_ok = sorted([k for k, v in rep_pieces.items() if isinstance(v, dict)])
-        piece_missing = sorted([k for k in self.pieces.keys() if k not in piece_ok])
-
         mt_ctx = _context_moteur(rep_sys, self.composants_obj.get("moteur_thermique"))
 
+        pieces_analysees = sorted(
+            [k for k, v in _safe_dict(_deep_get(rapport, "rapports", "pieces")).items() if isinstance(v, dict)]
+        )
+        pieces_demandees = sorted([k for k in self.pieces.keys() if k in PIECE_CLASSES])
+        pieces_non_fermees = sorted([k for k in pieces_demandees if k not in pieces_analysees])
+
         rapport["synthese"] = {
+            "etat": {
+                "systeme_complet_analyse": isinstance(rep_sys, dict),
+                "moteur_thermique_defini_depuis_exigences": isinstance(rep_mt_def, dict),
+                "optimisation_lancee": bool(isinstance(_deep_get(rapport, "rapports", "optimisation"), dict) and _deep_get(rapport, "rapports", "optimisation", "note") is None),
+                "nb_inconnues_impossibles": len(_safe_dict(rapport.get("inconnues")).get("impossibles", []) or []),
+                "nb_inconnues_partielles": len(_safe_dict(rapport.get("inconnues")).get("partielles", []) or []),
+            },
             "moteur_thermique": {
                 "architecture": mt_ctx.get("architecture"),
                 "nombre_cylindres": mt_ctx.get("nombre_cylindres"),
@@ -817,68 +1240,44 @@ class STHO_ME:
                 "rpm_nominal": mt_ctx.get("rpm_nominal"),
                 "pression_max_pa": mt_ctx.get("pression_max_pa"),
                 "pme_pa": mt_ctx.get("pme_pa"),
-                "source": "systeme_complet" if rep_sys else ("definition_depuis_exigences" if rep_mt_def else None),
+                "couple_requis_Nm": mt_ctx.get("couple_requis_Nm"),
+                "puissance_requise_W": mt_ctx.get("puissance_requise_W"),
+                "source": "systeme_complet" if isinstance(rep_sys, dict) else ("definition_depuis_exigences" if isinstance(rep_mt_def, dict) else None),
             },
             "systeme_complet": _deep_get(rep_sys, "synthese") if isinstance(rep_sys, dict) else None,
-            "pieces_analysees": piece_ok,
-            "pieces_non_fermees": piece_missing,
             "composants_construits": sorted(self.composants_obj.keys()),
-            "nb_inconnues_impossibles": len(rapport.get("inconnues", {}).get("impossibles", [])),
-            "nb_inconnues_partielles": len(rapport.get("inconnues", {}).get("partielles", [])),
+            "pieces_demandees": pieces_demandees,
+            "pieces_analysees": pieces_analysees,
+            "pieces_non_fermees": pieces_non_fermees,
+            "imports_indisponibles": sorted(_safe_dict(rapport.get("imports", {})).get("erreurs", {}).keys()),
         }
 
-        if rep_sys is None:
-            _add_note(
-                rapport,
-                "Le système complet n'a pas été analysé ; la synthèse dépend alors uniquement des composants et pièces disponibles.",
-            )
-        if rep_mt_def is not None:
-            _add_note(
-                rapport,
-                "Le moteur thermique a pu être défini à partir d'exigences via MoteurThermique.definir_depuis_exigences().",
-            )
-        if piece_missing:
-            _add_note(
-                rapport,
-                "Certaines pièces n'ont pas été fermées faute de paramètres suffisants ou de dépendances déjà construites.",
-            )
+        if not isinstance(rep_sys, dict):
+            _add_note(rapport, "Le système complet n'a pas produit de rapport ; la synthèse dépend uniquement des briques disponibles.")
+        if pieces_non_fermees:
+            _add_note(rapport, "Certaines pièces demandées ne sont pas fermées faute de classe, de paramètres ou de dépendances disponibles.")
 
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # API publique
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def analyser(self) -> Dict[str, Any]:
-        rapport: Dict[str, Any] = {
-            "meta": {
-                "orchestrateur": "STHO_ME.py",
-                "classe": type(self).__name__,
-                "version": "1.0.0",
-                "repertoire": str(_THIS_DIR),
-                "meta_utilisateur": _serialize_minimal(self.meta),
-            },
-            "construction": {
-                "composants": {},
-                "pieces": {},
-            },
-            "rapports": {
-                "composants": {},
-                "pieces": {},
-            },
-            "synthese": {},
-            "inconnues": {"impossibles": [], "partielles": []},
-            "notes_modele": [],
-        }
+        self._reset_runtime()
+        rapport = self._new_report()
 
         self._build_components(rapport)
         self._run_component_analyses(rapport)
         self._build_pieces(rapport)
         self._run_piece_analyses(rapport)
+        self._run_optimisation(rapport)
+        _dedup_report_lists(rapport)
         self._build_synthesis(rapport)
-        _dedup_inconnues(rapport)
-        return rapport
+        _dedup_report_lists(rapport)
+        return _to_jsonable(rapport, max_depth=12)
 
     def export_json(self, path: str | os.PathLike[str], *, indent: int = 2) -> str:
         rapport = self.analyser()
         out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(rapport, ensure_ascii=False, indent=indent), encoding="utf-8")
         return str(out)
 
@@ -893,26 +1292,28 @@ class STHO_ME:
 
 
 # =============================================================================
-# Fonctions utilitaires de haut niveau
+# Fonctions utilitaires haut niveau
 # =============================================================================
 
 
 def concevoir_systeme_stho_me(config: Mapping[str, Any]) -> Dict[str, Any]:
-    """Entrée haut niveau recommandée depuis API / GUI / notebook."""
+    """Entrée haut niveau recommandée depuis API, GUI, notebook ou script main.py."""
     return STHO_ME.depuis_config(config).analyser()
 
 
-
-def sauvegarder_conception_stho_me(config: Mapping[str, Any], path_json: str | os.PathLike[str]) -> str:
-    """Construit le système et sauvegarde le rapport JSON complet."""
-    orch = STHO_ME.depuis_config(config)
-    return orch.export_json(path_json)
+def sauvegarder_conception_stho_me(
+    config: Mapping[str, Any],
+    path_json: str | os.PathLike[str],
+    *,
+    indent: int = 2,
+) -> str:
+    """Construit le rapport STHO-ME et le sauvegarde en JSON UTF-8."""
+    return STHO_ME.depuis_config(config).export_json(path_json, indent=indent)
 
 
 # =============================================================================
-# Exemple CLI minimal
+# CLI minimale
 # =============================================================================
-
 
 if __name__ == "__main__":
     exemple_config: Dict[str, Any] = {
@@ -975,59 +1376,23 @@ if __name__ == "__main__":
             },
         },
         "pieces": {
-            "cylindre": {
-                "longueur_utile_m": 0.18,
-                "materiau_cle": "acier_42crmo4_qt",
-            },
-            "piston": {
-                "materiau_piston_cle": "alu_6061_t6",
-            },
-            "joint_piston": {
-                "materiau_joint_cle": "ptfe",
-            },
-            "bielle": {
-                "materiau_cle": "acier_42crmo4_qt",
-                "longueur_bielle_m": 0.24,
-            },
-            "arbre_piston": {
-                "materiau_cle": "acier_42crmo4_qt",
-                "longueur_totale_m": 0.30,
-                "longueur_fut_central_m": 0.16,
-            },
-            "coussinet_arbre_piston": {
-                "materiau_coussinet": "bronze_cusn12",
-            },
-            "couvercle_cylindre": {
-                "materiau_cle": "acier_42crmo4_qt",
-            },
-            "vis_couvercle_cylindre": {
-                "classe_vis_iso898": "10.9",
-            },
-            "deplaceur": {
-                "longueur_totale_m": 0.14,
-                "materiau_cle": "inox_316l",
-            },
-            "joint_deplaceur": {
-                "materiau_joint_cle": "ptfe",
-            },
-            "arbre_vilebrequin": {
-                "materiau_cle": "acier_42crmo4_qt",
-            },
-            "vilbrequin": {
-                "materiau_cle": "acier_42crmo4_qt",
-            },
-            "roulement_aiguille_arbre": {
-                "duree_vie_cible_h": 5_000.0,
-                "exposant_vie_p": 10.0 / 3.0,
-            },
-            "roulement_aiguille_arbre_vilebrequin": {
-                "vie_cible_heures": 5_000.0,
-            },
-            "arbre": {
-                "materiau_arbre_cle": "acier_42crmo4_qt",
-            },
+            "cylindre": {"longueur_utile_m": 0.18, "materiau_cle": "acier_42crmo4_qt"},
+            "piston": {"materiau_piston_cle": "alu_6061_t6"},
+            "joint_piston": {"materiau_joint_cle": "ptfe"},
+            "bielle": {"materiau_cle": "acier_42crmo4_qt", "longueur_bielle_m": 0.24},
+            "arbre_piston": {"materiau_cle": "acier_42crmo4_qt", "longueur_totale_m": 0.30, "longueur_fut_central_m": 0.16},
+            "coussinet_arbre_piston": {"materiau_coussinet": "bronze_cusn12"},
+            "couvercle_cylindre": {"materiau_cle": "acier_42crmo4_qt"},
+            "vis_couvercle_cylindre": {"classe_vis_iso898": "10.9"},
+            "deplaceur": {"longueur_totale_m": 0.14, "materiau_cle": "inox_316l"},
+            "joint_deplaceur": {"materiau_joint_cle": "ptfe"},
+            "arbre_vilebrequin": {"materiau_cle": "acier_42crmo4_qt"},
+            "vilbrequin": {"materiau_cle": "acier_42crmo4_qt"},
+            "roulement_aiguille_arbre": {"duree_vie_cible_h": 5_000.0, "exposant_vie_p": 10.0 / 3.0},
+            "roulement_aiguille_arbre_vilebrequin": {"vie_cible_heures": 5_000.0},
+            "arbre": {"materiau_arbre_cle": "acier_42crmo4_qt"},
         },
     }
 
     rapport = concevoir_systeme_stho_me(exemple_config)
-    print(json.dumps(rapport["synthese"], ensure_ascii=False, indent=2))
+    print(json.dumps(rapport.get("synthese", {}), ensure_ascii=False, indent=2))
