@@ -1683,15 +1683,68 @@ def dimensionner_systeme_shsem(
             moteur_thermique_definition,
         )
     )
-    if _normalize_multifuel_names(
+    # -------------------------------------------------------------------------
+    # Optimisation Multi-Carburant / Dimensionnement par le "Pire Cas"
+    # -------------------------------------------------------------------------
+    rapport_optimisation_carburant: Optional[Dict[str, Any]] = None
+    fuel_list = _normalize_multifuel_names(
         definition_moteur.get("carburant"),
         definition_moteur.get("carburants_autorises"),
         mode_carburant=definition_moteur.get("mode_carburant"),
-    ):
-        _append_note(
-            rapport_global,
-            "Mode multicarburant actif : aucun carburant unique n'est impose, le comparatif carburant est calcule et le dimensionnement conservatif retient le pire cas.",
+    )
+
+    if len(fuel_list) > 1 and optimiser_puissance_sortie is not None:
+        p_cible_w = _first_finite(
+            definition_moteur.get("puissance_nominale_visee_w"),
+            puissance_moteur_requise_W,
+            (puissance_traction_kw * 1000.0 if puissance_traction_kw else None),
         )
+        
+        if p_cible_w is not None:
+            _append_note(rapport_global, f"Lancement de l'optimisation multi-carburant sur {list(fuel_list)} pour identifier le pire cas dimensionnant.")
+            
+            search_space = {
+                "carburant": list(fuel_list),
+                "rpm_moteur": [definition_moteur.get("rpm_nominal")] if definition_moteur.get("rpm_nominal") else [3000.0],
+                "temps_moteur": [definition_moteur.get("temps_moteur")] if definition_moteur.get("temps_moteur") else [4],
+                "type_puissance_moteur": ["frein"],
+            }
+            
+            # Injection des contraintes si présentes pour guider l'optimiseur
+            known_data = {}
+            for k in ("pme_pa", "vitesse_piston_max_ms", "ratio_course_alesage_max", "ratio_course_alesage_cible", "nombre_cylindres", "pression_max_pa"):
+                if definition_moteur.get(k) is not None:
+                    known_data[k] = definition_moteur[k]
+
+            try:
+                opt_report = optimiser_puissance_sortie(
+                    puissance=p_cible_w,
+                    unite="w",
+                    donnees_connues=known_data,
+                    espace_recherche=search_space,
+                )
+                rapport_optimisation_carburant = opt_report
+                
+                # Extraction du Pire Cas pour sécuriser la géométrie (Worst Case Design)
+                selection = _safe_dict(_safe_dict(opt_report).get("selection"))
+                pire_cas = selection.get("pire_cas_dimensionnant")
+                if pire_cas:
+                    metrics = _safe_dict(pire_cas.get("metriques"))
+                    _append_note(rapport_global, f"Dimensionnement base sur le pire cas (robustesse structurelle) : {pire_cas.get('note')}")
+                    
+                    # On surcharge la définition moteur avec l'enveloppe maximale nécessaire
+                    if _is_finite(metrics.get("alesage_mm")):
+                        definition_moteur["alesage_m"] = float(metrics["alesage_mm"]) / 1000.0
+                    if _is_finite(metrics.get("course_mm")):
+                        definition_moteur["course_m"] = float(metrics["course_mm"]) / 1000.0
+                    if _is_finite(metrics.get("pression_max_pa")):
+                        definition_moteur["pression_max_pa"] = float(metrics["pression_max_pa"])
+                    
+                    # On conserve la trace du carburant "pire" pour l'affichage
+                    definition_moteur["pire_cas_dimensionnant"] = pire_cas
+            except Exception as exc:
+                _push_inconnue(rapport_global, "partielles", "optimisation_multi_carburant", f"Erreur lors de l'optimisation: {exc}")
+
     if definition_moteur.get("architecture_forcee") is None and definition_moteur.get("architecture") is None:
         _append_note(
             rapport_global,

@@ -1,4 +1,4 @@
-2026-05-09 16:00:38,568 - INFO - Starting test_import_optimisation
-2026-05-09 16:00:38,588 - INFO - RESULT - test_import_optimisation: SUCCESS Module correctly imported.
-2026-05-09 16:00:38,592 - INFO - Starting test_optimisation_systeme_accepts_named_args_and_backend_reports
-2026-05-09 16:00:38,593 - INFO - RESULT - test_optimisation_systeme_accepts_named_args_and_backend_reports: SUCCESS Named arguments and backend report fallback work correctly.
+2026-05-09 16:12:06,136 - INFO - Starting test_import_optimisation
+2026-05-09 16:12:06,152 - INFO - RESULT - test_import_optimisation: SUCCESS Module correctly imported.
+2026-05-09 16:12:06,158 - INFO - Starting test_optimisation_systeme_accepts_named_args_and_backend_reports
+2026-05-09 16:12:06,159 - INFO - RESULT - test_optimisation_systeme_accepts_named_args_and_backend_reports: SUCCESS Named arguments and backend report fallback work correctly.
