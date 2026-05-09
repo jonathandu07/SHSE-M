@@ -106,99 +106,328 @@ def estimer_pme_depuis_puissance_et_cylindree(
 # Imports des modules architecture (robustes)
 # ============================================================
 
+import importlib
+import json
+import sys
+from dataclasses import asdict, is_dataclass
+from pathlib import Path
+
+_THIS_DIR = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+if str(_THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(_THIS_DIR))
+
+
+def _import_attr(candidates: Sequence[str], attr: str, *, required: bool = True) -> Any:
+    """
+    Importe un attribut depuis plusieurs chemins possibles.
+
+    Chemins supportés :
+    - backend.components.architecture.modules.*
+    - backend.components.architechture.modules.*  # compatibilité avec l'ancien nom fautif
+    - backend.modules.architecture.*
+    - module local dans le même dossier
+    """
+    errors: list[str] = []
+    for module_name in candidates:
+        try:
+            module = importlib.import_module(module_name)
+            return getattr(module, attr)
+        except Exception as exc:
+            errors.append(f"{module_name}.{attr}: {exc}")
+    if required:
+        raise ImportError("Impossible d'importer " + attr + " depuis: " + " | ".join(errors))
+    return None
+
+
+def _module_candidates(name: str) -> list[str]:
+    return [
+        f"backend.components.architecture.modules.{name}",
+        f"backend.components.architechture.modules.{name}",
+        f"backend.modules.architecture.{name}",
+        name,
+    ]
+
+
+def _piece_candidates(name: str) -> list[str]:
+    return [
+        f"backend.components.architecture.pieces.{name}",
+        f"backend.components.architechture.pieces.{name}",
+        f"backend.modules.architecture.pieces.{name}",
+        name,
+    ]
+
+
+# Modules principaux — si un module manque, on installe un fallback mathématique explicite.
 try:
-    from backend.components.architechture.modules.calcul_cout_maintenance_archard import (
-        calcul_cout_maintenance_estime,
-        calcul_cout_maintenance_estime_auto_prix,
+    calcul_cout_maintenance_estime = _import_attr(
+        _module_candidates("calcul_cout_maintenance_archard"), "calcul_cout_maintenance_estime"
+    )
+    calcul_cout_maintenance_estime_auto_prix = _import_attr(
+        _module_candidates("calcul_cout_maintenance_archard"), "calcul_cout_maintenance_estime_auto_prix", required=False
     )
 except Exception:
-    from backend.components.architechture.modules.calcul_cout_maintenance_archard import (  # type: ignore
-        calcul_cout_maintenance_estime,
-        calcul_cout_maintenance_estime_auto_prix,
-    )
+    def calcul_cout_maintenance_estime(
+        duree_usage_h: float,
+        duree_vie_joint_base_h: float,
+        charge_nominale_n: float,
+        charge_actuelle_n: float,
+        nb_joints_base: int,
+        nb_joints_actuel: int,
+        cout_inter_eur: float,
+    ) -> float:
+        beta = 1.5
+        if charge_actuelle_n <= 0:
+            return 0.0
+        duree_vie_estimee = float(duree_vie_joint_base_h) * ((float(charge_nominale_n) / float(charge_actuelle_n)) ** beta)
+        if duree_vie_estimee <= 0.0 or not math.isfinite(duree_vie_estimee):
+            raise ValueError("Durée de vie estimée non valide.")
+        return (float(duree_usage_h) / duree_vie_estimee) * float(cout_inter_eur) * (int(nb_joints_actuel) / max(1, int(nb_joints_base)))
+
+    def calcul_cout_maintenance_estime_auto_prix(*args: Any, **kwargs: Any) -> float:
+        kwargs.pop("activer_scraping", None)
+        kwargs.pop("urls_prix_joints", None)
+        kwargs.pop("urls_main_oeuvre", None)
+        kwargs.pop("cache_path", None)
+        kwargs.pop("cache_ttl_h", None)
+        kwargs.pop("timeout_s", None)
+        kwargs.pop("temps_intervention_h", None)
+        kwargs.pop("cout_arret_eur", None)
+        kwargs.pop("cout_consommables_eur", None)
+        kwargs.pop("strict_scraping", None)
+        return calcul_cout_maintenance_estime(*args, **kwargs)
 
 try:
-    from backend.components.architechture.modules.calcul_cylindree_admissible import (
-        calcul_bore_max_admissible,
-        calcul_cylindree_unit_max,
+    calcul_bore_max_admissible = _import_attr(
+        _module_candidates("calcul_cylindree_admissible"), "calcul_bore_max_admissible"
+    )
+    calcul_cylindree_unit_max = _import_attr(
+        _module_candidates("calcul_cylindree_admissible"), "calcul_cylindree_unit_max"
     )
 except Exception:
-    from backend.components.architechture.modules.calcul_cylindree_admissible import (  # type: ignore
-        calcul_bore_max_admissible,
-        calcul_cylindree_unit_max,
-    )
+    def calcul_bore_max_admissible(vitesse_piston_max_ms: float, regime_tr_min: float, ratio_course_alesage_max: float) -> float:
+        n = float(regime_tr_min)
+        if n == 0.0:
+            return 0.0
+        return (30.0 * float(vitesse_piston_max_ms) / n) / float(ratio_course_alesage_max)
+
+    def calcul_cylindree_unit_max(bore_max_m: float, ratio_course_alesage_max: float) -> float:
+        return (math.pi / 4.0) * (float(bore_max_m) ** 3) * float(ratio_course_alesage_max)
 
 try:
-    from backend.components.architechture.modules.calcul_cylindree_totale import (
-        calcul_cylindree_totale_requise,
+    calcul_cylindree_totale_requise = _import_attr(
+        _module_candidates("calcul_cylindree_totale"), "calcul_cylindree_totale_requise"
     )
 except Exception:
-    from backend.components.architechture.modules.calcul_cylindree_totale import (  # type: ignore
-        calcul_cylindree_totale_requise,
-    )
+    def calcul_cylindree_totale_requise(
+        puissance_mecanique_h: float,
+        pme_pa: float,
+        frequence_cycles_hz: float,
+        rendement_mecanique: float = 1.0,
+    ) -> float:
+        return float(puissance_mecanique_h) / (float(rendement_mecanique) * float(pme_pa) * float(frequence_cycles_hz))
 
 try:
-    from backend.components.architechture.modules.calcul_nombre_cylindres_min import (
-        calcul_nombre_cylindres_min,
+    calcul_nombre_cylindres_min = _import_attr(
+        _module_candidates("calcul_nombre_cylindres_min"), "calcul_nombre_cylindres_min"
     )
 except Exception:
-    from backend.components.architechture.modules.calcul_nombre_cylindres_min import (  # type: ignore
-        calcul_nombre_cylindres_min,
-    )
+    def calcul_nombre_cylindres_min(cylindree_totale_m3: float, cylindree_unitaire_max_m3: float) -> int:
+        if cylindree_unitaire_max_m3 <= 0.0:
+            return 999
+        return int(math.ceil(float(cylindree_totale_m3) / float(cylindree_unitaire_max_m3)))
 
 try:
-    from backend.components.architechture.modules.choix_architecture_optimale import (
-        choix_architecture_optimale,
-        evaluer_architecture,
+    choix_architecture_optimale = _import_attr(
+        _module_candidates("choix_architecture_optimale"), "choix_architecture_optimale"
+    )
+    evaluer_architecture = _import_attr(
+        _module_candidates("choix_architecture_optimale"), "evaluer_architecture"
     )
 except Exception:
-    from backend.components.architechture.modules.choix_architecture_optimale import (  # type: ignore
-        choix_architecture_optimale,
-        evaluer_architecture,
-    )
+    def _architecture_possible_fallback(type_arch: str, nb_cylindres: int) -> bool:
+        if type_arch == "L":
+            return True
+        if type_arch in ("V", "Boxer"):
+            return nb_cylindres % 2 == 0
+        if type_arch == "W":
+            return nb_cylindres >= 6 and (nb_cylindres % 3 == 0 or nb_cylindres % 4 == 0)
+        if type_arch == "Etoile":
+            return nb_cylindres >= 3
+        return False
+
+    def evaluer_architecture(
+        type_arch: str,
+        nb_cylindres: int,
+        longueur_dispo_m: float,
+        largeur_dispo_m: float,
+        cout_maintenance_estime: float = 0.0,
+    ) -> tuple[float, bool]:
+        if not _architecture_possible_fallback(type_arch, int(nb_cylindres)):
+            return 9999.0, False
+        L_pkg, W_pkg = _estimer_packaging_simple(type_arch, int(nb_cylindres), pas_cylindre_m=0.15, largeur_base_m=0.40)
+        valide = L_pkg <= float(longueur_dispo_m) and W_pkg <= float(largeur_dispo_m)
+        complexite = _architecture_complexity_factor(type_arch)
+        score = (L_pkg / float(longueur_dispo_m)) + (W_pkg / float(largeur_dispo_m)) + 0.5 * complexite + float(cout_maintenance_estime) / 1000.0
+        if not valide:
+            score += 1000.0
+        return float(score), bool(valide)
+
+    def choix_architecture_optimale(nb_cylindres: int, L_max: float, W_max: float, cout_maintenance_estime: float = 0.0) -> str:
+        best_arch = "Inconnue"
+        best_score = float("inf")
+        for arch in ("L", "V", "W", "Etoile", "Boxer"):
+            score, ok = evaluer_architecture(arch, nb_cylindres, L_max, W_max, cout_maintenance_estime)
+            if ok and score < best_score:
+                best_score = score
+                best_arch = arch
+        return best_arch
 
 try:
-    from backend.components.architechture.modules.resolution_globale_architecture import (
-        resoudre_architecture_globale,
-    )
-    from backend.components.architechture.pieces.vilebrequin_arch import VilebrequinArch
-    from backend.components.architechture.pieces.bloc_moteur_arch import BlocMoteurArch
-    from backend.components.architechture.pieces.culasse_arch import CulasseArch
-except Exception:
-    from backend.components.architechture.modules.resolution_globale_architecture import (  # type: ignore
-        resoudre_architecture_globale,
-    )
-
-# Solveur fin multi-cas
-try:
-    from backend.components.architechture.modules.architecture_fine_multicas import (
-        resoudre_architecture_fine_multicas,
-        ParametresPackagingArchitecture,
-        ParametresMasseArchitecture,
-        ParametresPertesArchitecture,
-        ParametresFiabiliteArchitecture,
-        ParametresScoreArchitecture,
-        OptionsExplorationArchitecture,
+    resoudre_architecture_globale = _import_attr(
+        _module_candidates("resolution_globale_architecture"), "resoudre_architecture_globale"
     )
 except Exception:
-    try:
-        from backend.components.architechture.modules.architecture_fine_multicas import (  # type: ignore
-            resoudre_architecture_fine_multicas,
-            ParametresPackagingArchitecture,
-            ParametresMasseArchitecture,
-            ParametresPertesArchitecture,
-            ParametresFiabiliteArchitecture,
-            ParametresScoreArchitecture,
-            OptionsExplorationArchitecture,
+    def resoudre_architecture_globale(
+        puissance_cible_w: float,
+        regime_tr_min: float,
+        pme_pa: float,
+        vitesse_piston_max_ms: float,
+        L_max_m: float,
+        W_max_m: float,
+        horizon_usage_h: float = 20000.0,
+    ) -> dict[str, Any]:
+        arch = Architecture()
+        rep = arch.analyser(
+            puissance_cible_w=puissance_cible_w,
+            regime_tr_min=regime_tr_min,
+            pme_pa=pme_pa,
+            vitesse_piston_max_ms=vitesse_piston_max_ms,
+            longueur_dispo_m=L_max_m,
+            largeur_dispo_m=W_max_m,
+            horizon_usage_h=horizon_usage_h,
         )
-    except Exception:
-        resoudre_architecture_fine_multicas = None  # type: ignore
-        ParametresPackagingArchitecture = None  # type: ignore
-        ParametresMasseArchitecture = None  # type: ignore
-        ParametresPertesArchitecture = None  # type: ignore
-        ParametresFiabiliteArchitecture = None  # type: ignore
-        ParametresScoreArchitecture = None  # type: ignore
-        OptionsExplorationArchitecture = None  # type: ignore
+        best = rep.get("meilleur") or {}
+        return {
+            "N_cyl": best.get("N_cyl"),
+            "Architecture": best.get("architecture"),
+            "Score": best.get("score_global"),
+            "Cout_Maint_Estime": best.get("cout_maintenance_eur"),
+            "Bore_mm": best.get("bore_mm"),
+            "Course_mm": best.get("course_mm"),
+            "Ratio_Sur_B": best.get("ratio_S_B"),
+        }
+
+
+# Pièces architecture : import réel si disponible, sinon classes minimales non bloquantes.
+try:
+    VilebrequinArch = _import_attr(_piece_candidates("vilebrequin_arch"), "VilebrequinArch")
+except Exception:
+    @dataclass
+    class VilebrequinArch:  # type: ignore[no-redef]
+        architecture: str = "L"
+        nb_cylindres: int = 4
+        pas_cylindre_m: float = 0.15
+        diametre_journal_m: float = 0.05
+
+        def analyser(self) -> Dict[str, Any]:
+            f = {"L": 1.0, "V": 0.55, "W": 0.35, "Etoile": 0.2, "Boxer": 0.6}.get(self.architecture, 1.0)
+            if self.architecture == "V":
+                nb_manetons = math.ceil(self.nb_cylindres / 2)
+            elif self.architecture == "W":
+                nb_manetons = math.ceil(self.nb_cylindres / 3)
+            elif self.architecture == "Etoile":
+                nb_manetons = 1
+            else:
+                nb_manetons = self.nb_cylindres
+            return {
+                "piece": "vilebrequin_arch",
+                "resultats": {
+                    "longueur_vilebrequin_m": self.nb_cylindres * self.pas_cylindre_m * f,
+                    "nb_manetons_estimes": nb_manetons,
+                    "nb_paliers_estimes": nb_manetons + 1,
+                    "complexite_usinage": "Haute" if self.architecture in ["V", "W", "Etoile"] else "Standard",
+                },
+                "inconnues": {"impossibles": [], "partielles": []},
+            }
+
+try:
+    BlocMoteurArch = _import_attr(_piece_candidates("bloc_moteur_arch"), "BlocMoteurArch")
+except Exception:
+    @dataclass
+    class BlocMoteurArch:  # type: ignore[no-redef]
+        architecture: str = "L"
+        nb_cylindres: int = 4
+        alesage_m: float = 0.1
+        course_m: float = 0.1
+
+        def analyser(self) -> Dict[str, Any]:
+            f_m = {"L": 1.0, "V": 1.25, "W": 1.5, "Etoile": 1.1, "Boxer": 1.3}.get(self.architecture, 1.0)
+            f_w = {"L": 1.0, "V": 1.8, "W": 2.2, "Etoile": 2.5, "Boxer": 2.0}.get(self.architecture, 1.0)
+            f_h = {"L": 1.0, "V": 0.8, "W": 0.75, "Etoile": 2.5, "Boxer": 0.5}.get(self.architecture, 1.0)
+            return {
+                "piece": "bloc_moteur_arch",
+                "resultats": {
+                    "masse_bloc_estimee_kg": self.nb_cylindres * 10.0 * f_m,
+                    "largeur_hors_tout_m": 0.4 * f_w,
+                    "hauteur_hors_tout_m": 0.5 * f_h,
+                    "nb_plans_de_joint_culasse": 1 if self.architecture == "L" else (2 if self.architecture in ["V", "Boxer"] else 3),
+                },
+                "inconnues": {"impossibles": [], "partielles": []},
+            }
+
+try:
+    CulasseArch = _import_attr(_piece_candidates("culasse_arch"), "CulasseArch")
+except Exception:
+    @dataclass
+    class CulasseArch:  # type: ignore[no-redef]
+        architecture: str = "L"
+        nb_cylindres: int = 4
+        nb_soupapes_par_cyl: int = 4
+
+        def analyser(self) -> Dict[str, Any]:
+            if self.architecture in ["V", "Boxer"]:
+                nb_bancs = 2
+            elif self.architecture == "W":
+                nb_bancs = 3
+            elif self.architecture == "Etoile":
+                nb_bancs = self.nb_cylindres
+            else:
+                nb_bancs = 1
+            nb_aac = 2 if self.architecture == "L" else (4 if self.architecture in ["V", "Boxer"] else 6)
+            return {
+                "piece": "culasse_arch",
+                "resultats": {
+                    "nb_culasses": nb_bancs,
+                    "nb_arbres_a_cames_totaux": nb_aac,
+                    "complexite_distribution": "Elevée" if nb_bancs > 1 else "Standard",
+                    "nb_soupapes_totales": self.nb_cylindres * self.nb_soupapes_par_cyl,
+                },
+                "inconnues": {"impossibles": [], "partielles": []},
+            }
+
+
+# Solveur fin multi-cas : optionnel, car il dépend des modules moteur_thermique/cycle pression.
+resoudre_architecture_fine_multicas = _import_attr(
+    _module_candidates("architecture_fine_multicas"), "resoudre_architecture_fine_multicas", required=False
+)
+ParametresPackagingArchitecture = _import_attr(
+    _module_candidates("architecture_fine_multicas"), "ParametresPackagingArchitecture", required=False
+)
+ParametresMasseArchitecture = _import_attr(
+    _module_candidates("architecture_fine_multicas"), "ParametresMasseArchitecture", required=False
+)
+ParametresPertesArchitecture = _import_attr(
+    _module_candidates("architecture_fine_multicas"), "ParametresPertesArchitecture", required=False
+)
+ParametresFiabiliteArchitecture = _import_attr(
+    _module_candidates("architecture_fine_multicas"), "ParametresFiabiliteArchitecture", required=False
+)
+ParametresScoreArchitecture = _import_attr(
+    _module_candidates("architecture_fine_multicas"), "ParametresScoreArchitecture", required=False
+)
+OptionsExplorationArchitecture = _import_attr(
+    _module_candidates("architecture_fine_multicas"), "OptionsExplorationArchitecture", required=False
+)
 
 
 # ============================================================
@@ -1250,6 +1479,160 @@ class Architecture:
         return rapport
 
 
+
+# ============================================================
+# Orchestration haut niveau / export JSON
+# ============================================================
+
+def _to_plain_data(obj: Any) -> Any:
+    """Convertit récursivement dataclasses, numpy scalaires/tableaux et objets divers en JSON-safe."""
+    if obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, dict):
+        return {str(k): _to_plain_data(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_to_plain_data(v) for v in obj]
+    if is_dataclass(obj):
+        return _to_plain_data(asdict(obj))
+    # Compatibilité numpy sans dépendance obligatoire.
+    if hasattr(obj, "tolist"):
+        try:
+            return _to_plain_data(obj.tolist())
+        except Exception:
+            pass
+    if hasattr(obj, "item"):
+        try:
+            return _to_plain_data(obj.item())
+        except Exception:
+            pass
+    return str(obj)
+
+
+def exporter_rapport_json(rapport: Dict[str, Any], chemin: str | Path, *, indent: int = 2) -> str:
+    path = Path(chemin)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_to_plain_data(rapport), ensure_ascii=False, indent=indent), encoding="utf-8")
+    return str(path)
+
+
+def _prendre(d: Mapping[str, Any], *cles: str, default: Any = None) -> Any:
+    for cle in cles:
+        if cle in d:
+            return d[cle]
+    return default
+
+
+def _filtrer_kwargs(cls: Any, valeurs: Mapping[str, Any]) -> Dict[str, Any]:
+    try:
+        champs = set(getattr(cls, "__dataclass_fields__", {}).keys())
+    except Exception:
+        champs = set()
+    if not champs:
+        return dict(valeurs)
+    return {k: v for k, v in valeurs.items() if k in champs}
+
+
+def construire_architecture(config: Optional[Mapping[str, Any]] = None, **overrides: Any) -> Architecture:
+    """
+    Construit le composant Architecture depuis un dictionnaire.
+
+    Le dictionnaire peut contenir :
+    - les champs directs de Architecture ;
+    - un sous-dictionnaire `architecture` ;
+    - un sous-dictionnaire `pieces` avec `vilebrequin`, `bloc`, `culasse`.
+    """
+    cfg: Dict[str, Any] = dict(config or {})
+    cfg.update(overrides)
+    arch_cfg: Dict[str, Any] = dict(cfg.get("architecture", {}))
+    for k, v in cfg.items():
+        if k not in {"architecture", "analyse", "profil", "pieces"}:
+            arch_cfg.setdefault(k, v)
+
+    pieces_cfg = cfg.get("pieces") or arch_cfg.get("pieces") or {}
+    if isinstance(pieces_cfg, Mapping):
+        if "vilebrequin" in pieces_cfg and pieces_cfg["vilebrequin"] is not None:
+            arch_cfg["piece_vilebrequin"] = VilebrequinArch(**_filtrer_kwargs(VilebrequinArch, dict(pieces_cfg["vilebrequin"])))
+        if "bloc" in pieces_cfg and pieces_cfg["bloc"] is not None:
+            arch_cfg["piece_bloc"] = BlocMoteurArch(**_filtrer_kwargs(BlocMoteurArch, dict(pieces_cfg["bloc"])))
+        if "culasse" in pieces_cfg and pieces_cfg["culasse"] is not None:
+            arch_cfg["piece_culasse"] = CulasseArch(**_filtrer_kwargs(CulasseArch, dict(pieces_cfg["culasse"])))
+
+    return Architecture(**_filtrer_kwargs(Architecture, arch_cfg))
+
+
+def concevoir_architecture(config: Optional[Mapping[str, Any]] = None, **overrides: Any) -> Dict[str, Any]:
+    """
+    Orchestrateur complet du composant Architecture.
+
+    Exemples acceptés :
+    - concevoir_architecture({"puissance_cible_w": ..., "regime_tr_min": ...})
+    - concevoir_architecture({"architecture": {...}, "analyse": {...}})
+    - concevoir_architecture({"profil": {...}, "analyse": {...}})
+    """
+    cfg: Dict[str, Any] = dict(config or {})
+    cfg.update(overrides)
+
+    composant = construire_architecture(cfg)
+    analyse_cfg: Dict[str, Any] = dict(cfg.get("analyse", {}))
+    for k, v in cfg.items():
+        if k not in {"architecture", "analyse", "profil", "pieces"}:
+            analyse_cfg.setdefault(k, v)
+
+    profil_cfg = cfg.get("profil")
+    if isinstance(profil_cfg, Mapping):
+        profil = ProfilUsageMoteur(**_filtrer_kwargs(ProfilUsageMoteur, dict(profil_cfg)))
+        rapport = composant.recommander_pour_profil(
+            profil,
+            puissance_cible_w=analyse_cfg.get("puissance_cible_w"),
+            regime_tr_min=analyse_cfg.get("regime_tr_min"),
+            pme_pa=analyse_cfg.get("pme_pa"),
+        )
+    else:
+        # Ne transmet que les arguments de Architecture.analyser.
+        allowed = {
+            "puissance_cible_w",
+            "regime_tr_min",
+            "pme_pa",
+            "vitesse_piston_max_ms",
+            "longueur_dispo_m",
+            "largeur_dispo_m",
+            "hauteur_dispo_m",
+            "horizon_usage_h",
+            "taux_compression",
+            "cas_de_charge",
+            "ordre_allumage_map",
+            "ponderations_cas",
+            "activer_mode_fine",
+            "architectures_autorisees",
+            "architecture_forcee",
+            "poids_maintenance",
+            "poids_masse",
+            "poids_cout_matiere",
+            "poids_compacite",
+            "poids_fiabilite",
+            "poids_rendement",
+            "usage",
+            "commentaire_usage",
+        }
+        rapport = composant.analyser(**{k: v for k, v in analyse_cfg.items() if k in allowed})
+
+    rapport.setdefault("orchestrateur", {})
+    rapport["orchestrateur"].update(
+        {
+            "composant": "architecture",
+            "imports": {
+                "solveur_fine_multicas_disponible": bool(resoudre_architecture_fine_multicas is not None),
+                "pieces_disponibles": {
+                    "vilebrequin": bool(VilebrequinArch is not None),
+                    "bloc": bool(BlocMoteurArch is not None),
+                    "culasse": bool(CulasseArch is not None),
+                },
+            },
+        }
+    )
+    return rapport
+
+
 __all__ = [
     "UsageType",
     "ArchitectureType",
@@ -1257,4 +1640,25 @@ __all__ = [
     "estimer_pme_depuis_couple_et_cylindree",
     "estimer_pme_depuis_puissance_et_cylindree",
     "Architecture",
+    "construire_architecture",
+    "concevoir_architecture",
+    "exporter_rapport_json",
 ]
+
+
+if __name__ == "__main__":
+    exemple = {
+        "puissance_cible_w": 150_000.0,
+        "regime_tr_min": 4500.0,
+        "pme_pa": 1.2e6,
+        "vitesse_piston_max_ms": 25.0,
+        "longueur_dispo_m": 1.2,
+        "largeur_dispo_m": 0.8,
+        "hauteur_dispo_m": 0.7,
+    }
+    rapport = concevoir_architecture(exemple)
+    print(json.dumps(_to_plain_data({
+        "mode_analyse": rapport.get("mode_analyse"),
+        "meilleur": rapport.get("meilleur"),
+        "inconnues": rapport.get("inconnues"),
+    }), ensure_ascii=False, indent=2))
