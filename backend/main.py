@@ -797,7 +797,7 @@ def construire_batterie(**kwargs: Any) -> Any:
 
 def construire_alternateur(**kwargs: Any) -> Any:
     defaults = {
-        "connexion": "etoile",
+        "connexion": "Y",
         "nombre_poles": 12,
     }
     defaults.update(kwargs)
@@ -1652,7 +1652,10 @@ def dimensionner_systeme_shsem(
                 "course_m": course_m,
                 "rpm_nominal": rpm_moteur_nominal if rpm_moteur_nominal is not None else vitesse_moteur_thermique_rpm,
                 "couple_max_Nm": couple_moteur_max_Nm,
-                "puissance_nominale_visee_w": puissance_moteur_requise_W,
+                "puissance_nominale_visee_w": _first_non_none(
+                    puissance_moteur_requise_W,
+                    (puissance_traction_kw * 1000.0) if puissance_traction_kw is not None else None,
+                ),
                 "type_puissance_nominale": type_puissance_nominale,
                 "pme_nominale_pa": pme_pa,
                 "pression_max_pa": pression_max_pa,
@@ -1785,6 +1788,11 @@ def dimensionner_systeme_shsem(
             _append_note(rapport_global, "La puissance moteur thermique n'est pas déduite automatiquement depuis la puissance électrique : cela dépend des rendements alternateur/liaisons/mécanique, donc aucune valeur n'est inventée.")
         if puissance_traction_kw is not None:
             _append_note(rapport_global, "La puissance moteur thermique n'est pas déduite automatiquement depuis la puissance traction : cela dépend de la chaîne complète et des rendements, donc aucune valeur n'est inventée.")
+    elif puissance_traction_kw is not None and puissance_moteur_requise_W is None:
+        _append_note(
+            rapport_global,
+            "La puissance demandee sert de cible minimale de dimensionnement moteur ; la chaine complete peut ensuite imposer une puissance thermique superieure.",
+        )
 
     # Construction stricte des composants
     moteur_electrique = composants_def.get("moteur_electrique")

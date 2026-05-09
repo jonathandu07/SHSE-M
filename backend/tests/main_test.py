@@ -205,7 +205,7 @@ def test_constructors_forward_expected_arguments(monkeypatch, main_mod):
     assert ba.kwargs["rendement_charge"] == 0.91
 
     assert isinstance(alt, FakeAlternateur)
-    assert alt.kwargs == {"connexion": "etoile", "nombre_poles": 12}
+    assert alt.kwargs == {"connexion": "Y", "nombre_poles": 12}
 
     assert isinstance(mt, FakeMoteurThermique)
     assert mt.kwargs["temps_moteur"] == 2

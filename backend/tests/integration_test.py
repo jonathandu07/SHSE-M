@@ -6,6 +6,23 @@ from pathlib import Path
 import pytest
 
 
+def _dimensionner_report_exploitable():
+    from backend.main import dimensionner_systeme_shsem
+
+    return dimensionner_systeme_shsem(
+        55.0,
+        temps_moteur=4,
+        vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=8.0e5,
+        pression_max_pa=3.0e6,
+        vitesse_piston_max_ms=15.0,
+        ratio_course_alesage_max=1.1,
+        longueur_dispo_m=0.9,
+        largeur_dispo_m=0.9,
+        rendement_mecanique_cible_min=0.85,
+    )
+
+
 def test_all_piece_modules_import_cleanly():
     root = Path(__file__).resolve().parents[1] / "components"
     modules = []
@@ -24,9 +41,7 @@ def test_all_piece_modules_import_cleanly():
 
 
 def test_real_system_report_keeps_piece_inventory_consistent():
-    from backend.main import dimensionner_systeme_shsem
-
-    report = dimensionner_systeme_shsem(55.0)
+    report = _dimensionner_report_exploitable()
 
     pieces = report.get("pieces") or {}
     rapports = report.get("rapports_pieces") or {}
@@ -64,10 +79,9 @@ def test_real_system_report_keeps_piece_inventory_consistent():
 
 
 def test_optimisation_depuis_rapport_backend_runs_on_real_report():
-    from backend.main import dimensionner_systeme_shsem
     from backend.ensemble.optimisation import OptimisationSysteme
 
-    report = dimensionner_systeme_shsem(55.0)
+    report = _dimensionner_report_exploitable()
     analyse = OptimisationSysteme.depuis_rapport_backend(report).analyser()
 
     synthese = analyse["synthese_optimisation"]

@@ -1,6 +1,6 @@
-2026-05-09 16:28:42,629 - INFO - Starting test_systeme_analyser_full
-2026-05-09 16:28:42,631 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
-2026-05-09 16:28:42,635 - INFO - {
+2026-05-09 16:30:36,758 - INFO - Starting test_systeme_analyser_full
+2026-05-09 16:30:36,762 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-09 16:30:36,767 - INFO - {
   "entrees": {
     "vehicule": {
       "masse_kg": 1200.0,
@@ -901,6 +901,6 @@
     "Le bloc 'cao' fourni ici est un paquet de cotes de haut niveau pour fermer l'architecture moteur ; les autres pièces devront ensuite consommer ces données."
   ]
 }
-2026-05-09 16:28:42,637 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
-2026-05-09 16:28:42,641 - INFO - Starting test_systeme_missing_inputs
-2026-05-09 16:28:42,643 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
+2026-05-09 16:30:36,775 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-09 16:30:36,780 - INFO - Starting test_systeme_missing_inputs
+2026-05-09 16:30:36,781 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
