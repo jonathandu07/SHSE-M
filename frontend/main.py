@@ -746,6 +746,175 @@ class ConfigScreen(Screen):
         self.manager.current = "loading"
 
 
+class AutoConfigScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            Color(*COLORS["BL"])
+            self.bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[0])
+        self.bind(pos=self._update_bg, size=self._update_bg)
+
+        root = ScrollView(do_scroll_x=False)
+        page = BoxLayout(orientation="vertical", padding=[80, 40], spacing=24, size_hint_y=None)
+        page.bind(minimum_height=page.setter("height"))
+
+        hdr = BoxLayout(orientation="vertical", size_hint_y=None, height=120)
+        hdr.add_widget(Label(text="SHSE-M", font_size="52sp", bold=True, color=COLORS["BF"],
+                             size_hint_y=None, height=70))
+        hdr.add_widget(Label(text="ENGINE GENERATOR", font_size="18sp", color=COLORS["BA"],
+                             size_hint_y=None, height=30))
+        page.add_widget(hdr)
+
+        pwr_card = PremiumCard(title="Puissance cible", size_hint_y=None, height=160)
+        pwr_card.add_widget(Label(text="kW demandes au moteur", color=COLORS["GAXD"],
+                                   font_size="14sp", size_hint_y=None, height=24))
+        self.power_input = NeumorphicInput(text="150")
+        self.power_input.hint_text = "Ex: 150"
+        pwr_card.add_widget(self.power_input)
+        page.add_widget(pwr_card)
+
+        arch_card = PremiumCard(title="Architecture moteur", size_hint_y=None, height=120)
+        arch_info = Label(
+            text="Definie par calcul. Le backend compare les architectures autorisees et retient la solution coherente avec la puissance, le gabarit et les contraintes fournies.",
+            color=COLORS["GAXD"],
+            font_size="14sp",
+            halign="left",
+            valign="middle",
+        )
+        arch_info.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        arch_card.add_widget(arch_info)
+        page.add_widget(arch_card)
+
+        param_card = PremiumCard(title="Contraintes moteur optionnelles", size_hint_y=None)
+        param_card.bind(minimum_height=param_card.setter("height"))
+        intro = Label(
+            text="Ces champs servent de contraintes ou d'objectifs si tu les connais. Laisse vide pour eviter toute hypothese imposee.",
+            color=COLORS["GAXD"],
+            font_size="13sp",
+            size_hint_y=None,
+            height=38,
+            halign="left",
+            valign="middle",
+        )
+        intro.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        param_card.add_widget(intro)
+
+        param_grid = GridLayout(cols=2, spacing=[20, 10], size_hint_y=None)
+        param_grid.bind(minimum_height=param_grid.setter("height"))
+
+        def _lbl(txt):
+            l = Label(text=txt, color=COLORS["GAXD"], font_size="13sp",
+                      size_hint_y=None, height=44, halign="right", valign="middle")
+            l.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+            return l
+
+        def _inp(hint=""):
+            i = NeumorphicInput(text="")
+            i.size_hint_y = None
+            i.height = 52
+            i.font_size = "18sp"
+            i.hint_text = hint
+            return i
+
+        self._fields = {}
+        for lbl_txt, key in [
+            ("Alesage (mm)", "alesage_mm"),
+            ("Course (mm)", "course_mm"),
+            ("RPM nominal", "rpm_nominal"),
+            ("PME (bar)", "pme_bar"),
+            ("Pression max (bar)", "pression_max_bar"),
+            ("Rend. meca. cible", "rendement_meca"),
+        ]:
+            param_grid.add_widget(_lbl(lbl_txt))
+            inp = _inp("Optionnel")
+            self._fields[key] = inp
+            param_grid.add_widget(inp)
+
+        param_card.add_widget(param_grid)
+
+        fuel_row = BoxLayout(size_hint_y=None, height=74, spacing=12)
+        fuel_row.add_widget(Label(text="Carburant :", color=COLORS["GAXD"],
+                                   font_size="14sp", size_hint_x=0.22))
+        fuel_note = Label(
+            text="Mode multi-carburant actif. Le dimensionnement retient le pire carburant calculable et signale aussi le meilleur cas.",
+            color=COLORS["BF"],
+            font_size="14sp",
+            halign="left",
+            valign="middle",
+        )
+        fuel_note.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        fuel_row.add_widget(fuel_note)
+        param_card.add_widget(fuel_row)
+        page.add_widget(param_card)
+
+        self.err = Label(text="", color=COLORS["RF"], font_size="13sp",
+                         size_hint_y=None, height=22)
+        page.add_widget(self.err)
+
+        self.gen_btn = ModernButton(text="GÃ‰NÃ‰RER LE SYSTÃˆME", size_hint_y=None, height=64)
+        self.gen_btn.bind(on_press=self.launch_generation)
+        page.add_widget(self.gen_btn)
+
+        root.add_widget(page)
+        self.add_widget(root)
+
+    def on_enter(self, *args):
+        Clock.schedule_once(lambda dt: setattr(self.power_input, "focus", True), 0)
+
+    def _update_bg(self, *args):
+        self.bg_rect.pos = self.pos
+        self.bg_rect.size = self.size
+
+    def _read_float(self, key: str, default: Optional[float] = None) -> Optional[float]:
+        try:
+            txt = (self._fields[key].text or "").strip().replace(",", ".")
+            if not txt:
+                return default
+            return float(txt)
+        except Exception:
+            return default
+
+    def launch_generation(self, *_):
+        txt_raw = (self.power_input.text or "").strip()
+        txt = txt_raw.replace(",", ".")
+        try:
+            val = float(txt)
+            if val <= 0:
+                raise ValueError("P > 0 requis")
+            if val > 5000:
+                self.err.text = "Limite: 5000 kW (Physique)"
+                return
+        except Exception as e:
+            self.err.text = f"Entree invalide: {e}"
+            return
+
+        alesage_mm = self._read_float("alesage_mm", None)
+        course_mm = self._read_float("course_mm", None)
+        rpm = self._read_float("rpm_nominal", None)
+        pme_bar = self._read_float("pme_bar", None)
+        p_max_bar = self._read_float("pression_max_bar", None)
+        rend_meca = self._read_float("rendement_meca", None)
+
+        self.err.text = ""
+        app = App.get_running_app()
+        app.target_power = str(val)
+        app.engine_params = {
+            "alesage_m": alesage_mm / 1000.0 if alesage_mm else None,
+            "alesage_mm": alesage_mm,
+            "course_m": course_mm / 1000.0 if course_mm else None,
+            "course_mm": course_mm,
+            "rpm_nominal": rpm,
+            "pme_pa": pme_bar * 1e5 if pme_bar else None,
+            "pression_max_pa": p_max_bar * 1e5 if p_max_bar else None,
+            "rendement_mecanique_cible_min": rend_meca,
+            "carburant": None,
+            "mode_carburant": "multi_carburant",
+            "carburants_autorises": ["diesel", "essence", "ethanol", "methanol", "gpl", "gnv", "hydrogene"],
+            "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
+        }
+        self.manager.current = "loading"
+
+
 class LoadingScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -834,6 +1003,88 @@ class LoadingScreen(Screen):
         Clock.schedule_once(lambda dt: setattr(self.manager, "current", "dashboard"))
 
 
+class AutoLoadingScreen(LoadingScreen):
+    def do_math(self):
+        import time
+
+        app = App.get_running_app()
+        ep = app.engine_params or {}
+        p_target = float(app.target_power)
+
+        arch = ep.get("architecture", "CALCULEE")
+        ncyl = ep.get("nombre_cylindres", "--")
+        alesage_m = ep.get("alesage_m")
+        course_m = ep.get("course_m")
+        rpm = ep.get("rpm_nominal")
+        pme_pa = ep.get("pme_pa")
+        p_max_pa = ep.get("pression_max_pa")
+        carburant = ep.get("mode_carburant", "multi_carburant")
+
+        steps = ["Architecture...", "Cylindree...", "Vilebrequin...",
+                 "Thermodynamique...", "Pieces...", "Finalisation..."]
+        for s in steps:
+            Clock.schedule_once(lambda dt, msg=f"Calcul : {s}": setattr(self.label, "text", msg))
+            time.sleep(0.25)
+
+        def _fmt_dim(value_m):
+            return "--" if value_m is None else f"{float(value_m) * 1000.0:.0f}"
+
+        def _fmt_num(value, suffix=""):
+            return f"--{suffix}" if value is None else f"{float(value):.0f}{suffix}"
+
+        sub = (
+            f"{arch} | {ncyl} cyl | D{_fmt_dim(alesage_m)} x C{_fmt_dim(course_m)} mm | "
+            f"{_fmt_num(rpm, ' rpm')} | {carburant}"
+        )
+        Clock.schedule_once(lambda dt, m=sub: setattr(self.sub_label, "text", m))
+
+        try:
+            from backend.main import dimensionner_systeme_shsem
+            from backend.modules.systeme.database import SecureDatabase
+
+            db = SecureDatabase(
+                db_path=os.path.join(BASE_DIR, "backend", "shse_technical_data.db"),
+                key_path=os.path.join(BASE_DIR, "backend", "secret.key"),
+            )
+            report_name = f"gui_moteur_{str(p_target).replace('.', 'p')}kw"
+            report = dimensionner_systeme_shsem(
+                puissance_traction_kw=p_target,
+                charger_batterie=True,
+                vitesse_moteur_thermique_rpm=rpm,
+                pme_pa=pme_pa,
+                pression_max_pa=p_max_pa,
+                rendement_mecanique_cible_min=ep.get("rendement_mecanique_cible_min"),
+                carburants_autorises=ep.get("carburants_autorises"),
+                mode_carburant=ep.get("mode_carburant"),
+                architectures_autorisees=ep.get("architectures_autorisees"),
+                moteur_thermique_definition={
+                    "temps_moteur": ep.get("temps_moteur"),
+                    "alesage_m": alesage_m,
+                    "course_m": course_m,
+                    "rpm_nominal": rpm,
+                    "pme_pa": pme_pa,
+                    "pression_max_pa": p_max_pa,
+                    "carburants_autorises": ep.get("carburants_autorises"),
+                    "mode_carburant": ep.get("mode_carburant"),
+                    "architectures_autorisees": ep.get("architectures_autorisees"),
+                },
+            )
+            record_ids = db.save_main_report(report, report_name=report_name)
+            res = db.load_main_report(report_name) or {}
+            if isinstance(res, dict):
+                res["stockage_front"] = {
+                    "report_name": report_name,
+                    "db_path": db.db_path,
+                    "records_saved": len(record_ids),
+                }
+            app.simulation_results = res or {}
+            app.current_report_name = report_name
+        except Exception:
+            app.simulation_results = {"__error__": traceback.format_exc()}
+
+        Clock.schedule_once(lambda dt: setattr(self.manager, "current", "dashboard"))
+
+
 class DashboardScreen(Screen):
     res_pwr = StringProperty("-- kW")
     res_mass = StringProperty("-- kg")
@@ -916,9 +1167,9 @@ class DashboardScreen(Screen):
         fields = {}
         for lbl, key, default in [
             ("Alésage (mm)", "alesage_mm", ep.get("alesage_mm", ep.get("alesage_m", 0.13) * 1000)),
-            ("Course (mm)", "course_mm", ep.get("course_mm", ep.get("course_m", 0.15) * 1000)),
-            ("RPM", "rpm_nominal", ep.get("rpm_nominal", 1500)),
-            ("PME (bar)", "pme_bar", ep.get("pme_pa", 15e5) / 1e5),
+            ("Course (mm)", "course_mm", ep.get("course_mm")),
+            ("RPM", "rpm_nominal", ep.get("rpm_nominal")),
+            ("PME (bar)", "pme_bar", (ep.get("pme_pa") / 1e5) if ep.get("pme_pa") is not None else None),
         ]:
             row = BoxLayout(size_hint_y=None, height=48, spacing=10)
             row.add_widget(Label(text=lbl, color=COLORS["BF"], size_hint_x=0.45, font_size="13sp"))

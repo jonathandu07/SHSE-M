@@ -482,22 +482,61 @@ def dimensionner_pieces_moteur_thermique(
         definition_moteur_thermique,
     )
 
-    pieces, construction_report = main_mod.construire_pieces_depuis_systeme(
-        rapport_systeme=rapport_systeme_effectif,
-        definition_moteur_thermique=definition_moteur,
-        pieces_definition=_safe_dict(pieces_definition),
-        moteur_thermique_obj=moteur_thermique_obj,
-        systeme_obj=systeme_obj,
-        return_report=True,
-    )
+    from backend.components.moteur_thermique.modules.verificateur_assemblage import VerificateurAssemblage
 
-    report.update(
-        consolider_sortie_pieces(
+    current_definition_mt = dict(definition_moteur)
+    current_pieces_def = _safe_dict(pieces_definition)
+    derniere_consolidation = {}
+
+    max_iterations = 3
+    for i in range(max_iterations):
+        pieces, construction_report = main_mod.construire_pieces_depuis_systeme(
+            rapport_systeme=rapport_systeme_effectif,
+            definition_moteur_thermique=current_definition_mt,
+            pieces_definition=current_pieces_def,
+            moteur_thermique_obj=moteur_thermique_obj,
+            systeme_obj=systeme_obj,
+            return_report=True,
+        )
+
+        derniere_consolidation = consolider_sortie_pieces(
             main_mod=main_mod,
             pieces=pieces,
             construction_report=construction_report,
         )
-    )
+
+        verificateur = VerificateurAssemblage(derniere_consolidation.get("rapports_pieces", {}))
+        issues = verificateur.verifier_tout()
+
+        if not issues:
+            if i > 0:
+                _append_note(report, f"Assemblage stabilise apres {i} corrections.")
+            break
+
+        # Extraction des corrections
+        corrections = {}
+        for issue in issues:
+            if issue.parametre_correcteur:
+                corrections.update(issue.parametre_correcteur)
+                _append_note(report, f"[ASSEMBLAGE] Point bloquant: {issue.message}. Tentative de correction: {issue.parametre_correcteur}")
+
+        if not corrections:
+            _append_note(report, "[ASSEMBLAGE] Echec de correction automatique.")
+            break
+
+        # On applique les corrections pour la prochaine iteration
+        current_definition_mt.update(corrections)
+        # On s'assure que pieces_definition suit aussi
+        # Note: on fait une copie pour eviter de modifier l'original passe par reference
+        current_pieces_def = dict(current_pieces_def)
+        if "parametres_globaux" not in current_pieces_def:
+            current_pieces_def["parametres_globaux"] = {}
+        else:
+            current_pieces_def["parametres_globaux"] = dict(current_pieces_def["parametres_globaux"])
+            
+        current_pieces_def["parametres_globaux"].update(corrections)
+
+    report.update(derniere_consolidation)
     report["inconnues"]["impossibles"].extend(
         list(_get_nested(construction_report, "inconnues", "impossibles") or [])
     )
