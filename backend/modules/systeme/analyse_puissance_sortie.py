@@ -134,6 +134,7 @@ METRIC_PATHS: dict[str, tuple[str, ...]] = {
     "epaisseur_cylindre_mince_m": ("calculs", "moteur_thermique", "epaisseur_cylindre_mince_m"),
     "energie_sortie_sur_duree_kwh": ("calculs", "energie_sortie_sur_duree_kwh"),
     "energie_trajet_kwh": ("calculs", "energie_trajet_kwh"),
+    "carburant": ("entrees", "carburant"),
 }
 
 
@@ -173,6 +174,7 @@ VECTOR_BUILDERS = {
     "duree_h": lambda value: _positive_vector("duree_h", value),
     "distance_km": lambda value: _positive_vector("distance_km", value),
     "conso_kwh_km": lambda value: _positive_vector("conso_kwh_km", value),
+    "carburant": lambda value: _as_list(value),
 }
 
 
@@ -637,6 +639,35 @@ def _select_best(candidates: list[Dict[str, Any]]) -> Dict[str, Any]:
             "valeur": best_value,
             "candidat": _candidate_summary(best_candidate),
         }
+
+    # Agrégation du Pire Cas (Worst Case) pour le dimensionnement
+    if candidates:
+        worst_metrics: Dict[str, float] = {}
+        # Pour le dimensionnement, le pire cas est le MAX des besoins
+        metrics_to_maximize = {
+            "cylindree_totale_requise_l", 
+            "alesage_mm", 
+            "course_mm", 
+            "pression_max_pa", 
+            "epaisseur_cylindre_mince_m",
+            "puissance_amont_requise_w",
+            "couple_moteur_nm"
+        }
+        
+        for metric_name in metrics_to_maximize:
+            vals = [_metric(c["rapport"], metric_name) for c in candidates]
+            finite_vals = [v for v in vals if v is not None]
+            if finite_vals:
+                worst_metrics[metric_name] = max(finite_vals)
+        
+        if worst_metrics:
+            selection["pire_cas_dimensionnant"] = {
+                "metrique": "enveloppe_maximale",
+                "objectif": "robustesse_structurelle",
+                "metriques": worst_metrics,
+                "note": "Ce candidat virtuel regroupe les contraintes les plus severes de tous les scenarios etudie."
+            }
+
     return selection
 
 
