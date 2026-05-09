@@ -647,13 +647,23 @@ class TechRow(BoxLayout):
 
         self.key_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
         self.val_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        self.key_lbl.bind(texture_size=lambda *_: self._update_row_height())
+        self.val_lbl.bind(texture_size=lambda *_: self._update_row_height())
+        self.bind(width=lambda *_: self._update_row_height())
 
         self.add_widget(self.key_lbl)
         self.add_widget(self.val_lbl)
+        Clock.schedule_once(lambda *_: self._update_row_height(), 0)
 
     def _update_bg(self, *args):
         self._bg.pos = self.pos
         self._bg.size = self.size
+
+    def _update_row_height(self, *args):
+        key_h = getattr(self.key_lbl, "texture_size", [0, 0])[1] or 0
+        val_h = getattr(self.val_lbl, "texture_size", [0, 0])[1] or 0
+        content_h = max(key_h, val_h, 20)
+        self.height = max(48, content_h + 20)
 
 
 # =========================

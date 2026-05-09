@@ -217,6 +217,44 @@ def _merge_dict_non_none(base: Optional[Dict[str, Any]], extra: Optional[Dict[st
     return out
 
 
+def _default_piece_definitions() -> Dict[str, Any]:
+    """
+    Standards explicites du projet pour fermer les calculs mécaniques sans
+    injecter de nombres arbitraires pièce par pièce au runtime.
+
+    Ces valeurs correspondent à des choix de familles matériau/catalogue déjà
+    présentes dans `backend.ensemble.materiaux`.
+    """
+    return {
+        "cylindre": {"materiau_cle": "acier_42crmo4_qt"},
+        "piston": {
+            "materiau_piston_cle": "alu_7075_t6",
+            "materiau_cylindre_cle": "acier_42crmo4_qt",
+            "materiau_joint_cle": "ptfe",
+            "materiau_axe_cle": "acier_42crmo4_qt",
+        },
+        "bielle": {"materiau_cle": "acier_42crmo4_qt"},
+        "arbre_piston": {"materiau_cle": "acier_42crmo4_qt"},
+        "coussinet_arbre_piston": {"materiau_coussinet": "bronze_cusn12"},
+        "deplaceur": {"materiau_cle": "inox_304"},
+        "joint_piston": {"materiau_joint_cle": "ptfe"},
+        "joint_deplaceur": {"materiau_joint_cle": "ptfe"},
+        "arbre_vilebrequin": {"materiau_cle": "acier_42crmo4_qt"},
+        "vilbrequin": {"materiau_cle": "acier_42crmo4_qt"},
+        "arbre": {
+            "materiau_arbre_cle": "acier_42crmo4_qt",
+            "materiau_clavette_cle": "acier_42crmo4_qt",
+            "materiau_moyeu_cle": "acier_100cr6",
+        },
+        "clavette_arbre": {
+            "materiau_clavette_cle": "acier_42crmo4_qt",
+            "materiau_anneau_interieur_cle": "acier_100cr6",
+        },
+        "couvercle_cylindre": {"materiau_cle": "acier_42crmo4_qt"},
+        "vis_couvercle_cylindre": {"classe_vis_iso898": "10.9"},
+    }
+
+
 def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: str) -> None:
     rapport.setdefault("inconnues", {}).setdefault(categorie, []).append({"nom": str(nom), "raison": str(raison)})
 
@@ -947,7 +985,8 @@ def construire_pieces_depuis_systeme(
     mt_systeme = _safe_dict(synth.get("moteur_thermique"))
     definition_mt = _normaliser_definition_moteur_thermique(definition_moteur_thermique)
     mt = _merge_dict_non_none(mt_systeme, definition_mt)
-    pieces_def = _safe_dict(pieces_definition)
+    piece_defaults = _default_piece_definitions()
+    pieces_def = _merge_dict_non_none(piece_defaults, _safe_dict(pieces_definition))
 
     rapport: Dict[str, Any] = {
         "construction": {},
@@ -956,6 +995,11 @@ def construire_pieces_depuis_systeme(
         "propagation_debug": {},
         "rapports_pieces": {},
     }
+    if piece_defaults:
+        rapport["notes_modele"].append(
+            "Standards projet appliques aux pieces mecaniques pour fermer les calculs "
+            "(materiaux/catalogues explicites issus de la bibliotheque interne)."
+        )
 
     def _trace(nom: str, valeur: Any, source: str, statut: str = "calculée") -> None:
         if valeur is not None:

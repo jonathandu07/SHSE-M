@@ -34,3 +34,4 @@
 [WARNING] Deprecated property "<BooleanProperty name=allow_stretch>" of object "<kivy.uix.image.Image object at 0x000001A5C794DB00>" has been set, it will be removed in a future version
 [WARNING] Deprecated property "<BooleanProperty name=keep_ratio>" of object "<kivy.uix.image.Image object at 0x000001A5C794DB00>" was accessed, it will be removed in a future version
 [INFO   ] Base: Start application main loop
+[INFO   ] Base: Leaving application in progress...
