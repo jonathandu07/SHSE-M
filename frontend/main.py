@@ -121,6 +121,95 @@ def _flatten_mapping(data, prefix="", depth=0, max_depth=3):
             yield label, str(value)
 
 
+def _merge_front_dicts(*sources):
+    out = {}
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        for key, value in src.items():
+            if key not in out:
+                out[key] = value
+    return out
+
+
+def _current_piece_payload(report, db_name: str, raw_name: str):
+    report = _safe_dict(report)
+    inventaire_pieces = _safe_dict(_safe_dict(report.get("inventaire")).get("pieces"))
+    rapports_pieces = _safe_dict(report.get("rapports_pieces"))
+    construction = _safe_dict(_safe_dict(report.get("construction_pieces")).get("construction"))
+    objets = _safe_dict(_safe_dict(report.get("objets_serialises")).get("pieces"))
+
+    key_candidates = []
+    for candidate in (db_name, raw_name, raw_name.replace("_", "")):
+        if candidate and candidate not in key_candidates:
+            key_candidates.append(candidate)
+
+    for key in list(inventaire_pieces.keys()):
+        if key not in key_candidates and key.endswith(f".{raw_name}"):
+            key_candidates.append(key)
+
+    for key in key_candidates:
+        payload = _merge_front_dicts(
+            {"piece": key},
+            inventaire_pieces.get(key),
+            {"rapport": rapports_pieces.get(key)} if isinstance(rapports_pieces.get(key), dict) else {},
+            {"objet_serialise": objets.get(key)} if isinstance(objets.get(key), dict) else {},
+            {"construction": construction.get(key)} if isinstance(construction.get(key), dict) else {},
+        )
+        if any(isinstance(payload.get(name), dict) for name in ("rapport", "objet_serialise", "construction")) or isinstance(payload.get("inventaire"), dict):
+            payload.setdefault("inventaire", inventaire_pieces.get(key))
+            payload.setdefault("objet", _safe_dict(inventaire_pieces.get(key)).get("objet"))
+            return payload
+    return {}
+
+
+def _current_component_payload(report, component_name: str):
+    report = _safe_dict(report)
+    component_inventory = _safe_dict(_safe_dict(report.get("inventaire")).get("composants"))
+    analyses = _safe_dict(report.get("analyses_composants"))
+    objects = _safe_dict(_safe_dict(report.get("objets_serialises")).get("composants"))
+
+    aliases = {
+        "architecture": ("architecture",),
+        "alternateur": ("alternateur", "alternateur_bus_dc"),
+        "batterie": ("batterie", "batterie_dimensionnement"),
+        "moteur_electrique": ("moteur_electrique",),
+        "moteur_thermique": (
+            "moteur_thermique",
+            "moteur_thermique_geometrie",
+            "moteur_thermique_cycle",
+            "moteur_thermique_point",
+            "moteur_thermique_bilan_carburant",
+            "construction_moteur_thermique",
+        ),
+        "boite_crabots": ("boite_crabots", "boite_point", "boite_chaine"),
+    }
+    names = aliases.get(component_name, (component_name,))
+
+    payload = {"component": component_name}
+    inventory = component_inventory.get(component_name)
+    if isinstance(inventory, dict):
+        payload["inventaire"] = inventory
+        payload.update(inventory)
+
+    report_bundle = {}
+    for name in names:
+        analysis = analyses.get(name)
+        if isinstance(analysis, dict):
+            report_bundle[name] = analysis
+    if report_bundle:
+        payload["rapport"] = report_bundle.get(component_name) or next(iter(report_bundle.values()))
+        if len(report_bundle) > 1:
+            payload["rapports"] = report_bundle
+
+    obj = objects.get(component_name)
+    if isinstance(obj, dict):
+        payload["objet_serialise"] = obj
+        payload.setdefault("objet", obj)
+
+    return payload if len(payload) > 1 else {}
+
+
 # =========================
 # Matplotlib Bridge (Custom FigureCanvasKivyAgg)
 # =========================
