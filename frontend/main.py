@@ -210,6 +210,24 @@ def _current_component_payload(report, component_name: str):
     return payload if len(payload) > 1 else {}
 
 
+def _piece_backend_status(payload):
+    data = _safe_dict(payload)
+    if not data:
+        return {"label": "À calculer", "detail": "Aucune donnée backend disponible.", "color": COLORS["RF"]}
+
+    construit = bool(data.get("construit"))
+    rapport = data.get("rapport")
+    rapport_disponible = bool(data.get("rapport_disponible")) or (
+        isinstance(rapport, dict) and bool(rapport) and "note" not in rapport and "erreur" not in rapport
+    )
+    if construit and rapport_disponible:
+        return {"label": "Calculée", "detail": "Pièce construite avec rapport exploitable.", "color": (0.12, 0.66, 0.24, 1)}
+    if construit:
+        note = _safe_dict(rapport).get("note") or "Pièce construite avec retour partiel."
+        return {"label": "Partielle", "detail": str(note), "color": COLORS["JV"]}
+    return {"label": "Non construite", "detail": "Données insuffisantes pour construire cette pièce.", "color": COLORS["RF"]}
+
+
 # =========================
 # Matplotlib Bridge (Custom FigureCanvasKivyAgg)
 # =========================
@@ -1206,6 +1224,7 @@ class PieceLibraryScreen(Screen):
                     "raw_name": raw_name,
                     "db_name": str(piece_key),
                     "display_name": f"{component_name.replace('_', ' ').upper()} - {raw_name.replace('_', ' ').upper()}",
+                    "payload": piece_data,
                 })
         else:
             components_root = os.path.join(BASE_DIR, "backend", "components")
@@ -1224,6 +1243,7 @@ class PieceLibraryScreen(Screen):
                         "raw_name": raw_name,
                         "db_name": f"{component_name}.{raw_name}",
                         "display_name": f"{component_name.replace('_', ' ').upper()} - {raw_name.replace('_', ' ').upper()}",
+                        "payload": {},
                     })
         if not entries:
             self.grid.add_widget(Label(text="Aucune pièce détectée dans backend/components.",
@@ -1231,18 +1251,29 @@ class PieceLibraryScreen(Screen):
             return
         for entry in entries:
             card = PremiumCard(title=entry["display_name"], size_hint_y=None, height=120)
+            stack = BoxLayout(orientation="vertical", spacing=8)
+            status = _piece_backend_status(entry.get("payload"))
+            stack.add_widget(Label(
+                text=f"{status['label']} | {status['detail'][:54]}",
+                color=status["color"],
+                font_size="11sp",
+                size_hint_y=None,
+                height=30,
+            ))
             btn = ModernButton(text="VOIR DÉTAILS", font_size="12sp",
                                size_hint_y=None, height=44)
-            btn.bind(on_press=lambda _, e=entry: self.view_details(e["display_name"], e["raw_name"], e["db_name"], e["component"]))
-            card.add_widget(btn)
+            btn.bind(on_press=lambda _, e=entry: self.view_details(e["display_name"], e["raw_name"], e["db_name"], e["component"], e.get("payload")))
+            stack.add_widget(btn)
+            card.add_widget(stack)
             self.grid.add_widget(card)
 
-    def view_details(self, display_name, raw_name, db_name, component_name):
+    def view_details(self, display_name, raw_name, db_name, component_name, payload=None):
         app = App.get_running_app()
         app.selected_piece_display = display_name
         app.selected_piece_raw = raw_name
         app.selected_piece_db = db_name
         app.selected_piece_component = component_name
+        app.selected_piece_payload = dict(payload or {})
         self.manager.current = "piece_detail"
 
 
