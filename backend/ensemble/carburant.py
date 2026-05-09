@@ -52,6 +52,14 @@ class Carburant:
     indice_cetane: Optional[float] = None
     temperature_auto_inflammation_c: Optional[float] = None
     vitesse_flamme_laminaire_ms: Optional[float] = None
+    
+    # Composition élémentaire (massique 0..1)
+    fraction_carbone: float = 0.0
+    fraction_hydrogene: float = 0.0
+    fraction_oxygene: float = 0.0
+    fraction_azote: float = 0.0
+    
+    notes: str = ""
 
     def __post_init__(self):
         # Vérification sommaire de la cohérence de la fraction massique si renseignée
@@ -64,6 +72,14 @@ class Carburant:
     @property
     def pci_j_kg(self) -> float:
         return self.pci_mj_kg * MJ_KG_TO_J_KG
+
+    @property
+    def pcs_j_kg(self) -> Optional[float]:
+        return self.pcs_mj_kg * MJ_KG_TO_J_KG if self.pcs_mj_kg is not None else None
+
+    @property
+    def rapport_air_carburant_stoech_massique(self) -> float:
+        return self.afr_stoechiometrique
 
     def pci_volumique_mj_m3(self) -> float:
         """Energie par unité de volume de carburant pur."""
