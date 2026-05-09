@@ -284,8 +284,9 @@ def _resoudre_materiau(
 
                 if mat is None:
                     continue
+                valeur = getattr(mod, "valeur", None)
 
-                def g(obj: Any, *names: str) -> Optional[float]:
+                def g(obj: Any, *names: str, mode: str = "typique") -> Optional[float]:
                     for n in names:
                         if isinstance(obj, dict) and n in obj:
                             v = obj.get(n)
@@ -293,13 +294,41 @@ def _resoudre_materiau(
                             v = getattr(obj, n, None)
                         if v is not None and _is_finite(v):
                             return float(v)
+                        if callable(valeur):
+                            try:
+                                out = valeur(v, mode=mode)
+                                if _is_finite(out):
+                                    return float(out)
+                            except Exception:
+                                pass
                     return None
 
                 rho = rho if rho is not None else g(mat, "densite_kg_m3", "rho_kg_m3", "densite")
-                Re = Re if Re is not None else g(mat, "limite_elastique_pa", "Re_pa", "rp02_pa", "yield_strength_pa")
+                Re = Re if Re is not None else g(mat, "limite_elastique_pa", "Re_pa", "rp02_pa", "yield_strength_pa", mode="min")
+                if Re is None and hasattr(mat, "limite_elastique_effective_pa"):
+                    try:
+                        v = mat.limite_elastique_effective_pa(mode="min")
+                        if _is_finite(v):
+                            Re = float(v)
+                    except Exception:
+                        pass
                 E = E if E is not None else g(mat, "module_young_pa", "E_pa", "young_pa", "young_modulus_pa")
-                Rm = Rm if Rm is not None else g(mat, "resistance_traction_pa", "Rm_pa", "uts_pa", "ultimate_strength_pa")
-                Se = Se if Se is not None else g(mat, "limite_fatigue_pa", "limite_endurance_pa", "Sf_pa", "endurance_limit_pa")
+                Rm = Rm if Rm is not None else g(mat, "resistance_traction_pa", "Rm_pa", "uts_pa", "ultimate_strength_pa", mode="min")
+                if Rm is None and hasattr(mat, "resistance_traction_effective_pa"):
+                    try:
+                        v = mat.resistance_traction_effective_pa(mode="min")
+                        if _is_finite(v):
+                            Rm = float(v)
+                    except Exception:
+                        pass
+                Se = Se if Se is not None else g(mat, "limite_fatigue_pa", "limite_endurance_pa", "Sf_pa", "endurance_limit_pa", mode="min")
+                if Se is None and hasattr(mat, "limite_fatigue_effective_pa"):
+                    try:
+                        v = mat.limite_fatigue_effective_pa(mode="min")
+                        if _is_finite(v):
+                            Se = float(v)
+                    except Exception:
+                        pass
                 break
             except Exception:
                 continue

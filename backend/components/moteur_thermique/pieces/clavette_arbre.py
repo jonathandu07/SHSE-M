@@ -200,8 +200,9 @@ def _resoudre_materiau(
                         mat = mats.get(materiau_cle)
                 if mat is None:
                     continue
+                valeur = getattr(mod, "valeur", None)
 
-                def g(obj: Any, *names: str) -> Optional[float]:
+                def g(obj: Any, *names: str, mode: str = "typique") -> Optional[float]:
                     for n in names:
                         if isinstance(obj, dict) and n in obj:
                             v = obj.get(n)
@@ -209,12 +210,26 @@ def _resoudre_materiau(
                             v = getattr(obj, n, None)
                         if _is_finite(v):
                             return float(v)
+                        if callable(valeur):
+                            try:
+                                out = valeur(v, mode=mode)
+                                if _is_finite(out):
+                                    return float(out)
+                            except Exception:
+                                pass
                     return None
 
                 if rho is None:
                     rho = g(mat, "densite_kg_m3", "rho_kg_m3", "densite")
                 if Re is None:
-                    Re = g(mat, "limite_elastique_pa", "Re_pa", "rp02_pa", "yield_strength_pa")
+                    Re = g(mat, "limite_elastique_pa", "Re_pa", "rp02_pa", "yield_strength_pa", mode="min")
+                    if Re is None and hasattr(mat, "limite_elastique_effective_pa"):
+                        try:
+                            v = mat.limite_elastique_effective_pa(mode="min")
+                            if _is_finite(v):
+                                Re = float(v)
+                        except Exception:
+                            pass
                 if E is None:
                     E = g(mat, "module_young_pa", "E_pa", "young_pa", "young_modulus_pa")
                 break

@@ -2036,7 +2036,10 @@ def dimensionner_systeme_shsem(
         except TypeError:
             pieces = construire_pieces_depuis_systeme(rapport_systeme=rapport_systeme)
             rapport_construction_pieces = {"note": "Construction pieces appelee en mode compatibilite."}
-        rapports_pieces = analyser_pieces(pieces)
+        rapports_pieces = _merge_dict_non_none(
+            _safe_dict(rapport_construction_pieces.get("rapports_pieces")),
+            analyser_pieces(pieces),
+        )
     else:
         _push_inconnue(rapport_global, "partielles", "pieces", "Construction des pièces impossible tant que le rapport système n'expose pas une synthèse exploitable.")
 

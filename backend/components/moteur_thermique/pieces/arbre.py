@@ -195,21 +195,38 @@ def _resoudre_materiau(
                 mod = __import__(modname, fromlist=["get_materiau"])
                 get_materiau = getattr(mod, "get_materiau")
                 mat = get_materiau(materiau_cle)
+                valeur = getattr(mod, "valeur", None)
+
+                def _pick(value: Any, mode: str) -> Optional[float]:
+                    if _is_finite(value):
+                        return float(value)
+                    if callable(valeur):
+                        try:
+                            out = valeur(value, mode=mode)
+                            if _is_finite(out):
+                                return float(out)
+                        except Exception:
+                            pass
+                    return None
 
                 if rho is None:
                     v = _get(mat, "densite_kg_m3", "rho_kg_m3", "densite")
-                    if _is_finite(v):
-                        rho = float(v)
+                    rho = _pick(v, "typique")
 
                 if Re is None:
                     v = _get(mat, "limite_elastique_pa", "Re_pa", "rp02_pa", "yield_strength_pa")
-                    if _is_finite(v):
-                        Re = float(v)
+                    Re = _pick(v, "min")
+                    if Re is None and hasattr(mat, "limite_elastique_effective_pa"):
+                        try:
+                            v = mat.limite_elastique_effective_pa(mode="min")
+                            if _is_finite(v):
+                                Re = float(v)
+                        except Exception:
+                            pass
 
                 if E is None:
                     v = _get(mat, "module_young_pa", "E_pa", "young_pa", "young_modulus_pa")
-                    if _is_finite(v):
-                        E = float(v)
+                    E = _pick(v, "typique")
 
                 break
             except Exception:
