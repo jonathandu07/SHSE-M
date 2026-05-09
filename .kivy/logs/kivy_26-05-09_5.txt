@@ -5288,3 +5288,4 @@
 [DEBUG  ] b'sBIT' 41 4 (unknown)
 [DEBUG  ] STREAM b'pHYs' 57 9
 [DEBUG  ] STREAM b'IDAT' 78 626
+[INFO   ] Base: Leaving application in progress...
