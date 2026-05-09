@@ -45,6 +45,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
 from kivy.uix.image import Image as KivyImage
+from kivy.uix.widget import Widget
 from kivy.properties import StringProperty, DictProperty
 from kivy.graphics import Color, RoundedRectangle
 from kivy.core.window import Window
@@ -77,6 +78,10 @@ COLORS = {
     "RF": (236 / 255, 25 / 255, 32 / 255, 1),
 }
 
+PROJECT_NAME = "STHOME"
+PROJECT_SUBTITLE = "ENGINE GENERATOR"
+PROJECT_LOGO = os.path.join(BASE_DIR, "frontend", "images", "logo.png")
+
 # =========================
 # Popup util
 # =========================
@@ -105,10 +110,104 @@ def _safe_dict(value):
     return value if isinstance(value, dict) else {}
 
 
+def _safe_list(value):
+    return value if isinstance(value, list) else []
+
+
 def _report_resume(report):
     report_dict = _safe_dict(report)
     resume = _safe_dict(report_dict.get("resume_gui"))
     return resume if resume else report_dict
+
+
+def _format_unknown_name(name: str) -> str:
+    mapping = {
+        "regime_tr_min": "RPM nominal",
+        "pme_pa": "PME",
+        "gabarit (L/W)": "gabarit L/W",
+        "vitesse_piston_max_ms": "vitesse piston max",
+    }
+    if name in mapping:
+        return mapping[name]
+    return str(name or "").replace("_", " ").strip() or "donnee"
+
+
+def _get_architecture_analysis(report):
+    analyses = _safe_dict(_safe_dict(report).get("analyses_composants"))
+    return _safe_dict(analyses.get("architecture"))
+
+
+def _missing_requirements(report, limit: int = 4):
+    inconnues = _safe_dict(_get_architecture_analysis(report).get("inconnues"))
+    items = []
+    for bucket in ("impossibles", "partielles"):
+        for entry in _safe_list(inconnues.get(bucket)):
+            if not isinstance(entry, dict):
+                continue
+            name = _format_unknown_name(entry.get("nom"))
+            reason = str(entry.get("raison") or "").strip()
+            items.append({"name": name, "reason": reason, "bucket": bucket})
+            if len(items) >= limit:
+                return items
+    return items
+
+
+def _fuel_summary(report):
+    analyses = _safe_dict(_safe_dict(report).get("analyses_composants"))
+    bilan = _safe_dict(analyses.get("moteur_thermique_bilan_carburant"))
+    return {
+        "mode": bilan.get("mode"),
+        "worst": bilan.get("carburant_dimensionnant"),
+        "best": bilan.get("carburant_optimal"),
+    }
+
+
+def _build_brand_header(height: int = 120, title_size: str = "52sp", subtitle_size: str = "18sp"):
+    outer = BoxLayout(orientation="horizontal", size_hint_y=None, height=height)
+    outer.add_widget(Widget())
+
+    brand = BoxLayout(orientation="horizontal", spacing=16, size_hint=(None, None), height=height)
+    brand.width = 430
+    if os.path.exists(PROJECT_LOGO):
+        brand.add_widget(
+            KivyImage(
+                source=PROJECT_LOGO,
+                size_hint=(None, None),
+                size=(height - 24, height - 24),
+                allow_stretch=True,
+                keep_ratio=True,
+            )
+        )
+
+    txt = BoxLayout(orientation="vertical", size_hint=(1, None), height=height, padding=[0, 10, 0, 10])
+    title = Label(
+        text=PROJECT_NAME,
+        font_size=title_size,
+        bold=True,
+        color=COLORS["BF"],
+        size_hint_y=None,
+        height=max(50, height - 46),
+        halign="left",
+        valign="middle",
+    )
+    title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+    txt.add_widget(title)
+    subtitle = Label(
+        text=PROJECT_SUBTITLE,
+        font_size=subtitle_size,
+        color=COLORS["BA"],
+        size_hint_y=None,
+        height=24,
+        halign="left",
+        valign="middle",
+    )
+    subtitle.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+    txt.add_widget(subtitle)
+    brand.add_widget(txt)
+
+    outer.add_widget(brand)
+    outer.add_widget(Widget())
+    return outer
 
 
 def _flatten_mapping(data, prefix="", depth=0, max_depth=3):
@@ -597,13 +696,7 @@ class ConfigScreen(Screen):
         page = BoxLayout(orientation="vertical", padding=[80, 40], spacing=24, size_hint_y=None)
         page.bind(minimum_height=page.setter("height"))
 
-        # Header
-        hdr = BoxLayout(orientation="vertical", size_hint_y=None, height=120)
-        hdr.add_widget(Label(text="SHSE-M", font_size="52sp", bold=True, color=COLORS["BF"],
-                             size_hint_y=None, height=70))
-        hdr.add_widget(Label(text="ENGINE GENERATOR", font_size="18sp", color=COLORS["BA"],
-                             size_hint_y=None, height=30))
-        page.add_widget(hdr)
+        page.add_widget(_build_brand_header())
 
         # ── Puissance ──
         pwr_card = PremiumCard(title="Puissance cible", size_hint_y=None, height=160)
@@ -688,7 +781,7 @@ class ConfigScreen(Screen):
                          size_hint_y=None, height=22)
         page.add_widget(self.err)
 
-        self.gen_btn = ModernButton(text="GÉNÉRER LE SYSTÈME", size_hint_y=None, height=64)
+        self.gen_btn = ModernButton(text="GENERER LE SYSTEME", size_hint_y=None, height=64)
         self.gen_btn.bind(on_press=self.launch_generation)
         page.add_widget(self.gen_btn)
 
@@ -780,12 +873,7 @@ class AutoConfigScreen(Screen):
         page = BoxLayout(orientation="vertical", padding=[80, 40], spacing=24, size_hint_y=None)
         page.bind(minimum_height=page.setter("height"))
 
-        hdr = BoxLayout(orientation="vertical", size_hint_y=None, height=120)
-        hdr.add_widget(Label(text="SHSE-M", font_size="52sp", bold=True, color=COLORS["BF"],
-                             size_hint_y=None, height=70))
-        hdr.add_widget(Label(text="ENGINE GENERATOR", font_size="18sp", color=COLORS["BA"],
-                             size_hint_y=None, height=30))
-        page.add_widget(hdr)
+        page.add_widget(_build_brand_header())
 
         pwr_card = PremiumCard(title="Puissance cible", size_hint_y=None, height=160)
         pwr_card.add_widget(Label(text="kW demandes au moteur", color=COLORS["GAXD"],
@@ -1118,8 +1206,28 @@ class DashboardScreen(Screen):
         super().__init__(**kwargs)
         layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
         top = BoxLayout(size_hint_y=None, height=60, spacing=20)
-        ttl = Label(text="RÉSULTATS DE GÉNÉRATION", font_size="22sp", bold=True,
-                    color=COLORS["BF"], size_hint_x=0.55, halign="left", valign="middle")
+        brand = BoxLayout(size_hint_x=0.24, spacing=10)
+        if os.path.exists(PROJECT_LOGO):
+            brand.add_widget(
+                KivyImage(
+                    source=PROJECT_LOGO,
+                    size_hint=(None, None),
+                    size=(46, 46),
+                    allow_stretch=True,
+                    keep_ratio=True,
+                )
+            )
+        brand_txt = BoxLayout(orientation="vertical")
+        brand_name = Label(text=PROJECT_NAME, font_size="20sp", bold=True, color=COLORS["BF"], halign="left", valign="middle")
+        brand_name.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        brand_sub = Label(text=PROJECT_SUBTITLE, font_size="11sp", color=COLORS["BA"], halign="left", valign="middle")
+        brand_sub.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        brand_txt.add_widget(brand_name)
+        brand_txt.add_widget(brand_sub)
+        brand.add_widget(brand_txt)
+        top.add_widget(brand)
+        ttl = Label(text="RESULTATS DE GENERATION", font_size="22sp", bold=True,
+                    color=COLORS["BF"], size_hint_x=0.31, halign="left", valign="middle")
         ttl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         top.add_widget(ttl)
         btn_adj = ModernButton(text="AJUSTER", size_hint_x=0.2, font_size="14sp")
@@ -1136,25 +1244,29 @@ class DashboardScreen(Screen):
         lbl_pwr = Label(text=self.res_pwr, font_size="30sp", bold=True, color=COLORS["BF"])
         self.bind(res_pwr=lambda _, v: setattr(lbl_pwr, "text", v))
         c1.add_widget(lbl_pwr)
-        c1.add_widget(Label(text="Système Hybride Optimisé", color=COLORS["JV"]))
+        self.lbl_perf_note = Label(text="Systeme hybride optimise", color=COLORS["JV"], font_size="13sp", halign="center", valign="middle")
+        self.lbl_perf_note.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        c1.add_widget(self.lbl_perf_note)
         grid.add_widget(c1)
 
         c2 = PremiumCard(title="Cylindrée")
         lbl_vol = Label(text=self.res_vol, font_size="26sp", bold=True, color=COLORS["BF"])
         self.bind(res_vol=lambda _, v: setattr(lbl_vol, "text", v))
         c2.add_widget(lbl_vol)
-        lbl_mass = Label(text=self.res_mass, color=COLORS["BA"])
-        self.bind(res_mass=lambda _, v: setattr(lbl_mass, "text", v))
-        c2.add_widget(lbl_mass)
+        self.lbl_vol_sub = Label(text=self.res_mass, color=COLORS["BA"], font_size="13sp", halign="center", valign="middle")
+        self.bind(res_mass=lambda _, v: setattr(self.lbl_vol_sub, "text", v))
+        self.lbl_vol_sub.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        c2.add_widget(self.lbl_vol_sub)
         grid.add_widget(c2)
 
         c3 = PremiumCard(title="Architecture")
         lbl_arch = Label(text=self.res_arch, font_size="26sp", bold=True, color=COLORS["BF"])
         self.bind(res_arch=lambda _, v: setattr(lbl_arch, "text", v))
         c3.add_widget(lbl_arch)
-        lbl_ncyl = Label(text="-- cylindres", color=COLORS["GAXD"])
-        self.bind(res_ncyl=lambda _, v: setattr(lbl_ncyl, "text", f"{v} cyl."))
-        c3.add_widget(lbl_ncyl)
+        self.lbl_arch_sub = Label(text="-- cylindres", color=COLORS["GAXD"], font_size="13sp", halign="center", valign="middle")
+        self.bind(res_ncyl=lambda _, v: setattr(self.lbl_arch_sub, "text", f"{v} cyl." if str(v).strip() not in {"", "--"} else "-- cylindres"))
+        self.lbl_arch_sub.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        c3.add_widget(self.lbl_arch_sub)
         grid.add_widget(c3)
 
         c4 = PremiumCard(title="Accès Rapide")
@@ -1172,7 +1284,9 @@ class DashboardScreen(Screen):
         self.health_lbl = Label(text="OK", font_size="38sp", bold=True,
                                 color=(30/255, 180/255, 50/255, 1))
         c5.add_widget(self.health_lbl)
-        c5.add_widget(Label(text="Facteur sécurité > 1.5", color=COLORS["GAXD"]))
+        self.health_note = Label(text="Facteur de securite > 1.5", color=COLORS["GAXD"], halign="center", valign="middle")
+        self.health_note.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        c5.add_widget(self.health_note)
         grid.add_widget(c5)
         layout.add_widget(grid)
 
@@ -1241,14 +1355,14 @@ class DashboardScreen(Screen):
         n_cyl = res.get("N_cyl") or 0
         self.res_pwr = f"{p:.1f} kW"
         self.res_ncyl = str(n_cyl) if n_cyl else "--"
-        self.res_arch = str(res.get("Architecture") or "?")
+        self.res_arch = str(res.get("Architecture") or "A definir")
         vd = res.get("vd_tot_cc")
-        self.res_vol = f"{vd / 1000:.2f} L" if vd else "--"
+        self.res_vol = f"{vd / 1000:.2f} L" if vd else "A definir"
         self.dt_grid.clear_widgets()
 
         def _f(v, u="", d=1):
             if v is None:
-                return "—"
+                return "-"
             try:
                 return f"{float(v):.{d}f} {u}".strip()
             except Exception:
@@ -1268,31 +1382,63 @@ class DashboardScreen(Screen):
         stockage = _safe_dict(report.get("stockage_front"))
         optimisation = _safe_dict(report.get("optimisation"))
         opt_syn = _safe_dict(optimisation.get("synthese_optimisation"))
+        missing_inputs = _missing_requirements(report)
+        fuel = _fuel_summary(report)
         if score is None:
             score = opt_syn.get("score_coherence_100")
         if not nb_al:
             nb_al = opt_syn.get("nombre_alertes", 0)
         if not nb_inc:
             nb_inc = opt_syn.get("nombre_inconnues", 0)
-        self.res_mass = (
-            f"{float(energie):.1f} kWh batterie" if isinstance(energie, (int, float))
-            else _f((float(p_bus) / 1000.0) if isinstance(p_bus, (int, float)) else None, "kW bus")
-        )
+        if isinstance(energie, (int, float)):
+            self.res_mass = f"{float(energie):.1f} kWh batterie"
+        elif vd:
+            self.res_mass = _f((float(p_bus) / 1000.0) if isinstance(p_bus, (int, float)) else None, "kW bus")
+        else:
+            needed = ", ".join(item["name"] for item in missing_inputs[:2])
+            self.res_mass = f"Requiert: {needed}" if needed else "Donnees moteur a fournir"
+
+        if res.get("Architecture"):
+            self.lbl_arch_sub.text = f"{self.res_ncyl} cylindres"
+        else:
+            needed = ", ".join(item["name"] for item in missing_inputs[:2])
+            self.lbl_arch_sub.text = f"A fournir: {needed}" if needed else "Choix par calcul des que les contraintes sont suffisantes"
+
+        if fuel.get("worst") and fuel.get("best"):
+            self.lbl_perf_note.text = f"Multi-carburant | pire cas: {fuel['worst']} | meilleur cas: {fuel['best']}"
+        else:
+            self.lbl_perf_note.text = "Systeme hybride optimise"
+
+        if nb_inc:
+            self.health_note.text = f"Calcul strict: {nb_inc} donnees restent a definir"
+        else:
+            self.health_note.text = "Facteur de securite > 1.5"
         sc = (30/255, 180/255, 50/255, 1) if (score or 0) >= 80 else COLORS["RF"]
 
-        for title, lines in [
-            ("MOTEUR THERMIQUE", [
+        if not bore_mm and missing_inputs:
+            moteur_lines = [
+                "Geometrie non fermee sans hypothese cachee.",
+                f"Donnees requises: {', '.join(item['name'] for item in missing_inputs[:3])}",
+            ]
+            if fuel.get("worst") and fuel.get("best"):
+                moteur_lines.append(f"Pire carburant: {fuel['worst']} | meilleur cas: {fuel['best']}")
+            moteur_lines.append(f"Pieces construites: {res.get('nb_pieces_construites') or 0}")
+        else:
+            moteur_lines = [
                 f"Alésage: {_f(bore_mm, 'mm')}  Course: {_f(stroke_mm, 'mm')}",
                 f"RPM: {_f(rpm, 'tr/min', 0)}",
                 f"PME: {_f((pme_pa / 1e5) if pme_pa else None, 'bar')}",
                 f"F bielle: {_f(force_b, 'N', 0)}",
-            ]),
+            ]
+
+        for title, lines in [
+            ("MOTEUR THERMIQUE", moteur_lines),
             ("SYSTEME", [
                 f"Bus DC: {_f((p_bus / 1000.0) if p_bus else None, 'kW')}",
-                f"Énergie batterie: {_f(energie, 'kWh')}",
-                f"CAO détaillée: {'Oui' if cao.get('solidworks_ready_detaille') else 'Non'}",
+                f"Energie batterie: {_f(energie, 'kWh')}",
+                f"CAO detaillee: {'Oui' if cao.get('solidworks_ready_detaille') else 'Non'}",
             ]),
-            ("QUALITÉ", [
+            ("QUALITE", [
                 f"Score: {_f(score, '%', 0)}",
                 f"Inconnues: {nb_inc}  Alertes: {nb_al}",
                 f"BDD: {stockage.get('records_saved', 0)} enregistrements" if stockage else "BDD: -",
@@ -1993,6 +2139,8 @@ class PieceDetailScreen(Screen):
 # App
 # =========================
 class SHSEMApp(App):
+    title = PROJECT_NAME
+    icon = PROJECT_LOGO if os.path.exists(PROJECT_LOGO) else ""
     target_power = StringProperty("150")
     simulation_results = DictProperty({})
     engine_params = DictProperty({})

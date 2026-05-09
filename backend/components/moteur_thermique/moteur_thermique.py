@@ -1144,7 +1144,7 @@ class OrchestrateurMoteurThermique(EntreesOrchestrateurMoteurThermique):
         # Logique "Pire Carburant" par défaut si rien n'est fourni
         if e.carburant_config is None and get_pire_carburant is not None:
             # On cherche le carburant le plus contraignant (ex: Ammoniac pour la taille/puissance)
-            pire = get_pire_carburant(critere="puissance")
+            pire = get_pire_carburant(objectif="puissance")
             if pire:
                 r["notes_modele"].append(f"Aucun carburant défini : utilisation du 'pire carburant' ({pire.nom}) pour le dimensionnement.")
                 return pire

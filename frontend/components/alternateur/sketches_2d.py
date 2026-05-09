@@ -54,7 +54,7 @@ def extraire_donnees_croquis(alternateur: Alternateur) -> DonneesCroquisAlternat
         debit_air_m3_s=_safe_float(ventilateur.get("resultats", {}).get("debit_volumique_m3_s"), 0.0)
     )
 
-def tracer_croquis_alternateur_2d(alternateur: Alternateur, titre: str = "Vue en Coupe Alternateur - SHSE-M"):
+def tracer_croquis_alternateur_2d(alternateur: Alternateur, titre: str = "Vue en Coupe Alternateur - STHOME"):
     d = extraire_donnees_croquis(alternateur)
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 7))

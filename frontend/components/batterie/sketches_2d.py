@@ -56,7 +56,7 @@ def extraire_donnees_croquis(batterie: Batterie) -> DonneesCroquisBatterie:
         tension_v=_safe_float(rap.get("entrees", {}).get("tension_nominale_v"), 0.0)
     )
 
-def tracer_croquis_batterie_2d(batterie: Batterie, titre: str = "Surveillance Pack Batterie - SHSE-M"):
+def tracer_croquis_batterie_2d(batterie: Batterie, titre: str = "Surveillance Pack Batterie - STHOME"):
     d = extraire_donnees_croquis(batterie)
     
     fig, ax = plt.subplots(figsize=(12, 8))
