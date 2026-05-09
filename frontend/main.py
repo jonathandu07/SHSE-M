@@ -645,15 +645,15 @@ class ConfigScreen(Screen):
 
         param_card.add_widget(param_grid)
 
-        # Sélecteur carburant
+        # Mode carburant
         fuel_row = BoxLayout(size_hint_y=None, height=52, spacing=16)
-        fuel_row.add_widget(Label(text="Carburant :", color=COLORS["GAXD"],
+        fuel_row.add_widget(Label(text="Mode carburant :", color=COLORS["GAXD"],
                                    font_size="14sp", size_hint_x=0.3))
         self._fuel_btns = {}
-        self._selected_fuel = "diesel"
-        for fuel in ["diesel", "essence"]:
+        self._selected_fuel = "multi_carburant"
+        for fuel in ["multi_carburant"]:
             fb = ArchButton(fuel.upper(), font_size="14sp")
-            fb.set_selected(fuel == "diesel")
+            fb.set_selected(True)
             fb.bind(on_press=lambda b, f=fuel: self._select_fuel(f))
             fuel_row.add_widget(fb)
             self._fuel_btns[fuel] = fb
@@ -725,8 +725,6 @@ class ConfigScreen(Screen):
         app = App.get_running_app()
         app.target_power = str(val)
         app.engine_params = {
-            "architecture": arch,
-            "nombre_cylindres": ncyl,
             "alesage_m": alesage_mm / 1000.0,
             "alesage_mm": alesage_mm,
             "course_m": course_mm / 1000.0,
@@ -735,7 +733,10 @@ class ConfigScreen(Screen):
             "pme_pa": pme_bar * 1e5,
             "pression_max_pa": p_max_bar * 1e5,
             "rendement_mecanique_cible_min": rend_meca,
-            "carburant": self._selected_fuel,
+            "carburant": None,
+            "mode_carburant": self._selected_fuel,
+            "carburants_autorises": ["diesel", "essence", "ethanol", "methanol", "gpl", "gnv", "hydrogene"],
+            "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
             "temps_moteur": 4,
         }
         self.manager.current = "loading"
@@ -764,14 +765,14 @@ class LoadingScreen(Screen):
         ep = app.engine_params or {}
         p_target = float(app.target_power)
 
-        arch = ep.get("architecture", "L6" if p_target >= 100 else "L4")
-        ncyl = ep.get("nombre_cylindres", 6 if p_target >= 100 else 4)
+        arch = ep.get("architecture", "AUTO")
+        ncyl = ep.get("nombre_cylindres", "--")
         alesage_m = ep.get("alesage_m", 0.130 if p_target >= 100 else 0.080)
         course_m = ep.get("course_m", 0.150 if p_target >= 100 else 0.090)
         rpm = ep.get("rpm_nominal", 1500.0)
         pme_pa = ep.get("pme_pa", 15.0e5)
         p_max_pa = ep.get("pression_max_pa", 8.0e6)
-        carburant = ep.get("carburant", "diesel")
+        carburant = ep.get("mode_carburant", "multi_carburant")
 
         steps = ["Architecture...", "Cylindrée...", "Vilebrequin...",
                  "Thermodynamique...", "Pièces...", "Finalisation..."]
@@ -799,16 +800,17 @@ class LoadingScreen(Screen):
                 pme_pa=pme_pa,
                 pression_max_pa=p_max_pa,
                 rendement_mecanique_cible_min=ep.get("rendement_mecanique_cible_min", 0.85),
+                carburants_autorises=ep.get("carburants_autorises"),
+                mode_carburant=ep.get("mode_carburant"),
                 moteur_thermique_definition={
                     "temps_moteur": ep.get("temps_moteur", 4),
-                    "nombre_cylindres": ncyl,
-                    "architecture": arch,
                     "alesage_m": alesage_m,
                     "course_m": course_m,
                     "rpm_nominal": rpm,
                     "pme_pa": pme_pa,
                     "pression_max_pa": p_max_pa,
-                    "carburant": carburant,
+                    "carburants_autorises": ep.get("carburants_autorises"),
+                    "mode_carburant": ep.get("mode_carburant"),
                 },
             )
             record_ids = db.save_main_report(report, report_name=report_name)

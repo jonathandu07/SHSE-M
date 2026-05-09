@@ -569,16 +569,24 @@ def _build_multifuel_strategy_report(
         debit_massique = _safe_float(bilan_block.get("debit_massique_carburant_kg_s"))
         debit_volumique = _safe_float(bilan_block.get("debit_volumique_carburant_m3_s"))
         puissance_chimique = _safe_float(bilan_block.get("puissance_chimique_w"))
+        debit_massique_proxy = None
+        debit_volumique_proxy = None
+        if _is_finite(puissance_utile_w):
+            debit_massique_proxy = float(puissance_utile_w) / float(carburant_obj.pci_j_kg)
+            if _is_finite(carburant_obj.densite_kg_m3) and float(carburant_obj.densite_kg_m3) > 0.0:
+                debit_volumique_proxy = debit_massique_proxy / float(carburant_obj.densite_kg_m3)
         item["dimensionnement"] = {
             "debit_massique_carburant_kg_s": debit_massique,
             "debit_volumique_carburant_m3_s": debit_volumique,
             "puissance_chimique_w": puissance_chimique,
+            "debit_massique_proxy_kg_s_sans_rendement": debit_massique_proxy,
+            "debit_volumique_proxy_m3_s_sans_rendement": debit_volumique_proxy,
         }
         resultats[fuel_name] = item
 
         worst_sig = (
-            -1.0 if debit_volumique is None else float(debit_volumique),
-            -1.0 if debit_massique is None else float(debit_massique),
+            -1.0 if (debit_volumique is None and debit_volumique_proxy is None) else float(debit_volumique if debit_volumique is not None else debit_volumique_proxy),
+            -1.0 if (debit_massique is None and debit_massique_proxy is None) else float(debit_massique if debit_massique is not None else debit_massique_proxy),
             -1.0 if puissance_chimique is None else float(puissance_chimique),
         )
         if worst_sig > dimensionnant_sig:
@@ -586,8 +594,8 @@ def _build_multifuel_strategy_report(
             dimensionnant_nom = fuel_name
 
         best_sig = (
-            float("inf") if debit_volumique is None else float(debit_volumique),
-            float("inf") if debit_massique is None else float(debit_massique),
+            float("inf") if (debit_volumique is None and debit_volumique_proxy is None) else float(debit_volumique if debit_volumique is not None else debit_volumique_proxy),
+            float("inf") if (debit_massique is None and debit_massique_proxy is None) else float(debit_massique if debit_massique is not None else debit_massique_proxy),
             float("inf") if puissance_chimique is None else float(puissance_chimique),
         )
         if best_sig < meilleur_sig:
@@ -1383,15 +1391,40 @@ def analyser_composants_complementaires(*, composants: Mapping[str, Any], rappor
                 rapports["moteur_thermique_point"] = {"erreur": str(exc)}
 
         if hasattr(moteur_thermique, "analyser_bilan_carburant"):
-            kwargs = _merge_dict_non_none({
-                "carburant": definition_moteur.get("carburant"),
-                "puissance_utile_w": _first_finite(mt_synth.get("puissance_requise_W"), definition_moteur.get("puissance_requise_W")),
-                "rendement_global": _safe_float(definition_moteur.get("rendement_global")),
-            }, _safe_dict(analyses_user.get("moteur_thermique_bilan_carburant")))
-            try:
-                rapports["moteur_thermique_bilan_carburant"] = moteur_thermique.analyser_bilan_carburant(**_filter_kwargs_for_callable(moteur_thermique.analyser_bilan_carburant, kwargs))
-            except Exception as exc:
-                rapports["moteur_thermique_bilan_carburant"] = {"erreur": str(exc)}
+            puissance_utile_w = _first_finite(mt_synth.get("puissance_requise_W"), definition_moteur.get("puissance_requise_W"))
+            strategie_multi = _build_multifuel_strategy_report(
+                moteur_thermique=moteur_thermique,
+                definition_moteur=definition_moteur,
+                puissance_utile_w=puissance_utile_w,
+            )
+            if strategie_multi is not None:
+                dimensionnant_nom = strategie_multi.get("carburant_dimensionnant")
+                kwargs = _merge_dict_non_none({
+                    "carburant": _fuel_catalog().get(str(dimensionnant_nom)) if dimensionnant_nom else None,
+                    "puissance_utile_w": puissance_utile_w,
+                    "rendement_global": _safe_float(definition_moteur.get("rendement_global")),
+                }, _safe_dict(analyses_user.get("moteur_thermique_bilan_carburant")))
+                try:
+                    bilan_dimensionnant = moteur_thermique.analyser_bilan_carburant(**_filter_kwargs_for_callable(moteur_thermique.analyser_bilan_carburant, kwargs))
+                except Exception as exc:
+                    bilan_dimensionnant = {"erreur": str(exc)}
+                rapports["moteur_thermique_bilan_carburant"] = _merge_dict_non_none(
+                    strategie_multi,
+                    {
+                        "bilan_dimensionnant": bilan_dimensionnant,
+                        "carburant_utilise_pour_dimensionnement": dimensionnant_nom,
+                    },
+                )
+            else:
+                kwargs = _merge_dict_non_none({
+                    "carburant": definition_moteur.get("carburant"),
+                    "puissance_utile_w": puissance_utile_w,
+                    "rendement_global": _safe_float(definition_moteur.get("rendement_global")),
+                }, _safe_dict(analyses_user.get("moteur_thermique_bilan_carburant")))
+                try:
+                    rapports["moteur_thermique_bilan_carburant"] = moteur_thermique.analyser_bilan_carburant(**_filter_kwargs_for_callable(moteur_thermique.analyser_bilan_carburant, kwargs))
+                except Exception as exc:
+                    rapports["moteur_thermique_bilan_carburant"] = {"erreur": str(exc)}
 
     if moteur_electrique is not None:
         rep = _safe_call_report(moteur_electrique)
@@ -1555,6 +1588,8 @@ def dimensionner_systeme_shsem(
     couple_moteur_max_Nm: Optional[float] = None,
     force_bielle_N: Optional[float] = None,
     carburant: Optional[str] = None,
+    carburants_autorises: Optional[Sequence[str]] = None,
+    mode_carburant: Optional[str] = None,
     ratio_course_alesage_max: Optional[float] = None,
     ratio_course_alesage_cible: Optional[float] = None,
     taux_compression_nominal: Optional[float] = None,
@@ -1624,6 +1659,8 @@ def dimensionner_systeme_shsem(
                 "force_bielle_N": force_bielle_N,
                 "rendement_mecanique_nominal": rendement_mecanique_cible_min,
                 "carburant": carburant,
+                "carburants_autorises": tuple(carburants_autorises) if carburants_autorises else None,
+                "mode_carburant": mode_carburant,
                 "ratio_course_alesage_max": ratio_course_alesage_max,
                 "ratio_course_alesage_cible": ratio_course_alesage_cible,
                 "taux_compression_nominal": taux_compression_nominal,
@@ -1646,6 +1683,20 @@ def dimensionner_systeme_shsem(
             moteur_thermique_definition,
         )
     )
+    if _normalize_multifuel_names(
+        definition_moteur.get("carburant"),
+        definition_moteur.get("carburants_autorises"),
+        mode_carburant=definition_moteur.get("mode_carburant"),
+    ):
+        _append_note(
+            rapport_global,
+            "Mode multicarburant actif : aucun carburant unique n'est impose, le comparatif carburant est calcule et le dimensionnement conservatif retient le pire cas.",
+        )
+    if definition_moteur.get("architecture_forcee") is None and definition_moteur.get("architecture") is None:
+        _append_note(
+            rapport_global,
+            "Aucune architecture n'est forcee : l'architecture moteur doit etre retenue par calcul a partir des contraintes et objectifs fournis.",
+        )
 
     # Cibles dérivables sans invention
     if puissance_bus_dc_w is None and production_electrique_sortie_w is not None:
