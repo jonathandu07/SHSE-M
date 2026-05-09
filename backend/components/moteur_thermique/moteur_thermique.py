@@ -129,6 +129,7 @@ _VITESSE_PISTON_MODS = (
     "calcul_vitesse_piston",
 )
 _CARBURANT_MODS = (
+    "backend.ensemble.carburant",
     "backend.components.moteur_thermique.modules.calcul_carburant",
     "backend.modules.moteur_thermique.calcul_carburant",
     "modules.moteur_thermique.calcul_carburant",
@@ -201,6 +202,7 @@ calcul_perte_epaisseur = _import_attr(_USURE_MODS, "calcul_perte_epaisseur")
 # Carburant
 CompositionElementaireCombustible = _import_attr(_CARBURANT_MODS, "CompositionElementaireCombustible")
 Carburant = _import_attr(_CARBURANT_MODS, "Carburant")
+get_pire_carburant = _import_attr(_CARBURANT_MODS, "get_pire_carburant")
 calcul_bilan_carburant_simple = _import_attr(_CARBURANT_MODS, "calcul_bilan_carburant_simple")
 calcul_debit_massique_carburant_depuis_puissance_utile = _import_attr(_CARBURANT_MODS, "calcul_debit_massique_carburant_depuis_puissance_utile")
 calcul_puissance_chimique_combustion = _import_attr(_CARBURANT_MODS, "calcul_puissance_chimique_combustion")
@@ -568,7 +570,7 @@ class EntreesOrchestrateurMoteurThermique:
 # Orchestrateur principal
 # =============================================================================
 
-@dataclass
+@dataclass(frozen=True)
 class OrchestrateurMoteurThermique(EntreesOrchestrateurMoteurThermique):
 
     # ------------------------------------------------------------------
@@ -1138,6 +1140,15 @@ class OrchestrateurMoteurThermique(EntreesOrchestrateurMoteurThermique):
     def _build_carburant(self, e: EntreesOrchestrateurMoteurThermique, r: Dict[str, Any]) -> Optional[Any]:
         if e.carburant is not None:
             return e.carburant
+        
+        # Logique "Pire Carburant" par défaut si rien n'est fourni
+        if e.carburant_config is None and get_pire_carburant is not None:
+            # On cherche le carburant le plus contraignant (ex: Ammoniac pour la taille/puissance)
+            pire = get_pire_carburant(critere="puissance")
+            if pire:
+                r["notes_modele"].append(f"Aucun carburant défini : utilisation du 'pire carburant' ({pire.nom}) pour le dimensionnement.")
+                return pire
+
         if e.carburant_config is None:
             return None
         if Carburant is None:
@@ -1406,7 +1417,11 @@ class OrchestrateurMoteurThermique(EntreesOrchestrateurMoteurThermique):
         rapports = self._build_rapports_pieces_minimaux(e, r)
         verif = VerificateurAssemblage(rapports, pieces_instances=e.pieces_instances)
         issues = _try("vérification assemblage", r, lambda: verif.verifier_tout())
-        r["assemblage"]["rapports_pieces_utilises"] = _to_jsonable(rapports, tableaux_en_listes=e.tableaux_en_listes)
+        
+        # Export pour l'optimiseur système (top-level)
+        r["rapports_pieces"] = _to_jsonable(rapports, tableaux_en_listes=e.tableaux_en_listes)
+        
+        r["assemblage"]["rapports_pieces_utilises"] = r["rapports_pieces"]
         r["assemblage"]["issues"] = _to_jsonable(issues, tableaux_en_listes=e.tableaux_en_listes)
         r["assemblage"]["ok"] = bool(not issues)
         if issues:
