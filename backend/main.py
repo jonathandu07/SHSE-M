@@ -2404,6 +2404,7 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
         "inventaire": pieces_report.get("inventaire", {}),
         "construction_pieces": pieces_report.get("construction_pieces", {}),
         "rapports_pieces": pieces_report.get("rapports_pieces", {}),
+        "objets_serialises": pieces_report.get("objets_serialises", {}),
         "pieces_db_error": pieces_report.get("db_error"),
         "notes_modele": hypotheses_mode_simple,
         "resume_gui": {

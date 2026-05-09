@@ -39,7 +39,7 @@ class Carburant:
     masse_molaire_kg_mol: float
     
     # Propriétés énergétiques
-    pci_j_kg: float  # Lower Heating Value (Pouvoir Calorifique Inférieur)
+    pci_mj_kg: float  # Lower Heating Value (MJ/kg)
     
     # Combustion
     afr_stoechiometrique: float  # Air/Fuel Ratio massique (stoechiométrique)

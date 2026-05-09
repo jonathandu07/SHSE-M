@@ -80,7 +80,10 @@ class MainSystemeOrchestrator:
         # 2. Chaine de traction
         # On deduit les besoins des composants (Alternateur, Batterie...)
         drivetrain = self.generator.compute(p_cible_w / 1000.0)
-        p_meca_moteur_w = float(p_cible_w / 0.90) # Approximation rendement alternateur si non precisé
+        # On prend la puissance mécanique requise par l'alternateur
+        p_meca_moteur_w = float(drivetrain.get("alternateur", {}).get("puissance_mecanique", "0").split()[0]) * 1000.0
+        if p_meca_moteur_w <= 0:
+            p_meca_moteur_w = float(p_cible_w / 0.90)
 
         # 3. Choix du carburant (Pire cas si non defini)
         carburant_final = None
@@ -89,23 +92,33 @@ class MainSystemeOrchestrator:
             pass
         
         if not carburant_final and get_pire_carburant:
-            carburant_final = get_pire_carburant(critere="puissance")
+            carburant_final = get_pire_carburant(objectif="puissance")
         
         # 4. Optimisation architecture moteur
         # On cherche la meilleure combinaison RPM / Cylindres pour la puissance mecanique requise
         donnees_connues = {
-            "puissance_moteur_thermique_w": p_meca_moteur_w,
+            "puissance_moteur_requise_w": p_meca_moteur_w,
+            "type_puissance_moteur": "indiquee", # Par defaut pour le dimensionnement
         }
         
         if carburant_final:
             donnees_connues["pci_j_kg"] = getattr(carburant_final, "pci_j_kg", None)
             donnees_connues["afr_st"] = getattr(carburant_final, "afr_stoechiometrique", None)
 
+        # Espace de recherche par defaut si non fourni
+        search = dict(espace_recherche or {})
+        if not search:
+            search = {
+                "rpm_moteur": [2000, 2500, 3000, 3500],
+                "nombre_cylindres": [1, 2, 3, 4],
+                "pression_max_pa": [100e5, 120e5],
+            }
+
         opt_report = optimiser_puissance_sortie(
             puissance=p_meca_moteur_w,
             unite="w",
             donnees_connues=donnees_connues,
-            espace_recherche=espace_recherche,
+            espace_recherche=search,
             contraintes=contraintes
         )
 
@@ -145,6 +158,8 @@ def main():
         synthese = report.get("orchestration_pieces", {}).get("resume", {})
         if not synthese:
              print("Attention : Pas de synthese de pieces disponible.")
+             if "orchestration_pieces" in report:
+                 print(f"Raison : {report['orchestration_pieces'].get('raison')}")
         else:
              for k, v in synthese.items():
                  print(f" - {k}: {v}")
