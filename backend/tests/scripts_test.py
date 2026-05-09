@@ -55,6 +55,7 @@ def test_simulation_script_runs_end_to_end_with_monkeypatched_visuals(tmp_path, 
     from backend.scripts import simulation_shse_m as script
 
     saved_paths = []
+    captured = {}
 
     class FakeFig:
         def savefig(self, path):
@@ -62,34 +63,35 @@ def test_simulation_script_runs_end_to_end_with_monkeypatched_visuals(tmp_path, 
 
     class FakeSystemeComplet:
         def __init__(self, **kwargs):
-            self.kwargs = kwargs
+            captured["systeme_init"] = dict(kwargs)
 
         def analyser(self, **kwargs):
+            captured["systeme_analyser"] = dict(kwargs)
             return {"ok": True, "kwargs": kwargs}
 
     class FakeMoteurElectrique:
         def __init__(self, **kwargs):
-            self.kwargs = kwargs
+            captured["moteur_electrique"] = dict(kwargs)
 
     class FakeBatterie:
         def __init__(self, **kwargs):
-            self.kwargs = kwargs
+            captured["batterie"] = dict(kwargs)
 
     class FakeAlternateur:
         def __init__(self, **kwargs):
-            self.kwargs = kwargs
+            captured["alternateur"] = dict(kwargs)
 
     class FakeMoteurThermique:
         def __init__(self, **kwargs):
-            self.kwargs = kwargs
+            captured["moteur_thermique"] = dict(kwargs)
 
     class FakeBoiteCrabots:
         def __init__(self, **kwargs):
-            self.kwargs = kwargs
+            captured["boite_crabots"] = dict(kwargs)
 
     class FakeArchitecture:
         def __init__(self, **kwargs):
-            self.kwargs = kwargs
+            captured["architecture"] = dict(kwargs)
 
     monkeypatch.setattr(script, "_PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(script, "SystemeComplet", FakeSystemeComplet)
@@ -113,3 +115,18 @@ def test_simulation_script_runs_end_to_end_with_monkeypatched_visuals(tmp_path, 
     }
     for path in saved_paths:
         assert path.parent == tmp_path / "backend" / "outputs" / "simulations"
+    assert captured["moteur_electrique"]["puissance_max_w"] == 120000
+    assert captured["batterie"]["tension_nominale_v"] == 400
+    assert captured["alternateur"]["nombre_poles"] == 12
+    assert captured["moteur_thermique"]["nombre_cylindres"] == 6
+    assert set(captured["systeme_init"]) == {
+        "moteur_electrique",
+        "batterie",
+        "alternateur",
+        "moteur_thermique",
+        "boite_crabots",
+        "architecture",
+    }
+    assert captured["systeme_analyser"]["scenario_bus_dc"] == "charge"
+    assert captured["systeme_analyser"]["puissance_elec_alt_cible_w"] == 45000.0
+    assert captured["systeme_analyser"]["architecture_forcee"] == "V"
