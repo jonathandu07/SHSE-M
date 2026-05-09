@@ -203,6 +203,10 @@ def _try_call_report(obj: Any) -> Optional[Dict[str, Any]]:
 
 def _resolve_report_mapping(source: Any) -> Optional[Dict[str, Any]]:
     if isinstance(source, dict):
+        for key in ("rapport", "analyse", "resultats"):
+            nested = source.get(key)
+            if isinstance(nested, dict):
+                return nested
         return source
     return _try_call_report(source)
 
