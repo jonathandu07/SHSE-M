@@ -39,13 +39,13 @@ class Carburant:
     masse_molaire_kg_mol: float
     
     # Propriétés énergétiques
-    pci_mj_kg: float  # Lower Heating Value (Pouvoir Calorifique Inférieur)
+    pci_j_kg: float  # Lower Heating Value (Pouvoir Calorifique Inférieur)
     
     # Combustion
     afr_stoechiometrique: float  # Air/Fuel Ratio massique (stoechiométrique)
     
     # Champs optionnels avec défauts
-    pcs_mj_kg: Optional[float] = None  # Higher Heating Value (Pouvoir Calorifique Supérieur)
+    pcs_mj_kg: Optional[float] = None  # Higher Heating Value (MJ/kg)
     
     # Performance moteur
     indice_octane_ron: Optional[float] = None
