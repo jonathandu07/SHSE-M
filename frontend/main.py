@@ -22,6 +22,13 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+# Kivy doit journaliser dans le workspace du projet, pas dans un profil
+# utilisateur potentiellement non accessible.
+KIVY_HOME = os.path.join(BASE_DIR, ".kivy")
+KIVY_LOGS = os.path.join(KIVY_HOME, "logs")
+os.makedirs(KIVY_LOGS, exist_ok=True)
+os.environ.setdefault("KIVY_HOME", KIVY_HOME)
+
 # IMPORTANT : ces Config DOIVENT être avant tout autre import kivy
 from kivy.config import Config
 
