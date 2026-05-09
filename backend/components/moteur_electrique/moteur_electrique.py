@@ -1,60 +1,354 @@
 # backend/components/moteur_electrique/moteur_electrique.py
 from __future__ import annotations
 
+import importlib
+import json
 import math
-from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Tuple
+import sys
+from dataclasses import asdict, dataclass, is_dataclass, replace
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple
 
 
 # =============================================================================
-# Imports des modules "métier" (robustes)
+# Préparation du chemin projet
 # =============================================================================
-# IMPORTANT : aucun "valeur typique" injectée ici.
-# Si un module n'est pas trouvable, on échoue explicitement.
 
-try:
-    # Arborescence préférée (cohérente avec tes fichiers uploadés)
-    from backend.components.moteur_electrique.modules.calcul_force_resistance_vitesse import calcul_force_resistance_totale
-    from backend.components.moteur_electrique.modules.calcul_puissance_roue import (
-        calcul_puissance_roue,
-        calcul_couple_roue_total,
-        calcul_couple_par_roue,
-    )
-    from backend.components.moteur_electrique.modules.calcul_puissance_moteur import (
-        calcul_puissance_moteur_electrique,
-        calcul_couple_moteur,
-    )
-    from backend.components.moteur_electrique.modules.calcul_charge_essieu import calcul_charges_essieux
-    from backend.components.moteur_electrique.modules.calcul_acceleration_max import calcul_acceleration_max
+_THIS_FILE = Path(__file__).resolve()
+_THIS_DIR = _THIS_FILE.parent
 
-    # optionnel (si présent dans ton projet)
+for candidate in (
+    _THIS_DIR,
+    _THIS_DIR / "modules",
+    _THIS_DIR / "pieces",
+    _THIS_DIR.parent,
+    _THIS_DIR.parent.parent,
+    _THIS_DIR.parent.parent.parent,
+    Path.cwd(),
+):
     try:
-        from backend.components.moteur_electrique.modules.calcul_multi_domaine import (
-            calcul_demande_nautique as _md_nautique,
-            calcul_demande_aerien_rho as _md_aerien_rho,
-            calcul_demande_ferroviaire_davis as _md_ferro_davis,
-            calcul_densite_air_sec as _md_rho_air_sec,
-        )
+        candidate_str = str(candidate)
+        if candidate_str not in sys.path:
+            sys.path.append(candidate_str)
     except Exception:
-        _md_nautique = None  # type: ignore
-        _md_aerien_rho = None  # type: ignore
-        _md_ferro_davis = None  # type: ignore
-        _md_rho_air_sec = None  # type: ignore
+        pass
 
-except Exception as e:
-    raise ImportError(
-        "Impossible d'importer les modules de calcul. "
-        "Ajuste les chemins d'import dans backend/components/moteur_electrique/moteur_electrique.py "
-        f"(erreur d'import: {e})."
-    )
 
-try:
-    from backend.components.moteur_electrique.pieces.rotor_moteur_electrique import RotorMoteurElectrique
-    from backend.components.moteur_electrique.pieces.stator_moteur_electrique import StatorMoteurElectrique
-except Exception:
-    RotorMoteurElectrique = Any  # type: ignore
-    StatorMoteurElectrique = Any  # type: ignore
+# =============================================================================
+# Imports robustes des modules métier
+# =============================================================================
 
+IMPORT_STATUS: Dict[str, Any] = {
+    "modules": {},
+    "pieces": {},
+    "erreurs": {},
+}
+
+
+def _import_attr(
+    module_names: Sequence[str],
+    attr: str,
+    *,
+    required: bool = True,
+    default: Any = None,
+) -> Any:
+    """
+    Importe un attribut depuis plusieurs chemins possibles.
+
+    Objectif : le même fichier doit fonctionner :
+    - dans l'arborescence backend.components.moteur_electrique ;
+    - dans une arborescence components.moteur_electrique ;
+    - en exécution isolée avec les modules .py dans le même dossier.
+    """
+    errors: List[str] = []
+    for module_name in module_names:
+        try:
+            module = importlib.import_module(module_name)
+            value = getattr(module, attr)
+            return value
+        except Exception as exc:
+            errors.append(f"{module_name}.{attr}: {exc}")
+    IMPORT_STATUS["erreurs"][attr] = errors
+    if required:
+        raise ImportError(
+            f"Impossible d'importer {attr}. Chemins testés: {list(module_names)}. "
+            f"Dernières erreurs: {errors[-3:]}"
+        )
+    return default
+
+
+def _register_import(name: str, value: Any, *, section: str = "modules") -> Any:
+    IMPORT_STATUS.setdefault(section, {})[name] = value is not None
+    return value
+
+
+# Modules routiers / puissance / adhérence
+calcul_force_resistance_totale = _register_import(
+    "calcul_force_resistance_totale",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_force_resistance_vitesse",
+            "components.moteur_electrique.modules.calcul_force_resistance_vitesse",
+            "moteur_electrique.modules.calcul_force_resistance_vitesse",
+            "modules.calcul_force_resistance_vitesse",
+            "calcul_force_resistance_vitesse",
+        ),
+        "calcul_force_resistance_totale",
+    ),
+)
+
+calcul_puissance_roue = _register_import(
+    "calcul_puissance_roue",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_puissance_roue",
+            "components.moteur_electrique.modules.calcul_puissance_roue",
+            "moteur_electrique.modules.calcul_puissance_roue",
+            "modules.calcul_puissance_roue",
+            "calcul_puissance_roue",
+        ),
+        "calcul_puissance_roue",
+    ),
+)
+calcul_couple_roue_total = _register_import(
+    "calcul_couple_roue_total",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_puissance_roue",
+            "components.moteur_electrique.modules.calcul_puissance_roue",
+            "moteur_electrique.modules.calcul_puissance_roue",
+            "modules.calcul_puissance_roue",
+            "calcul_puissance_roue",
+        ),
+        "calcul_couple_roue_total",
+    ),
+)
+calcul_couple_par_roue = _register_import(
+    "calcul_couple_par_roue",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_puissance_roue",
+            "components.moteur_electrique.modules.calcul_puissance_roue",
+            "moteur_electrique.modules.calcul_puissance_roue",
+            "modules.calcul_puissance_roue",
+            "calcul_puissance_roue",
+        ),
+        "calcul_couple_par_roue",
+    ),
+)
+
+calcul_puissance_moteur_electrique = _register_import(
+    "calcul_puissance_moteur_electrique",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_puissance_moteur",
+            "components.moteur_electrique.modules.calcul_puissance_moteur",
+            "moteur_electrique.modules.calcul_puissance_moteur",
+            "modules.calcul_puissance_moteur",
+            "calcul_puissance_moteur",
+        ),
+        "calcul_puissance_moteur_electrique",
+    ),
+)
+calcul_couple_moteur = _register_import(
+    "calcul_couple_moteur",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_puissance_moteur",
+            "components.moteur_electrique.modules.calcul_puissance_moteur",
+            "moteur_electrique.modules.calcul_puissance_moteur",
+            "modules.calcul_puissance_moteur",
+            "calcul_puissance_moteur",
+        ),
+        "calcul_couple_moteur",
+    ),
+)
+
+calcul_charges_essieux = _register_import(
+    "calcul_charges_essieux",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_charge_essieu",
+            "components.moteur_electrique.modules.calcul_charge_essieu",
+            "moteur_electrique.modules.calcul_charge_essieu",
+            "modules.calcul_charge_essieu",
+            "calcul_charge_essieu",
+        ),
+        "calcul_charges_essieux",
+    ),
+)
+
+calcul_acceleration_max = _register_import(
+    "calcul_acceleration_max",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_acceleration_max",
+            "components.moteur_electrique.modules.calcul_acceleration_max",
+            "moteur_electrique.modules.calcul_acceleration_max",
+            "modules.calcul_acceleration_max",
+            "calcul_acceleration_max",
+        ),
+        "calcul_acceleration_max",
+    ),
+)
+
+# Modules multi-domaines optionnels
+_md_nautique = _register_import(
+    "calcul_demande_nautique",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_multi_domaine",
+            "backend.modules.moteur_electrique.calcul_multi_domaine",
+            "components.moteur_electrique.modules.calcul_multi_domaine",
+            "moteur_electrique.modules.calcul_multi_domaine",
+            "modules.calcul_multi_domaine",
+            "calcul_multi_domaine",
+        ),
+        "calcul_demande_nautique",
+        required=False,
+    ),
+)
+_md_aerien_rho = _register_import(
+    "calcul_demande_aerien_rho",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_multi_domaine",
+            "backend.modules.moteur_electrique.calcul_multi_domaine",
+            "components.moteur_electrique.modules.calcul_multi_domaine",
+            "moteur_electrique.modules.calcul_multi_domaine",
+            "modules.calcul_multi_domaine",
+            "calcul_multi_domaine",
+        ),
+        "calcul_demande_aerien_rho",
+        required=False,
+    ),
+)
+_md_ferro_davis = _register_import(
+    "calcul_demande_ferroviaire_davis",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_multi_domaine",
+            "backend.modules.moteur_electrique.calcul_multi_domaine",
+            "components.moteur_electrique.modules.calcul_multi_domaine",
+            "moteur_electrique.modules.calcul_multi_domaine",
+            "modules.calcul_multi_domaine",
+            "calcul_multi_domaine",
+        ),
+        "calcul_demande_ferroviaire_davis",
+        required=False,
+    ),
+)
+_md_rho_air_sec = _register_import(
+    "calcul_densite_air_sec",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.modules.calcul_multi_domaine",
+            "backend.modules.moteur_electrique.calcul_multi_domaine",
+            "components.moteur_electrique.modules.calcul_multi_domaine",
+            "moteur_electrique.modules.calcul_multi_domaine",
+            "modules.calcul_multi_domaine",
+            "calcul_multi_domaine",
+        ),
+        "calcul_densite_air_sec",
+        required=False,
+    ),
+)
+
+
+# =============================================================================
+# Imports robustes des pièces
+# =============================================================================
+
+RotorMoteurElectrique = _register_import(
+    "RotorMoteurElectrique",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.pieces.rotor_moteur_electrique",
+            "components.moteur_electrique.pieces.rotor_moteur_electrique",
+            "moteur_electrique.pieces.rotor_moteur_electrique",
+            "pieces.rotor_moteur_electrique",
+            "rotor_moteur_electrique",
+        ),
+        "RotorMoteurElectrique",
+        required=False,
+    ),
+    section="pieces",
+)
+
+StatorMoteurElectrique = _register_import(
+    "StatorMoteurElectrique",
+    _import_attr(
+        (
+            "backend.components.moteur_electrique.pieces.stator_moteur_electrique",
+            "components.moteur_electrique.pieces.stator_moteur_electrique",
+            "moteur_electrique.pieces.stator_moteur_electrique",
+            "pieces.stator_moteur_electrique",
+            "stator_moteur_electrique",
+        ),
+        "StatorMoteurElectrique",
+        required=False,
+    ),
+    section="pieces",
+)
+
+
+if RotorMoteurElectrique is None:
+    @dataclass
+    class RotorMoteurElectrique:  # type: ignore[no-redef]
+        moteur: Optional[Any] = None
+        couple_max_nm: Optional[float] = None
+        regime_base_rpm: Optional[float] = None
+        regime_max_rpm: Optional[float] = None
+
+        def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
+            moteur = self.moteur
+            couple = self.couple_max_nm if self.couple_max_nm is not None else getattr(moteur, "couple_max_nm_calcule", None)
+            regime_base = self.regime_base_rpm if self.regime_base_rpm is not None else getattr(moteur, "regime_base_rpm_calcule", None)
+            regime_max = self.regime_max_rpm if self.regime_max_rpm is not None else getattr(moteur, "regime_max_rpm", None)
+            rep: Dict[str, Any] = {
+                "piece": "rotor_moteur_electrique",
+                "cinematique": {
+                    "couple_max_nm": couple,
+                    "regime_base_rpm": regime_base,
+                    "regime_max_rpm": regime_max,
+                },
+                "inconnues": {"impossibles": [], "partielles": []},
+                "notes_modele": ["Fallback rotor interne utilisé : fichier pièce non importé."],
+            }
+            if not isinstance(couple, (int, float)) or not math.isfinite(float(couple)):
+                rep["inconnues"]["partielles"].append({"nom": "couple_max_nm", "raison": "Définition moteur incomplète."})
+            if not isinstance(regime_base, (int, float)) or not math.isfinite(float(regime_base)):
+                rep["inconnues"]["partielles"].append({"nom": "regime_base_rpm", "raison": "Définition moteur incomplète."})
+            return rep
+
+if StatorMoteurElectrique is None:
+    @dataclass
+    class StatorMoteurElectrique:  # type: ignore[no-redef]
+        moteur: Optional[Any] = None
+        tension_bus_v: Optional[float] = None
+        courant_max_a: Optional[float] = None
+        puissance_max_w: Optional[float] = None
+
+        def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
+            moteur = self.moteur
+            tension = self.tension_bus_v if self.tension_bus_v is not None else getattr(moteur, "tension_bus_v", None)
+            courant = self.courant_max_a if self.courant_max_a is not None else getattr(moteur, "courant_max_a", None)
+            puissance = self.puissance_max_w if self.puissance_max_w is not None else getattr(moteur, "puissance_max_w", None)
+            rep: Dict[str, Any] = {
+                "piece": "stator_moteur_electrique",
+                "electrique": {
+                    "tension_bus_v": tension,
+                    "courant_max_a": courant,
+                    "puissance_max_w": puissance,
+                },
+                "inconnues": {"impossibles": [], "partielles": []},
+                "notes_modele": ["Fallback stator interne utilisé : fichier pièce non importé."],
+            }
+            if isinstance(tension, (int, float)) and isinstance(courant, (int, float)) and math.isfinite(float(tension)) and math.isfinite(float(courant)):
+                rep["electrique"]["puissance_dc_max_w"] = float(tension) * float(courant)
+            else:
+                rep["inconnues"]["partielles"].append({"nom": "puissance_dc_max_w", "raison": "Calculable si tension_bus_v et courant_max_a sont fournis."})
+            return rep
 
 # =============================================================================
 # Helpers (validation + conversions)
@@ -994,3 +1288,261 @@ def analyser_depuis_puissance(
         puissance_elec_dispo_w=puissance_elec_dispo_w,
         config=config,
     )
+
+
+
+# =============================================================================
+# Orchestrateur haut niveau du composant moteur électrique
+# =============================================================================
+
+def _to_jsonable(value: Any, *, depth: int = 0, max_depth: int = 8) -> Any:
+    if depth > max_depth:
+        return {"type": type(value).__name__, "truncated": True}
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(k): _to_jsonable(v, depth=depth + 1, max_depth=max_depth) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(v, depth=depth + 1, max_depth=max_depth) for v in value]
+    if is_dataclass(value):
+        try:
+            return _to_jsonable(asdict(value), depth=depth + 1, max_depth=max_depth)
+        except Exception:
+            return {"type": type(value).__name__}
+    if hasattr(value, "en_dict") and callable(getattr(value, "en_dict")):
+        try:
+            return _to_jsonable(value.en_dict(), depth=depth + 1, max_depth=max_depth)
+        except Exception:
+            return {"type": type(value).__name__}
+    if hasattr(value, "__dict__"):
+        try:
+            raw = {k: v for k, v in vars(value).items() if not k.startswith("_") and not callable(v)}
+            return {"type": type(value).__name__, "attributs": _to_jsonable(raw, depth=depth + 1, max_depth=max_depth)}
+        except Exception:
+            pass
+    return {"type": type(value).__name__}
+
+
+def _safe_dict(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _dedup_report(rapport: Dict[str, Any]) -> None:
+    inc = rapport.setdefault("inconnues", {})
+    for cat in ("impossibles", "partielles"):
+        seen: set[Tuple[str, str]] = set()
+        out: List[Dict[str, str]] = []
+        for item in list(inc.get(cat, []) or []):
+            if not isinstance(item, dict):
+                continue
+            key = (str(item.get("nom", "")), str(item.get("raison", "")))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"nom": key[0], "raison": key[1]})
+        inc[cat] = out
+
+
+def _make_piece(cls: Any, payload: Any, moteur: Any, *, nom: str, rapport: Dict[str, Any]) -> Any:
+    if payload is None:
+        try:
+            return cls(moteur=moteur)
+        except Exception:
+            return None
+    if isinstance(payload, cls):
+        return payload
+    if isinstance(payload, dict):
+        data = dict(payload)
+        data.setdefault("moteur", moteur)
+        try:
+            return cls(**data)
+        except Exception as exc:
+            _push_inc(rapport, "partielles", f"piece_{nom}", f"Instantiation impossible : {exc}")
+            return None
+    return payload
+
+
+def construire_moteur_electrique(config: Mapping[str, Any]) -> MoteurElectrique:
+    """
+    Construit MoteurElectrique depuis un dictionnaire.
+
+    Le dictionnaire peut être directement le bloc moteur, ou contenir :
+      - config["moteur_electrique"]
+      - config["moteur"]
+
+    Aucune donnée n'est inventée : les champs obligatoires du dataclass restent obligatoires.
+    """
+    source = _safe_dict(config.get("moteur_electrique")) or _safe_dict(config.get("moteur")) or dict(config)
+    allowed = {
+        "puissance_max_w",
+        "regime_max_rpm",
+        "couple_max_nm",
+        "regime_base_rpm",
+        "rendement_moteur",
+        "rendement_transmission",
+        "tension_bus_v",
+        "courant_max_a",
+        "pertes_fixes_w",
+    }
+    kwargs = {k: source[k] for k in allowed if k in source}
+    moteur = MoteurElectrique(**kwargs)
+
+    # Pièces optionnelles : on les rattache après construction du moteur.
+    piece_report: Dict[str, Any] = {"inconnues": {"impossibles": [], "partielles": []}}
+    rotor_payload = source.get("piece_rotor", source.get("rotor"))
+    stator_payload = source.get("piece_stator", source.get("stator"))
+    rotor = _make_piece(RotorMoteurElectrique, rotor_payload, moteur, nom="rotor", rapport=piece_report)
+    stator = _make_piece(StatorMoteurElectrique, stator_payload, moteur, nom="stator", rapport=piece_report)
+    try:
+        moteur = replace(moteur, piece_rotor=rotor, piece_stator=stator)
+    except Exception:
+        pass
+    return moteur
+
+
+def concevoir_moteur_electrique(
+    config: Mapping[str, Any],
+    *,
+    export_json_path: Optional[str | Path] = None,
+) -> Dict[str, Any]:
+    """
+    Orchestrateur complet du composant moteur électrique.
+
+    Sections reconnues dans config :
+      - moteur_electrique / moteur : définition du moteur ;
+      - vehicule : point routier à analyser ;
+      - verification_demande : marges puissance/couple ;
+      - analyse_depuis_puissance : inversion puissance -> vitesse selon domaine ;
+      - puissance_elec_dispo_w + config_domaine : variante directe ;
+      - adherence : analyse d'accélération max si les paramètres sont fournis.
+    """
+    rapport: Dict[str, Any] = {
+        "composant": "moteur_electrique",
+        "imports": _to_jsonable(IMPORT_STATUS),
+        "definition": {},
+        "analyses": {},
+        "synthese": {},
+        "inconnues": {"impossibles": [], "partielles": []},
+        "notes_modele": [
+            "Composant calcul-only : aucune valeur véhicule, rendement ou coefficient aérodynamique n'est inventé.",
+            "Les calculs routiers et multi-domaines délèguent aux modules spécialisés fournis.",
+        ],
+    }
+
+    try:
+        moteur = construire_moteur_electrique(config)
+    except Exception as exc:
+        _push_inc(rapport, "impossibles", "construction_moteur_electrique", str(exc))
+        _dedup_report(rapport)
+        if export_json_path is not None:
+            Path(export_json_path).write_text(json.dumps(_to_jsonable(rapport), ensure_ascii=False, indent=2), encoding="utf-8")
+        return rapport
+
+    rapport["definition"] = moteur.analyser_definition()
+    rapport["synthese"].update(
+        {
+            "puissance_max_w": moteur.puissance_max_w,
+            "puissance_max_kw": moteur.puissance_max_w / 1000.0,
+            "regime_max_rpm": moteur.regime_max_rpm,
+            "regime_base_rpm": moteur.regime_base_rpm_calcule,
+            "couple_max_nm": moteur.couple_max_nm_calcule,
+            "tension_bus_v": moteur.tension_bus_v,
+            "courant_max_a": moteur.courant_max_a,
+            "rendement_moteur": moteur.rendement_moteur,
+            "rendement_transmission": moteur.rendement_transmission,
+        }
+    )
+
+    vehicule = _safe_dict(config.get("vehicule"))
+    if vehicule:
+        try:
+            demande = calcul_demande_moteur_depuis_vehicule(**vehicule)
+            rapport["analyses"]["demande_vehicule"] = demande
+            verification = _safe_dict(config.get("verification_demande"))
+            rapport["analyses"]["verification_moteur_sur_demande"] = verifie_moteur_sur_demande(
+                moteur,
+                demande,
+                marge_puissance=float(verification.get("marge_puissance", 0.0)),
+                marge_couple=float(verification.get("marge_couple", 0.0)),
+            )
+        except Exception as exc:
+            _push_inc(rapport, "partielles", "analyse_vehicule", str(exc))
+    else:
+        _push_inc(rapport, "partielles", "analyse_vehicule", "Fournir config['vehicule'] pour calculer demande roue/moteur.")
+
+    analyse_puissance = _safe_dict(config.get("analyse_depuis_puissance"))
+    if not analyse_puissance and "puissance_elec_dispo_w" in config and "config_domaine" in config:
+        analyse_puissance = {
+            "puissance_elec_dispo_w": config.get("puissance_elec_dispo_w"),
+            "config": config.get("config_domaine"),
+            "tension_systeme_v": config.get("tension_systeme_v", moteur.tension_bus_v),
+        }
+    if analyse_puissance:
+        try:
+            tension = analyse_puissance.get("tension_systeme_v", moteur.tension_bus_v)
+            rapport["analyses"]["depuis_puissance"] = analyser_depuis_puissance(
+                puissance_elec_dispo_w=analyse_puissance["puissance_elec_dispo_w"],
+                config=dict(analyse_puissance.get("config", {})),
+                tension_systeme_v=tension,
+            )
+        except Exception as exc:
+            _push_inc(rapport, "partielles", "analyse_depuis_puissance", str(exc))
+
+    adherence = _safe_dict(config.get("adherence"))
+    if adherence:
+        try:
+            rapport["analyses"]["acceleration_max_adherence"] = {
+                "a_max_ms2": acceleration_max_par_adherence(**adherence)
+            }
+        except Exception as exc:
+            _push_inc(rapport, "partielles", "acceleration_max_adherence", str(exc))
+
+    # Propagation des inconnues de sous-rapports
+    for bloc_name in ("definition",):
+        bloc = rapport.get(bloc_name)
+        if isinstance(bloc, dict):
+            inc = _safe_dict(bloc.get("inconnues"))
+            for cat in ("impossibles", "partielles"):
+                for item in list(inc.get(cat, []) or []):
+                    _push_inc(rapport, cat, f"{bloc_name}::{item.get('nom', '')}", str(item.get("raison", "")))
+    for name, bloc in list(_safe_dict(rapport.get("analyses")).items()):
+        if isinstance(bloc, dict):
+            inc = _safe_dict(bloc.get("inconnues"))
+            for cat in ("impossibles", "partielles"):
+                for item in list(inc.get(cat, []) or []):
+                    _push_inc(rapport, cat, f"{name}::{item.get('nom', '')}", str(item.get("raison", "")))
+
+    _dedup_report(rapport)
+    rapport_jsonable = _to_jsonable(rapport)
+    if export_json_path is not None:
+        Path(export_json_path).write_text(json.dumps(rapport_jsonable, ensure_ascii=False, indent=2), encoding="utf-8")
+    return rapport_jsonable
+
+
+def exporter_rapport_json(rapport: Mapping[str, Any], chemin: str | Path) -> Path:
+    path = Path(chemin)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_to_jsonable(dict(rapport)), ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
+def en_dict_moteur(moteur: MoteurElectrique) -> Dict[str, Any]:
+    return _to_jsonable(moteur)
+
+
+__all__ = [
+    "MoteurElectrique",
+    "AnalyseDepuisPuissance",
+    "calcul_demande_moteur_depuis_vehicule",
+    "verifie_moteur_sur_demande",
+    "acceleration_max_par_adherence",
+    "analyser_depuis_puissance",
+    "construire_moteur_electrique",
+    "concevoir_moteur_electrique",
+    "exporter_rapport_json",
+    "en_dict_moteur",
+    "rpm_to_rad_s",
+    "rad_s_to_rpm",
+]
