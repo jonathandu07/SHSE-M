@@ -646,17 +646,18 @@ class ConfigScreen(Screen):
         param_card.add_widget(param_grid)
 
         # Mode carburant
-        fuel_row = BoxLayout(size_hint_y=None, height=52, spacing=16)
-        fuel_row.add_widget(Label(text="Mode carburant :", color=COLORS["GAXD"],
-                                   font_size="14sp", size_hint_x=0.3))
+        fuel_row = BoxLayout(size_hint_y=None, height=52, spacing=10)
+        fuel_row.add_widget(Label(text="Source :", color=COLORS["GAXD"],
+                                   font_size="14sp", size_hint_x=0.2))
         self._fuel_btns = {}
-        self._selected_fuel = "multi_carburant"
-        for fuel in ["multi_carburant"]:
-            fb = ArchButton(fuel.upper(), font_size="14sp")
-            fb.set_selected(True)
-            fb.bind(on_press=lambda b, f=fuel: self._select_fuel(f))
+        self._selected_fuel = "multi"
+        fuels = [("MULTI", "multi"), ("DIESEL", "diesel"), ("ESSENCE", "essence"), ("H2", "hydrogene")]
+        for label, code in fuels:
+            fb = ArchButton(label, font_size="12sp")
+            fb.set_selected(code == self._selected_fuel)
+            fb.bind(on_press=lambda b, f=code: self._select_fuel(f))
             fuel_row.add_widget(fb)
-            self._fuel_btns[fuel] = fb
+            self._fuel_btns[code] = fb
         param_card.add_widget(fuel_row)
         page.add_widget(param_card)
 
@@ -691,9 +692,12 @@ class ConfigScreen(Screen):
         self.bg_rect.pos = self.pos
         self.bg_rect.size = self.size
 
-    def _read_float(self, key: str, default: float) -> float:
+    def _read_float(self, key: str, default: Optional[float] = None) -> Optional[float]:
         try:
-            return float((self._fields[key].text or "").replace(",", "."))
+            txt = (self._fields[key].text or "").strip().replace(",", ".")
+            if not txt:
+                return default
+            return float(txt)
         except Exception:
             return default
 
@@ -714,8 +718,8 @@ class ConfigScreen(Screen):
         arch = self._selected_arch
         ncyl_map = {"L4": 4, "L6": 6, "V8": 8, "V12": 12}
         ncyl = ncyl_map.get(arch, 6)
-        alesage_mm = self._read_float("alesage_mm", 130.0)
-        course_mm = self._read_float("course_mm", 150.0)
+        alesage_mm = self._read_float("alesage_mm", None)
+        course_mm = self._read_float("course_mm", None)
         rpm = self._read_float("rpm_nominal", 1500.0)
         pme_bar = self._read_float("pme_bar", 15.0)
         p_max_bar = self._read_float("pression_max_bar", 80.0)
@@ -725,17 +729,17 @@ class ConfigScreen(Screen):
         app = App.get_running_app()
         app.target_power = str(val)
         app.engine_params = {
-            "alesage_m": alesage_mm / 1000.0,
+            "alesage_m": alesage_mm / 1000.0 if alesage_mm else None,
             "alesage_mm": alesage_mm,
-            "course_m": course_mm / 1000.0,
+            "course_m": course_mm / 1000.0 if course_mm else None,
             "course_mm": course_mm,
             "rpm_nominal": rpm,
-            "pme_pa": pme_bar * 1e5,
-            "pression_max_pa": p_max_bar * 1e5,
+            "pme_pa": pme_bar * 1e5 if pme_bar else None,
+            "pression_max_pa": p_max_bar * 1e5 if p_max_bar else None,
             "rendement_mecanique_cible_min": rend_meca,
-            "carburant": None,
-            "mode_carburant": self._selected_fuel,
-            "carburants_autorises": ["diesel", "essence", "ethanol", "methanol", "gpl", "gnv", "hydrogene"],
+            "carburant": self._selected_fuel if self._selected_fuel != "multi" else None,
+            "mode_carburant": "multi" if self._selected_fuel == "multi" else "fixe",
+            "carburants_autorises": ["diesel", "essence", "ethanol", "methanol", "gpl", "gnv", "hydrogene"] if self._selected_fuel == "multi" else [self._selected_fuel],
             "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
             "temps_moteur": 4,
         }
@@ -1498,6 +1502,16 @@ class PieceDetailScreen(Screen):
             valign="middle",
         ))
         self.layout.add_widget(status_row)
+
+        # Notice Multi-Fuel / Pire Cas
+        if ep.get("mode_carburant") == "multi":
+            note_multi = Label(
+                text="[color=ec1920]![/color] Dimensionnement basé sur le [b]pire cas carburant[/b] (enveloppe de robustesse)",
+                markup=True, color=COLORS["BF"], font_size="13sp", size_hint_y=None, height=30,
+                halign="left", valign="middle"
+            )
+            note_multi.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+            self.layout.add_widget(note_multi)
 
         # Instanciation et hydratation forcée
         p = get_piece_instance(raw_name, ep, db_data=data)

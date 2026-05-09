@@ -2259,6 +2259,7 @@ def dimensionner_systeme_shsem(
         }
 
     resultat = {
+        "optimisation_carburant": rapport_optimisation_carburant,
         "meta": _merge_dict_non_none(
             rapport_global.get("meta"),
             {"version": "3.0.0", "modele": "orchestrateur strict SHSE-M", "orchestrateur": "SystemeComplet + OptimisationSysteme"},
