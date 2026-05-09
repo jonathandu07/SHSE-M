@@ -226,21 +226,26 @@ def _default_piece_definitions() -> Dict[str, Any]:
     présentes dans `backend.ensemble.materiaux`.
     """
     return {
-        "cylindre": {"materiau_cle": "acier_42crmo4_qt"},
+        "cylindre": {"longueur_utile_m": 0.18, "materiau_cle": "acier_42crmo4_qt"},
         "piston": {
-            "materiau_piston_cle": "alu_7075_t6",
+            "materiau_piston_cle": "alu_6061_t6",
             "materiau_cylindre_cle": "acier_42crmo4_qt",
             "materiau_joint_cle": "ptfe",
             "materiau_axe_cle": "acier_42crmo4_qt",
         },
-        "bielle": {"materiau_cle": "acier_42crmo4_qt"},
-        "arbre_piston": {"materiau_cle": "acier_42crmo4_qt"},
+        "bielle": {"materiau_cle": "acier_42crmo4_qt", "longueur_bielle_m": 0.24},
+        "arbre_piston": {
+            "materiau_cle": "acier_42crmo4_qt",
+            "longueur_totale_m": 0.30,
+            "longueur_fut_central_m": 0.16,
+        },
         "coussinet_arbre_piston": {"materiau_coussinet": "bronze_cusn12"},
-        "deplaceur": {"materiau_cle": "inox_304"},
+        "deplaceur": {"longueur_totale_m": 0.14, "materiau_cle": "inox_304"},
         "joint_piston": {"materiau_joint_cle": "ptfe"},
         "joint_deplaceur": {"materiau_joint_cle": "ptfe"},
         "arbre_vilebrequin": {"materiau_cle": "acier_42crmo4_qt"},
         "vilbrequin": {"materiau_cle": "acier_42crmo4_qt"},
+        "roulement_aiguille_arbre": {"duree_vie_cible_h": 5000.0, "exposant_vie_p": 10.0 / 3.0},
         "arbre": {
             "materiau_arbre_cle": "acier_42crmo4_qt",
             "materiau_clavette_cle": "acier_42crmo4_qt",
@@ -1266,6 +1271,7 @@ def construire_pieces_depuis_systeme(
     pieces["arbre"] = _build_piece_instance(ArbreMoteur, raw, rapport, "arbre")
     # 16. Clavette Arbre
     raw = _merge_dict_non_none({
+        "arbre": pieces.get("arbre"),
         "arbre_vilbrequin": pieces.get("arbre_vilebrequin"),
         "roulement_aiguille_arbre": pieces.get("roulement_aiguille_arbre"),
         "vilbrequin": pieces.get("vilbrequin"),
@@ -1274,6 +1280,79 @@ def construire_pieces_depuis_systeme(
         "materiau_clavette_cle": _get_nested(pieces_def, "clavette_arbre", "materiau_clavette_cle"),
     }, _safe_dict(pieces_def.get("clavette_arbre")))
     pieces["clavette_arbre"] = _build_piece_instance(ClavetteArbre, raw, rapport, "clavette_arbre")
+
+    # 17. Raffinement : seconde passe de propagation entre portees, arbre et clavette
+    raw = _merge_dict_non_none({
+        "vilbrequin": pieces.get("vilbrequin"),
+        "arbre_vilbrequin": pieces.get("arbre_vilebrequin"),
+        "bielle": pieces.get("bielle"),
+        "piston": pieces.get("piston"),
+        "cylindre": pieces.get("cylindre"),
+        "rpm": rpm_sys,
+        "couple_max_Nm": couple_max_sys,
+        "rayon_manivelle_m": (0.5 * course_prop) if _is_finite(course_prop) else None,
+    }, _safe_dict(pieces_def.get("roulement_aiguille_arbre")))
+    pieces["roulement_aiguille_arbre"] = _build_piece_instance(RoulementAiguilleArbre, raw, rapport, "roulement_aiguille_arbre")
+    rapport["rapports_pieces"]["roulement_aiguille_arbre"] = _safe_call_report(pieces.get("roulement_aiguille_arbre"))
+
+    raw = _merge_dict_non_none({
+        "cylindre": pieces.get("cylindre"),
+        "piston": pieces.get("piston"),
+        "bielle": pieces.get("bielle"),
+        "moteur_thermique": moteur_thermique_obj,
+        "roulement_aiguille": pieces.get("roulement_aiguille_arbre"),
+        "rpm": rpm_sys,
+        "couple_max_Nm": couple_max_sys,
+        "course_m": course_prop,
+        "force_bielle_effective_N": force_axiale_bielle,
+        "materiau_cle": _get_nested(pieces_def, "arbre_vilebrequin", "materiau_cle") or mt.get("materiau_cle"),
+        "limite_fatigue_pa": _get_nested(pieces_def, "arbre_vilebrequin", "limite_fatigue_pa") or mt.get("limite_fatigue_pa"),
+        "limite_elastique_pa": _get_nested(pieces_def, "arbre_vilebrequin", "limite_elastique_pa") or mt.get("limite_elastique_pa"),
+    }, _safe_dict(pieces_def.get("arbre_vilebrequin")))
+    pieces["arbre_vilebrequin"] = _build_piece_instance(ArbreVilbrequin, raw, rapport, "arbre_vilebrequin")
+    rapport["rapports_pieces"]["arbre_vilebrequin"] = _safe_call_report(pieces.get("arbre_vilebrequin"))
+
+    raw = _merge_dict_non_none({
+        "vilbrequin": pieces.get("vilbrequin"),
+        "arbre_vilbrequin": pieces.get("arbre_vilebrequin"),
+        "bielle": pieces.get("bielle"),
+        "piston": pieces.get("piston"),
+        "cylindre": pieces.get("cylindre"),
+        "rpm": rpm_sys,
+        "couple_max_Nm": couple_max_sys,
+        "rayon_manivelle_m": (0.5 * course_prop) if _is_finite(course_prop) else None,
+    }, _safe_dict(pieces_def.get("roulement_aiguille_arbre")))
+    pieces["roulement_aiguille_arbre"] = _build_piece_instance(RoulementAiguilleArbre, raw, rapport, "roulement_aiguille_arbre")
+    rapport["rapports_pieces"]["roulement_aiguille_arbre"] = _safe_call_report(pieces.get("roulement_aiguille_arbre"))
+
+    raw = _merge_dict_non_none({
+        "cylindre": pieces.get("cylindre"),
+        "moteur_thermique": moteur_thermique_obj,
+        "systeme_complet": systeme_obj,
+        "vilbrequin": pieces.get("vilbrequin"),
+        "roulement_aiguille": pieces.get("roulement_aiguille_arbre"),
+        "couple_max_Nm": couple_max_sys,
+        "rpm": rpm_sys,
+        "nombre_cylindres": _safe_int(mt.get("nombre_cylindres")),
+        "materiau_arbre_cle": _get_nested(pieces_def, "arbre", "materiau_arbre_cle"),
+        "materiau_clavette_cle": _get_nested(pieces_def, "arbre", "materiau_clavette_cle"),
+        "materiau_moyeu_cle": _get_nested(pieces_def, "arbre", "materiau_moyeu_cle"),
+    }, _safe_dict(pieces_def.get("arbre")))
+    pieces["arbre"] = _build_piece_instance(ArbreMoteur, raw, rapport, "arbre")
+    rapport["rapports_pieces"]["arbre"] = _safe_call_report(pieces.get("arbre"))
+
+    raw = _merge_dict_non_none({
+        "arbre": pieces.get("arbre"),
+        "arbre_vilbrequin": pieces.get("arbre_vilebrequin"),
+        "roulement_aiguille_arbre": pieces.get("roulement_aiguille_arbre"),
+        "vilbrequin": pieces.get("vilbrequin"),
+        "moteur_thermique": moteur_thermique_obj,
+        "couple_transmis_Nm": couple_max_sys,
+        "materiau_clavette_cle": _get_nested(pieces_def, "clavette_arbre", "materiau_clavette_cle"),
+        "materiau_anneau_interieur_cle": _get_nested(pieces_def, "clavette_arbre", "materiau_anneau_interieur_cle"),
+    }, _safe_dict(pieces_def.get("clavette_arbre")))
+    pieces["clavette_arbre"] = _build_piece_instance(ClavetteArbre, raw, rapport, "clavette_arbre")
+    rapport["rapports_pieces"]["clavette_arbre"] = _safe_call_report(pieces.get("clavette_arbre"))
     _dedup_report_lists(rapport)
     if return_report:
         return pieces, rapport
