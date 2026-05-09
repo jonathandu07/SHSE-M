@@ -652,6 +652,46 @@ def test_analyser_composants_complementaires_exposes_power_electronics_block(mai
     assert bloc["redressement"]["puissance_sortie_dc_w"] == 48000.0
 
 
+def test_analyser_composants_complementaires_supports_multifuel_worst_case(main_mod):
+    class FakeMoteur:
+        def analyser_bilan_carburant(self, **kwargs):
+            fuel = kwargs["carburant"]
+            power = float(kwargs["puissance_utile_w"])
+            mdot = power / float(fuel.pci_j_kg)
+            qdot = mdot / float(fuel.densite_kg_m3) if fuel.densite_kg_m3 else None
+            return {
+                "entrees": {"carburant": fuel.nom},
+                "bilan": {
+                    "debit_massique_carburant_kg_s": mdot,
+                    "debit_volumique_carburant_m3_s": qdot,
+                    "puissance_chimique_w": power,
+                },
+                "inconnues": {"impossibles": [], "partielles": []},
+                "notes_modele": [],
+            }
+
+    rapports = main_mod.analyser_composants_complementaires(
+        composants={"moteur_thermique": FakeMoteur()},
+        rapport_systeme={
+            "synthese": {
+                "moteur_thermique": {"puissance_requise_W": 100000.0},
+            },
+        },
+        definition_moteur={
+            "carburant": None,
+            "mode_carburant": "multi_carburant",
+            "carburants_autorises": ["diesel", "essence", "ethanol", "hydrogene"],
+        },
+    )
+
+    bloc = rapports["moteur_thermique_bilan_carburant"]
+    assert bloc["mode"] == "multi_carburant_optimise_sur_pire_cas"
+    assert bloc["carburant_dimensionnant"] == "hydrogene"
+    assert bloc["carburant_optimal"] == "diesel"
+    assert "comparatif" in bloc
+    assert bloc["bilan_dimensionnant"]["entrees"]["carburant"] == "hydrogene"
+
+
 def test_print_resume_console_outputs_key_lines(main_mod, capsys):
     config = {
         "resume_gui": {
