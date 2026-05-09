@@ -1745,6 +1745,9 @@ def dimensionner_systeme_shsem(
                 vis_couvercle_cylindre=pieces.get("vis_couvercle_cylindre"),
                 arbre=pieces.get("arbre"),
                 clavette_arbre=pieces.get("clavette_arbre"),
+                rapport_backend=rapport_systeme,
+                rapports_pieces=rapports_pieces,
+                analyses_composants=rapports_composants,
             )
             rapport_optimisation = optimiseur.analyser()
         except Exception as exc:

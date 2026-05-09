@@ -201,6 +201,12 @@ def _try_call_report(obj: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _resolve_report_mapping(source: Any) -> Optional[Dict[str, Any]]:
+    if isinstance(source, dict):
+        return source
+    return _try_call_report(source)
+
+
 def _push_inconnue(rapport: Dict[str, Any], categorie: str, nom: str, raison: str) -> None:
     rapport.setdefault("inconnues", {}).setdefault(categorie, []).append(
         {"nom": nom, "raison": raison}
@@ -1030,6 +1036,7 @@ def _extract_clavette_metrics(rep: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 # ============================================================
 
 @dataclass
+@dataclass
 class OptimisationSysteme:
     """
     Orchestrateur inter-pièces.
@@ -1064,10 +1071,102 @@ class OptimisationSysteme:
     arbre: Optional[Any] = None
     clavette_arbre: Optional[Any] = None
 
+    rapport_backend: Optional[Dict[str, Any]] = None
+    rapports_pieces: Optional[Dict[str, Any]] = None
+    analyses_composants: Optional[Dict[str, Any]] = None
+    objets_serialises: Optional[Dict[str, Any]] = None
+    inventaire: Optional[Dict[str, Any]] = None
+
     tolerance_relatif_forte: float = 0.02
     tolerance_relatif_standard: float = 0.05
     tolerance_relatif_lache: float = 0.10
     tolerance_interference_absolue_m: float = 1e-12
+
+    @classmethod
+    def depuis_rapport_backend(cls, rapport_backend: Optional[Dict[str, Any]]) -> "OptimisationSysteme":
+        rapport = _safe_dict(rapport_backend)
+        objets = _safe_dict(rapport.get("objets_serialises"))
+        pieces = _safe_dict(objets.get("pieces"))
+        composants = _safe_dict(objets.get("composants"))
+
+        return cls(
+            systeme_complet=rapport,
+            moteur_thermique=composants.get("moteur_thermique"),
+            cylindre=pieces.get("cylindre"),
+            piston=pieces.get("piston"),
+            joint_piston=pieces.get("joint_piston"),
+            deplaceur=pieces.get("deplaceur"),
+            joint_deplaceur=pieces.get("joint_deplaceur"),
+            bielle=pieces.get("bielle"),
+            arbre_piston=pieces.get("arbre_piston"),
+            coussinet_arbre_piston=pieces.get("coussinet_arbre_piston"),
+            arbre_vilebrequin=pieces.get("arbre_vilebrequin"),
+            vilbrequin=pieces.get("vilbrequin"),
+            roulement_aiguille_arbre=pieces.get("roulement_aiguille_arbre"),
+            roulement_aiguille_arbre_vilebrequin=pieces.get("roulement_aiguille_arbre_vilebrequin"),
+            couvercle_cylindre=pieces.get("couvercle_cylindre"),
+            vis_couvercle_cylindre=pieces.get("vis_couvercle_cylindre"),
+            arbre=pieces.get("arbre"),
+            clavette_arbre=pieces.get("clavette_arbre"),
+            rapport_backend=rapport,
+            rapports_pieces=_safe_dict(rapport.get("rapports_pieces")),
+            analyses_composants=_safe_dict(rapport.get("analyses_composants")),
+            objets_serialises=objets,
+            inventaire=_safe_dict(rapport.get("inventaire")),
+        )
+
+    def _piece_report(self, piece_name: str, piece_obj: Any) -> Optional[Dict[str, Any]]:
+        report = _resolve_report_mapping(piece_obj)
+        if report is not None:
+            return report
+
+        backend_piece_reports = _safe_dict(self.rapports_pieces)
+        if isinstance(backend_piece_reports.get(piece_name), dict):
+            return backend_piece_reports[piece_name]
+
+        rapport = _safe_dict(self.rapport_backend)
+        backend_piece_reports = _safe_dict(rapport.get("rapports_pieces"))
+        if isinstance(backend_piece_reports.get(piece_name), dict):
+            return backend_piece_reports[piece_name]
+
+        inv_piece = _safe_dict(_safe_dict(_safe_dict(rapport.get("inventaire")).get("pieces")).get(piece_name))
+        if isinstance(inv_piece.get("rapport"), dict):
+            return inv_piece.get("rapport")
+
+        return None
+
+    def _component_report(self, component_name: str, component_obj: Any = None) -> Optional[Dict[str, Any]]:
+        report = _resolve_report_mapping(component_obj)
+        if report is not None:
+            return report
+
+        analyses = _safe_dict(self.analyses_composants)
+        aliases = {
+            "moteur_thermique": (
+                "moteur_thermique",
+                "moteur_thermique_geometrie",
+                "moteur_thermique_cycle",
+                "moteur_thermique_point",
+                "moteur_thermique_bilan_carburant",
+                "construction_moteur_thermique",
+            ),
+            "alternateur": ("alternateur", "alternateur_bus_dc"),
+            "batterie": ("batterie", "batterie_dimensionnement"),
+            "boite_crabots": ("boite_crabots", "boite_point", "boite_chaine"),
+            "architecture": ("architecture",),
+            "electronique_puissance": ("electronique_puissance",),
+        }
+        for alias in aliases.get(component_name, (component_name,)):
+            if isinstance(analyses.get(alias), dict):
+                return analyses[alias]
+
+        rapport = _safe_dict(self.rapport_backend)
+        analyses = _safe_dict(rapport.get("analyses_composants"))
+        for alias in aliases.get(component_name, (component_name,)):
+            if isinstance(analyses.get(alias), dict):
+                return analyses[alias]
+
+        return None
 
     # --------------------------------------------------------
     # Analyse globale
@@ -1089,28 +1188,30 @@ class OptimisationSysteme:
         # ----------------------------------------------------
         # 1) Récupération des rapports
         # ----------------------------------------------------
-        rep_sys = _try_call_report(self.systeme_complet)
+        rep_sys = _resolve_report_mapping(self.systeme_complet)
+        if rep_sys is None:
+            rep_sys = _safe_dict(self.rapport_backend)
 
-        rep_mt = _try_call_report(self.moteur_thermique)
+        rep_mt = self._component_report("moteur_thermique", self.moteur_thermique)
         if rep_mt is None and self.systeme_complet is not None:
-            rep_mt = _try_call_report(getattr(self.systeme_complet, "moteur_thermique", None))
+            rep_mt = _resolve_report_mapping(getattr(self.systeme_complet, "moteur_thermique", None))
 
-        rep_cyl = _try_call_report(self.cylindre)
-        rep_pis = _try_call_report(self.piston)
-        rep_jp = _try_call_report(self.joint_piston)
-        rep_dep = _try_call_report(self.deplaceur)
-        rep_jd = _try_call_report(self.joint_deplaceur)
-        rep_bie = _try_call_report(self.bielle)
-        rep_ap = _try_call_report(self.arbre_piston)
-        rep_cous = _try_call_report(self.coussinet_arbre_piston)
-        rep_av = _try_call_report(self.arbre_vilebrequin)
-        rep_vb = _try_call_report(self.vilbrequin)
-        rep_raa = _try_call_report(self.roulement_aiguille_arbre)
-        rep_raav = _try_call_report(self.roulement_aiguille_arbre_vilebrequin)
-        rep_cov = _try_call_report(self.couvercle_cylindre)
-        rep_vis = _try_call_report(self.vis_couvercle_cylindre)
-        rep_arb = _try_call_report(self.arbre)
-        rep_clav = _try_call_report(self.clavette_arbre)
+        rep_cyl = self._piece_report("cylindre", self.cylindre)
+        rep_pis = self._piece_report("piston", self.piston)
+        rep_jp = self._piece_report("joint_piston", self.joint_piston)
+        rep_dep = self._piece_report("deplaceur", self.deplaceur)
+        rep_jd = self._piece_report("joint_deplaceur", self.joint_deplaceur)
+        rep_bie = self._piece_report("bielle", self.bielle)
+        rep_ap = self._piece_report("arbre_piston", self.arbre_piston)
+        rep_cous = self._piece_report("coussinet_arbre_piston", self.coussinet_arbre_piston)
+        rep_av = self._piece_report("arbre_vilebrequin", self.arbre_vilebrequin)
+        rep_vb = self._piece_report("vilbrequin", self.vilbrequin)
+        rep_raa = self._piece_report("roulement_aiguille_arbre", self.roulement_aiguille_arbre)
+        rep_raav = self._piece_report("roulement_aiguille_arbre_vilebrequin", self.roulement_aiguille_arbre_vilebrequin)
+        rep_cov = self._piece_report("couvercle_cylindre", self.couvercle_cylindre)
+        rep_vis = self._piece_report("vis_couvercle_cylindre", self.vis_couvercle_cylindre)
+        rep_arb = self._piece_report("arbre", self.arbre)
+        rep_clav = self._piece_report("clavette_arbre", self.clavette_arbre)
 
         rapport["rapports_sources"] = {
             "systeme_complet": rep_sys is not None,
