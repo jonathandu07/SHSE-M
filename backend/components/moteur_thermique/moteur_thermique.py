@@ -1566,8 +1566,14 @@ __all__ = [
     "ConfigurationCarburant",
     "EntreesOrchestrateurMoteurThermique",
     "OrchestrateurMoteurThermique",
+    "MoteurThermique",
     "exemple_minimal",
 ]
+
+
+# Couche de compatibilite projet : le reste du backend attend encore un
+# symbole `MoteurThermique` exporte par ce module.
+MoteurThermique = OrchestrateurMoteurThermique
 
 
 if __name__ == "__main__":

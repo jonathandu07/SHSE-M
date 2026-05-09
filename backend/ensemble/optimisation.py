@@ -18,9 +18,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import Any, Dict, Optional, Tuple, List, Sequence
+from dataclasses import asdict, dataclass, fields, is_dataclass, replace
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple, List, Sequence
+import copy
+import importlib
+import inspect
+import json
 import math
+import os
+import sys
+from pathlib import Path
 
 
 # ============================================================
@@ -42,6 +49,173 @@ except Exception:  # pragma: no cover
         from backend.components.moteur_thermique.moteur_thermique import MoteurThermique  # type: ignore
     except Exception:  # pragma: no cover
         MoteurThermique = None  # type: ignore
+
+
+def _import_optional_attr(module_names: Sequence[str], attr: str) -> Any:
+    """Importe un symbole sans rendre l'orchestrateur dépendant de l'arborescence."""
+    for module_name in module_names:
+        try:
+            module = importlib.import_module(module_name)
+            return getattr(module, attr)
+        except Exception:
+            continue
+    return None
+
+# Constructeurs/orchestrateurs haut niveau des composants. Ils sont optionnels :
+# si l'un manque, le recalcul passera par l'objet existant ou signalera l'inconnue.
+MoteurElectrique = _import_optional_attr(
+    (
+        "backend.components.moteur_electrique.moteur_electrique",
+        "backend.components.moteur_electrique",
+        "components.moteur_electrique.moteur_electrique",
+        "moteur_electrique",
+    ),
+    "MoteurElectrique",
+)
+construire_moteur_electrique = _import_optional_attr(
+    (
+        "backend.components.moteur_electrique.moteur_electrique",
+        "backend.components.moteur_electrique",
+        "components.moteur_electrique.moteur_electrique",
+        "moteur_electrique",
+    ),
+    "construire_moteur_electrique",
+)
+concevoir_moteur_electrique = _import_optional_attr(
+    (
+        "backend.components.moteur_electrique.moteur_electrique",
+        "backend.components.moteur_electrique",
+        "components.moteur_electrique.moteur_electrique",
+        "moteur_electrique",
+    ),
+    "concevoir_moteur_electrique",
+)
+
+Batterie = _import_optional_attr(
+    (
+        "backend.components.batterie.batterie",
+        "backend.components.batterie",
+        "components.batterie.batterie",
+        "batterie",
+    ),
+    "Batterie",
+)
+construire_batterie = _import_optional_attr(
+    (
+        "backend.components.batterie.batterie",
+        "backend.components.batterie",
+        "components.batterie.batterie",
+        "batterie",
+    ),
+    "construire_batterie",
+)
+concevoir_batterie = _import_optional_attr(
+    (
+        "backend.components.batterie.batterie",
+        "backend.components.batterie",
+        "components.batterie.batterie",
+        "batterie",
+    ),
+    "concevoir_batterie",
+)
+
+Alternateur = _import_optional_attr(
+    (
+        "backend.components.alternateur.alternateur",
+        "backend.components.alternateur",
+        "components.alternateur.alternateur",
+        "alternateur",
+    ),
+    "Alternateur",
+)
+construire_alternateur = _import_optional_attr(
+    (
+        "backend.components.alternateur.alternateur",
+        "backend.components.alternateur",
+        "components.alternateur.alternateur",
+        "alternateur",
+    ),
+    "construire_alternateur",
+)
+concevoir_alternateur = _import_optional_attr(
+    (
+        "backend.components.alternateur.alternateur",
+        "backend.components.alternateur",
+        "components.alternateur.alternateur",
+        "alternateur",
+    ),
+    "concevoir_alternateur",
+)
+
+BoiteCrabots = _import_optional_attr(
+    (
+        "backend.components.boite_crabots.boite_crabots",
+        "backend.components.boite_crabots",
+        "components.boite_crabots.boite_crabots",
+        "boite_crabots",
+    ),
+    "BoiteCrabots",
+)
+construire_boite_crabots = _import_optional_attr(
+    (
+        "backend.components.boite_crabots.boite_crabots",
+        "backend.components.boite_crabots",
+        "components.boite_crabots.boite_crabots",
+        "boite_crabots",
+    ),
+    "construire_boite_crabots",
+)
+concevoir_boite_crabots = _import_optional_attr(
+    (
+        "backend.components.boite_crabots.boite_crabots",
+        "backend.components.boite_crabots",
+        "components.boite_crabots.boite_crabots",
+        "boite_crabots",
+    ),
+    "concevoir_boite_crabots",
+)
+
+Architecture = _import_optional_attr(
+    (
+        "backend.components.architecture",
+        "backend.components.architecture.architecture",
+        "backend.components.architechture",
+        "backend.components.architechture.architecture",
+        "components.architecture",
+        "architecture",
+    ),
+    "Architecture",
+)
+concevoir_architecture = _import_optional_attr(
+    (
+        "backend.components.architecture",
+        "backend.components.architecture.architecture",
+        "backend.components.architechture",
+        "backend.components.architechture.architecture",
+        "components.architecture",
+        "architecture",
+    ),
+    "concevoir_architecture",
+)
+
+OrchestrateurMoteurThermique = _import_optional_attr(
+    (
+        "backend.components.moteur_thermique.moteur_thermique",
+        "backend.components.moteur_thermique.orchestrateur_moteur_thermique",
+        "components.moteur_thermique.moteur_thermique",
+        "moteur_thermique",
+    ),
+    "OrchestrateurMoteurThermique",
+)
+EntreesOrchestrateurMoteurThermique = _import_optional_attr(
+    (
+        "backend.components.moteur_thermique.moteur_thermique",
+        "backend.components.moteur_thermique.orchestrateur_moteur_thermique",
+        "components.moteur_thermique.moteur_thermique",
+        "moteur_thermique",
+    ),
+    "EntreesOrchestrateurMoteurThermique",
+)
 
 
 # ============================================================
@@ -253,6 +427,137 @@ def _dedup_rapport(rapport: Dict[str, Any]) -> None:
         keys=("cible", "champ", "valeur", "strategie"),
     )
 
+
+
+# ============================================================
+# Helpers recalcul / optimisation itérative
+# ============================================================
+
+def _to_jsonable(value: Any, *, depth: int = 0, max_depth: int = 8) -> Any:
+    if depth > max_depth:
+        return {"type": type(value).__name__, "truncated": True}
+    if value is None or isinstance(value, (str, int, float, bool)):
+        if isinstance(value, float) and not math.isfinite(value):
+            return str(value)
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if is_dataclass(value) and not isinstance(value, type):
+        try:
+            return _to_jsonable(asdict(value), depth=depth + 1, max_depth=max_depth)
+        except Exception:
+            pass
+    if isinstance(value, Mapping):
+        return {str(k): _to_jsonable(v, depth=depth + 1, max_depth=max_depth) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(v, depth=depth + 1, max_depth=max_depth) for v in value]
+    if hasattr(value, "en_dict") and callable(getattr(value, "en_dict")):
+        try:
+            return _to_jsonable(value.en_dict(), depth=depth + 1, max_depth=max_depth)
+        except Exception:
+            pass
+    if hasattr(value, "as_dict") and callable(getattr(value, "as_dict")):
+        try:
+            return _to_jsonable(value.as_dict(), depth=depth + 1, max_depth=max_depth)
+        except Exception:
+            pass
+    if hasattr(value, "__dict__"):
+        try:
+            return {
+                "type": type(value).__name__,
+                "attributs": _to_jsonable(
+                    {k: v for k, v in vars(value).items() if not k.startswith("_") and not callable(v)},
+                    depth=depth + 1,
+                    max_depth=max_depth,
+                ),
+            }
+        except Exception:
+            pass
+    return {"type": type(value).__name__, "repr": repr(value)[:300]}
+
+
+def _deep_merge_dict(base: Optional[Mapping[str, Any]], extra: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+    out: Dict[str, Any] = copy.deepcopy(dict(base or {}))
+    for k, v in dict(extra or {}).items():
+        if isinstance(v, Mapping) and isinstance(out.get(k), Mapping):
+            out[k] = _deep_merge_dict(out[k], v)
+        else:
+            out[k] = copy.deepcopy(v)
+    return out
+
+
+def _call_supported(fn: Callable[..., Any], /, **kwargs: Any) -> Any:
+    try:
+        sig = inspect.signature(fn)
+        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+            return fn(**{k: v for k, v in kwargs.items() if v is not None})
+        allowed = set(sig.parameters.keys())
+        return fn(**{k: v for k, v in kwargs.items() if k in allowed and v is not None})
+    except TypeError:
+        return fn(**{k: v for k, v in kwargs.items() if v is not None})
+
+
+def _filter_for_dataclass_or_signature(cls_or_fn: Any, cfg: Mapping[str, Any]) -> Dict[str, Any]:
+    if cls_or_fn is None:
+        return {}
+    if isinstance(cls_or_fn, type) and is_dataclass(cls_or_fn):
+        allowed = {f.name for f in fields(cls_or_fn)}
+        return {k: v for k, v in cfg.items() if k in allowed}
+    try:
+        sig = inspect.signature(cls_or_fn)
+        allowed = set(sig.parameters.keys())
+        return {k: v for k, v in cfg.items() if k in allowed}
+    except Exception:
+        return dict(cfg)
+
+
+def _safe_report_score(report: Optional[Dict[str, Any]]) -> float:
+    r = _safe_dict(report)
+    syn = _safe_dict(r.get("synthese_optimisation"))
+    for key in ("score_global_100", "score_coherence_100"):
+        val = _safe_float(syn.get(key))
+        if val is not None:
+            return val
+    nb_alertes = sum(len(v or []) for v in _safe_dict(r.get("alertes")).values())
+    inc = _safe_dict(r.get("inconnues"))
+    nb_inc = len(inc.get("impossibles", []) or []) + len(inc.get("partielles", []) or [])
+    return max(0.0, 100.0 - 8.0 * nb_alertes - 2.0 * nb_inc)
+
+
+def _count_alertes(report: Optional[Dict[str, Any]]) -> int:
+    return sum(len(v or []) for v in _safe_dict(_safe_dict(report).get("alertes")).values())
+
+
+def _count_inconnues(report: Optional[Dict[str, Any]]) -> int:
+    inc = _safe_dict(_safe_dict(report).get("inconnues"))
+    return len(inc.get("impossibles", []) or []) + len(inc.get("partielles", []) or [])
+
+
+def _extract_component_config_from_backend(rapport_backend: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    rb = _safe_dict(rapport_backend)
+    entrees = _safe_dict(rb.get("entrees"))
+    cfg: Dict[str, Any] = {}
+    cfg = _deep_merge_dict(cfg, _safe_dict(entrees.get("composants_definition")))
+    cfg = _deep_merge_dict(cfg, _safe_dict(entrees.get("definition_composants")))
+    cfg = _deep_merge_dict(cfg, _safe_dict(rb.get("composants_definition")))
+    return cfg
+
+
+def _extract_analysis_config_from_backend(rapport_backend: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    rb = _safe_dict(rapport_backend)
+    entrees = _safe_dict(rb.get("entrees"))
+    cfg: Dict[str, Any] = {}
+    cfg = _deep_merge_dict(cfg, _safe_dict(entrees.get("analyses_complementaires")))
+    cfg = _deep_merge_dict(cfg, _safe_dict(entrees.get("analyses")))
+    cfg = _deep_merge_dict(cfg, _safe_dict(rb.get("analyses_config")))
+    return cfg
+
+
+def exporter_rapport_json(rapport: Mapping[str, Any], chemin: str | os.PathLike[str], *, indent: int = 2) -> Path:
+    path = Path(chemin)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_to_jsonable(dict(rapport)), ensure_ascii=False, indent=indent), encoding="utf-8")
+    return path
 
 # ============================================================
 # Extraction transversale des pertes
@@ -1040,7 +1345,6 @@ def _extract_clavette_metrics(rep: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 # ============================================================
 
 @dataclass
-@dataclass
 class OptimisationSysteme:
     """
     Orchestrateur inter-pièces.
@@ -1052,6 +1356,11 @@ class OptimisationSysteme:
 
     systeme_complet: Optional[Any] = None
     moteur_thermique: Optional[Any] = None
+    moteur_electrique: Optional[Any] = None
+    batterie: Optional[Any] = None
+    alternateur: Optional[Any] = None
+    boite_crabots: Optional[Any] = None
+    architecture: Optional[Any] = None
 
     cylindre: Optional[Any] = None
     piston: Optional[Any] = None
@@ -1080,6 +1389,9 @@ class OptimisationSysteme:
     analyses_composants: Optional[Dict[str, Any]] = None
     objets_serialises: Optional[Dict[str, Any]] = None
     inventaire: Optional[Dict[str, Any]] = None
+    configs_composants: Optional[Dict[str, Any]] = None
+    configs_analyses: Optional[Dict[str, Any]] = None
+    historique_optimisation: Optional[List[Dict[str, Any]]] = None
 
     tolerance_relatif_forte: float = 0.02
     tolerance_relatif_standard: float = 0.05
@@ -1096,6 +1408,11 @@ class OptimisationSysteme:
         return cls(
             systeme_complet=rapport,
             moteur_thermique=composants.get("moteur_thermique"),
+            moteur_electrique=composants.get("moteur_electrique"),
+            batterie=composants.get("batterie"),
+            alternateur=composants.get("alternateur"),
+            boite_crabots=composants.get("boite_crabots"),
+            architecture=composants.get("architecture"),
             cylindre=pieces.get("cylindre"),
             piston=pieces.get("piston"),
             joint_piston=pieces.get("joint_piston"),
@@ -1117,6 +1434,8 @@ class OptimisationSysteme:
             analyses_composants=_safe_dict(rapport.get("analyses_composants")),
             objets_serialises=objets,
             inventaire=_safe_dict(rapport.get("inventaire")),
+            configs_composants=_extract_component_config_from_backend(rapport),
+            configs_analyses=_extract_analysis_config_from_backend(rapport),
         )
 
     def _piece_report(self, piece_name: str, piece_obj: Any) -> Optional[Dict[str, Any]]:
@@ -1146,6 +1465,7 @@ class OptimisationSysteme:
 
         analyses = _safe_dict(self.analyses_composants)
         aliases = {
+            "moteur_electrique": ("moteur_electrique", "moteur_electrique_definition", "moteur_electrique_demande", "moteur_electrique_depuis_puissance"),
             "moteur_thermique": (
                 "moteur_thermique",
                 "moteur_thermique_geometrie",
@@ -1200,6 +1520,12 @@ class OptimisationSysteme:
         if rep_mt is None and self.systeme_complet is not None:
             rep_mt = _resolve_report_mapping(getattr(self.systeme_complet, "moteur_thermique", None))
 
+        rep_me = self._component_report("moteur_electrique", self.moteur_electrique)
+        rep_batt = self._component_report("batterie", self.batterie)
+        rep_alt = self._component_report("alternateur", self.alternateur)
+        rep_boite = self._component_report("boite_crabots", self.boite_crabots)
+        rep_arch = self._component_report("architecture", self.architecture)
+
         rep_cyl = self._piece_report("cylindre", self.cylindre)
         rep_pis = self._piece_report("piston", self.piston)
         rep_jp = self._piece_report("joint_piston", self.joint_piston)
@@ -1220,6 +1546,11 @@ class OptimisationSysteme:
         rapport["rapports_sources"] = {
             "systeme_complet": rep_sys is not None,
             "moteur_thermique": rep_mt is not None,
+            "moteur_electrique": rep_me is not None,
+            "batterie": rep_batt is not None,
+            "alternateur": rep_alt is not None,
+            "boite_crabots": rep_boite is not None,
+            "architecture": rep_arch is not None,
             "cylindre": rep_cyl is not None,
             "piston": rep_pis is not None,
             "joint_piston": rep_jp is not None,
@@ -1292,6 +1623,11 @@ class OptimisationSysteme:
         rapport["extractions"] = {
             "systeme_complet": ext_sys,
             "moteur_thermique": ext_mt,
+            "moteur_electrique": _safe_dict(rep_me),
+            "batterie": _safe_dict(rep_batt),
+            "alternateur": _safe_dict(rep_alt),
+            "boite_crabots": _safe_dict(rep_boite),
+            "architecture": _safe_dict(rep_arch),
             "cylindre": ext_cyl,
             "piston": ext_pis,
             "joint_piston": ext_jp,
@@ -2082,6 +2418,339 @@ class OptimisationSysteme:
         }
 
 
+    # --------------------------------------------------------
+    # Recalcul piloté des composants
+    # --------------------------------------------------------
+    def _component_objects(self, overrides: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+        base = {
+            "moteur_electrique": self.moteur_electrique,
+            "batterie": self.batterie,
+            "alternateur": self.alternateur,
+            "moteur_thermique": self.moteur_thermique,
+            "boite_crabots": self.boite_crabots,
+            "architecture": self.architecture,
+            "systeme_complet": self.systeme_complet if not isinstance(self.systeme_complet, dict) else None,
+        }
+        base.update({k: v for k, v in dict(overrides or {}).items() if k in base and v is not None})
+        return base
+
+    def _component_configs(self, overrides: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+        cfg = _deep_merge_dict(_extract_component_config_from_backend(self.rapport_backend), self.configs_composants)
+        cfg = _deep_merge_dict(cfg, overrides)
+        return cfg
+
+    def _analysis_configs(self, overrides: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+        cfg = _deep_merge_dict(_extract_analysis_config_from_backend(self.rapport_backend), self.configs_analyses)
+        cfg = _deep_merge_dict(cfg, overrides)
+        return cfg
+
+    def _construct_component_if_needed(self, name: str, cfg: Mapping[str, Any]) -> Any:
+        constructors = {
+            "moteur_electrique": (MoteurElectrique, construire_moteur_electrique),
+            "batterie": (Batterie, construire_batterie),
+            "alternateur": (Alternateur, construire_alternateur),
+            "boite_crabots": (BoiteCrabots, construire_boite_crabots),
+            "architecture": (Architecture, None),
+        }
+        cls, builder = constructors.get(name, (None, None))
+        if not cfg:
+            return None
+        try:
+            if callable(builder):
+                return builder(dict(cfg))
+            if cls is not None:
+                return cls(**_filter_for_dataclass_or_signature(cls, cfg))
+        except Exception:
+            return None
+        return None
+
+    def _run_component_recalc(
+        self,
+        name: str,
+        obj: Any,
+        comp_cfg: Mapping[str, Any],
+        analysis_cfg: Mapping[str, Any],
+        contexte: Mapping[str, Any],
+    ) -> Dict[str, Any]:
+        rep: Dict[str, Any] = {
+            "composant": name,
+            "recalcule": False,
+            "source": None,
+            "rapport": None,
+            "erreur": None,
+            "inconnues": {"impossibles": [], "partielles": []},
+        }
+
+        # 1) Orchestrateurs haut niveau déjà présents dans les composants corrigés.
+        concevoir_map: Dict[str, Any] = {
+            "moteur_electrique": concevoir_moteur_electrique,
+            "batterie": concevoir_batterie,
+            "alternateur": concevoir_alternateur,
+            "boite_crabots": concevoir_boite_crabots,
+            "architecture": concevoir_architecture,
+        }
+        concevoir_fn = concevoir_map.get(name)
+        merged_cfg = _deep_merge_dict(comp_cfg, analysis_cfg)
+
+        # Injecte uniquement des informations déjà calculées dans le contexte.
+        if name == "alternateur":
+            bus = _safe_dict(contexte.get("bus_dc"))
+            if _is_finite(bus.get("puissance_bus_dc_w")) and "puissance_bus_dc_w" not in merged_cfg:
+                merged_cfg["puissance_bus_dc_w"] = bus.get("puissance_bus_dc_w")
+            if _is_finite(bus.get("tension_bus_dc_v")) and "tension_bus_dc_v" not in merged_cfg:
+                merged_cfg["tension_bus_dc_v"] = bus.get("tension_bus_dc_v")
+        elif name == "batterie":
+            if "rapport_alternateur" not in merged_cfg and isinstance(contexte.get("alternateur"), dict):
+                merged_cfg["rapport_alternateur"] = contexte["alternateur"]
+            if "rapport_moteur_elec" not in merged_cfg and isinstance(contexte.get("moteur_electrique"), dict):
+                merged_cfg["rapport_moteur_elec"] = contexte["moteur_electrique"]
+        elif name == "boite_crabots":
+            if "moteur_thermique" not in merged_cfg and self.moteur_thermique is not None:
+                merged_cfg["moteur_thermique"] = self.moteur_thermique
+            if "alternateur" not in merged_cfg and self.alternateur is not None:
+                merged_cfg["alternateur"] = self.alternateur
+
+        if callable(concevoir_fn) and merged_cfg:
+            try:
+                out = concevoir_fn(merged_cfg)
+                rep.update({"recalcule": True, "source": f"{name}.concevoir_*", "rapport": _to_jsonable(out)})
+                return rep
+            except Exception as exc:
+                rep["erreur"] = f"concevoir_*: {exc}"
+
+        # 2) Objet existant : analyser / calculer / méthodes spécialisées.
+        if obj is None:
+            obj = self._construct_component_if_needed(name, comp_cfg)
+        if obj is None:
+            _push_inconnue(rep, "partielles", name, "Aucun objet ni configuration suffisante pour recalculer ce composant.")
+            return rep
+
+        try:
+            if name == "batterie" and hasattr(obj, "analyser_dimensionnement"):
+                out = _call_supported(obj.analyser_dimensionnement, **merged_cfg)
+            elif name == "alternateur" and hasattr(obj, "analyser_pour_bus_dc") and any(k in merged_cfg for k in ("puissance_bus_dc_w", "tension_bus_dc_v", "vitesse_rotation_rpm")):
+                out = _call_supported(obj.analyser_pour_bus_dc, **merged_cfg)
+            elif name == "boite_crabots" and hasattr(obj, "analyser"):
+                out = _call_supported(obj.analyser, **merged_cfg)
+            elif name == "moteur_thermique" and OrchestrateurMoteurThermique is not None and isinstance(obj, Mapping):
+                # Cas rare : config moteur au lieu d'objet.
+                entrees_cls = EntreesOrchestrateurMoteurThermique
+                entrees = entrees_cls(**_filter_for_dataclass_or_signature(entrees_cls, merged_cfg)) if entrees_cls is not None else None
+                orch = OrchestrateurMoteurThermique(entrees=entrees) if entrees is not None else OrchestrateurMoteurThermique()
+                out = _call_supported(orch.analyser, **merged_cfg)
+            elif hasattr(obj, "analyser"):
+                out = _call_supported(obj.analyser, **merged_cfg)
+            elif hasattr(obj, "calculer"):
+                out = _call_supported(obj.calculer, **merged_cfg)
+            else:
+                _push_inconnue(rep, "impossibles", name, "L'objet n'expose ni analyser(), ni calculer().")
+                return rep
+            rep.update({"recalcule": True, "source": f"{type(obj).__name__}.analyser", "rapport": _to_jsonable(out)})
+            return rep
+        except Exception as exc:
+            rep["erreur"] = f"objet: {exc}"
+            _push_inconnue(rep, "impossibles", name, f"Recalcul impossible : {exc}")
+            return rep
+
+    def recalculer_composants(
+        self,
+        *,
+        objets_corriges: Optional[Mapping[str, Any]] = None,
+        configs_composants: Optional[Mapping[str, Any]] = None,
+        configs_analyses: Optional[Mapping[str, Any]] = None,
+        contexte_initial: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Relance chaque composant avec les paramètres disponibles.
+
+        Ordre volontaire : moteur électrique -> batterie -> alternateur -> boîte -> moteur thermique
+        -> architecture -> système complet, afin que les rapports amont puissent nourrir les rapports aval.
+        """
+        objets = self._component_objects(objets_corriges)
+        comp_cfg = self._component_configs(configs_composants)
+        ana_cfg = self._analysis_configs(configs_analyses)
+        contexte: Dict[str, Any] = dict(contexte_initial or {})
+        rapports: Dict[str, Any] = {}
+        meta: Dict[str, Any] = {"ordre": [], "erreurs": {}, "sources": {}}
+        inc: Dict[str, List[Dict[str, Any]]] = {"impossibles": [], "partielles": []}
+
+        for name in ("moteur_electrique", "batterie", "alternateur", "boite_crabots", "moteur_thermique", "architecture"):
+            r = self._run_component_recalc(
+                name,
+                objets.get(name),
+                _safe_dict(comp_cfg.get(name)),
+                _safe_dict(ana_cfg.get(name)),
+                contexte,
+            )
+            rapports[name] = r
+            meta["ordre"].append(name)
+            meta["sources"][name] = r.get("source")
+            if r.get("erreur"):
+                meta["erreurs"][name] = r.get("erreur")
+            rr = _safe_dict(r.get("rapport"))
+            if rr:
+                contexte[name] = rr
+            for cat in ("impossibles", "partielles"):
+                for item in _safe_dict(r.get("inconnues")).get(cat, []) or []:
+                    inc[cat].append(item)
+                for item in _safe_dict(rr.get("inconnues")).get(cat, []) or []:
+                    inc[cat].append({"nom": f"{name}::{item.get('nom', '')}", "raison": item.get("raison", "")})
+
+        # Recalcul système complet si possible.
+        sys_obj = objets.get("systeme_complet")
+        if sys_obj is not None and hasattr(sys_obj, "analyser"):
+            try:
+                sys_cfg = _deep_merge_dict(_safe_dict(comp_cfg.get("systeme_complet")), _safe_dict(ana_cfg.get("systeme_complet")))
+                out = _call_supported(sys_obj.analyser, **sys_cfg)
+                rapports["systeme_complet"] = {"recalcule": True, "source": f"{type(sys_obj).__name__}.analyser", "rapport": _to_jsonable(out)}
+                contexte["systeme_complet"] = _safe_dict(out)
+                meta["ordre"].append("systeme_complet")
+            except Exception as exc:
+                rapports["systeme_complet"] = {"recalcule": False, "erreur": str(exc)}
+                inc["impossibles"].append({"nom": "systeme_complet", "raison": f"Recalcul impossible : {exc}"})
+
+        result = {
+            "meta": meta,
+            "rapports": rapports,
+            "contexte_final": contexte,
+            "inconnues": inc,
+        }
+        _dedup_rapport(result)
+        return result
+
+    def _config_from_actions(self, rapport: Mapping[str, Any]) -> Dict[str, Any]:
+        """Convertit les actions prudentes en patchs de configuration, sans inventer de valeur."""
+        patch: Dict[str, Any] = {}
+        for action in list(_safe_dict(rapport).get("actions", []) or []):
+            if not isinstance(action, dict):
+                continue
+            cible = str(action.get("cible", ""))
+            champ = str(action.get("champ", ""))
+            valeur = action.get("valeur")
+            if valeur is None or valeur == "a_reexaminer":
+                continue
+            if cible in ("moteur_thermique", "piston", "cylindre", "arbre_piston"):
+                # Ces actions concernent surtout les pièces moteur thermique : on les transmet
+                # à l'orchestrateur moteur thermique seulement si ses champs existent.
+                patch.setdefault("moteur_thermique", {})[champ] = valeur
+            elif cible in ("batterie", "alternateur", "moteur_electrique", "boite_crabots", "architecture"):
+                patch.setdefault(cible, {})[champ] = valeur
+        return patch
+
+    def optimiser_composants(
+        self,
+        *,
+        max_iterations: int = 5,
+        seuil_gain_score: float = 0.25,
+        configs_composants: Optional[Mapping[str, Any]] = None,
+        configs_analyses: Optional[Mapping[str, Any]] = None,
+        arret_si_aucune_action: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Boucle complète : analyse -> corrections prudentes -> recalcul -> nouvelle analyse.
+
+        Le recalcul est piloté, mais pas magique : il ne crée pas de dimensions catalogue.
+        Il réutilise seulement les objets/configurations fournis et les valeurs déjà calculées.
+        """
+        if max_iterations < 1:
+            raise ValueError("max_iterations doit être >= 1.")
+
+        historique: List[Dict[str, Any]] = []
+        best: Dict[str, Any] = {}
+        best_score = -1.0
+        comp_cfg = self._component_configs(configs_composants)
+        ana_cfg = self._analysis_configs(configs_analyses)
+        objets_courants: Dict[str, Any] = self._component_objects()
+        patch_cumule: Dict[str, Any] = {}
+
+        for iteration in range(1, max_iterations + 1):
+            analyse = self.analyser()
+            score_avant = _safe_report_score(analyse)
+            proposition = self.optimiser()
+            objets_corriges = _safe_dict(proposition.get("objets_corriges"))
+            action_patch = self._config_from_actions(analyse)
+            patch_cumule = _deep_merge_dict(patch_cumule, action_patch)
+            comp_cfg_iter = _deep_merge_dict(comp_cfg, patch_cumule)
+
+            recalc = self.recalculer_composants(
+                objets_corriges=objets_corriges,
+                configs_composants=comp_cfg_iter,
+                configs_analyses=ana_cfg,
+                contexte_initial={
+                    "analyse_optimisation": analyse,
+                    "bus_dc": {
+                        "puissance_bus_dc_w": _dig(analyse, "extractions", "systeme_complet", "P_bus_dc_design_w"),
+                        "tension_bus_dc_v": _dig(analyse, "extractions", "systeme_complet", "V_bus_dc_v"),
+                    },
+                },
+            )
+
+            # On ne remplace pas arbitrairement les objets par des rapports. Si un objet corrigé
+            # est une dataclass réelle, on le conserve pour l'itération suivante.
+            for k, v in objets_corriges.items():
+                if v is not None and not isinstance(v, dict):
+                    objets_courants[k] = v
+
+            score_apres = score_avant
+            # Le score recalculé le plus pertinent reste celui de l'analyse inter-pièces ;
+            # les rapports composants sont conservés pour diagnostic.
+            gain = 0.0 if not historique else score_avant - float(historique[-1].get("score_avant", score_avant))
+            entree = {
+                "iteration": iteration,
+                "score_avant": score_avant,
+                "score_apres_recalcul": score_apres,
+                "gain_score_vs_iteration_precedente": gain,
+                "nb_actions": len(analyse.get("actions", []) or []),
+                "nb_alertes": _count_alertes(analyse),
+                "nb_inconnues": _count_inconnues(analyse),
+                "patch_config": _to_jsonable(action_patch),
+                "recalcul": recalc,
+            }
+            historique.append(entree)
+
+            if score_avant > best_score:
+                best_score = score_avant
+                best = {
+                    "iteration": iteration,
+                    "analyse": analyse,
+                    "objets_corriges": _to_jsonable(objets_corriges),
+                    "configs_patch_cumule": _to_jsonable(patch_cumule),
+                    "recalcul": recalc,
+                }
+
+            if arret_si_aucune_action and not analyse.get("actions"):
+                break
+            if iteration > 1 and abs(gain) < seuil_gain_score:
+                break
+
+        resultat = {
+            "meta": {
+                "mode": "optimisation_iterative_inter_pieces",
+                "max_iterations_demandees": max_iterations,
+                "iterations_executees": len(historique),
+                "seuil_gain_score": seuil_gain_score,
+            },
+            "meilleur_resultat": best,
+            "historique": historique,
+            "synthese": {
+                "score_final_100": best_score,
+                "iteration_retenue": best.get("iteration"),
+                "systeme_coherent": bool(_dig(best, "analyse", "synthese_optimisation", "systeme_coherent")),
+                "alertes_finales": _count_alertes(_safe_dict(best.get("analyse"))),
+                "inconnues_finales": _count_inconnues(_safe_dict(best.get("analyse"))),
+            },
+        }
+        return _to_jsonable(resultat)
+
+    def optimiser_et_recalculer(self, **kwargs: Any) -> Dict[str, Any]:
+        """Alias explicite pour l'usage côté backend/main.py."""
+        return self.optimiser_composants(**kwargs)
+
+    def exporter_optimisation_json(self, chemin: str | os.PathLike[str], **kwargs: Any) -> Path:
+        return exporter_rapport_json(self.optimiser_composants(**kwargs), chemin)
+
+
+
 # ============================================================
 # Exécution simple
 # ============================================================
@@ -2096,3 +2765,5 @@ if __name__ == "__main__":
     print("Inconnues partielles:", len(rep["inconnues"]["partielles"]))
     print("Score cohérence:", rep["synthese_optimisation"]["score_coherence_100"])
     print("Score global:", rep["synthese_optimisation"]["score_global_100"])
+    iteratif = opt.optimiser_composants(max_iterations=1)
+    print("Itérations recalcul:", iteratif["meta"]["iterations_executees"])

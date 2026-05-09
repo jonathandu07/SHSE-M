@@ -17,4 +17,4 @@ def test_alternateur_dimensionnement():
     alt = Alternateur()
     res = alt.analyser_point_de_fonctionnement(vitesse_rotation_rpm=1500.0)
     assert "cinematique" in res
-    assert "electrique" in res
+    assert "electromagnetique" in res
