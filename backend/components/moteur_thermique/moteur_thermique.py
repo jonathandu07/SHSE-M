@@ -1627,7 +1627,6 @@ class MoteurThermique:
             puissance_utile_w=_first_finite(overrides.get("puissance_utile_w"), self.puissance_nominale_visee_w),
             taux_compression=_first_finite(overrides.get("taux_compression"), self.taux_compression_nominal),
             volume_mort_m3=_first_finite(overrides.get("volume_mort_m3"), self.volume_mort_nominal_m3),
-            vitesse_piston_max_ms=_first_finite(overrides.get("vitesse_piston_max_ms"), self.vitesse_piston_max_ms),
             ratio_mince_max=0.1,
             contrainte_admissible_pa=_first_finite(overrides.get("contrainte_admissible_pa"), self.contrainte_admissible_pa),
             facteur_securite_cylindre=float(_first_non_none(overrides.get("facteur_securite_cylindre"), self.facteur_securite_cylindre, 1.5)),
@@ -1704,9 +1703,15 @@ class MoteurThermique:
     ) -> Dict[str, Any]:
         report: Dict[str, Any] = {"inconnues": {"impossibles": [], "partielles": []}, "notes_modele": []}
         try:
-            P = _require_positive("puissance_visee_w", puissance_visee_w, strict=True)
-            n = _require_positive("rpm", rpm, strict=True)
-            pme = _require_positive("pression_moyenne_effective_pa", pression_moyenne_effective_pa, strict=True)
+            P = _safe_float(puissance_visee_w)
+            n = _safe_float(rpm)
+            pme = _safe_float(pression_moyenne_effective_pa)
+            if P is None or P <= 0.0:
+                raise ValueError("puissance_visee_w doit etre > 0.")
+            if n is None or n <= 0.0:
+                raise ValueError("rpm doit etre > 0.")
+            if pme is None or pme <= 0.0:
+                raise ValueError("pression_moyenne_effective_pa doit etre > 0.")
             tm = _safe_int(temps_moteur) or 4
             eta = _first_finite(rendement_mecanique, rendement_mecanique_cible_min, 0.85) or 0.85
             f = (n / 120.0) if tm == 4 else (n / 60.0)

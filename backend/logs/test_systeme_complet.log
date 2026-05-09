@@ -1,6 +1,6 @@
-2026-05-09 20:50:56,029 - INFO - Starting test_systeme_analyser_full
-2026-05-09 20:50:56,033 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
-2026-05-09 20:50:56,036 - INFO - {
+2026-05-09 20:55:46,876 - INFO - Starting test_systeme_analyser_full
+2026-05-09 20:55:46,881 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-09 20:55:46,883 - INFO - {
   "meta": {
     "orchestrateur": "SystemeComplet",
     "mode": "compatibilite_calculable"
@@ -536,13 +536,13 @@
       "vitesse_rotation_rpm": 3000.0
     },
     "moteur_thermique": {
-      "architecture": null,
+      "architecture": "L",
       "nombre_cylindres": 4,
-      "alesage_m": 0.08,
-      "course_m": 0.08,
+      "alesage_m": 0.06544945742827038,
+      "course_m": 0.06544945742827038,
       "rpm_nominal": 3000.0,
       "pme_pa": 1000000.0,
-      "cylindree_totale_cc": 1608.4954386379743,
+      "cylindree_totale_cc": 880.7811764705888,
       "puissance_requise_W": 18716.600000000002,
       "couple_requis_Nm": 59.57678815747537,
       "couple_max_Nm": 59.57678815747537,
@@ -553,8 +553,8 @@
   "cao": {
     "solidworks_ready_detaille": false,
     "moteur_thermique": {
-      "alesage_mm": 80.0,
-      "course_mm": 80.0
+      "alesage_mm": 65.44945742827038,
+      "course_mm": 65.44945742827038
     }
   },
   "inconnues": {
@@ -562,12 +562,12 @@
     "partielles": [
       {
         "nom": "moteur_thermique_point",
-        "raison": "EntreesOrchestrateurMoteurThermique.__init__() got an unexpected keyword argument 'vitesse_piston_max_ms'"
+        "raison": "get_pire_carburant() got an unexpected keyword argument 'critere'"
       }
     ]
   },
   "notes_modele": []
 }
-2026-05-09 20:50:56,037 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
-2026-05-09 20:50:56,042 - INFO - Starting test_systeme_missing_inputs
-2026-05-09 20:50:56,043 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
+2026-05-09 20:55:46,884 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-09 20:55:46,888 - INFO - Starting test_systeme_missing_inputs
+2026-05-09 20:55:46,890 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
