@@ -19,6 +19,7 @@ def resolve_viz_module(piece_name: str, viz_type: str) -> Optional[Any]:
     mapping = {
         "vilebrequin": "arbre_vilebrequin",
         "vilbrequin": "vilbrequin",
+        "arbre_vilbrequin": "arbre_vilebrequin",
         "arbre_vilebrequin": "arbre_vilebrequin",
         "architecture": "architechture",
         "architechture": "architechture",

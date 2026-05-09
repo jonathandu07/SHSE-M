@@ -1158,29 +1158,20 @@ class PieceDetailScreen(Screen):
         except Exception as ex:
             print(f"[PIECE_DETAIL DB] {ex}")
 
-        p = get_piece_instance(raw_name, ep)
+        # Instanciation et hydratation forcée
+        p = get_piece_instance(raw_name, ep, db_data=data)
+        
         if p is None:
+            # Fallback minimal si l'instanciation échoue
             class PO: pass
             p = PO()
             p.nom = raw_name
-
-        if isinstance(data, dict):
-            # Injection des données DB
-            for k, v in data.items():
-                if not hasattr(p, k) or getattr(p, k) is None:
+            if isinstance(data, dict):
+                for k, v in data.items():
                     try: setattr(p, k, v)
                     except Exception: pass
-            
-            # Si on a un rapport déjà calculé en DB, on mock la méthode analyser()
-            # pour éviter de recalculer et être fidèle aux résultats backend.
-            db_report = data.get("rapport")
-            if db_report and hasattr(p, "analyser"):
-                original_analyser = p.analyser
-                def mocked_analyser(*args, **kwargs):
-                    return db_report
-                p.analyser = mocked_analyser
 
-        # On s'assure que ep est aussi injecté
+        # On s'assure que ep est aussi injecté (priorité basse)
         for k, v in ep.items():
             if not hasattr(p, k) or getattr(p, k) is None:
                 try: setattr(p, k, v)

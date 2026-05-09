@@ -1,2 +1,0 @@
-from frontend.components.alternateur.sketches_2d import tracer_croquis_alternateur_2d
-

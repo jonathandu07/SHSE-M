@@ -144,9 +144,46 @@ _CONNECTORS = {
     "joint_deplaceur": _make_joint_deplaceur,
 }
 
-def get_piece_instance(piece_name: str, engine_params: Dict) -> Optional[Any]:
+def hydrate_piece(piece_obj: Any, db_data: Dict[str, Any]) -> Any:
     """
-    Instancie la classe Python réelle d'une pièce avec les paramètres moteur.
+    Force l'injection des données calculées en backend dans une instance de pièce.
+    Priorité aux attributs sérialisés puis aux données du rapport.
+    """
+    if not piece_obj or not isinstance(db_data, dict):
+        return piece_obj
+
+    # 1. Extraction des attributs sérialisés (haute fidélité)
+    attrs = db_data.get("attributs")
+    if not isinstance(attrs, dict):
+        # Fallback si les attributs sont au premier niveau (cas de get_piece_data fusionné)
+        attrs = db_data
+    
+    # 2. Injection forcée
+    for k, v in attrs.items():
+        # On évite d'écraser les méthodes ou les attributs privés critiques
+        if k.startswith("_") or callable(getattr(piece_obj, k, None)):
+            continue
+        try:
+            setattr(piece_obj, k, v)
+        except Exception:
+            pass
+
+    # 3. Mock de la méthode analyser() si un rapport est présent
+    # Cela permet aux visualisations d'utiliser le rapport calculé par le backend
+    # au lieu de relancer des calculs potentiellement différents.
+    rapport = db_data.get("rapport")
+    if rapport and hasattr(piece_obj, "analyser"):
+        def mocked_analyser(*args, **kwargs):
+            return rapport
+        piece_obj.analyser = mocked_analyser
+
+    return piece_obj
+
+
+def get_piece_instance(piece_name: str, engine_params: Dict, db_data: Optional[Dict] = None) -> Optional[Any]:
+    """
+    Instancie la classe Python réelle d'une pièce avec les paramètres moteur,
+    et l'hydrate avec les données de la base si fournies.
     """
     key = piece_name.lower().replace(" ", "_")
     
@@ -159,7 +196,10 @@ def get_piece_instance(piece_name: str, engine_params: Dict) -> Optional[Any]:
     if factory is None:
         return None
     try:
-        return factory(engine_params)
+        p = factory(engine_params)
+        if db_data:
+            p = hydrate_piece(p, db_data)
+        return p
     except Exception:
         print(f"[piece_connector] Échec instanciation '{piece_name}':\n{traceback.format_exc()}")
         return None
