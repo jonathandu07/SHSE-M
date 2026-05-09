@@ -99,6 +99,19 @@ def _append_section(
         sections.append((title, clean_rows))
 
 
+def _format_unknown_entry(value: Any) -> str:
+    if isinstance(value, dict):
+        name = str(value.get("nom") or "").strip()
+        reason = str(value.get("raison") or "").strip()
+        if name and reason:
+            return f"{name}: {reason}"
+        if name:
+            return name
+        if reason:
+            return reason
+    return str(value)
+
+
 def build_element_display_sections(payload: Optional[Dict[str, Any]]) -> List[Tuple[str, List[Tuple[str, str]]]]:
     data = _safe_dict(payload)
     report = _safe_dict(data.get("rapport"))
@@ -138,12 +151,16 @@ def build_element_display_sections(payload: Optional[Dict[str, Any]]) -> List[Tu
     inconnues = _safe_dict(report.get("inconnues"))
     if inconnues:
         rows: List[Tuple[str, str]] = []
-        impossibles = [str(item) for item in inconnues.get("impossibles", []) if str(item).strip()]
-        partielles = [str(item) for item in inconnues.get("partielles", []) if str(item).strip()]
-        if impossibles:
-            rows.append(("Bloquantes", ", ".join(impossibles[:8]) + (" ..." if len(impossibles) > 8 else "")))
-        if partielles:
-            rows.append(("Partielles", ", ".join(partielles[:8]) + (" ..." if len(partielles) > 8 else "")))
+        impossibles = [_format_unknown_entry(item) for item in inconnues.get("impossibles", []) if str(item).strip()]
+        partielles = [_format_unknown_entry(item) for item in inconnues.get("partielles", []) if str(item).strip()]
+        for idx, item in enumerate(impossibles[:6], start=1):
+            rows.append((f"Bloquante {idx}", item))
+        if len(impossibles) > 6:
+            rows.append(("Bloquantes restantes", str(len(impossibles) - 6)))
+        for idx, item in enumerate(partielles[:6], start=1):
+            rows.append((f"Partielle {idx}", item))
+        if len(partielles) > 6:
+            rows.append(("Partielles restantes", str(len(partielles) - 6)))
         _append_section(sections, "Inconnues", rows)
 
     notes = [str(item) for item in report.get("notes_modele", []) if str(item).strip()]

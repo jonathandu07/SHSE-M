@@ -6,6 +6,7 @@ en respectant l'architecture miroir du backend.
 from __future__ import annotations
 
 import importlib
+import inspect
 from typing import Any, Callable, Optional
 
 
@@ -86,8 +87,6 @@ def get_viz_figure(piece_name: str, piece_obj: Any, viz_type: str) -> Optional[A
     import matplotlib.pyplot as plt
 
     mod = resolve_viz_module(piece_name, viz_type)
-    if not mod:
-        return None
 
     try:
         if viz_type == "views_3d":
@@ -99,25 +98,56 @@ def get_viz_figure(piece_name: str, piece_obj: Any, viz_type: str) -> Optional[A
             draw_fn(ax, piece_obj)
             return fig
 
-        if viz_type == "charts" and hasattr(mod, "plot_data"):
+        if viz_type == "charts":
+            if mod and hasattr(mod, "plot_data"):
+                plot_fn = mod.plot_data
+            else:
+                from frontend.ensemble.viz_radar_template import plot_data as plot_fn
+
             fig = plt.figure(figsize=(5, 5))
             ax = fig.add_subplot(111, polar=True)
-            mod.plot_data(ax, piece_obj)
+            plot_fn(ax, piece_obj)
             return fig
 
         if viz_type == "sketches_2d":
-            if hasattr(mod, "draw"):
+            if mod and hasattr(mod, "draw"):
                 fig, ax = plt.subplots(figsize=(6, 6))
                 mod.draw(ax, piece_obj)
                 return fig
 
-            for attr in dir(mod):
-                if attr.startswith("tracer_croquis_") and attr.endswith("_2d"):
-                    fn = getattr(mod, attr)
-                    if callable(fn):
-                        res = fn(piece_obj, afficher=False)
-                        return res[0] if isinstance(res, (tuple, list)) else res
+            if mod:
+                for attr in dir(mod):
+                    if attr.startswith("tracer_croquis_") and attr.endswith("_2d"):
+                        fn = getattr(mod, attr)
+                        if callable(fn):
+                            params = inspect.signature(fn).parameters
+                            if "afficher" in params:
+                                res = fn(piece_obj, afficher=False)
+                            else:
+                                res = fn(piece_obj)
+                            return res[0] if isinstance(res, (tuple, list)) else res
     except Exception as exc:
         print(f"[viz_utils] Erreur get_viz_figure({piece_name}, {viz_type}): {exc}")
+
+    if viz_type == "sketches_2d":
+        try:
+            from frontend.ensemble.viz_2d_generic import make_figure
+
+            return make_figure(piece_obj)
+        except Exception as exc:
+            print(f"[viz_utils] Echec fallback 2D pour {piece_name}: {exc}")
+            return None
+
+    if viz_type == "charts":
+        try:
+            from frontend.ensemble.viz_radar_template import plot_data as plot_fn
+
+            fig = plt.figure(figsize=(5, 5))
+            ax = fig.add_subplot(111, polar=True)
+            plot_fn(ax, piece_obj)
+            return fig
+        except Exception as exc:
+            print(f"[viz_utils] Echec fallback chart pour {piece_name}: {exc}")
+            return None
 
     return None

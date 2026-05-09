@@ -1,0 +1,34 @@
+[INFO   ] Logger: Record log in C:\Users\alpha\Documents\GitHub\SHSE-M\.kivy\logs\kivy_26-05-09_7.txt
+[INFO   ] deps: Successfully imported "kivy_deps.angle" 0.4.0
+[INFO   ] deps: Successfully imported "kivy_deps.glew" 0.3.1
+[INFO   ] deps: Successfully imported "kivy_deps.sdl2" 0.8.0
+[INFO   ] Kivy: v2.3.1
+[INFO   ] Kivy: Installed at "C:\Python312\Lib\site-packages\kivy\__init__.py"
+[INFO   ] Python: v3.12.0 (tags/v3.12.0:0fb18b0, Oct  2 2023, 13:03:39) [MSC v.1935 64 bit (AMD64)]
+[INFO   ] Python: Interpreter at "C:\Python312\python.exe"
+[INFO   ] Logger: Purge log fired. Processing...
+[INFO   ] Logger: Purge finished!
+[INFO   ] Factory: 195 symbols loaded
+[INFO   ] Image: Providers: img_tex, img_dds, img_sdl2, img_pil (img_ffpyplayer ignored)
+[INFO   ] Text: Provider: sdl2
+[INFO   ] Window: Provider: sdl2
+[INFO   ] GL: Using the "OpenGL" graphics system
+[INFO   ] GL: GLEW initialization succeeded
+[INFO   ] GL: Backend used <glew>
+[INFO   ] GL: OpenGL version <b'4.6.0 - Build 32.0.101.7084'>
+[INFO   ] GL: OpenGL vendor <b'Intel'>
+[INFO   ] GL: OpenGL renderer <b'Intel(R) Iris(R) Xe Graphics'>
+[INFO   ] GL: OpenGL parsed version: 4, 6
+[INFO   ] GL: Shading version <b'4.60 - Build 32.0.101.7084'>
+[INFO   ] GL: Texture max size <16384>
+[INFO   ] GL: Texture max units <32>
+[INFO   ] Window: auto add sdl2 input provider
+[INFO   ] Window: virtual keyboard not allowed, single mode, not docked
+[DEBUG  ] matplotlib data path: C:\Python312\Lib\site-packages\matplotlib\mpl-data
+[DEBUG  ] CONFIGDIR=C:\Users\alpha\.matplotlib
+[DEBUG  ] interactive is False
+[DEBUG  ] platform is win32
+[DEBUG  ] CACHEDIR=C:\Users\alpha\.matplotlib
+[DEBUG  ] Using fontManager instance from C:\Users\alpha\.matplotlib\fontlist-v390.json
+[INFO   ] GL: NPOT texture support is available
+[INFO   ] Base: Start application main loop

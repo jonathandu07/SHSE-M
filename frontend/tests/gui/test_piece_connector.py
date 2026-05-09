@@ -1,5 +1,7 @@
 import pytest
+import matplotlib.pyplot as plt
 from frontend.gui.piece_connector import get_piece_instance, hydrate_piece
+from frontend.gui.viz_utils import get_viz_figure
 
 def test_get_piece_instance_moteur_thermique():
     """Vérifie l'instanciation des pièces du moteur thermique."""
@@ -41,10 +43,18 @@ def test_get_piece_instance_supports_backend_piece_names():
     coussinet = get_piece_instance("coussinet_arbre_piston", ep)
     couvercle = get_piece_instance("couvercle_cylindre", ep)
     arbre = get_piece_instance("arbre", ep)
+    arbre_piston = get_piece_instance("arbre_piston", ep)
+    deplaceur = get_piece_instance("deplaceur", ep)
+    joint_deplaceur = get_piece_instance("joint_deplaceur", ep)
+    joint_piston = get_piece_instance("joint_piston", ep)
 
     assert coussinet is not None
     assert couvercle is not None
     assert arbre is not None
+    assert arbre_piston is not None
+    assert deplaceur is not None
+    assert joint_deplaceur is not None
+    assert joint_piston is not None
 
 def test_get_piece_instance_fallback():
     """Vérifie le comportement si la pièce est inconnue."""
@@ -70,3 +80,22 @@ def test_hydrate_piece_uses_backend_serialized_object():
     assert piston.alesage_nominal_m == pytest.approx(0.222)
     assert piston.course_m == pytest.approx(0.333)
     assert piston.analyser()["resultat"] == 42
+
+
+def test_arbre_sketch_returns_diagnostic_figure_when_geometry_is_missing():
+    arbre = get_piece_instance(
+        "arbre",
+        {"nombre_cylindres": 5, "rpm_nominal": 3200.0},
+        db_data={
+            "rapport": {
+                "dimensionnements": {"couple_max_Nm": 447.6, "rpm": 3200.0},
+                "cao": {"diametre_nominal_arbre_m": None, "longueur_totale_m": None},
+                "inconnues": {"impossibles": [{"nom": "diametre_arbre_m", "raison": "manquant"}], "partielles": []},
+            }
+        },
+    )
+
+    fig = get_viz_figure("arbre", arbre, "sketches_2d")
+
+    assert fig is not None
+    plt.close(fig)

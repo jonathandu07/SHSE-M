@@ -355,6 +355,28 @@ AZERTY_MAP = {
 class NeumorphicInput(TextInput):
     """Champ de saisie neumorphique : chiffres + séparateur décimal ('.' ou ',')."""
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ""
+        self.background_active = ""
+        self.background_color = (0, 0, 0, 0)
+        self.foreground_color = (0.02, 0.08, 0.25, 1)
+        self.disabled_foreground_color = (0.02, 0.08, 0.25, 1)
+        self.hint_text_color = (0.45, 0.45, 0.45, 1)
+        self.cursor_color = (0.92, 0.10, 0.12, 1)
+        self.selection_color = (0.70, 0.82, 0.95, 0.85)
+        self.padding = [20, 18, 20, 18]
+        self.font_size = "32sp"
+        self.multiline = False
+        self.write_tab = False
+        self.halign = "center"
+        self.bind(text=self._ensure_readable_state, focus=self._ensure_readable_state)
+
+    def _ensure_readable_state(self, *args):
+        self.foreground_color = (0.02, 0.08, 0.25, 1)
+        self.disabled_foreground_color = (0.02, 0.08, 0.25, 1)
+        self.cursor_color = (0.92, 0.10, 0.12, 1)
+
     def insert_text(self, substring, from_undo=False):
         s = substring or ""
         current = self.text or ""
@@ -1380,7 +1402,7 @@ class VectorViewScreen(Screen):
             ax = axes[0]
             dim_labels = []
             dim_values = []
-            for label, value in (("AlÃ©sage", bore_mm), ("Course", stroke_mm), ("Ep. cylindre", ep_cyl_mm)):
+            for label, value in (("Alesage", bore_mm), ("Course", stroke_mm), ("Ep. cylindre", ep_cyl_mm)):
                 if isinstance(value, (int, float)):
                     dim_labels.append(label)
                     dim_values.append(float(value))
@@ -1466,41 +1488,70 @@ class AdvancedVisualsScreen(Screen):
         report = _safe_dict(app.simulation_results)
 
         try:
-            fig = None
-            if view_name == "Architecture":
-                mod = resolve_viz_module("architechture", "sketches_2d")
-                arch_obj = get_piece_instance(
-                    "architecture",
-                    ep,
-                    db_data=_current_component_payload(report, "architecture"),
-                )
-                if mod and arch_obj:
-                    fig = mod.tracer_croquis_architecture_2d(arch_obj, titre="Configuration du Bloc Moteur")
+            component_key = {
+                "Architecture": "architecture",
+                "Alternateur": "alternateur",
+                "Batterie": "batterie",
+            }.get(view_name, "architecture")
 
-            elif view_name == "Alternateur":
-                mod = resolve_viz_module("alternateur", "sketches_2d")
-                alt_obj = get_piece_instance(
-                    "alternateur",
-                    ep,
-                    db_data=_current_component_payload(report, "alternateur"),
-                )
-                if mod and alt_obj:
-                    fig = mod.tracer_croquis_alternateur_2d(alt_obj, titre="Coupe Stator/Rotor & Bilan Pertes")
+            payload = _current_component_payload(report, component_key)
+            component_obj = get_piece_instance(component_key, ep, db_data=payload)
 
-            elif view_name == "Batterie":
-                mod = resolve_viz_module("batterie", "sketches_2d")
-                batt_obj = get_piece_instance(
-                    "batterie",
-                    ep,
-                    db_data=_current_component_payload(report, "batterie"),
-                )
-                if mod and batt_obj:
-                    fig = mod.tracer_croquis_batterie_2d(batt_obj, titre="Monitoring Pack Batterie (BMS/TMS)")
+            content = BoxLayout(orientation="vertical", spacing=12)
+            subtitle = Label(
+                text=f"{view_name} : visualisations techniques et resume calcule",
+                color=COLORS["GAXD"],
+                size_hint_y=None,
+                height=24,
+                halign="left",
+                valign="middle",
+            )
+            subtitle.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+            content.add_widget(subtitle)
 
-            if fig:
-                self.display.add_widget(FigureCanvasKivyAgg(fig))
+            visuals = GridLayout(cols=3, spacing=12, size_hint_y=None, height=360)
+            for viz_type, title in (
+                ("sketches_2d", "Croquis 2D"),
+                ("charts", "Graphique"),
+                ("views_3d", "Vue 3D"),
+            ):
+                card = PremiumCard(title=title)
+                fig = get_viz_figure(component_key, component_obj or payload, viz_type)
+                if fig is not None:
+                    card.add_widget(FigureCanvasKivyAgg(fig))
+                else:
+                    card.add_widget(Label(text="Vue non disponible", color=COLORS["RF"]))
+                visuals.add_widget(card)
+            content.add_widget(visuals)
+
+            summary_card = PremiumCard(title="Donnees calculees", size_hint_y=None, height=260)
+            sc = ScrollView(do_scroll_x=False)
+            stack = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None, padding=[0, 6, 0, 0])
+            stack.bind(minimum_height=stack.setter("height"))
+            sections = build_element_display_sections(payload)
+            if sections:
+                for title, rows in sections:
+                    head = Label(
+                        text=title.upper(),
+                        color=COLORS["BF"],
+                        bold=True,
+                        font_size="13sp",
+                        size_hint_y=None,
+                        height=28,
+                        halign="left",
+                        valign="middle",
+                    )
+                    head.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+                    stack.add_widget(head)
+                    for key, value in rows:
+                        stack.add_widget(TechRow(key, value))
             else:
-                self.display.add_widget(Label(text=f"Impossible d'instancier {view_name}", color=COLORS["RF"]))
+                stack.add_widget(Label(text="Aucune donnee backend exploitable.", color=COLORS["RF"], size_hint_y=None, height=36))
+            sc.add_widget(stack)
+            summary_card.add_widget(sc)
+            content.add_widget(summary_card)
+
+            self.display.add_widget(content)
                 
         except Exception as e:
             self.display.add_widget(Label(text=f"Erreur : {e}\n{traceback.format_exc()}", 

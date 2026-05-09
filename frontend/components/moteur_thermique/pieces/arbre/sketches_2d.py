@@ -702,7 +702,45 @@ def tracer_croquis_arbre_moteur_2d(
     d = extraire_donnees_croquis(arbre)
 
     if d.diametre_nominal_mm <= 0 and d.longueur_totale_mm <= 0:
-        raise ValueError("Impossible de tracer : diamètre nominal et longueur totale absents.")
+        fig = plt.figure(figsize=(19, 11))
+        ax = fig.add_subplot(111)
+        fig.suptitle(titre, fontsize=15, y=0.985)
+        ax.set_axis_off()
+        ax.text(
+            0.5,
+            0.62,
+            "Croquis 2D partiel indisponible",
+            ha="center",
+            va="center",
+            fontsize=18,
+            fontweight="bold",
+            transform=ax.transAxes,
+        )
+        ax.text(
+            0.5,
+            0.48,
+            "Le backend n'a pas encore calcule le diametre nominal et la longueur totale de l'arbre.",
+            ha="center",
+            va="center",
+            fontsize=12,
+            transform=ax.transAxes,
+        )
+        ax.text(
+            0.5,
+            0.39,
+            "La fiche conserve quand meme les donnees calculees et la liste des inconnues.",
+            ha="center",
+            va="center",
+            fontsize=11,
+            transform=ax.transAxes,
+        )
+        _ajouter_cartouche_technique(fig, d)
+        plt.tight_layout(rect=[0.0, 0.11, 1.0, 0.965])
+        if enregistrer:
+            plt.savefig(enregistrer, dpi=220, bbox_inches="tight")
+        if afficher:
+            plt.show()
+        return fig, {"diagnostic": ax}, d
 
     fig = plt.figure(figsize=(19, 11))
     gs = fig.add_gridspec(2, 3, height_ratios=[2.15, 1.3], width_ratios=[1.6, 1.15, 1.25])

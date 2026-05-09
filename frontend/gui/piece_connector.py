@@ -58,10 +58,10 @@ def _make_arbre_vilebrequin(ep: Dict[str, Any]) -> Any:
     )
 
 def _make_arbre_piston(ep: Dict[str, Any]) -> Any:
-    from backend.components.moteur_thermique.pieces.arbre_piston import Arbre
-    return Arbre(
-        diametre_arbre_m=0.030,
-        longueur_arbre_m=0.100,
+    from backend.components.moteur_thermique.pieces.arbre_piston import ArbrePiston
+    return ArbrePiston(
+        diametre_fut_central_m=0.030,
+        longueur_totale_m=0.100,
         materiau_cle="acier_42crmo4_qt"
     )
 
@@ -85,8 +85,8 @@ def _make_couvercle(ep: Dict[str, Any]) -> Any:
 def _make_joint_piston(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.joint_piston import JointPiston
     return JointPiston(
-        diametre_nominal_m=_f(ep, "alesage_m", 0.130),
-        materiau_cle="ptfe"
+        diametre_interieur_cylindre_m=_f(ep, "alesage_m", 0.130),
+        materiau_joint_cle="ptfe"
     )
 
 def _make_alternateur(ep: Dict[str, Any]) -> Any:
@@ -143,16 +143,16 @@ def _make_deplaceur(ep: Dict[str, Any]) -> Any:
     cylindre = _make_cylindre(ep)
     return Deplaceur(
         cylindre=cylindre,
-        diametre_deplaceur_m=_f(ep, "alesage_m", 0.130) * 0.98,
-        longueur_deplaceur_m=0.150,
+        diametre_exterieur_m=_f(ep, "alesage_m", 0.130) * 0.98,
+        longueur_totale_m=0.150,
         materiau_cle="acier_310s"
     )
 
 def _make_joint_deplaceur(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.joint_deplaceur import JointDeplaceur
     return JointDeplaceur(
-        diametre_nominal_m=_f(ep, "alesage_m", 0.130),
-        materiau_cle="graphite"
+        alesage_cylindre_m=_f(ep, "alesage_m", 0.130),
+        materiau_joint_cle="graphite"
     )
 
 # ---------------------------------------------------------------------------
@@ -239,13 +239,35 @@ def hydrate_piece(piece_obj: Any, db_data: Dict[str, Any]) -> Any:
     if rapport and hasattr(piece_obj, "analyser"):
         def mocked_analyser(*args, **kwargs):
             return rapport
-        piece_obj.analyser = mocked_analyser
+        try:
+            piece_obj.analyser = mocked_analyser
+        except Exception:
+            pass
     if rapport and hasattr(piece_obj, "calculer"):
         def mocked_calculer(*args, **kwargs):
             return rapport
-        piece_obj.calculer = mocked_calculer
+        try:
+            piece_obj.calculer = mocked_calculer
+        except Exception:
+            pass
 
     return piece_obj
+
+
+def _build_generic_piece(piece_name: str, engine_params: Dict[str, Any], db_data: Optional[Dict[str, Any]] = None) -> Any:
+    class GenericPiece:
+        pass
+
+    piece = GenericPiece()
+    piece.nom = piece_name
+    for key, value in (engine_params or {}).items():
+        try:
+            setattr(piece, key, value)
+        except Exception:
+            pass
+    if db_data:
+        piece = hydrate_piece(piece, db_data)
+    return piece
 
 
 def get_piece_instance(piece_name: str, engine_params: Dict, db_data: Optional[Dict] = None) -> Optional[Any]:
@@ -262,7 +284,7 @@ def get_piece_instance(piece_name: str, engine_params: Dict, db_data: Optional[D
 
     factory = _CONNECTORS.get(key)
     if factory is None:
-        return None
+        return _build_generic_piece(piece_name, engine_params, db_data=db_data) if db_data else None
     try:
         p = factory(engine_params)
         if db_data:
