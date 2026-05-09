@@ -66,17 +66,18 @@ def _make_arbre_piston(ep: Dict[str, Any]) -> Any:
     )
 
 def _make_coussinet(ep: Dict[str, Any]) -> Any:
-    from backend.components.moteur_thermique.pieces.coussinet_arbre_piston import Coussinet
-    return Coussinet(
-        diametre_interieur_m=0.030,
-        longueur_m=0.040,
-        materiau_cle="bronze_cusn12"
+    from backend.components.moteur_thermique.pieces.coussinet_arbre_piston import CoussinetArbrePiston
+    return CoussinetArbrePiston(
+        diametre_portee_m=0.030,
+        longueur_coussinet_m=0.040,
+        materiau_coussinet="bronze_cusn12"
     )
 
 def _make_couvercle(ep: Dict[str, Any]) -> Any:
-    from backend.components.moteur_thermique.pieces.couvercle_cylindre import Couvercle
-    return Couvercle(
-        diametre_exterieur_m=0.200,
+    from backend.components.moteur_thermique.pieces.couvercle_cylindre import CouvercleCylindre
+    return CouvercleCylindre(
+        diametre_ouverture_m=0.180,
+        rayon_externe_m=0.100,
         epaisseur_m=0.020,
         materiau_cle="fonte_en_gjl_250"
     )
