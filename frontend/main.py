@@ -915,6 +915,14 @@ class DashboardScreen(Screen):
         nb_al = res.get("nb_alertes", 0)
         cao = _safe_dict(report.get("cao"))
         stockage = _safe_dict(report.get("stockage_front"))
+        optimisation = _safe_dict(report.get("optimisation"))
+        opt_syn = _safe_dict(optimisation.get("synthese_optimisation"))
+        if score is None:
+            score = opt_syn.get("score_coherence_100")
+        if not nb_al:
+            nb_al = opt_syn.get("nombre_alertes", 0)
+        if not nb_inc:
+            nb_inc = opt_syn.get("nombre_inconnues", 0)
         self.res_mass = (
             f"{float(energie):.1f} kWh batterie" if isinstance(energie, (int, float))
             else _f((float(p_bus) / 1000.0) if isinstance(p_bus, (int, float)) else None, "kW bus")
@@ -1291,6 +1299,7 @@ class PieceDetailScreen(Screen):
         db_name = getattr(app, "selected_piece_db", raw_name)
         ep = app.engine_params or {}
         report = _safe_dict(app.simulation_results)
+        selected_payload = _safe_dict(getattr(app, "selected_piece_payload", {}))
 
         top = BoxLayout(size_hint_y=None, height=62, spacing=10)
         title = Label(text=display_name, font_size="24sp", bold=True,
@@ -1302,7 +1311,7 @@ class PieceDetailScreen(Screen):
         top.add_widget(back)
         self.layout.add_widget(top)
 
-        data = _current_piece_payload(report, db_name, raw_name)
+        data = _merge_front_dicts(selected_payload, _current_piece_payload(report, db_name, raw_name))
         try:
             from backend.modules.systeme.database import SecureDatabase
             db = SecureDatabase(
@@ -1316,6 +1325,17 @@ class PieceDetailScreen(Screen):
                 data = _merge_front_dicts(data, db_data)
         except Exception as ex:
             print(f"[PIECE_DETAIL DB] {ex}")
+
+        status = _piece_backend_status(data)
+        status_row = BoxLayout(size_hint_y=None, height=38, spacing=10)
+        status_row.add_widget(Label(
+            text=f"État backend : {status['label']} | {status['detail']}",
+            color=status["color"],
+            font_size="12sp",
+            halign="left",
+            valign="middle",
+        ))
+        self.layout.add_widget(status_row)
 
         # Instanciation et hydratation forcée
         p = get_piece_instance(raw_name, ep, db_data=data)
@@ -1342,7 +1362,9 @@ class PieceDetailScreen(Screen):
         view3d_card = PremiumCard(title="Vue 3D")
         data_card = PremiumCard(title="Données de dimensionnement")
 
-        if MATPLOTLIB_AVAILABLE:
+        can_render_piece = bool(data.get("construit")) or p is not None
+
+        if MATPLOTLIB_AVAILABLE and can_render_piece:
             # --- Croquis 2D ---
             try:
                 fig2d = get_viz_figure(raw_name, p, "sketches_2d")
@@ -1375,6 +1397,9 @@ class PieceDetailScreen(Screen):
             except Exception as e:
                 view3d_card.add_widget(Label(text=f"Vue 3D indisponible\n{str(e)[:80]}",
                                               color=COLORS["RF"], font_size="11sp"))
+        elif MATPLOTLIB_AVAILABLE:
+            for card in (sketch_card, radar_card, view3d_card):
+                card.add_widget(Label(text="Pièce non construite avec les données actuelles", color=COLORS["RF"]))
         else:
             for card in (sketch_card, radar_card, view3d_card):
                 card.add_widget(Label(text="Matplotlib non disponible", color=COLORS["GAXD"]))
