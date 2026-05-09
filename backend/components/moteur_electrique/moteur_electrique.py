@@ -1,4 +1,4 @@
-# backend/components/moteur_electrique/moteur_electrique.py
+# backend\components\moteur_electrique\moteur_electrique.py
 from __future__ import annotations
 
 import importlib
