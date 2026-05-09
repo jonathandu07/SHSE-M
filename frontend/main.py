@@ -15,6 +15,7 @@ import importlib
 import importlib.util
 import traceback
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Mapping
 
 # CONFIGURATION DU PATH (Doit être au tout début pour tous les threads)
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -1259,8 +1260,17 @@ class PdfFolderScreen(Screen):
     def generate_piece_pdfs(self, app):
         report = _safe_dict(app.simulation_results)
         try:
-            generated = _export_full_report_pdfs(report, app.engine_params or {})
-            show_popup("PDF générés", f"{len(generated['pieces'])} fiches pièces générées.")
+            generated = []
+            for piece_key, payload in sorted(_safe_dict(_safe_dict(report.get("inventaire")).get("pieces")).items(), key=lambda item: str(item[0])):
+                raw_name = str(piece_key).split(".")[-1]
+                component_name = (
+                    _safe_dict(payload).get("source_composant")
+                    or (str(piece_key).split(".", 1)[0] if "." in str(piece_key) else _safe_dict(payload).get("type"))
+                    or "systeme"
+                )
+                display_name = f"{str(component_name).replace('_', ' ').upper()} - {raw_name.replace('_', ' ').upper()}"
+                generated.append(_export_piece_pdf_from_report(report, app.engine_params or {}, str(piece_key), raw_name, display_name))
+            show_popup("PDF générés", f"{len(generated)} fiches pièces générées.")
             self.on_enter()
         except Exception as exc:
             show_popup("Erreur PDF", str(exc))
