@@ -28,6 +28,12 @@ def test_get_piece_instance_subsystems():
     alt = get_piece_instance("alternateur", ep)
     assert alt is not None
 
+    me = get_piece_instance("moteur_electrique", ep)
+    assert me is not None
+
+    bc = get_piece_instance("boite_crabots", ep)
+    assert bc is not None
+
 
 def test_get_piece_instance_supports_backend_piece_names():
     ep = {"alesage_m": 0.130, "course_m": 0.150}
