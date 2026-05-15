@@ -9,23 +9,14 @@ from kivy.graphics import Color, RoundedRectangle
 from kivy.app import App
 import math
 
-# Réutilisation de la palette globale
-COLORS = {
-    "BL": (244 / 255, 254 / 255, 254 / 255, 1),
-    "GW": (247 / 255, 247 / 255, 255 / 255, 1),
-    "BG": (229 / 255, 229 / 255, 229 / 255, 1),
-    "GF": (217 / 255, 217 / 255, 217 / 255, 1),
-    "GAXD": (112 / 255, 112 / 255, 112 / 255, 1),
-    "VG": (107 / 255, 108 / 255, 102 / 255, 1),
-    "JV": (255 / 255, 198 / 255, 0 / 255, 1),
-    "BF": (5 / 255, 20 / 255, 64 / 255, 1),
-    "BA": (129 / 255, 161 / 255, 184 / 255, 1),
-    "BM": (3 / 255, 34 / 255, 76 / 255, 1),
-    "BFW": (9 / 255, 18 / 255, 38 / 255, 1),
-    "NF": (30 / 255, 30 / 255, 30 / 255, 1),
-    "white": (1, 1, 1, 1),
-    "black": (0, 0, 0, 1),
-    "RF": (236 / 255, 25 / 255, 32 / 255, 1),
+from gui.components import COLORS, ModernButton, PremiumCard, TechRow
+
+STATUS_COLORS = {
+    "ok": (0.1, 0.7, 0.2, 1),
+    "partiel": (1.0, 0.65, 0.0, 1),
+    "impossible": (0.9, 0.1, 0.1, 1),
+    "alerte": (1.0, 0.8, 0.0, 1),
+    "inconnu": (0.5, 0.5, 0.5, 1),
 }
 
 STATUS_COLORS = {
@@ -159,7 +150,6 @@ class EnergyAuditScreen(Screen):
         header = BoxLayout(size_hint_y=None, height=60, spacing=20)
         header.add_widget(Label(text="AUDIT DE CONFORMITÉ ÉNERGÉTIQUE", font_size="22sp", bold=True, color=COLORS["BF"], halign="left"))
         
-        from main import ModernButton # Type: ignore
         back = ModernButton(text="RETOUR", size_hint_x=None, width=140)
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
         header.add_widget(back)

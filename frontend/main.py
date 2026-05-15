@@ -1186,44 +1186,18 @@ class LoadingScreen(Screen):
         except Exception:
             app.simulation_results = {"__error__": traceback.format_exc()}
 
-        Clock.schedule_once(lambda dt: setattr(self.manager, "current", "dashboard"))
+        Clock.schedule_once(lambda dt: setattr(self.manager, "current", "energy_audit"))
 
 
 class AutoLoadingScreen(LoadingScreen):
     def do_math(self):
-        import time
-
+        import traceback
         app = App.get_running_app()
         ep = app.engine_params or {}
         p_target = float(app.target_power)
 
-        arch = ep.get("architecture", "CALCULEE")
-        ncyl = ep.get("nombre_cylindres", "--")
-        alesage_m = ep.get("alesage_m")
-        course_m = ep.get("course_m")
-        rpm = ep.get("rpm_nominal")
-        pme_pa = ep.get("pme_pa")
-        p_max_pa = ep.get("pression_max_pa")
-        carburant = ep.get("mode_carburant", "multi_carburant")
-
-        steps = ["Architecture...", "Cylindree...", "Vilebrequin...",
-                 "Thermodynamique...", "Pieces...", "Finalisation..."]
-        for s in steps:
-            Clock.schedule_once(lambda dt, msg=f"Calcul : {s}": setattr(self.label, "text", msg))
-            time.sleep(0.25)
-
-        def _fmt_dim(value_m):
-            return "--" if value_m is None else f"{float(value_m) * 1000.0:.0f}"
-
-        def _fmt_num(value, suffix=""):
-            return f"--{suffix}" if value is None else f"{float(value):.0f}{suffix}"
-
-        sub = (
-            f"{arch} | {ncyl} cyl | D{_fmt_dim(alesage_m)} x C{_fmt_dim(course_m)} mm | "
-            f"{_fmt_num(rpm, ' rpm')} | {carburant}"
-        )
-        Clock.schedule_once(lambda dt, m=sub: setattr(self.sub_label, "text", m))
-
+        Clock.schedule_once(lambda dt: setattr(self.label, "text", "Calcul de la chaine energetique..."))
+        
         try:
             from backend.main import dimensionner_systeme_shsem
             from backend.modules.systeme.database import SecureDatabase
@@ -1233,42 +1207,37 @@ class AutoLoadingScreen(LoadingScreen):
                 key_path=os.path.join(BASE_DIR, "backend", "secret.key"),
             )
             report_name = f"gui_moteur_{str(p_target).replace('.', 'p')}kw"
+            
             report = dimensionner_systeme_shsem(
                 puissance_traction_kw=p_target,
                 charger_batterie=True,
-                vitesse_moteur_thermique_rpm=rpm,
-                pme_pa=pme_pa,
-                pression_max_pa=p_max_pa,
+                vitesse_moteur_thermique_rpm=ep.get("rpm_nominal"),
+                pme_pa=ep.get("pme_pa"),
+                pression_max_pa=ep.get("pression_max_pa"),
                 rendement_mecanique_cible_min=ep.get("rendement_mecanique_cible_min"),
                 carburants_autorises=ep.get("carburants_autorises"),
                 mode_carburant=ep.get("mode_carburant"),
                 architectures_autorisees=ep.get("architectures_autorisees"),
-                moteur_thermique_definition={
-                    "temps_moteur": ep.get("temps_moteur"),
-                    "alesage_m": alesage_m,
-                    "course_m": course_m,
-                    "rpm_nominal": rpm,
-                    "pme_pa": pme_pa,
-                    "pression_max_pa": p_max_pa,
-                    "carburants_autorises": ep.get("carburants_autorises"),
-                    "mode_carburant": ep.get("mode_carburant"),
-                    "architectures_autorisees": ep.get("architectures_autorisees"),
-                },
+                moteur_thermique_definition=ep,
             )
+            
             record_ids = db.save_main_report(report, report_name=report_name)
             res = db.load_main_report(report_name) or {}
-            if isinstance(res, dict):
-                res["stockage_front"] = {
-                    "report_name": report_name,
-                    "db_path": db.db_path,
-                    "records_saved": len(record_ids),
-                }
+            
             app.simulation_results = res or {}
             app.current_report_name = report_name
+
+            exploration = res.get("sous_systemes", {}).get("architecture", {}).get("exploration", [])
+            if not ep.get("architecture") and exploration:
+                target_screen = "arch_choice"
+            else:
+                target_screen = "energy_audit"
+
         except Exception:
             app.simulation_results = {"__error__": traceback.format_exc()}
+            target_screen = "energy_audit"
 
-        Clock.schedule_once(lambda dt: setattr(self.manager, "current", "dashboard"))
+        Clock.schedule_once(lambda dt: setattr(self.manager, "current", target_screen))
 
 
 class DashboardScreen(Screen):
@@ -2268,6 +2237,7 @@ class SHSEMApp(App):
         sm.add_widget(DetailedDatasheetScreen(name="detailed_datasheet"))
         sm.add_widget(AdvancedVisualsScreen(name="advanced_visuals"))
         sm.add_widget(EnergyAuditScreen(name="energy_audit"))
+        sm.add_widget(ArchitectureChoiceScreen(name="arch_choice"))
         return sm
 
 
