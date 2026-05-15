@@ -9,16 +9,7 @@ from kivy.app import App
 from kivy.properties import DictProperty, ListProperty
 from kivy.clock import Clock
 
-# Configuration des couleurs (doit être cohérent avec main.py)
-COLORS = {
-    "BL": (0.05, 0.05, 0.07, 1),      # Background profond
-    "BF": (0.12, 0.14, 0.18, 1),      # Fond de carte (Bleu-Gris)
-    "BA": (0.25, 0.85, 0.65, 1),      # Accent (Vert émeraude / Cyan)
-    "RF": (0.95, 0.35, 0.35, 1),      # Erreur (Rouge)
-    "white": (1, 1, 1, 1),
-    "GAXD": (0.6, 0.65, 0.7, 1),      # Gris texte secondaire
-    "GW": (0.9, 0.9, 0.9, 0.1),       # Gris transparent
-}
+from gui.components import COLORS, ModernButton
 
 class CandidateCard(BoxLayout):
     def __init__(self, data, on_select, **kwargs):
@@ -56,9 +47,7 @@ class CandidateCard(BoxLayout):
         self.add_widget(Label(text="*Valeurs relatives/estimees", font_size="10sp", color=COLORS["GAXD"], size_hint_y=None, height=15))
         
         # Button
-        btn = Button(text="CHOISIR CETTE ARCHITECTURE", size_hint_y=None, height=50,
-                     background_normal="", background_color=COLORS["BA"], color=COLORS["BL"],
-                     bold=True)
+        btn = ModernButton(text="CHOISIR CETTE ARCHITECTURE", size_hint_y=None, height=50)
         btn.bind(on_release=lambda x: self.on_select(self.data))
         self.add_widget(btn)
 
@@ -94,13 +83,11 @@ class ArchitectureChoiceScreen(Screen):
         
         # Footer / Manual override
         footer = BoxLayout(size_hint_y=None, height=60, spacing=20)
-        btn_manual = Button(text="AFFINER LES PARAMETRES (MODE EXPERT)", size_hint_x=0.4,
-                            background_normal="", background_color=COLORS["BF"], color=COLORS["white"])
+        btn_manual = ModernButton(text="AFFINER LES PARAMETRES (MODE EXPERT)", size_hint_x=0.4)
         btn_manual.bind(on_release=self.go_manual)
         footer.add_widget(btn_manual)
         
-        btn_back = Button(text="RETOUR", size_hint_x=0.2,
-                          background_normal="", background_color=COLORS["GW"], color=COLORS["white"])
+        btn_back = ModernButton(text="RETOUR", size_hint_x=0.2)
         btn_back.bind(on_release=self.go_back)
         footer.add_widget(btn_back)
         
