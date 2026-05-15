@@ -1098,31 +1098,7 @@ class AutoConfigScreen(Screen):
         }
         self.manager.current = "loading"
 
-        alesage_mm = self._read_float("alesage_mm", None)
-        course_mm = self._read_float("course_mm", None)
-        rpm = self._read_float("rpm_nominal", None)
-        pme_bar = self._read_float("pme_bar", None)
-        p_max_bar = self._read_float("pression_max_bar", None)
-        rend_meca = self._read_float("rendement_meca", None)
 
-        self.err.text = ""
-        app = App.get_running_app()
-        app.target_power = str(val)
-        app.engine_params = {
-            "alesage_m": alesage_mm / 1000.0 if alesage_mm else None,
-            "alesage_mm": alesage_mm,
-            "course_m": course_mm / 1000.0 if course_mm else None,
-            "course_mm": course_mm,
-            "rpm_nominal": rpm,
-            "pme_pa": pme_bar * 1e5 if pme_bar else None,
-            "pression_max_pa": p_max_bar * 1e5 if p_max_bar else None,
-            "rendement_mecanique_cible_min": rend_meca,
-            "carburant": None,
-            "mode_carburant": "multi_carburant",
-            "carburants_autorises": ["diesel", "essence", "ethanol", "methanol", "gpl", "gnv", "hydrogene"],
-            "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
-        }
-        self.manager.current = "loading"
 
 
 class LoadingScreen(Screen):
