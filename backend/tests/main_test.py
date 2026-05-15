@@ -118,6 +118,111 @@ def test_helpers_validation_and_navigation(main_mod):
     assert main_mod._safe_dict(None) == {}
     assert main_mod._first_finite(None, "x", 2, 3) == 2.0
     assert main_mod._first_finite(None, "x") is None
+
+
+def test_derive_chain_energy_targets_relinks_output_battery_alternator_and_engine(main_mod):
+    class FakeMotor:
+        rendement_moteur = 0.92
+        pertes_fixes_w = 500.0
+        tension_bus_v = 400.0
+
+    class FakeBattery:
+        rendement_charge = 0.90
+        puissance_charge_kw = 30.0
+        tension_nominale_v = 400.0
+        tension_charge_v = 420.0
+
+    class FakeAlternator:
+        rendement_alternateur_impose = 0.95
+
+    bloc = main_mod._derive_chain_energy_targets(
+        puissance_traction_kw=100.0,
+        production_electrique_sortie_w=None,
+        puissance_bus_dc_w=None,
+        puissance_auxiliaire_w=5000.0,
+        energie_utile_imposee_kwh=20.0,
+        temps_charge_cible_h=1.0,
+        charger_batterie=True,
+        tension_bus_dc_v=None,
+        rendement_liaison_meca_alt=0.97,
+        rendement_boite=0.96,
+        fraction_temps_generation_beta=0.5,
+        moteur_electrique=FakeMotor(),
+        batterie=FakeBattery(),
+        alternateur=FakeAlternator(),
+    )
+
+    assert bloc["puissance_elec_usage_w"] == pytest.approx((100000.0 + 500.0) / 0.92)
+    assert bloc["puissance_recharge_batterie_w"] == pytest.approx((20.0 / 1.0 / 0.90) * 1000.0)
+    assert bloc["tension_bus_dc_v"] == pytest.approx(420.0)
+    assert bloc["puissance_bus_dc_totale_w"] == pytest.approx(((100000.0 + 500.0) / 0.92) + 5000.0 + ((20.0 / 1.0 / 0.90) * 1000.0))
+    assert bloc["puissance_bus_dc_instantanee_w"] == pytest.approx(bloc["puissance_bus_dc_totale_w"] / 0.5)
+    assert bloc["puissance_mecanique_alternateur_requise_w"] == pytest.approx(bloc["puissance_bus_dc_instantanee_w"] / 0.95)
+    assert bloc["puissance_moteur_thermique_requise_w"] == pytest.approx(bloc["puissance_mecanique_alternateur_requise_w"] / (0.97 * 0.96))
+
+
+def test_dimensionner_systeme_shsem_derives_bus_energy_and_engine_power_from_chain(monkeypatch, main_mod):
+    fake_system_holder = {}
+
+    class FakeMotor:
+        rendement_moteur = 0.92
+        pertes_fixes_w = 500.0
+        tension_bus_v = 400.0
+
+    class FakeBattery:
+        rendement_charge = 0.90
+        puissance_charge_kw = 30.0
+        tension_nominale_v = 400.0
+        tension_charge_v = 420.0
+
+    class FakeAlternator:
+        rendement_alternateur_impose = 0.95
+
+    monkeypatch.setattr(main_mod, "construire_moteur_electrique", lambda: FakeMotor())
+    monkeypatch.setattr(main_mod, "construire_batterie", lambda: FakeBattery())
+    monkeypatch.setattr(main_mod, "construire_alternateur", lambda: FakeAlternator())
+    monkeypatch.setattr(main_mod, "construire_moteur_thermique_base", lambda: object())
+    monkeypatch.setattr(main_mod, "construire_boite_crabots", lambda: object())
+    monkeypatch.setattr(main_mod, "construire_architecture", lambda: object())
+    monkeypatch.setattr(main_mod, "construire_moteur_thermique_complet", lambda **kwargs: (object(), {"mode_construction": "stub"}))
+    monkeypatch.setattr(main_mod, "construire_pieces_depuis_systeme", lambda **kwargs: ({}, {"construction": {}, "inconnues": {"impossibles": [], "partielles": []}}))
+    monkeypatch.setattr(main_mod, "analyser_pieces", lambda pieces: {})
+    monkeypatch.setattr(main_mod, "dimensionner_pieces_completes", lambda **kwargs: {})
+    monkeypatch.setattr(main_mod, "DriveChainGenerator", _FakeDriveChainGenerator)
+    monkeypatch.setattr(main_mod, "OptimisationSysteme", _FakeOptimisationSysteme)
+
+    def fake_systeme_ctor(**kwargs):
+        obj = _FakeSystemeComplet(**kwargs)
+        fake_system_holder["obj"] = obj
+        return obj
+
+    monkeypatch.setattr(main_mod, "SystemeComplet", fake_systeme_ctor)
+
+    config = main_mod.dimensionner_systeme_shsem(
+        puissance_traction_kw=100.0,
+        charger_batterie=True,
+        puissance_auxiliaire_w=5000.0,
+        energie_utile_imposee_kwh=20.0,
+        temps_charge_cible_h=1.0,
+        vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=9.0e5,
+        rendement_liaison_meca_alt=0.97,
+        rendement_boite=0.96,
+        fraction_temps_generation_beta=0.5,
+    )
+
+    system_call = fake_system_holder["obj"].calls[0]
+    p_usage = (100000.0 + 500.0) / 0.92
+    p_recharge = (20.0 / 1.0 / 0.90) * 1000.0
+    p_bus_total = p_usage + 5000.0 + p_recharge
+
+    assert system_call["puissance_elec_alt_cible_w"] == pytest.approx(p_bus_total)
+    assert system_call["energie_utile_imposee_kwh"] == pytest.approx(20.0)
+    assert system_call["tension_bus_dc_v"] == pytest.approx(420.0)
+    assert config["derivees_chaine_energie"]["puissance_bus_dc_instantanee_w"] == pytest.approx(p_bus_total / 0.5)
+    assert config["entrees"]["definition_moteur_thermique"]["puissance_nominale_visee_w"] == pytest.approx(
+        (p_bus_total / 0.5) / 0.95 / (0.97 * 0.96)
+    )
     assert main_mod._get_nested({"a": {"b": {"c": 9}}}, "a", "b", "c") == 9
     assert main_mod._get_nested({"a": 1}, "a", "b") is None
 

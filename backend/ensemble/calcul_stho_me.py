@@ -399,8 +399,33 @@ def pertes_joule(r: float, i: float) -> float:
     """
     PJ = R * I²
     """
-    verifier_positif(r=r)
     return r * i**2
+
+
+def calculer_c_rate(i_charge_a: float, capacite_ah: float) -> float:
+    """
+    C = I / Cap
+    """
+    verifier_positif(capacite_ah=capacite_ah)
+    return i_charge_a / capacite_ah
+
+
+def facteur_usure_arrhenius(t_k: float, ea_j_mol: float, r_gaz: float = 8.314462) -> float:
+    """
+    k = exp(-Ea / (R * T))
+    Formule brute d'activation thermique.
+    """
+    verifier_positif(t_k=t_k, ea_j_mol=ea_j_mol, r_gaz=r_gaz)
+    return math.exp(-ea_j_mol / (r_gaz * t_k))
+
+
+def facteur_usure_relatif(t_k: float, t_ref_k: float, ea_j_mol: float, r_gaz: float = 8.314462) -> float:
+    """
+    k_rel = exp( (Ea/R) * (1/T_ref - 1/T) )
+    Accélération de la dégradation par rapport à une température de référence.
+    """
+    verifier_positif(t_k=t_k, t_ref_k=t_ref_k, ea_j_mol=ea_j_mol, r_gaz=r_gaz)
+    return math.exp((ea_j_mol / r_gaz) * (1 / t_ref_k - 1 / t_k))
 
 
 # ==========================================================
@@ -433,6 +458,24 @@ def surface_echange(q: float, h: float, delta_t: float) -> float:
     """
     verifier_positif(q=q, h=h, delta_t=delta_t)
     return q / (h * delta_t)
+
+
+def constante_temps_thermique(r_th_k_w: float, c_th_j_k: float) -> float:
+    """
+    tau = Rth * Cth
+    """
+    verifier_positif(r_th_k_w=r_th_k_w, c_th_j_k=c_th_j_k)
+    return r_th_k_w * c_th_j_k
+
+
+def reponse_transitoire_premier_ordre(val_init: float, val_cible: float, t_s: float, tau_s: float) -> float:
+    """
+    y(t) = val_init + (val_cible - val_init) * (1 - exp(-t / tau))
+    """
+    verifier_positif(tau_s=tau_s)
+    if t_s < 0:
+        return val_init
+    return val_init + (val_cible - val_init) * (1 - math.exp(-t_s / tau_s))
 
 
 # ==========================================================
