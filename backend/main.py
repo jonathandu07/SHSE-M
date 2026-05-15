@@ -304,10 +304,13 @@ def _derive_chain_energy_targets(
     batterie: Any,
     alternateur: Any,
 ) -> Dict[str, Any]:
+    def _push_local_inconnue(categorie: str, nom: str, raison: str) -> None:
+        derived.setdefault("inconnues", {}).setdefault(categorie, []).append({"nom": str(nom), "raison": str(raison)})
+
     derived: Dict[str, Any] = {
         "sortie_utilisateur_w": None,
         "puissance_elec_usage_w": None,
-        "puissance_auxiliaire_w": _safe_float(puissance_auxiliaire_w) or 0.0,
+        "puissance_auxiliaire_w": _safe_float(puissance_auxiliaire_w),
         "energie_batterie_cible_kwh": None,
         "puissance_recharge_batterie_w": None,
         "tension_bus_dc_v": _safe_float(tension_bus_dc_v),
@@ -322,6 +325,7 @@ def _derive_chain_energy_targets(
         "source_puissance_recharge": None,
         "source_puissance_usage": None,
         "source_tension_bus": None,
+        "inconnues": {"impossibles": [], "partielles": []},
         "notes": [],
     }
 
@@ -332,19 +336,25 @@ def _derive_chain_energy_targets(
     derived["sortie_utilisateur_w"] = p_sortie_w
 
     eta_mot = _attr_first_finite(moteur_electrique, "rendement_moteur")
-    pertes_mot_w = _attr_first_finite(moteur_electrique, "pertes_fixes_w") or 0.0
+    pertes_mot_w = _attr_first_finite(moteur_electrique, "pertes_fixes_w")
     if p_sortie_w is not None:
         if production_electrique_sortie_w is not None:
             derived["puissance_elec_usage_w"] = p_sortie_w
             derived["source_puissance_usage"] = "production_electrique_sortie_w"
         elif eta_mot is not None and eta_mot > 0.0:
-            derived["puissance_elec_usage_w"] = (p_sortie_w + pertes_mot_w) / eta_mot
-            derived["source_puissance_usage"] = "puissance_traction_kw / rendement_moteur"
+            if pertes_mot_w is not None:
+                derived["puissance_elec_usage_w"] = (p_sortie_w + pertes_mot_w) / eta_mot
+                derived["source_puissance_usage"] = "puissance_traction_kw + pertes_fixes / rendement_moteur"
+            else:
+                derived["puissance_elec_usage_w"] = p_sortie_w / eta_mot
+                derived["source_puissance_usage"] = "puissance_traction_kw / rendement_moteur"
             derived["notes"].append("Puissance electrique d'usage deduite du moteur electrique a partir de la puissance de sortie cible.")
         else:
-            derived["puissance_elec_usage_w"] = p_sortie_w
-            derived["source_puissance_usage"] = "puissance_sortie_borne_basse"
-            derived["notes"].append("Puissance electrique d'usage bornee a la puissance de sortie faute de rendement moteur electrique exploitable.")
+            _push_local_inconnue(
+                "partielles",
+                "puissance_elec_usage_w",
+                "Le rendement du moteur electrique est requis pour remonter de la puissance de sortie a la puissance electrique d'usage.",
+            )
 
     eta_charge = _attr_first_finite(batterie, "rendement_charge")
     p_charge_nom_kw = _attr_first_finite(batterie, "puissance_charge_kw")
@@ -363,6 +373,12 @@ def _derive_chain_energy_targets(
             derived["puissance_recharge_batterie_w"] = p_charge_nom_kw * 1000.0
             derived["source_puissance_recharge"] = "batterie.puissance_charge_kw"
             derived["notes"].append("Puissance de recharge reprise depuis la batterie faute de cible energie/temps complete.")
+        else:
+            _push_local_inconnue(
+                "partielles",
+                "puissance_recharge_batterie_w",
+                "La puissance de recharge exige soit energie cible + temps + rendement de charge, soit une puissance de charge explicite.",
+            )
 
     if derived["tension_bus_dc_v"] is None:
         tension_candidate = _first_finite(
@@ -379,12 +395,19 @@ def _derive_chain_energy_targets(
                 derived["source_tension_bus"] = "moteur_electrique.tension_bus_v"
 
     if derived["puissance_bus_dc_totale_w"] is None:
-        p_usage = _safe_float(derived.get("puissance_elec_usage_w")) or 0.0
-        p_aux = _safe_float(derived.get("puissance_auxiliaire_w")) or 0.0
-        p_recharge = _safe_float(derived.get("puissance_recharge_batterie_w")) or 0.0
-        p_bus_total = p_usage + p_aux + p_recharge
-        if p_bus_total > 0.0:
-            derived["puissance_bus_dc_totale_w"] = p_bus_total
+        p_usage = _safe_float(derived.get("puissance_elec_usage_w"))
+        p_aux = _safe_float(derived.get("puissance_auxiliaire_w"))
+        p_recharge = _safe_float(derived.get("puissance_recharge_batterie_w"))
+        if p_usage is None:
+            _push_local_inconnue("impossibles", "puissance_bus_dc_totale_w", "Impossible sans puissance electrique d'usage.")
+        elif p_aux is None:
+            _push_local_inconnue("partielles", "puissance_bus_dc_totale_w", "Puissance auxiliaire absente : la puissance bus DC totale ne peut pas etre fermee.")
+        elif charger_batterie and p_recharge is None:
+            _push_local_inconnue("partielles", "puissance_bus_dc_totale_w", "Recharge batterie demandee mais puissance de recharge inconnue.")
+        else:
+            p_bus_total = p_usage + p_aux + (p_recharge or 0.0)
+            if p_bus_total > 0.0:
+                derived["puissance_bus_dc_totale_w"] = p_bus_total
 
     if _is_finite(derived.get("puissance_bus_dc_totale_w")) and _is_finite(derived.get("tension_bus_dc_v")) and float(derived["tension_bus_dc_v"]) > 0.0:
         derived["courant_bus_dc_a"] = float(derived["puissance_bus_dc_totale_w"]) / float(derived["tension_bus_dc_v"])
@@ -404,6 +427,12 @@ def _derive_chain_energy_targets(
         eta_alt = _attr_first_finite(alternateur, "rendement_alternateur_impose")
         if eta_alt is not None and eta_alt > 0.0:
             derived["puissance_mecanique_alternateur_requise_w"] = p_bus_inst_w / eta_alt
+        else:
+            _push_local_inconnue(
+                "partielles",
+                "puissance_mecanique_alternateur_requise_w",
+                "Le rendement alternateur est requis pour conclure la puissance mecanique alternateur requise.",
+            )
 
         eta_chaine_meca = 1.0
         eta_chaine_connue = False
@@ -419,6 +448,12 @@ def _derive_chain_energy_targets(
         if p_alt_req is not None:
             derived["puissance_moteur_thermique_requise_w"] = (
                 p_alt_req / eta_chaine_meca if eta_chaine_connue else p_alt_req
+            )
+        else:
+            _push_local_inconnue(
+                "partielles",
+                "puissance_moteur_thermique_requise_w",
+                "La puissance thermique requise depend du rendement alternateur puis des rendements liaison/boite explicites.",
             )
 
     return derived
@@ -2061,7 +2096,7 @@ def dimensionner_systeme_shsem(
         _append_note(rapport_global, "puissance_bus_dc_w reprise exactement depuis production_electrique_sortie_w.")
 
     if puissance_auxiliaire_w is None:
-        puissance_auxiliaire_eval_w = 0.0
+        puissance_auxiliaire_eval_w = None
         _push_inconnue(
             rapport_global,
             "partielles",
@@ -2076,8 +2111,6 @@ def dimensionner_systeme_shsem(
         puissance_auxiliaire_eval_w = puissance_auxiliaire_w
     if scenario_bus_dc is None:
         scenario_bus_dc = "traction_plus_charge" if charger_batterie else "traction"
-    if puissance_pic_kw is None and puissance_traction_kw is not None and charger_batterie:
-        puissance_pic_kw = puissance_traction_kw
     if rapports_boite_candidates is None:
         _append_note(
             rapport_global,
@@ -2159,6 +2192,10 @@ def dimensionner_systeme_shsem(
     )
     for note in list(derivees_chaine_energie.get("notes") or []):
         _append_note(rapport_global, str(note))
+    for categorie, items in _safe_dict(derivees_chaine_energie.get("inconnues")).items():
+        for item in list(items or []):
+            if isinstance(item, dict):
+                _push_inconnue(rapport_global, categorie, item.get("nom", "?"), item.get("raison", ""))
 
     if energie_utile_imposee_kwh is None and _is_finite(derivees_chaine_energie.get("energie_batterie_cible_kwh")):
         energie_utile_imposee_kwh = float(derivees_chaine_energie["energie_batterie_cible_kwh"])
@@ -2172,10 +2209,7 @@ def dimensionner_systeme_shsem(
         puissance_bus_dc_w = float(derivees_chaine_energie["puissance_bus_dc_totale_w"])
         _append_note(rapport_global, "puissance_bus_dc_w deduite de la sortie demandee, des auxiliaires et de la recharge batterie.")
 
-    puissance_moteur_derivee_w = _first_finite(
-        derivees_chaine_energie.get("puissance_moteur_thermique_requise_w"),
-        derivees_chaine_energie.get("puissance_moteur_thermique_borne_basse_w"),
-    )
+    puissance_moteur_derivee_w = _first_finite(derivees_chaine_energie.get("puissance_moteur_thermique_requise_w"))
     if _is_finite(puissance_moteur_derivee_w):
         puissance_reference = _safe_float(definition_moteur.get("puissance_nominale_visee_w"))
         if puissance_reference is None or float(puissance_moteur_derivee_w) > puissance_reference:
