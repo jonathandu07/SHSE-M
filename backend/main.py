@@ -272,6 +272,157 @@ def _append_note(rapport: Dict[str, Any], note: str) -> None:
     rapport.setdefault("notes_modele", []).append(str(note))
 
 
+def _attr_first_finite(obj: Any, *names: str) -> Optional[float]:
+    if obj is None:
+        return None
+    for name in names:
+        try:
+            value = getattr(obj, name, None)
+        except Exception:
+            value = None
+        value = _safe_float(value)
+        if value is not None:
+            return value
+    return None
+
+
+def _derive_chain_energy_targets(
+    *,
+    puissance_traction_kw: Optional[float],
+    production_electrique_sortie_w: Optional[float],
+    puissance_bus_dc_w: Optional[float],
+    puissance_auxiliaire_w: Optional[float],
+    energie_utile_imposee_kwh: Optional[float],
+    temps_charge_cible_h: Optional[float],
+    charger_batterie: bool,
+    tension_bus_dc_v: Optional[float],
+    rendement_liaison_meca_alt: Optional[float],
+    rendement_boite: Optional[float],
+    fraction_temps_generation_beta: Optional[float],
+    moteur_electrique: Any,
+    batterie: Any,
+    alternateur: Any,
+) -> Dict[str, Any]:
+    derived: Dict[str, Any] = {
+        "sortie_utilisateur_w": None,
+        "puissance_elec_usage_w": None,
+        "puissance_auxiliaire_w": _safe_float(puissance_auxiliaire_w) or 0.0,
+        "energie_batterie_cible_kwh": None,
+        "puissance_recharge_batterie_w": None,
+        "tension_bus_dc_v": _safe_float(tension_bus_dc_v),
+        "courant_bus_dc_a": None,
+        "puissance_bus_dc_totale_w": _safe_float(puissance_bus_dc_w),
+        "fraction_temps_generation_beta": _safe_float(fraction_temps_generation_beta),
+        "puissance_bus_dc_instantanee_w": None,
+        "puissance_mecanique_alternateur_borne_basse_w": None,
+        "puissance_mecanique_alternateur_requise_w": None,
+        "puissance_moteur_thermique_borne_basse_w": None,
+        "puissance_moteur_thermique_requise_w": None,
+        "source_puissance_recharge": None,
+        "source_puissance_usage": None,
+        "source_tension_bus": None,
+        "notes": [],
+    }
+
+    p_sortie_w = _first_finite(
+        _safe_float(production_electrique_sortie_w),
+        (_safe_float(puissance_traction_kw) * 1000.0) if _is_finite(puissance_traction_kw) else None,
+    )
+    derived["sortie_utilisateur_w"] = p_sortie_w
+
+    eta_mot = _attr_first_finite(moteur_electrique, "rendement_moteur")
+    pertes_mot_w = _attr_first_finite(moteur_electrique, "pertes_fixes_w") or 0.0
+    if p_sortie_w is not None:
+        if production_electrique_sortie_w is not None:
+            derived["puissance_elec_usage_w"] = p_sortie_w
+            derived["source_puissance_usage"] = "production_electrique_sortie_w"
+        elif eta_mot is not None and eta_mot > 0.0:
+            derived["puissance_elec_usage_w"] = (p_sortie_w + pertes_mot_w) / eta_mot
+            derived["source_puissance_usage"] = "puissance_traction_kw / rendement_moteur"
+            derived["notes"].append("Puissance electrique d'usage deduite du moteur electrique a partir de la puissance de sortie cible.")
+        else:
+            derived["puissance_elec_usage_w"] = p_sortie_w
+            derived["source_puissance_usage"] = "puissance_sortie_borne_basse"
+            derived["notes"].append("Puissance electrique d'usage bornee a la puissance de sortie faute de rendement moteur electrique exploitable.")
+
+    eta_charge = _attr_first_finite(batterie, "rendement_charge")
+    p_charge_nom_kw = _attr_first_finite(batterie, "puissance_charge_kw")
+    if energie_utile_imposee_kwh is None and charger_batterie and _is_finite(temps_charge_cible_h) and _is_finite(p_charge_nom_kw) and _is_finite(eta_charge):
+        derived["energie_batterie_cible_kwh"] = p_charge_nom_kw * float(temps_charge_cible_h) * eta_charge
+        derived["notes"].append("Energie batterie cible deduite du temps de charge vise et de la puissance de charge nominale de la batterie.")
+    else:
+        derived["energie_batterie_cible_kwh"] = _safe_float(energie_utile_imposee_kwh)
+
+    if charger_batterie:
+        e_kwh = derived["energie_batterie_cible_kwh"]
+        if _is_finite(e_kwh) and _is_finite(temps_charge_cible_h) and _is_finite(eta_charge) and eta_charge > 0.0:
+            derived["puissance_recharge_batterie_w"] = (float(e_kwh) / float(temps_charge_cible_h) / eta_charge) * 1000.0
+            derived["source_puissance_recharge"] = "energie_cible / temps_charge / rendement_charge"
+        elif _is_finite(p_charge_nom_kw):
+            derived["puissance_recharge_batterie_w"] = p_charge_nom_kw * 1000.0
+            derived["source_puissance_recharge"] = "batterie.puissance_charge_kw"
+            derived["notes"].append("Puissance de recharge reprise depuis la batterie faute de cible energie/temps complete.")
+
+    if derived["tension_bus_dc_v"] is None:
+        tension_candidate = _first_finite(
+            _attr_first_finite(batterie, "tension_charge_v", "tension_nominale_v"),
+            _attr_first_finite(moteur_electrique, "tension_bus_v"),
+        )
+        if tension_candidate is not None:
+            derived["tension_bus_dc_v"] = tension_candidate
+            if _attr_first_finite(batterie, "tension_charge_v") == tension_candidate:
+                derived["source_tension_bus"] = "batterie.tension_charge_v"
+            elif _attr_first_finite(batterie, "tension_nominale_v") == tension_candidate:
+                derived["source_tension_bus"] = "batterie.tension_nominale_v"
+            else:
+                derived["source_tension_bus"] = "moteur_electrique.tension_bus_v"
+
+    if derived["puissance_bus_dc_totale_w"] is None:
+        p_usage = _safe_float(derived.get("puissance_elec_usage_w")) or 0.0
+        p_aux = _safe_float(derived.get("puissance_auxiliaire_w")) or 0.0
+        p_recharge = _safe_float(derived.get("puissance_recharge_batterie_w")) or 0.0
+        p_bus_total = p_usage + p_aux + p_recharge
+        if p_bus_total > 0.0:
+            derived["puissance_bus_dc_totale_w"] = p_bus_total
+
+    if _is_finite(derived.get("puissance_bus_dc_totale_w")) and _is_finite(derived.get("tension_bus_dc_v")) and float(derived["tension_bus_dc_v"]) > 0.0:
+        derived["courant_bus_dc_a"] = float(derived["puissance_bus_dc_totale_w"]) / float(derived["tension_bus_dc_v"])
+
+    p_bus_design_w = _safe_float(derived.get("puissance_bus_dc_totale_w"))
+    beta = _safe_float(fraction_temps_generation_beta)
+    if p_bus_design_w is not None:
+        if beta is not None and 0.0 < beta <= 1.0:
+            derived["puissance_bus_dc_instantanee_w"] = p_bus_design_w / beta
+            derived["notes"].append("Puissance instantanee de generation appliquee via la fraction de fonctionnement beta.")
+        else:
+            derived["puissance_bus_dc_instantanee_w"] = p_bus_design_w
+
+    p_bus_inst_w = _safe_float(derived.get("puissance_bus_dc_instantanee_w"))
+    if p_bus_inst_w is not None:
+        derived["puissance_mecanique_alternateur_borne_basse_w"] = p_bus_inst_w
+        eta_alt = _attr_first_finite(alternateur, "rendement_alternateur_impose")
+        if eta_alt is not None and eta_alt > 0.0:
+            derived["puissance_mecanique_alternateur_requise_w"] = p_bus_inst_w / eta_alt
+
+        eta_chaine_meca = 1.0
+        eta_chaine_connue = False
+        for eta in (_safe_float(rendement_liaison_meca_alt), _safe_float(rendement_boite)):
+            if eta is not None and eta > 0.0:
+                eta_chaine_meca *= eta
+                eta_chaine_connue = True
+
+        derived["puissance_moteur_thermique_borne_basse_w"] = (
+            p_bus_inst_w / eta_chaine_meca if eta_chaine_connue else p_bus_inst_w
+        )
+        p_alt_req = _safe_float(derived.get("puissance_mecanique_alternateur_requise_w"))
+        if p_alt_req is not None:
+            derived["puissance_moteur_thermique_requise_w"] = (
+                p_alt_req / eta_chaine_meca if eta_chaine_connue else p_alt_req
+            )
+
+    return derived
+
+
 def _dedup_report_lists(rapport: Dict[str, Any]) -> None:
     for section in ("inconnues", "alertes"):
         bloc = _safe_dict(rapport.get(section))
@@ -1651,6 +1802,7 @@ def dimensionner_systeme_shsem(
     duree_pic_s: Optional[float] = None,
     energie_utile_imposee_kwh: Optional[float] = None,
     temps_charge_cible_h: Optional[float] = None,
+    fraction_temps_generation_beta: Optional[float] = None,
     scenario_bus_dc: Optional[str] = None,
     tension_bus_dc_v: Optional[float] = None,
 
@@ -1962,6 +2114,47 @@ def dimensionner_systeme_shsem(
             architecture = construire_architecture()
         except Exception as exc:
             _push_inconnue(rapport_global, "partielles", "architecture", f"Construction compatibilite impossible: {exc}")
+
+    derivees_chaine_energie = _derive_chain_energy_targets(
+        puissance_traction_kw=puissance_traction_kw,
+        production_electrique_sortie_w=production_electrique_sortie_w,
+        puissance_bus_dc_w=puissance_bus_dc_w,
+        puissance_auxiliaire_w=puissance_auxiliaire_eval_w,
+        energie_utile_imposee_kwh=energie_utile_imposee_kwh,
+        temps_charge_cible_h=temps_charge_cible_h,
+        charger_batterie=charger_batterie,
+        tension_bus_dc_v=tension_bus_dc_v,
+        rendement_liaison_meca_alt=rendement_liaison_meca_alt,
+        rendement_boite=rendement_boite,
+        fraction_temps_generation_beta=fraction_temps_generation_beta,
+        moteur_electrique=moteur_electrique,
+        batterie=batterie,
+        alternateur=alternateur,
+    )
+    for note in list(derivees_chaine_energie.get("notes") or []):
+        _append_note(rapport_global, str(note))
+
+    if energie_utile_imposee_kwh is None and _is_finite(derivees_chaine_energie.get("energie_batterie_cible_kwh")):
+        energie_utile_imposee_kwh = float(derivees_chaine_energie["energie_batterie_cible_kwh"])
+        _append_note(rapport_global, "energie_utile_imposee_kwh deduite depuis la strategie de recharge de la batterie.")
+
+    if tension_bus_dc_v is None and _is_finite(derivees_chaine_energie.get("tension_bus_dc_v")):
+        tension_bus_dc_v = float(derivees_chaine_energie["tension_bus_dc_v"])
+        _append_note(rapport_global, "tension_bus_dc_v deduite des caracteristiques explicites batterie/moteur electrique.")
+
+    if puissance_bus_dc_w is None and _is_finite(derivees_chaine_energie.get("puissance_bus_dc_totale_w")):
+        puissance_bus_dc_w = float(derivees_chaine_energie["puissance_bus_dc_totale_w"])
+        _append_note(rapport_global, "puissance_bus_dc_w deduite de la sortie demandee, des auxiliaires et de la recharge batterie.")
+
+    puissance_moteur_derivee_w = _first_finite(
+        derivees_chaine_energie.get("puissance_moteur_thermique_requise_w"),
+        derivees_chaine_energie.get("puissance_moteur_thermique_borne_basse_w"),
+    )
+    if _is_finite(puissance_moteur_derivee_w):
+        puissance_reference = _safe_float(definition_moteur.get("puissance_nominale_visee_w"))
+        if puissance_reference is None or float(puissance_moteur_derivee_w) > puissance_reference:
+            definition_moteur["puissance_nominale_visee_w"] = float(puissance_moteur_derivee_w)
+            _append_note(rapport_global, "puissance_nominale_visee_w du moteur thermique relevee depuis la chaine complete de generation.")
 
     moteur_thermique = composants_def.get("moteur_thermique")
     rapport_construction_moteur: Dict[str, Any] = {}
@@ -2402,6 +2595,7 @@ def dimensionner_systeme_shsem(
             "puissance_traction_kw": puissance_traction_kw,
             "production_electrique_sortie_w": production_electrique_sortie_w,
             "puissance_bus_dc_w": puissance_bus_dc_w,
+            "derivees_chaine_energie": derivees_chaine_energie,
             "definition_moteur_thermique": definition_moteur,
             "pieces_definition": _safe_dict(pieces_definition),
             "analyses_complementaires": _safe_dict(analyses_complementaires),
@@ -2429,6 +2623,7 @@ def dimensionner_systeme_shsem(
         "alertes": rapport_global.get("alertes"),
         "notes_modele": rapport_global.get("notes_modele"),
         "inconnues_resume": inconnues_resume,
+        "derivees_chaine_energie": derivees_chaine_energie,
         "synthese": {
             "systeme": synth,
             "moteur_thermique": mt_syn,
