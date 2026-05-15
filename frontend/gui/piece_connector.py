@@ -10,11 +10,15 @@ from typing import Any, Dict, Optional
 
 # Import des classes backend (imports différés dans les fonctions pour éviter les cycles)
 
-def _f(d: Dict, key: str, default: float = 0.0) -> float:
+def _f(d: Dict, key: str) -> Optional[float]:
+    """Strictly retrieves a float or None. No default invention."""
+    val = d.get(key)
+    if val is None:
+        return None
     try:
-        return float(d.get(key, default))
+        return float(val)
     except (TypeError, ValueError):
-        return default
+        return None
 
 # ---------------------------------------------------------------------------
 # Instanciateurs par pièce
@@ -23,12 +27,12 @@ def _f(d: Dict, key: str, default: float = 0.0) -> float:
 def _make_cylindre(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.cylindre import Cylindre
     return Cylindre(
-        alesage_m=_f(ep, "alesage_m", 0.130),
-        course_m=_f(ep, "course_m", 0.150),
-        longueur_utile_m=_f(ep, "course_m", 0.150) * 1.5,
-        pression_service_pa=10e6,
-        pression_max_pa=15e6,
-        materiau_cle="acier_42crmo4_qt"
+        alesage_m=_f(ep, "alesage_m"),
+        course_m=_f(ep, "course_m"),
+        longueur_utile_m=_f(ep, "longueur_utile_m") or (_f(ep, "course_m") * 1.5 if _f(ep, "course_m") else None),
+        pression_service_pa=_f(ep, "pression_service_pa"),
+        pression_max_pa=_f(ep, "pression_max_pa"),
+        materiau_cle=ep.get("materiau_cylindre_cle", "acier_42crmo4_qt")
     )
 
 def _make_piston(ep: Dict[str, Any]) -> Any:
@@ -36,9 +40,9 @@ def _make_piston(ep: Dict[str, Any]) -> Any:
     cylindre = _make_cylindre(ep)
     return Piston(
         cylindre=cylindre,
-        alesage_nominal_m=_f(ep, "alesage_m", 0.130),
-        course_m=_f(ep, "course_m", 0.150),
-        materiau_piston_cle="alu_6061_t6"
+        alesage_nominal_m=_f(ep, "alesage_m"),
+        course_m=_f(ep, "course_m"),
+        materiau_piston_cle=ep.get("materiau_piston_cle", "alu_6061_t6")
     )
 
 def _make_bielle(ep: Dict[str, Any]) -> Any:
@@ -46,47 +50,47 @@ def _make_bielle(ep: Dict[str, Any]) -> Any:
     piston = _make_piston(ep)
     return CorpsBielle(
         piston=piston,
-        longueur_bielle_m=_f(ep, "course_m", 0.150) * 2.0,
-        materiau_cle="acier_42crmo4_qt"
+        longueur_bielle_m=_f(ep, "longueur_bielle_m") or (_f(ep, "course_m") * 2.0 if _f(ep, "course_m") else None),
+        materiau_cle=ep.get("materiau_bielle_cle", "acier_42crmo4_qt")
     )
 
 def _make_arbre_vilebrequin(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.arbre_vilbrequin import ArbreVilbrequin
     return ArbreVilbrequin(
-        course_m=_f(ep, "course_m", 0.150),
-        materiau_cle="acier_42crmo4_qt"
+        course_m=_f(ep, "course_m"),
+        materiau_cle=ep.get("materiau_vilebrequin_cle", "acier_42crmo4_qt")
     )
 
 def _make_arbre_piston(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.arbre_piston import ArbrePiston
     return ArbrePiston(
-        diametre_fut_central_m=0.030,
-        longueur_totale_m=0.100,
-        materiau_cle="acier_42crmo4_qt"
+        diametre_fut_central_m=_f(ep, "diametre_axe_piston_m"),
+        longueur_totale_m=_f(ep, "longueur_axe_piston_m"),
+        materiau_cle=ep.get("materiau_axe_piston_cle", "acier_42crmo4_qt")
     )
 
 def _make_coussinet(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.coussinet_arbre_piston import CoussinetArbrePiston
     return CoussinetArbrePiston(
-        diametre_portee_m=0.030,
-        longueur_coussinet_m=0.040,
-        materiau_coussinet="bronze_cusn12"
+        diametre_portee_m=_f(ep, "diametre_coussinet_m"),
+        longueur_coussinet_m=_f(ep, "longueur_coussinet_m"),
+        materiau_coussinet=ep.get("materiau_coussinet_cle", "bronze_cusn12")
     )
 
 def _make_couvercle(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.couvercle_cylindre import CouvercleCylindre
     return CouvercleCylindre(
-        diametre_ouverture_m=0.180,
-        rayon_externe_m=0.100,
-        epaisseur_m=0.020,
-        materiau_cle="fonte_en_gjl_250"
+        diametre_ouverture_m=_f(ep, "diametre_ouverture_culasse_m"),
+        rayon_externe_m=_f(ep, "rayon_externe_culasse_m"),
+        epaisseur_m=_f(ep, "epaisseur_culasse_m"),
+        materiau_cle=ep.get("materiau_culasse_cle", "fonte_en_gjl_250")
     )
 
 def _make_joint_piston(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.joint_piston import JointPiston
     return JointPiston(
-        diametre_interieur_cylindre_m=_f(ep, "alesage_m", 0.130),
-        materiau_joint_cle="ptfe"
+        diametre_interieur_cylindre_m=_f(ep, "alesage_m"),
+        materiau_joint_cle=ep.get("materiau_joint_piston_cle", "ptfe")
     )
 
 def _make_alternateur(ep: Dict[str, Any]) -> Any:
@@ -96,7 +100,7 @@ def _make_alternateur(ep: Dict[str, Any]) -> Any:
 def _make_batterie(ep: Dict[str, Any]) -> Any:
     from backend.components.batterie.batterie import Batterie
     return Batterie(
-        tension_nominale_v=_f(ep, "tension_nominale_v", 400.0)
+        tension_nominale_v=_f(ep, "tension_nominale_v")
     )
 
 def _make_architecture(ep: Dict[str, Any]) -> Any:
@@ -106,22 +110,22 @@ def _make_architecture(ep: Dict[str, Any]) -> Any:
 def _make_arbre(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.arbre import ArbreMoteur
     return ArbreMoteur(
-        couple_max_Nm=_f(ep, "couple_max_Nm", _f(ep, "couple_max_nm", 0.0)) or None,
-        rpm=_f(ep, "rpm_nominal", _f(ep, "rpm_moteur", 0.0)) or None,
-        nombre_cylindres=int(_f(ep, "nombre_cylindres", _f(ep, "n_cyl", 0.0)) or 0) or None,
-        entraxe_cylindres_m=_f(ep, "entraxe_cylindres_m", 0.0) or None,
-        diametre_externe_cylindre_m=_f(ep, "diametre_externe_cylindre_m", 0.0) or None,
-        diametre_arbre_m=_f(ep, "diametre_arbre_m", 0.0) or None,
+        couple_max_Nm=_f(ep, "couple_max_Nm") or _f(ep, "couple_max_nm"),
+        rpm=_f(ep, "rpm_nominal") or _f(ep, "rpm_moteur"),
+        nombre_cylindres=_f(ep, "nombre_cylindres") or _f(ep, "n_cyl"),
+        entraxe_cylindres_m=_f(ep, "entraxe_cylindres_m"),
+        diametre_externe_cylindre_m=_f(ep, "diametre_externe_cylindre_m"),
+        diametre_arbre_m=_f(ep, "diametre_arbre_m"),
     )
 
 def _make_moteur_electrique(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_electrique.moteur_electrique import MoteurElectrique
     return MoteurElectrique(
-        puissance_max_w=_f(ep, "puissance_max_w", _f(ep, "puissance_moteur_w", 50000.0)),
-        regime_max_rpm=_f(ep, "regime_max_rpm", _f(ep, "rpm_nominal", 6000.0)),
-        couple_max_nm=_f(ep, "couple_max_nm", 180.0),
-        rendement_moteur=_f(ep, "rendement_moteur", 0.94),
-        tension_bus_v=_f(ep, "tension_nominale_v", 400.0),
+        puissance_max_w=_f(ep, "puissance_max_w") or _f(ep, "puissance_moteur_w"),
+        regime_max_rpm=_f(ep, "regime_max_rpm"),
+        couple_max_nm=_f(ep, "couple_max_nm"),
+        rendement_moteur=_f(ep, "rendement_moteur"),
+        tension_bus_v=_f(ep, "tension_nominale_v"),
     )
 
 def _make_boite_crabots(ep: Dict[str, Any]) -> Any:
@@ -131,11 +135,11 @@ def _make_boite_crabots(ep: Dict[str, Any]) -> Any:
 def _make_moteur_thermique(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.moteur_thermique import MoteurThermique
     return MoteurThermique(
-        nombre_cylindres=int(_f(ep, "nombre_cylindres", _f(ep, "n_cyl", 4))),
-        alesage_m=_f(ep, "alesage_m", 0.130),
-        course_m=_f(ep, "course_m", 0.150),
-        rpm_nominal=_f(ep, "rpm_nominal", _f(ep, "rpm_moteur", 3000.0)),
-        pme_nominale_pa=_f(ep, "pme_pa", 8.0e5),
+        nombre_cylindres=_f(ep, "nombre_cylindres") or _f(ep, "n_cyl"),
+        alesage_m=_f(ep, "alesage_m"),
+        course_m=_f(ep, "course_m"),
+        rpm_nominal=_f(ep, "rpm_nominal") or _f(ep, "rpm_moteur"),
+        pme_nominale_pa=_f(ep, "pme_pa"),
     )
 
 def _make_deplaceur(ep: Dict[str, Any]) -> Any:
@@ -143,16 +147,16 @@ def _make_deplaceur(ep: Dict[str, Any]) -> Any:
     cylindre = _make_cylindre(ep)
     return Deplaceur(
         cylindre=cylindre,
-        diametre_exterieur_m=_f(ep, "alesage_m", 0.130) * 0.98,
-        longueur_totale_m=0.150,
-        materiau_cle="acier_310s"
+        diametre_exterieur_m=_f(ep, "alesage_m") * 0.98 if _f(ep, "alesage_m") else None,
+        longueur_totale_m=_f(ep, "longueur_deplaceur_m"),
+        materiau_cle=ep.get("materiau_deplaceur_cle", "acier_310s")
     )
 
 def _make_joint_deplaceur(ep: Dict[str, Any]) -> Any:
     from backend.components.moteur_thermique.pieces.joint_deplaceur import JointDeplaceur
     return JointDeplaceur(
-        alesage_cylindre_m=_f(ep, "alesage_m", 0.130),
-        materiau_joint_cle="graphite"
+        alesage_cylindre_m=_f(ep, "alesage_m"),
+        materiau_joint_cle=ep.get("materiau_joint_deplaceur_cle", "graphite")
     )
 
 # ---------------------------------------------------------------------------
