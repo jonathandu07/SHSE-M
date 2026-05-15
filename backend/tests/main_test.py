@@ -281,9 +281,9 @@ def test_main_puissance_sortie_normalisee(main_mod):
 
     assert kw["valeur_entree"] == pytest.approx(100.0)
     assert kw["unite_entree"] == "kw"
-    assert kw["puissance_w"] == pytest.approx(100000.0)
+    assert kw["w"] == pytest.approx(100000.0)
     assert ch["unite_entree"] == "ch"
-    assert ch["puissance_w"] > 0.0
+    assert ch["w"] > 0.0
 
 
 def test_main_beta_sans_invention(main_mod):
