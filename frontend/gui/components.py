@@ -4,16 +4,22 @@ from kivy.uix.label import Label
 from kivy.graphics import Color, RoundedRectangle
 from kivy.properties import StringProperty, ListProperty, DictProperty
 
-# Design System SHSE-M
+# Design System SHSE-M (Official Palette)
 COLORS = {
-    "BL": (0.05, 0.05, 0.07, 1),      # Background profond (Dark Blue)
-    "BF": (0.12, 0.14, 0.18, 1),      # Fond de carte (Bleu-Gris)
-    "BA": (0.25, 0.85, 0.65, 1),      # Accent (Vert émeraude / Cyan)
-    "RF": (0.95, 0.35, 0.35, 1),      # Erreur (Rouge)
+    "BL": (244/255, 254/255, 254/255, 1),      # Blanc-Lunaire
+    "GAXD": (112/255, 112/255, 112/255, 1),    # Gris-Adobe-XD
+    "BC": (159/255, 134/255, 112/255, 1),      # Coyote
+    "JV": (255/255, 198/255, 0/255, 1),        # Jaune-Vatican
+    "BF": (5/255, 20/255, 64/255, 1),          # Bleu-France
+    "GS": (10/255, 11/255, 10/255, 1),         # Grigio-Scuro
+    "RV": (255/255, 0/255, 0/255, 1),          # Rouge-Vatican
+    "GW": (247/255, 247/255, 255/255, 1),      # Ghost-White
+    "BA": (129/255, 161/255, 184/255, 1),      # Bleu-Adrian
+    "NF": (30/255, 30/255, 30/255, 1),         # Noir-Figma
+    "RF": (236/255, 25/255, 32/255, 1),        # Rouge-France
+    "BM": (3/255, 34/255, 76/255, 1),          # Bleu-Marine
+    "BFW": (9/255, 18/255, 38/255, 1),         # Bleu-France-Web
     "white": (1, 1, 1, 1),
-    "GAXD": (0.6, 0.65, 0.7, 1),      # Gris texte secondaire
-    "GW": (0.9, 0.9, 0.9, 0.1),       # Gris transparent
-    "JV": (1.0, 0.8, 0.0, 1.0),       # Jaune validation
 }
 
 class ModernButton(Button):
