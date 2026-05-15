@@ -31,3 +31,8 @@
 [DEBUG  ] CACHEDIR=C:\Users\alpha\.matplotlib
 [DEBUG  ] Using fontManager instance from C:\Users\alpha\.matplotlib\fontlist-v390.json
 [INFO   ] Clipboard: Provider: winctypes
+[INFO   ] GL: NPOT texture support is available
+[WARNING] Deprecated property "<BooleanProperty name=allow_stretch>" of object "<kivy.uix.image.Image object at 0x000001F7A20CDA90>" has been set, it will be removed in a future version
+[WARNING] Deprecated property "<BooleanProperty name=keep_ratio>" of object "<kivy.uix.image.Image object at 0x000001F7A20CDA90>" was accessed, it will be removed in a future version
+[INFO   ] Base: Start application main loop
+[INFO   ] Base: Leaving application in progress...
