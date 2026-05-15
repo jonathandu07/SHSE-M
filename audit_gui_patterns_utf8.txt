@@ -1,0 +1,102 @@
+﻿
+frontend\gui\architecture_choice.py:27:        arch_lbl = Label(text=f"{data.get('architecture')} 
+{data.get('N_cyl')}", 
+frontend\gui\architecture_choice.py:35:            grid.add_widget(Label(text=k, color=COLORS["GAXD"], 
+font_size="13sp", halign="left"))
+frontend\gui\architecture_choice.py:36:            grid.add_widget(Label(text=v, color=COLORS["white"], 
+font_size="14sp", halign="right"))
+frontend\gui\architecture_choice.py:38:        _add_row("Score Global", f"{data.get('score_global', 0):.2f}")
+frontend\gui\architecture_choice.py:39:        _add_row("Alesage x Course", f"{data.get('bore_mm', 
+0):.1f}x{data.get('course_mm', 0):.1f} mm")
+frontend\gui\architecture_choice.py:40:        _add_row("Cylindree Unit.", f"{data.get('cylindree_unit_cc', 0):.0f} 
+cc")
+frontend\gui\architecture_choice.py:41:        _add_row("Masse Est.", f"{data.get('masse_relative', 0):.1f} kg*")
+frontend\gui\architecture_choice.py:42:        _add_row("Cout Maint.", f"{data.get('cout_maintenance_eur', 0):.0f} €*")
+frontend\gui\architecture_choice.py:47:        self.add_widget(Label(text="*Valeurs relatives/estimees", 
+font_size="10sp", color=COLORS["GAXD"], size_hint_y=None, height=15))
+frontend\gui\architecture_choice.py:72:        header.add_widget(Label(text="ARCHITECTURES CANDIDATES", 
+font_size="32sp", bold=True, color=COLORS["white"]))
+frontend\gui\architecture_choice.py:73:        header.add_widget(Label(text="Selectionne l'architecture moteur 
+proposee par le backend pour ton besoin de puissance.", 
+frontend\gui\architecture_choice.py:113:            exploration = report.get("sous_systemes", {}).get("architecture", 
+{}).get("exploration", [])
+frontend\gui\architecture_choice.py:118:            self.grid.add_widget(Label(text="Aucune architecture candidate 
+trouvee.\nLe backend n'a pas pu converger avec ces parametres.",
+frontend\gui\architecture_choice.py:130:            "architecture": cand.get("architecture"),
+frontend\gui\architecture_choice.py:131:            "nombre_cylindres": cand.get("N_cyl"),
+frontend\gui\architecture_choice.py:132:            "alesage_mm": cand.get("bore_mm"),
+frontend\gui\architecture_choice.py:133:            "course_mm": cand.get("course_mm"),
+frontend\gui\components.py:50:            self.add_widget(Label(text=title.upper(), bold=True, color=COLORS["BA"], 
+frontend\gui\components.py:138:        self.add_widget(Label(text=str(label), color=COLORS["GAXD"], font_size="13sp", 
+halign="left"))
+frontend\gui\components.py:141:        self.add_widget(Label(text=val_text, color=color or COLORS["white"], bold=True, 
+halign="right"))
+frontend\gui\energy_audit.py:31:    return STATUS_COLORS.get(str(status).lower(), STATUS_COLORS["inconnu"])
+frontend\gui\energy_audit.py:151:        header.add_widget(Label(text="AUDIT DE CONFORMITÉ ÉNERGÉTIQUE", 
+font_size="22sp", bold=True, color=COLORS["BF"], halign="left"))
+frontend\gui\energy_audit.py:176:        strat = results.get("strategie_energie", {})
+frontend\gui\energy_audit.py:177:        bilan = strat.get("bilan_bus_dc", {})
+frontend\gui\energy_audit.py:178:        env = strat.get("enveloppe_batterie", {})
+frontend\gui\energy_audit.py:181:        card_syn = AuditCard(title="Synthèse Générale", status=strat.get("statut", 
+"inconnu"))
+frontend\gui\energy_audit.py:185:        card_syn.add_widget(AuditRow("Mode Énergétique", 
+strat.get("mode_energetique"), status="ok" if strat.get("mode_energetique") else "partiel"))
+frontend\gui\energy_audit.py:186:        card_syn.add_widget(AuditRow("Décision", strat.get("decision", 
+{}).get("raison"), status="ok"))
+frontend\gui\energy_audit.py:188:        card_syn.add_widget(AuditRow("Cible Utilisateur", app.target_power, 
+unit="kW", status="ok"))
+frontend\gui\energy_audit.py:190:        card_syn.add_widget(AuditRow("Puissance Normalisée", p_sortie, unit="W", 
+status="ok" if p_sortie is not None else "impossible"))
+frontend\gui\energy_audit.py:215:            card_chain.add_widget(AuditRow(label, val, unit=unit, status=status))
+frontend\gui\energy_audit.py:220:        card_bat = AuditCard(title="Enveloppe Batterie", status=env.get("statut", 
+"ok"))
+frontend\gui\energy_audit.py:224:        card_bat.add_widget(AuditRow("Recharge Recommandée", 
+env.get("p_charge_recommandee_w"), unit="W"))
+frontend\gui\energy_audit.py:225:        card_bat.add_widget(AuditRow("Raison Limitante", env.get("raison_limite")))
+frontend\gui\energy_audit.py:227:        limites = env.get("limites_actives", {})
+frontend\gui\energy_audit.py:231:                l_box.add_widget(Label(text=f"• {l_name}: {l_val} W", 
+color=COLORS["GAXD"], font_size="11sp", halign="left"))
+frontend\gui\energy_audit.py:241:        card_mech.add_widget(AuditRow("Rapport de Boîte", 
+bilan.get("rapport_boite_optimal")))
+frontend\gui\energy_audit.py:242:        card_mech.add_widget(AuditRow("Régime Alternateur", 
+bilan.get("regime_alternateur_rpm"), unit="tr/min"))
+frontend\gui\energy_audit.py:243:        card_mech.add_widget(AuditRow("Couple Alternateur", 
+bilan.get("couple_alternateur_nm"), unit="Nm"))
+frontend\gui\energy_audit.py:245:        p_retenu = strat.get("point_retenu", {})
+frontend\gui\energy_audit.py:247:            card_mech.add_widget(AuditRow("Régime MT", p_retenu.get("rpm_moteur"), 
+unit="tr/min"))
+frontend\gui\energy_audit.py:248:            card_mech.add_widget(AuditRow("Couple MT Requis", 
+p_retenu.get("exigences", {}).get("couple_moteur_requis_Nm"), unit="Nm"))
+frontend\gui\energy_audit.py:251:            rendements = p_retenu.get("rendements", {})
+frontend\gui\energy_audit.py:253:                card_mech.add_widget(AuditRow("Rendement Global", 
+rendements.get("global"), unit="%", status="ok"))
+frontend\gui\energy_audit.py:258:        trans = strat.get("validation_transitoire", {})
+frontend\gui\energy_audit.py:259:        card_trans = AuditCard(title="Validation Transitoire", 
+status=trans.get("statut", "inconnu"))
+frontend\gui\energy_audit.py:263:        card_trans.add_widget(AuditRow("Puissance Accessible", 
+trans.get("p_accessible_w"), unit="W"))
+frontend\gui\energy_audit.py:264:        card_trans.add_widget(AuditRow("Constante de temps (Tau)", 
+trans.get("tau_s"), unit="s"))
+frontend\gui\energy_audit.py:265:        card_trans.add_widget(AuditRow("Rampe", trans.get("rampe_puissance_w_s"), 
+unit="W/s"))
+frontend\gui\energy_audit.py:273:        inc = strat.get("inconnues", {})
+frontend\gui\energy_audit.py:275:            items = inc.get(bucket, [])
+frontend\gui\energy_audit.py:277:                card_alerts.add_widget(Label(text=bucket.upper(), 
+color=STATUS_COLORS[color_name], bold=True, size_hint_y=None, height=24))
+frontend\gui\pdf_export.py:149:        _append_section(sections, title, 
+_iter_curated_rows(_safe_dict(report.get(key)), max_depth=2))
+frontend\gui\pdf_export.py:154:        impossibles = [_format_unknown_entry(item) for item in 
+inconnues.get("impossibles", []) if str(item).strip()]
+frontend\gui\pdf_export.py:155:        partielles = [_format_unknown_entry(item) for item in 
+inconnues.get("partielles", []) if str(item).strip()]
+frontend\gui\pdf_export.py:166:    notes = [str(item) for item in report.get("notes_modele", []) if str(item).strip()]
+frontend\gui\piece_connector.py:15:        return float(d.get(key, default))
+frontend\gui\piece_connector.py:221:        db_data.get("objet_serialise"),
+frontend\gui\piece_connector.py:222:        db_data.get("objet"),
+frontend\gui\piece_connector.py:223:        inventaire.get("objet"),
+frontend\gui\piece_connector.py:224:        db_data.get("attributs"),
+frontend\gui\piece_connector.py:236:        db_data.get("rapport"),
+frontend\gui\piece_connector.py:237:        inventaire.get("rapport"),
+frontend\gui\viz_utils.py:30:    key = mapping.get(key, key)
+
+

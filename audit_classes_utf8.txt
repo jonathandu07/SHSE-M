@@ -1,0 +1,10 @@
+﻿
+frontend\main.py:51:from gui.architecture_choice import ArchitectureChoiceScreen
+frontend\main.py:125:class AutoConfigScreen(Screen):
+frontend\main.py:179:        self.gen_btn.bind(on_press=self.launch_generation)
+frontend\main.py:192:    def launch_generation(self, *_):
+frontend\main.py:222:class AutoLoadingScreen(Screen):
+frontend\main.py:283:class AutoDashboardScreen(Screen):
+frontend\main.py:408:        sm.add_widget(ArchitectureChoiceScreen(name="arch_choice"))
+
+

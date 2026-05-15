@@ -1,0 +1,142 @@
+﻿from kivy.uix.button import Button
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
+from kivy.graphics import Color, RoundedRectangle
+from kivy.properties import StringProperty, ListProperty, DictProperty
+
+# Design System SHSE-M (Official Palette)
+COLORS = {
+    "BL": (244/255, 254/255, 254/255, 1),      # Blanc-Lunaire
+    "GAXD": (112/255, 112/255, 112/255, 1),    # Gris-Adobe-XD
+    "BC": (159/255, 134/255, 112/255, 1),      # Coyote
+    "JV": (255/255, 198/255, 0/255, 1),        # Jaune-Vatican
+    "BF": (5/255, 20/255, 64/255, 1),          # Bleu-France
+    "GS": (10/255, 11/255, 10/255, 1),         # Grigio-Scuro
+    "RV": (255/255, 0/255, 0/255, 1),          # Rouge-Vatican
+    "GW": (247/255, 247/255, 255/255, 1),      # Ghost-White
+    "BA": (129/255, 161/255, 184/255, 1),      # Bleu-Adrian
+    "NF": (30/255, 30/255, 30/255, 1),         # Noir-Figma
+    "RF": (236/255, 25/255, 32/255, 1),        # Rouge-France
+    "BM": (3/255, 34/255, 76/255, 1),          # Bleu-Marine
+    "BFW": (9/255, 18/255, 38/255, 1),         # Bleu-France-Web
+    "white": (1, 1, 1, 1),
+}
+
+class ModernButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ""
+        self.background_color = (0, 0, 0, 0)
+        self.bold = True
+        self.color = COLORS["white"]
+        with self.canvas.before:
+            Color(*(COLORS["BA"] if not self.disabled else COLORS["GAXD"]))
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[8])
+        self.bind(pos=self._upd, size=self._upd)
+
+    def _upd(self, *a):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+class PremiumCard(BoxLayout):
+    def __init__(self, title="", **kwargs):
+        super().__init__(orientation="vertical", padding=20, spacing=10, **kwargs)
+        with self.canvas.before:
+            Color(*COLORS["BF"])
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[12])
+        self.bind(pos=self._upd, size=self._upd)
+        
+        if title:
+            self.add_widget(Label(text=title.upper(), bold=True, color=COLORS["BA"], 
+                                  size_hint_y=None, height=30, font_size="14sp", halign="left"))
+
+    def _upd(self, *a):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+from kivy.lang import Builder
+from kivy.uix.textinput import TextInput
+
+# AZERTY MAPPING
+AZERTY_MAP = {
+    "&": "1", "Ã©": "2", '"': "3", "'": "4", "(": "5", "-": "6", "Ã¨": "7", "_": "8", "Ã§": "9", "Ã ": "0"
+}
+
+class NeumorphicInput(TextInput):
+    """Champ de saisie neumorphique : chiffres + sÃ©parateur dÃ©cimal ('.' ou ',')."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ""
+        self.background_active = ""
+        self.background_color = (0, 0, 0, 0)
+        self.foreground_color = (0.02, 0.08, 0.25, 1)
+        self.disabled_foreground_color = (0.02, 0.08, 0.25, 1)
+        self.hint_text_color = (0.45, 0.45, 0.45, 1)
+        self.cursor_color = (0.92, 0.10, 0.12, 1)
+        self.selection_color = (0.70, 0.82, 0.95, 0.85)
+        self.padding = [20, 18, 20, 18]
+        self.font_size = "32sp"
+        self.multiline = False
+        self.write_tab = False
+        self.halign = "center"
+        self.bind(text=self._ensure_readable_state, focus=self._ensure_readable_state)
+
+    def _ensure_readable_state(self, *args):
+        self.foreground_color = (0.02, 0.08, 0.25, 1)
+        self.disabled_foreground_color = (0.02, 0.08, 0.25, 1)
+        self.cursor_color = (0.92, 0.10, 0.12, 1)
+
+    def insert_text(self, substring, from_undo=False):
+        s = substring or ""
+        current = self.text or ""
+        sel = self.selection_text or ""
+        out = []
+        for ch in s:
+            if ch in AZERTY_MAP: ch = AZERTY_MAP[ch]
+            if ch == ",": ch = "."
+            if ch.isdigit() or ch == ".":
+                if ch == "." and sel == "" and "." in current: continue
+                out.append(ch)
+        return super().insert_text("".join(out), from_undo=from_undo)
+
+Builder.load_string(r"""
+<NeumorphicInput>:
+    background_normal: ''
+    background_active: ''
+    background_color: 0, 0, 0, 0
+    size_hint_y: None
+    height: '76dp'
+    font_size: '32sp'
+    multiline: False
+    write_tab: False
+    padding: [20, 18, 20, 18]
+    halign: 'center'
+    foreground_color: 0.02, 0.08, 0.25, 1
+    hint_text_color: 0.45, 0.45, 0.45, 1
+    cursor_color: 0.92, 0.10, 0.12, 1
+    cursor_width: '2dp'
+    selection_color: 0.70, 0.82, 0.95, 0.85
+    selection_text_color: 0.02, 0.08, 0.25, 1
+    canvas.before:
+        Color:
+            rgba: 0.85, 0.85, 0.85, 1
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [15]
+        Color:
+            rgba: 0.97, 0.97, 1, 1
+        RoundedRectangle:
+            pos: self.x + 2, self.y + 2
+            size: self.width - 4, self.height - 4
+            radius: [13]
+""")
+
+class TechRow(BoxLayout):
+    def __init__(self, label, value, unit="", color=None, **kwargs):
+        super().__init__(orientation="horizontal", size_hint_y=None, height=34, spacing=10, **kwargs)
+        self.add_widget(Label(text=str(label), color=COLORS["GAXD"], font_size="13sp", halign="left"))
+        val_text = f"{value}" if value is not None else "--"
+        if unit and value is not None: val_text += f" {unit}"
+        self.add_widget(Label(text=val_text, color=color or COLORS["white"], bold=True, halign="right"))
+
