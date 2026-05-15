@@ -52,16 +52,12 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.lang import Builder
 
-from kivy.graphics import Color, RoundedRectangle
-from kivy.core.window import Window
-from kivy.clock import Clock
-from kivy.lang import Builder
-
 # Visualisations Spécialisées
 from frontend.gui.viz_utils import resolve_viz_module, get_draw_3d_func, get_viz_figure
 from frontend.gui.piece_connector import get_piece_instance
 from frontend.gui.pdf_export import build_element_display_sections, export_element_pdf
 from frontend.gui.energy_audit import EnergyAuditScreen
+from gui.architecture_choice import ArchitectureChoiceScreen
 
 # =========================
 # UI Utilities (Migrated to gui.components)
@@ -71,6 +67,28 @@ from gui.components import COLORS, ModernButton, PremiumCard, TechRow
 PROJECT_NAME = "STHOME"
 PROJECT_SUBTITLE = "Dimensionnement thermo-hybride de sortie"
 PROJECT_LOGO = os.path.join(BASE_DIR, "frontend", "images", "logo.png")
+
+# =========================
+# Popup util
+# =========================
+def show_popup(title: str, message: str) -> None:
+    content = BoxLayout(orientation="vertical", padding=20, spacing=15)
+    msg = Label(text=message, color=COLORS["BF"], halign="left", valign="top")
+    msg.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+    content.add_widget(msg)
+    btn = Button(text="OK", size_hint_y=None, height=44)
+    content.add_widget(btn)
+    pop = Popup(
+        title=title,
+        content=content,
+        size_hint=(None, None),
+        size=(400, 250),
+        background="",
+        background_color=COLORS["white"],
+        separator_color=COLORS["BA"],
+        title_color=COLORS["BF"],
+    )
+    btn.bind(on_press=pop.dismiss)
     pop.open()
 
 
@@ -80,7 +98,6 @@ def _safe_dict(value):
 
 def _safe_list(value):
     return value if isinstance(value, list) else []
-
 
 def _report_resume(report):
     report_dict = _safe_dict(report)
@@ -924,164 +941,41 @@ class AutoConfigScreen(Screen):
 
         page.add_widget(_build_brand_header(height=120, title_size="42sp", subtitle_size="18sp"))
 
-        # Card de saisie minimaliste
         input_card = PremiumCard(title="Dimensionnement de la chaine complete", size_hint_y=None, height=420)
         input_card.padding = [40, 30]
         
         info = Label(
-            text="Saisis ton besoin de puissance. Le systeme calculera uniquement ce qui est physiquement determinable.",
+            text="Saisis ton besoin de puissance.",
             color=COLORS["GAXD"], font_size="16sp", size_hint_y=None, height=40, halign="left"
         )
         info.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         input_card.add_widget(info)
 
-        # Grille de saisie
         form = GridLayout(cols=2, spacing=40, size_hint_y=None, height=180, padding=[0, 20])
         
-        # Colonne Valeur
         val_col = BoxLayout(orientation="vertical", spacing=10)
-        val_col.add_widget(Label(text="Puissance de sortie voulue", color=COLORS["BF"], bold=True, font_size="16sp", halign="left", size_hint_x=1))
+        val_col.add_widget(Label(text="Puissance", color=COLORS["BF"], bold=True, font_size="16sp", halign="left", size_hint_x=1))
         self.power_input = NeumorphicInput(text="")
-        self.power_input.hint_text = "Ex: 150"
         self.power_input.height = 60
         val_col.add_widget(self.power_input)
         form.add_widget(val_col)
 
-        # Colonne Unité
         unit_col = BoxLayout(orientation="vertical", spacing=10)
         unit_col.add_widget(Label(text="Unite", color=COLORS["BF"], bold=True, font_size="16sp", halign="left", size_hint_x=1))
-        
         from kivy.uix.spinner import Spinner
-        self.unit_spinner = Spinner(
-            text="Choisir l'unite...",
-            values=("kW", "chevaux (ch)"),
-            size_hint_y=None, height=60,
-            background_color=COLORS["GW"],
-            color=COLORS["BF"],
-            sync_height=True
-        )
+        self.unit_spinner = Spinner(text="Choisir l'unite...", values=("kW", "chevaux (ch)"), size_hint_y=None, height=60)
         unit_col.add_widget(self.unit_spinner)
         form.add_widget(unit_col)
         
         input_card.add_widget(form)
-
-        # Erreur
         self.err = Label(text="", color=COLORS["RF"], font_size="14sp", size_hint_y=None, height=30)
         input_card.add_widget(self.err)
-
-        # Bouton Lancer
-        self.gen_btn = ModernButton(text="LANCER LE DIMENSIONNEMENT", size_hint_y=None, height=80)
+        self.gen_btn = ModernButton(text="LANCER", size_hint_y=None, height=80)
         self.gen_btn.bind(on_press=self.launch_generation)
         input_card.add_widget(self.gen_btn)
-
         page.add_widget(input_card)
-        
-        # Notes doctrine
-        notes = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=100)
-        notes.add_widget(Label(text="[b]REGLE ABSOLUE :[/b] Zero invention de donnees.", color=COLORS["BA"], markup=True, font_size="14sp"))
-        notes.add_widget(Label(text="Les inconnues et les donnees manquantes seront explicitement affichees.", color=COLORS["GAXD"], font_size="13sp"))
-        page.add_widget(notes)
-
         root.add_widget(page)
         self.add_widget(root)
-
-    def _build_home_info_card(self, title: str, lines):
-        card = BoxLayout(orientation="vertical", padding=[14, 14], spacing=8)
-        with card.canvas.before:
-            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.92)
-            card._bg = RoundedRectangle(pos=card.pos, size=card.size, radius=[16])
-        card.bind(pos=lambda inst, *_: setattr(inst._bg, "pos", inst.pos))
-        card.bind(size=lambda inst, *_: setattr(inst._bg, "size", inst.size))
-
-        title_lbl = Label(
-            text=title,
-            color=COLORS["BF"],
-            bold=True,
-            font_size="14sp",
-            size_hint_y=None,
-            height=26,
-            halign="left",
-            valign="middle",
-        )
-        title_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        card.add_widget(title_lbl)
-        for line in lines:
-            row = Label(
-                text=f"• {line}",
-                color=COLORS["GAXD"],
-                font_size="13sp",
-                size_hint_y=None,
-                height=24,
-                halign="left",
-                valign="middle",
-            )
-            row.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-            card.add_widget(row)
-        return card
-
-    def _build_summary_chip(self, label_text: str, value_text: str):
-        row = BoxLayout(orientation="vertical", padding=[14, 12], spacing=4, size_hint_y=None, height=38)
-        with row.canvas.before:
-            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.92)
-            row._bg = RoundedRectangle(pos=row.pos, size=row.size, radius=[14])
-        row.bind(pos=lambda inst, *_: setattr(inst._bg, "pos", inst.pos))
-        row.bind(size=lambda inst, *_: setattr(inst._bg, "size", inst.size))
-
-        top = Label(
-            text=label_text.upper(),
-            color=COLORS["BA"],
-            font_size="11sp",
-            size_hint_y=None,
-            height=16,
-            halign="left",
-            valign="middle",
-        )
-        top.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        row.add_widget(top)
-        val = Label(
-            text=value_text,
-            color=COLORS["BF"],
-            font_size="13sp",
-            bold=True,
-            size_hint_y=None,
-            height=20,
-            halign="left",
-            valign="middle",
-        )
-        val.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        row.add_widget(val)
-        row.height = 62
-        return row
-
-    def _build_note_panel(self, title: str, body: str):
-        panel = BoxLayout(orientation="vertical", padding=[14, 12], spacing=6)
-        with panel.canvas.before:
-            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.92)
-            panel._bg = RoundedRectangle(pos=panel.pos, size=panel.size, radius=[16])
-        panel.bind(pos=lambda inst, *_: setattr(inst._bg, "pos", inst.pos))
-        panel.bind(size=lambda inst, *_: setattr(inst._bg, "size", inst.size))
-        title_lbl = Label(
-            text=title,
-            color=COLORS["BF"],
-            bold=True,
-            font_size="14sp",
-            size_hint_y=None,
-            height=22,
-            halign="left",
-            valign="middle",
-        )
-        title_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        panel.add_widget(title_lbl)
-        body_lbl = Label(
-            text=body,
-            color=COLORS["GAXD"],
-            font_size="13sp",
-            halign="left",
-            valign="middle",
-        )
-        body_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        panel.add_widget(body_lbl)
-        return panel
 
     def on_enter(self, *args):
         Clock.schedule_once(lambda dt: setattr(self.power_input, "focus", True), 0)
@@ -1090,54 +984,30 @@ class AutoConfigScreen(Screen):
         self.bg_rect.pos = self.pos
         self.bg_rect.size = self.size
 
-    def _read_float(self, key: str, default: Optional[float] = None) -> Optional[float]:
-        try:
-            txt = (self._fields[key].text or "").strip().replace(",", ".")
-            if not txt:
-                return default
-            return float(txt)
-        except Exception:
-            return default
-
     def launch_generation(self, *_):
         txt_raw = (self.power_input.text or "").strip()
         txt = txt_raw.replace(",", ".")
-        
-        # Validation Puissance
         try:
-            if not txt:
-                raise ValueError("Puissance manquante")
+            if not txt: raise ValueError("Puissance manquante")
             val = float(txt)
-            if val <= 0:
-                raise ValueError("P > 0 requis")
+            if val <= 0: raise ValueError("P > 0 requis")
         except Exception as e:
             self.err.text = f"Erreur : {e}"
             return
-
-        # Validation Unité
         unit_text = self.unit_spinner.text
         if unit_text == "Choisir l'unite...":
-            self.err.text = "Erreur : Tu dois choisir une unite (kW ou chevaux)."
+            self.err.text = "Erreur : Choisir une unite."
             return
-            
         unite = "kw" if "kW" in unit_text else "ch"
-        
         self.err.text = ""
         app = App.get_running_app()
         app.target_power = str(val)
         app.target_unit = unite
-        
-        # Le backend utilisera ces données pour le premier calcul strict
         app.engine_params = {
             "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
             "temps_moteur": 4,
             "mode_carburant": "multi_carburant",
             "carburants_autorises": ["diesel", "essence", "ethanol", "methanol", "gpl", "gnv", "hydrogene"],
-        }
-        self.manager.current = "loading"
-
-
-
 
 class LoadingScreen(Screen):
     def __init__(self, **kwargs):
@@ -1278,7 +1148,7 @@ class AutoLoadingScreen(LoadingScreen):
         Clock.schedule_once(lambda dt: setattr(self.manager, "current", target_screen))
 
 
-class DashboardScreen(Screen):
+class AutoDashboardScreen(Screen):
     res_pwr = StringProperty("-- kW")
     res_mass = StringProperty("-- kg")
     res_vol = StringProperty("-- m³")
