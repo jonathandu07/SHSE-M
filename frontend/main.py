@@ -52,6 +52,11 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.lang import Builder
 
+from kivy.graphics import Color, RoundedRectangle
+from kivy.core.window import Window
+from kivy.clock import Clock
+from kivy.lang import Builder
+
 # Visualisations Spécialisées
 from frontend.gui.viz_utils import resolve_viz_module, get_draw_3d_func, get_viz_figure
 from frontend.gui.piece_connector import get_piece_instance
@@ -59,51 +64,13 @@ from frontend.gui.pdf_export import build_element_display_sections, export_eleme
 from frontend.gui.energy_audit import EnergyAuditScreen
 
 # =========================
-# Palette
+# UI Utilities (Migrated to gui.components)
 # =========================
-COLORS = {
-    "BL": (244 / 255, 254 / 255, 254 / 255, 1),
-    "GW": (247 / 255, 247 / 255, 255 / 255, 1),
-    "BG": (229 / 255, 229 / 255, 229 / 255, 1),
-    "GF": (217 / 255, 217 / 255, 217 / 255, 1),
-    "GAXD": (112 / 255, 112 / 255, 112 / 255, 1),
-    "VG": (107 / 255, 108 / 255, 102 / 255, 1),
-    "JV": (255 / 255, 198 / 255, 0 / 255, 1),
-    "BF": (5 / 255, 20 / 255, 64 / 255, 1),
-    "BA": (129 / 255, 161 / 255, 184 / 255, 1),
-    "BM": (3 / 255, 34 / 255, 76 / 255, 1),
-    "BFW": (9 / 255, 18 / 255, 38 / 255, 1),
-    "NF": (30 / 255, 30 / 255, 30 / 255, 1),
-    "white": (1, 1, 1, 1),
-    "black": (0, 0, 0, 1),
-    "RF": (236 / 255, 25 / 255, 32 / 255, 1),
-}
+from gui.components import COLORS, ModernButton, PremiumCard, TechRow
 
 PROJECT_NAME = "STHOME"
 PROJECT_SUBTITLE = "Dimensionnement thermo-hybride de sortie"
 PROJECT_LOGO = os.path.join(BASE_DIR, "frontend", "images", "logo.png")
-
-# =========================
-# Popup util
-# =========================
-def show_popup(title: str, message: str) -> None:
-    content = BoxLayout(orientation="vertical", padding=20, spacing=15)
-
-    msg = Label(text=message, color=COLORS["BF"], halign="left", valign="top")
-    msg.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-    content.add_widget(msg)
-
-    btn = Button(text="OK", size_hint_y=None, height=44)
-    content.add_widget(btn)
-
-    pop = Popup(
-        title=title,
-        content=content,
-        size_hint=(None, None),
-        size=(560, 320),
-        auto_dismiss=False,
-    )
-    btn.bind(on_press=lambda *_: pop.dismiss())
     pop.open()
 
 
@@ -793,6 +760,77 @@ class ConfigScreen(Screen):
         page.add_widget(self.err)
 
         self.gen_btn = ModernButton(text="GENERER LE SYSTEME", size_hint_y=None, height=64)
+        self.gen_btn.bind(on_press=self.launch_generation)
+        page.add_widget(self.gen_btn)
+
+        root.add_widget(page)
+        self.add_widget(root)
+
+    def _select_arch(self, arch: str):
+        self._selected_arch = arch
+        for k, b in self._arch_btns.items():
+            b.set_selected(k == arch)
+        ncyl_map = {"L4": 4, "L6": 6, "V8": 8, "V12": 12}
+        self._ncyl_lbl.text = f"Cylindres auto ({ncyl_map.get(arch, '?')})"
+
+    def _select_fuel(self, fuel: str):
+        self._selected_fuel = fuel
+        for k, b in self._fuel_btns.items():
+            b.set_selected(k == fuel)
+
+    def on_enter(self, *args):
+        Clock.schedule_once(lambda dt: setattr(self.power_input, "focus", True), 0)
+
+    def _update_bg(self, *args):
+        self.bg_rect.pos = self.pos
+        self.bg_rect.size = self.size
+
+    def _read_float(self, key: str, default: Optional[float] = None) -> Optional[float]:
+        try:
+            txt = (self._fields[key].text or "").strip().replace(",", ".")
+            if not txt:
+                return default
+            return float(txt)
+        except Exception:
+            return default
+
+    def launch_generation(self, *_):
+        txt_raw = (self.power_input.text or "").strip()
+        txt = txt_raw.replace(",", ".")
+        try:
+            val = float(txt)
+            if val <= 0:
+                raise ValueError("P > 0 requis")
+            if val > 5000:
+                self.err.text = "Limite: 5000 kW (Physique)"
+                return
+        except Exception as e:
+            self.err.text = f"Entrée invalide: {e}"
+            return
+
+        arch = self._selected_arch
+        ncyl_map = {"L4": 4, "L6": 6, "V8": 8, "V12": 12}
+        ncyl = ncyl_map.get(arch, 6)
+        alesage_mm = self._read_float("alesage_mm", None)
+        course_mm = self._read_float("course_mm", None)
+        rpm = self._read_float("rpm_nominal", 1500.0)
+        pme_bar = self._read_float("pme_bar", 15.0)
+        p_max_bar = self._read_float("pression_max_bar", 80.0)
+        rend_meca = self._read_float("rendement_meca", 0.85)
+
+        self.err.text = ""
+        app = App.get_running_app()
+        app.target_power = str(val)
+        app.engine_params = {
+            "alesage_m": alesage_mm / 1000.0 if alesage_mm else None,
+            "alesage_mm": alesage_mm,
+            "course_m": course_mm / 1000.0 if course_mm else None,
+            "course_mm": course_mm,
+            "rpm_nominal": rpm,
+            "pme_pa": pme_bar * 1e5 if pme_bar else None,
+            "pression_max_pa": p_max_bar * 1e5 if p_max_bar else None,
+            "rendement_mecanique_cible_min": rend_meca,
+            "carburant": self._selected_fuel if self._selected_fuel != "multi" else None,
         self.gen_btn.bind(on_press=self.launch_generation)
         page.add_widget(self.gen_btn)
 
