@@ -351,6 +351,48 @@ def calculer_strategie_couplage(
                 "raison": "Aucun point de fonctionnement trouvé pour la puissance cible avec les rapports de boîte actuels."
             })
 
-    # TODO: Phase 4 - Validation transitoire
+    # 6. Validation transitoire
+    if rapport["point_retenu"] and thermique:
+        point_actuel = etat_systeme.get("point_actuel_thermique", {"rpm": 800, "couple_nm": 0})
+        point_cible = rapport["point_retenu"]["thermique"]
+        dt = etat_systeme.get("temps_disponible_s", 1.0)
+        
+        # Récupération des paramètres thermiques du déplaceur
+        deplaceur = composants.get("deplaceur")
+        r_th = getattr(deplaceur, "resistance_thermique_k_w", None)
+        c_th = getattr(deplaceur, "capacite_thermique_j_k", None)
+        
+        validation = {
+            "statut": "inconnu",
+            "tau_s": None,
+            "p_accessible_w": None,
+            "inconnues": []
+        }
+        
+        if r_th is not None and c_th is not None:
+            tau = phys.constante_temps_thermique(r_th, c_th)
+            validation["tau_s"] = tau
+            
+            p_init = (point_actuel["rpm"] * point_actuel["couple_nm"] * 2 * math.pi) / 60
+            p_cible = (point_cible["rpm"] * point_cible["couple_nm"] * 2 * math.pi) / 60
+            
+            p_reelle = phys.reponse_transitoire_premier_ordre(p_init, p_cible, dt, tau)
+            validation["p_accessible_w"] = p_reelle
+            
+            if abs(p_reelle - p_cible) / max(p_cible, 1.0) < 0.1:
+                validation["statut"] = "valide"
+            else:
+                validation["statut"] = "limite_par_inertie"
+                rapport["notes_modele"].append(f"Inertie thermique : seulement {p_reelle/1000:.1f}kW accessibles sur {p_cible/1000:.1f}kW en {dt}s.")
+        else:
+            if r_th is None: validation["inconnues"].append("resistance_thermique_k_w")
+            if c_th is None: validation["inconnues"].append("capacite_thermique_j_k")
+            validation["statut"] = "impossible_calculer_transitoire"
+            rapport["inconnues"]["partielles"].append({
+                "nom": "validation_transitoire", 
+                "raison": f"Manque paramètres thermiques déplaceur : {validation['inconnues']}"
+            })
+            
+        rapport["validation_transitoire"] = validation
 
     return rapport
