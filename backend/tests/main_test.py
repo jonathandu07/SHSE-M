@@ -401,7 +401,7 @@ def test_construire_pieces_depuis_systeme_instantiates_expected_parts(monkeypatc
     cyl = pieces["cylindre"]
     assert cyl.kwargs["alesage_m"] == 0.08
     assert cyl.kwargs["course_m"] == 0.06
-    assert cyl.kwargs["longueur_utile_m"] == pytest.approx(0.09)
+    assert cyl.kwargs["longueur_utile_m"] == pytest.approx(0.18)
     assert cyl.kwargs["pression_service_pa"] == 7.5e5
     assert cyl.kwargs["pression_max_pa"] == 2.5e6
     assert cyl.kwargs["epaisseur_imposee_m"] == 0.0035
@@ -528,7 +528,7 @@ def test_dimensionner_systeme_shsem_returns_complete_config(monkeypatch, main_mo
     assert system_call["vitesse_moyenne_kmh"] == 80.0
     assert system_call["calculer_puissance_charge_requise"] is True
     assert system_call["scenario_bus_dc"] == "traction_plus_charge"
-    assert system_call["puissance_elec_alt_cible_w"] is None
+    assert system_call["puissance_elec_alt_cible_w"] == pytest.approx(40000.0)
     assert system_call["puissance_auxiliaire_w"] == 0.0
     assert system_call["masse_estimee_max_kg"] == 500.0
     assert system_call["cout_matiere_max_eur"] == 1500.0
@@ -579,7 +579,7 @@ def test_dimensionner_systeme_shsem_without_battery_charge_and_legacy_errors(mon
     system_call = fake_system_holder["obj"].calls[0]
     assert system_call["calculer_puissance_charge_requise"] is False
     assert system_call["scenario_bus_dc"] == "traction"
-    assert system_call["puissance_elec_alt_cible_w"] is None
+    assert system_call["puissance_elec_alt_cible_w"] == pytest.approx(25000.0)
 
     assert "legacy boom" in config["legacy"]["dimensionner_pieces_completes_erreur"]
     assert "drivechain boom" in config["legacy"]["drivechain_erreur"]

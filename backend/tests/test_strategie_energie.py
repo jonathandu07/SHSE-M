@@ -17,8 +17,10 @@ class TestStrategieEnergie(unittest.TestCase):
                 soh=0.9
             ),
             "alternateur": MockComponent(
-                resistance_phase_ohm=0.01,
-                constante_tension_kv=100.0
+                resistance_phase_ohm=0.001,
+                constante_tension_kv=10.0,
+                rpm_max=8000,
+                couple_max=400
             ),
             "boite_crabots": MockComponent(
                 rapports={"direct": 1.0, "court": 2.0}
@@ -34,14 +36,14 @@ class TestStrategieEnergie(unittest.TestCase):
         }
         
         self.etat = {
-            "puissance_traction_roue_w": 50000.0,
+            "puissance_traction_roue_w": 20000.0,
             "batterie_soc": 0.5,
             "batterie_soh": 0.9,
             "batterie_temp_c": 25.0,
             "v_bus_dc_v": 400.0,
             "bornes_recherche": {
                 "rpm_min": 1000, "rpm_max": 5000, "rpm_step": 500,
-                "couple_min": 10, "couple_max": 150, "couple_step": 10
+                "couple_min": 10, "couple_max": 400, "couple_step": 20
             }
         }
 

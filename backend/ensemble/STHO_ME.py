@@ -299,6 +299,7 @@ get_carburant = _import_attr_optional(("backend.ensemble.carburant", "ensemble.c
 get_pire_carburant = _import_attr_optional(("backend.ensemble.carburant", "ensemble.carburant", "carburant"), "get_pire_carburant")
 creer_melange = _import_attr_optional(("backend.ensemble.carburant", "ensemble.carburant", "carburant"), "creer_melange")
 lister_carburants = _import_attr_optional(("backend.ensemble.carburant", "ensemble.carburant", "carburant"), "lister_carburants")
+calculer_strategie_couplage = _import_attr_optional(("backend.ensemble.strategie_energie", "ensemble.strategie_energie", "strategie_energie"), "calculer_strategie_couplage")
 
 
 # Fallback de compatibilité : ton fichier moteur_thermique.py récent expose
@@ -1406,7 +1407,40 @@ class STHO_ME:
         self._run_optional_component_analysis(rapport, "moteur_thermique_bilan_carburant", "moteur_thermique", "analyser_bilan_carburant")
         self._run_optional_component_analysis(rapport, "boite_point", "boite_crabots", "analyser_point")
         self._run_optional_component_analysis(rapport, "boite_chaine", "boite_crabots", "analyser_chaine_moteur_alternateur")
+        self._run_strategie_energie(rapport)
         self._build_systeme_complet_fallback(rapport)
+
+    def _run_strategie_energie(self, rapport: Dict[str, Any]) -> None:
+        """
+        Déclenche l'arbitrage énergétique Stratégie (SoH vs Pmax).
+        """
+        if not callable(calculer_strategie_couplage):
+            return
+
+        params = self.analyses.get("strategie_energie")
+        if not isinstance(params, dict) or not params:
+            # On tente quand même avec les données système si non fournies explicitement
+            params = self.analyses.get("systeme_complet", {})
+
+        # Extraction de l'état dynamique depuis les analyses ou les composants
+        etat = {
+            "puissance_traction_roue_w": _first_finite(params.get("puissance_traction_roue_w"), params.get("puissance_moyenne_kw", 0)*1000),
+            "batterie_soc": _first_finite(params.get("batterie_soc"), 0.5),
+            "batterie_soh": _first_finite(params.get("batterie_soh"), 1.0),
+            "batterie_temp_c": _first_finite(params.get("batterie_temp_c"), 25.0),
+            "v_bus_dc_v": _first_finite(params.get("v_bus_dc_v"), 400.0),
+            "temps_disponible_s": _first_finite(params.get("temps_disponible_s"), 1.0),
+        }
+
+        try:
+            rep = calculer_strategie_couplage(
+                etat_systeme=etat,
+                composants={**self.composants_obj, **self.pieces_obj}
+            )
+            rapport["rapports"]["strategie_energie"] = rep
+            _merge_inconnues(rapport, rep, prefix="strategie_energie")
+        except Exception as exc:
+            _push_inconnue(rapport, "partielles", "strategie_energie", f"Échec de l'arbitrage énergétique : {exc}")
 
     def _run_systeme_complet_analysis(self, rapport: Dict[str, Any]) -> None:
         payload = self.analyses.get("systeme_complet")
@@ -1682,6 +1716,11 @@ class STHO_ME:
             "pieces_demandees": pieces_demandees,
             "pieces_analysees": pieces_analysees,
             "pieces_non_fermees": pieces_non_fermees,
+            "strategie_energie": {
+                "mode": rapport["rapports"].get("strategie_energie", {}).get("mode_energetique"),
+                "p_charge_cible_w": rapport["rapports"].get("strategie_energie", {}).get("bilan_bus_dc", {}).get("p_charge_cible_w"),
+                "statut_transitoire": rapport["rapports"].get("strategie_energie", {}).get("validation_transitoire", {}).get("statut"),
+            },
             "imports_indisponibles": sorted(_safe_dict(rapport.get("imports", {})).get("erreurs", {}).keys()),
         }
 
