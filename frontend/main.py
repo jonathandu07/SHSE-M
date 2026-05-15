@@ -79,7 +79,7 @@ COLORS = {
 }
 
 PROJECT_NAME = "STHOME"
-PROJECT_SUBTITLE = "ENGINE GENERATOR"
+PROJECT_SUBTITLE = "Dimensionnement thermo-hybride de sortie"
 PROJECT_LOGO = os.path.join(BASE_DIR, "frontend", "images", "logo.png")
 
 # =========================
@@ -885,12 +885,12 @@ class AutoConfigScreen(Screen):
 
         page.add_widget(_build_brand_header(height=96, title_size="38sp", subtitle_size="17sp"))
 
-        intro_card = PremiumCard(title="Dimensionnement systeme", size_hint_y=None)
+        intro_card = PremiumCard(title="Dimensionnement de la chaine complete", size_hint_y=None)
         intro_card.bind(minimum_height=intro_card.setter("height"))
 
         intro_top = BoxLayout(size_hint_y=None, height=44, spacing=14)
         intro_title = Label(
-            text="Entree minimale : une puissance cible. Sortie attendue : un systeme complet, des pieces calculees, un JSON, une base locale et des PDF.",
+            text="Entree minimale : une puissance de sortie demandee. Sortie attendue : une chaine complete coherent​e, dimensionnee pour alimenter l'equivalent d'un moteur electrique cible.",
             color=COLORS["BF"],
             font_size="18sp",
             bold=True,
@@ -902,7 +902,7 @@ class AutoConfigScreen(Screen):
         intro_card.add_widget(intro_top)
 
         intro_body = Label(
-            text="Le dimensionnement reste strict : aucune geometrie, aucun rendement, aucun espace de recherche n'est invente. Si une contrainte manque, le calcul la signale ou la deduit seulement quand une relation physique existe dans le modele.",
+            text="Le calcul organise la chaine batterie, alternateur, boite a crabots, puis moteur thermique thermo-hybride. Il reste strict : rien n'est invente sans loi physique, et chaque deduction doit etre justifiee par le modele.",
             color=COLORS["GAXD"],
             font_size="14sp",
             size_hint_y=None,
@@ -915,21 +915,21 @@ class AutoConfigScreen(Screen):
 
         intro_grid = GridLayout(cols=3, spacing=[14, 14], size_hint_y=None, height=172)
         intro_grid.add_widget(self._build_home_info_card(
-            "Ce que le calcul choisit",
+            "Ce que le calcul dimensionne",
             [
-                "architecture moteur retenue",
-                "carburant dimensionnant sur pire cas",
-                "courants, tensions et chaine electrique",
-                "pieces et composants construits",
+                "taille batterie et capacite de recharge",
+                "alternateur, courant et tension utiles",
+                "boite a crabots et chaine de rendement",
+                "moteur thermique, pieces et composants",
             ],
         ))
         intro_grid.add_widget(self._build_home_info_card(
-            "Ce que tu peux contraindre",
+            "Contraintes que tu peux imposer",
             [
-                "alesage et course si deja imposes",
-                "regime nominal",
-                "PME et pression max",
+                "geometrie deja imposee",
+                "regime nominal et niveaux de pression",
                 "objectif de rendement mecanique",
+                "cadre du dimensionnement systeme",
             ],
         ))
         intro_grid.add_widget(self._build_home_info_card(
@@ -937,21 +937,21 @@ class AutoConfigScreen(Screen):
             [
                 "rapport systeme exploitable",
                 "inventaire pieces et composants",
-                "JSON + base de donnees locale",
+                "JSON et base de donnees locale",
                 "fiches PDF avec vues 2D, 3D et calculs",
             ],
         ))
         intro_card.add_widget(intro_grid)
         page.add_widget(intro_card)
 
-        entry_card = PremiumCard(title="Point de depart", size_hint_y=None)
+        entry_card = PremiumCard(title="Point de depart du besoin", size_hint_y=None)
         entry_card.bind(minimum_height=entry_card.setter("height"))
         entry_grid = GridLayout(cols=2, spacing=[18, 12], size_hint_y=None)
         entry_grid.bind(minimum_height=entry_grid.setter("height"))
 
         power_col = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=176)
         power_title = Label(
-            text="Puissance cible",
+            text="Puissance de sortie demandee",
             color=COLORS["BF"],
             bold=True,
             font_size="16sp",
@@ -963,7 +963,7 @@ class AutoConfigScreen(Screen):
         power_title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
         power_col.add_widget(power_title)
         power_note = Label(
-            text="Saisis la puissance mecanique demandee au moteur. Cette valeur pilote tout le pre-dimensionnement.",
+            text="Saisis la puissance equivalente attendue en sortie. Exemple : un besoin correspondant a un moteur electrique de 100 ch ou 150 kW.",
             color=COLORS["GAXD"],
             font_size="13sp",
             size_hint_y=None,
@@ -977,7 +977,7 @@ class AutoConfigScreen(Screen):
         self.power_input.hint_text = "Ex: 150"
         power_col.add_widget(self.power_input)
         power_hint = Label(
-            text="Unite : kW. Le backend restitue ensuite les grandeurs electriques, mecaniques et les elements de conception disponibles.",
+            text="Unite : kW. A partir de cette cible, le backend dimensionne la batterie, l'alternateur, la boite a crabots et enfin le moteur thermique de recharge.",
             color=COLORS["GAXD"],
             font_size="12sp",
             size_hint_y=None,
@@ -990,17 +990,17 @@ class AutoConfigScreen(Screen):
         entry_grid.add_widget(power_col)
 
         method_col = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=176)
-        method_col.add_widget(self._build_summary_chip("Mode de calcul", "Strict et multi-composants"))
-        method_col.add_widget(self._build_summary_chip("Carburant", "Multi-carburant, dimensionne sur le pire cas calculable"))
-        method_col.add_widget(self._build_summary_chip("Architecture", "Selectionnee par calcul selon puissance et contraintes"))
-        method_col.add_widget(self._build_summary_chip("Livraison", "Tableau de bord, fiches, PDF, JSON et BDD"))
+        method_col.add_widget(self._build_summary_chip("Mode de calcul", "Dimensionnement strict de la chaine complete"))
+        method_col.add_widget(self._build_summary_chip("Carburant", "Multi-carburant, optimise mais borne par le pire cas"))
+        method_col.add_widget(self._build_summary_chip("Recharge", "Le moteur thermique vise une recharge rapide avec conso minimale"))
+        method_col.add_widget(self._build_summary_chip("Livraison", "Dashboard, fiches techniques, PDF, JSON et BDD"))
         entry_grid.add_widget(method_col)
         entry_card.add_widget(entry_grid)
         page.add_widget(entry_card)
 
-        arch_card = PremiumCard(title="Strategie de choix automatique", size_hint_y=None, height=142)
+        arch_card = PremiumCard(title="Logique de dimensionnement systeme", size_hint_y=None, height=142)
         arch_info = Label(
-            text="Le backend compare les architectures autorisees, evalue le pire carburant dimensionnant et retient la solution coherente avec la puissance, la chaine electrique et les contraintes que tu fournis.",
+            text="Le backend cherche l'equilibre entre puissance de sortie, taille batterie, vitesse de recharge, rendement de transmission, puissance alternateur et dimensionnement du moteur thermique thermo-hybride.",
             color=COLORS["GAXD"],
             font_size="14sp",
             halign="left",
@@ -1010,10 +1010,10 @@ class AutoConfigScreen(Screen):
         arch_card.add_widget(arch_info)
         page.add_widget(arch_card)
 
-        param_card = PremiumCard(title="Contraintes optionnelles", size_hint_y=None)
+        param_card = PremiumCard(title="Contraintes techniques optionnelles", size_hint_y=None)
         param_card.bind(minimum_height=param_card.setter("height"))
         intro = Label(
-            text="Renseigne seulement ce qui est deja connu ou impose par ton cahier des charges. Laisse vide pour que le calcul reste ouvert.",
+            text="Renseigne seulement ce qui est deja connu ou impose. Le calcul s'en sert pour fermer des inconnues, sans te forcer des hypotheses inutiles.",
             color=COLORS["GAXD"],
             font_size="13sp",
             size_hint_y=None,
@@ -1060,11 +1060,11 @@ class AutoConfigScreen(Screen):
         note_grid = GridLayout(cols=2, spacing=[18, 12], size_hint_y=None, height=94)
         note_grid.add_widget(self._build_note_panel(
             "Carburant",
-            "Mode multi-carburant actif. Le dimensionnement retient le pire carburant calculable et signale aussi le meilleur cas.",
+            "Le systeme est multi-carburant. Le dimensionnement retient le pire carburant calculable pour rester robuste, tout en signalant le meilleur cas.",
         ))
         note_grid.add_widget(self._build_note_panel(
-            "Resultat attendu",
-            "Le premier ecran de sortie doit t'expliquer ce qui a ete calcule, ce qui reste conditionne a des donnees fines, et quels composants sont deja exploitables.",
+            "Couplage systeme",
+            "La taille batterie, la puissance alternateur, la boite a crabots et le moteur thermique sont lies. Le calcul doit chercher un ensemble coherent, pas des organes isoles.",
         ))
         param_card.add_widget(note_grid)
         page.add_widget(param_card)
@@ -1073,7 +1073,7 @@ class AutoConfigScreen(Screen):
                          size_hint_y=None, height=22)
         page.add_widget(self.err)
 
-        self.gen_btn = ModernButton(text="LANCER LE DIMENSIONNEMENT", size_hint_y=None, height=66)
+        self.gen_btn = ModernButton(text="DIMENSIONNER LA CHAINE COMPLETE", size_hint_y=None, height=66)
         self.gen_btn.bind(on_press=self.launch_generation)
         page.add_widget(self.gen_btn)
 
