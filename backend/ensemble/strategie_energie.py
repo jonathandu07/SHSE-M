@@ -150,6 +150,113 @@ def determiner_enveloppe_batterie(
     
     return env, inconnues
 
+def generer_carto_alternateur(
+    alternateur_obj: Any,
+    bornes: Dict[str, float]
+) -> Dict[str, Any]:
+    """
+    Génère une grille [RPM x Couple] de performance alternateur.
+    Bornes attendues : rpm_min, rpm_max, rpm_step, couple_min, couple_max, couple_step.
+    """
+    grille = {
+        "points": [],
+        "inconnues": []
+    }
+    
+    rmin = bornes.get("rpm_min")
+    rmax = bornes.get("rpm_max")
+    rstep = bornes.get("rpm_step")
+    cmin = bornes.get("couple_min")
+    cmax = bornes.get("couple_max")
+    cstep = bornes.get("couple_step")
+    
+    if any(x is None for x in (rmin, rmax, rstep, cmin, cmax, cstep)):
+        return grille # Grille vide si bornes manquantes
+    
+    # Paramètres physiques pour calcul des pertes (si disponibles)
+    r_phase = getattr(alternateur_obj, "resistance_phase_ohm", None)
+    k_v = getattr(alternateur_obj, "constante_tension_kv", None)
+    
+    for rpm in range(int(rmin), int(rmax) + 1, int(rstep)):
+        for c in range(int(cmin), int(cmax) + 1, int(cstep)):
+            p_meca = (c * 2 * math.pi * rpm) / 60
+            
+            # Tentative de calcul de rendement
+            p_elec = None
+            pertes = None
+            
+            if r_phase is not None:
+                # Modèle simplifié : Pertes Joule = 3 * R * I²
+                # On a besoin du courant, donc de k_v ou du couple
+                # T = k_t * I => I = T / k_t. k_t = 60 / (2 * pi * kv * sqrt(3))
+                if k_v is not None:
+                    k_t = 60.0 / (2.0 * math.pi * k_v * math.sqrt(3.0))
+                    i_phase = c / k_t
+                    p_joule = 3.0 * r_phase * (i_phase**2)
+                    pertes = p_joule # Pour l'instant, on n'invente pas les pertes fer
+                    p_elec = p_meca - pertes
+                else:
+                    grille["inconnues"].append({"point": (rpm, c), "raison": "Manque constante kv pour courant"})
+            else:
+                grille["inconnues"].append({"point": (rpm, c), "raison": "Manque resistance_phase_ohm"})
+                
+            grille["points"].append({
+                "rpm": rpm,
+                "couple_nm": c,
+                "p_meca_w": p_meca,
+                "p_elec_w": p_elec,
+                "pertes_w": pertes,
+                "rendement": (p_elec / p_meca) if (p_elec and p_meca > 0) else None
+            })
+            
+    return grille
+
+def selectionner_point_optimal(
+    p_elec_cible: float,
+    carto: Dict[str, Any],
+    boite_obj: Any,
+    thermique_obj: Any,
+    poids: Optional[Dict[str, float]] = None
+) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Recherche lexicographique du meilleur point.
+    Priorité : 1. Accessibilité (Boîte), 2. Stress (Courant), 3. Pertes Totales.
+    """
+    candidats = []
+    
+    # 1. Filtrer les points qui peuvent produire la puissance cible
+    for pt in carto.get("points", []):
+        if pt["p_elec_w"] is None: continue
+        
+        # On accepte une marge de 5% sur la puissance produite
+        if abs(pt["p_elec_w"] - p_elec_cible) / max(p_elec_cible, 1.0) < 0.05:
+            # Vérifier si un rapport de boîte permet d'atteindre ce RPM thermique
+            # (Simplification : on suppose que la boîte est entre le thermique et l'alternateur)
+            rapports = getattr(boite_obj, "rapports", {"direct": 1.0})
+            for nom_rap, ratio in rapports.items():
+                rpm_thermique = pt["rpm"] / ratio
+                # Vérifier si le thermique peut tourner à ce régime
+                t_max = getattr(thermique_obj, "rpm_max", 6000)
+                t_min = getattr(thermique_obj, "rpm_min", 800)
+                if t_min <= rpm_thermique <= t_max:
+                    candidats.append({
+                        "alternateur": pt,
+                        "rapport": nom_rap,
+                        "thermique": {"rpm": rpm_thermique, "couple_nm": pt["couple_nm"] * ratio},
+                        "pertes_totales_w": (pt["pertes_w"] or 0) # + pertes boite si connues
+                    })
+
+    if not candidats:
+        return None, []
+
+    # 2. Tri Lexicographique
+    # On trie par :
+    # a) Rendement alternateur (déjà calculé)
+    # b) Pertes totales
+    candidats.sort(key=lambda x: (-(x["alternateur"]["rendement"] or 0), x["pertes_totales_w"]))
+    
+    return candidats[0], candidats
+
 def calculer_strategie_couplage(
     etat_systeme: Dict[str, Any],
     composants: Dict[str, Any],
@@ -208,13 +315,42 @@ def calculer_strategie_couplage(
         p_charge_cible = env.p_charge_recommandee_w if env.p_charge_recommandee_w is not None else 0.0
 
     # 4. Bilan Bus DC
+    p_gen_requise = (etat_systeme.get("puissance_traction_roue_w", 0) + p_charge_cible)
     rapport["bilan_bus_dc"] = {
         "p_traction_w": etat_systeme.get("puissance_traction_roue_w"),
         "p_charge_cible_w": p_charge_cible,
-        "p_gen_requise_w": etat_systeme.get("puissance_traction_roue_w", 0) + p_charge_cible
+        "p_gen_requise_w": p_gen_requise
     }
 
-    # TODO: Phase 3 - Recherche du point optimal (Lexicographique)
+    # 5. Recherche du point optimal
+    if p_gen_requise > 0 and alternateur:
+        # On définit des bornes par défaut pour la recherche si non fournies
+        bornes = etat_systeme.get("bornes_recherche", {
+            "rpm_min": 1000, "rpm_max": 8000, "rpm_step": 500,
+            "couple_min": 5, "couple_max": 200, "couple_step": 10
+        })
+        
+        carto = generer_carto_alternateur(alternateur, bornes)
+        best, candidats = selectionner_point_optimal(p_gen_requise, carto, boite, thermique)
+        
+        rapport["candidats"] = candidats
+        rapport["point_retenu"] = best
+        
+        if best:
+            rapport["decision"] = {
+                "p_charge_w": p_charge_cible,
+                "rapport_boite": best["rapport"],
+                "rpm_thermique": best["thermique"]["rpm"],
+                "couple_thermique": best["thermique"]["couple_nm"],
+                "rpm_alternateur": best["alternateur"]["rpm"],
+                "couple_alternateur": best["alternateur"]["couple_nm"]
+            }
+        else:
+            rapport["inconnues"]["impossibles"].append({
+                "nom": "point_optimal", 
+                "raison": "Aucun point de fonctionnement trouvé pour la puissance cible avec les rapports de boîte actuels."
+            })
+
     # TODO: Phase 4 - Validation transitoire
 
     return rapport
