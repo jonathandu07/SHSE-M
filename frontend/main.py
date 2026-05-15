@@ -56,6 +56,7 @@ from kivy.lang import Builder
 from frontend.gui.viz_utils import resolve_viz_module, get_draw_3d_func, get_viz_figure
 from frontend.gui.piece_connector import get_piece_instance
 from frontend.gui.pdf_export import build_element_display_sections, export_element_pdf
+from frontend.gui.energy_audit import EnergyAuditScreen
 
 # =========================
 # Palette
@@ -1481,9 +1482,9 @@ class DashboardScreen(Screen):
 
         c4 = PremiumCard(title="Accès Rapide")
         bg = GridLayout(cols=2, spacing=10)
-        for txt, screen in [("LISTE PIÈCES", "piece_library"), ("CROQUIS 2D", "advanced_visuals"),
-                             ("VUE VECT.", "vector_view"), ("DOSSIER PDF", "pdf_folder"), 
-                             ("FICHE DÉTAIL", "detailed_datasheet")]:
+        for txt, screen in [("LISTE PIÈCES", "piece_library"), ("AUDIT ÉNERGIE", "energy_audit"),
+                             ("CROQUIS 2D", "advanced_visuals"), ("VUE VECT.", "vector_view"), 
+                             ("DOSSIER PDF", "pdf_folder"), ("FICHE DÉTAIL", "detailed_datasheet")]:
             b = ModernButton(text=txt, font_size="13sp")
             b.bind(on_press=lambda _, s=screen: setattr(self.manager, "current", s))
             bg.add_widget(b)
@@ -2401,6 +2402,7 @@ class SHSEMApp(App):
         sm.add_widget(PdfFolderScreen(name="pdf_folder"))
         sm.add_widget(DetailedDatasheetScreen(name="detailed_datasheet"))
         sm.add_widget(AdvancedVisualsScreen(name="advanced_visuals"))
+        sm.add_widget(EnergyAuditScreen(name="energy_audit"))
         return sm
 
 

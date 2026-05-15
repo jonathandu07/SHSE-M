@@ -1,3 +1,4 @@
+# frontend\gui\energy_audit.py
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
@@ -194,8 +195,9 @@ class EnergyAuditScreen(Screen):
         card_syn.add_widget(AuditRow("Mode Énergétique", strat.get("mode_energetique"), status="ok" if strat.get("mode_energetique") else "partiel"))
         card_syn.add_widget(AuditRow("Décision", strat.get("decision", {}).get("raison"), status="ok"))
         
+        card_syn.add_widget(AuditRow("Cible Utilisateur", app.target_power, unit="kW", status="ok"))
         p_sortie = bilan.get("puissance_sortie_demandee_w")
-        card_syn.add_widget(AuditRow("Puissance de sortie", p_sortie, unit="W", status="ok" if p_sortie is not None else "impossible"))
+        card_syn.add_widget(AuditRow("Puissance Normalisée", p_sortie, unit="W", status="ok" if p_sortie is not None else "impossible"))
         
         self.content.add_widget(card_syn)
         
@@ -206,7 +208,7 @@ class EnergyAuditScreen(Screen):
         chain_data = [
             ("Usage Électrique", "puissance_electrique_usage_w", "W"),
             ("Auxiliaires", "puissance_auxiliaire_w", "W"),
-            ("Recharge Batterie", "puissance_recharge_reten_w", "W"),
+            ("Recharge Batterie", "puissance_recharge_retenue_w", "W"),
             ("Bus DC Total", "puissance_bus_dc_totale_w", "W"),
             ("Bus DC Instantané", "puissance_bus_dc_instantanee_w", "W"),
             ("Génération Intermittente (Beta)", "fraction_temps_generation_beta", ""),
@@ -241,7 +243,28 @@ class EnergyAuditScreen(Screen):
             
         self.content.add_widget(card_bat)
         
-        # 4. Transitoire
+        # 4. Alternateur / Boîte / Thermique
+        card_mech = AuditCard(title="Chaîne Mécanique (Alternateur/Boîte/MT)")
+        card_mech.size_hint_y = None
+        card_mech.height = 300
+        
+        card_mech.add_widget(AuditRow("Rapport de Boîte", bilan.get("rapport_boite_optimal")))
+        card_mech.add_widget(AuditRow("Régime Alternateur", bilan.get("regime_alternateur_rpm"), unit="tr/min"))
+        card_mech.add_widget(AuditRow("Couple Alternateur", bilan.get("couple_alternateur_nm"), unit="Nm"))
+        
+        p_retenu = strat.get("point_retenu", {})
+        if p_retenu:
+            card_mech.add_widget(AuditRow("Régime MT", p_retenu.get("rpm_moteur"), unit="tr/min"))
+            card_mech.add_widget(AuditRow("Couple MT Requis", p_retenu.get("exigences", {}).get("couple_moteur_requis_Nm"), unit="Nm"))
+            
+            # Rendements et Pertes
+            rendements = p_retenu.get("rendements", {})
+            if rendements:
+                card_mech.add_widget(AuditRow("Rendement Global", rendements.get("global"), unit="%", status="ok"))
+            
+        self.content.add_widget(card_mech)
+
+        # 5. Transitoire
         trans = strat.get("validation_transitoire", {})
         card_trans = AuditCard(title="Validation Transitoire", status=trans.get("statut", "inconnu"))
         card_trans.size_hint_y = None
@@ -253,7 +276,7 @@ class EnergyAuditScreen(Screen):
         
         self.content.add_widget(card_trans)
         
-        # 5. Alertes et Inconnues
+        # 6. Alertes et Inconnues
         card_alerts = AuditCard(title="Alertes & Inconnues", size_hint_y=None)
         card_alerts.bind(minimum_height=card_alerts.setter("height"))
         
@@ -263,7 +286,9 @@ class EnergyAuditScreen(Screen):
             if items:
                 card_alerts.add_widget(Label(text=bucket.upper(), color=STATUS_COLORS[color_name], bold=True, size_hint_y=None, height=24))
                 for item in items:
-                    msg = f"{item.get('nom')}: {item.get('raison')}"
-                    card_alerts.add_widget(Label(text=msg, color=COLORS["BF"], font_size="11sp", size_hint_y=None, height=20, halign="left"))
+                    msg = f"• {item.get('nom')}: {item.get('raison')}"
+                    l = Label(text=msg, color=COLORS["BF"], font_size="11sp", size_hint_y=None, height=24, halign="left", valign="middle")
+                    l.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+                    card_alerts.add_widget(l)
                     
         self.content.add_widget(card_alerts)
