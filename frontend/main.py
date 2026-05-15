@@ -162,31 +162,31 @@ def _fuel_summary(report):
     }
 
 
-def _build_brand_header(height: int = 120, title_size: str = "52sp", subtitle_size: str = "18sp"):
+def _build_brand_header(height: int = 104, title_size: str = "40sp", subtitle_size: str = "18sp"):
     outer = BoxLayout(orientation="horizontal", size_hint_y=None, height=height)
-    outer.add_widget(Widget())
+    outer.add_widget(Widget(size_hint_x=0.18))
 
-    brand = BoxLayout(orientation="horizontal", spacing=16, size_hint=(None, None), height=height)
-    brand.width = 430
+    brand = BoxLayout(orientation="horizontal", spacing=18, size_hint=(None, None), height=height)
+    brand.width = 560
     if os.path.exists(PROJECT_LOGO):
         brand.add_widget(
             KivyImage(
                 source=PROJECT_LOGO,
                 size_hint=(None, None),
-                size=(height - 24, height - 24),
+                size=(height - 18, height - 18),
                 allow_stretch=True,
                 keep_ratio=True,
             )
         )
 
-    txt = BoxLayout(orientation="vertical", size_hint=(1, None), height=height, padding=[0, 10, 0, 10])
+    txt = BoxLayout(orientation="vertical", size_hint=(1, None), height=height, padding=[0, 8, 0, 8], spacing=2)
     title = Label(
         text=PROJECT_NAME,
         font_size=title_size,
         bold=True,
         color=COLORS["BF"],
         size_hint_y=None,
-        height=max(50, height - 46),
+        height=max(42, height - 42),
         halign="left",
         valign="middle",
     )
@@ -206,7 +206,7 @@ def _build_brand_header(height: int = 120, title_size: str = "52sp", subtitle_si
     brand.add_widget(txt)
 
     outer.add_widget(brand)
-    outer.add_widget(Widget())
+    outer.add_widget(Widget(size_hint_x=0.18))
     return outer
 
 
@@ -880,22 +880,127 @@ class AutoConfigScreen(Screen):
         self.bind(pos=self._update_bg, size=self._update_bg)
 
         root = ScrollView(do_scroll_x=False)
-        page = BoxLayout(orientation="vertical", padding=[80, 40], spacing=24, size_hint_y=None)
+        page = BoxLayout(orientation="vertical", padding=[54, 28, 54, 36], spacing=18, size_hint_y=None)
         page.bind(minimum_height=page.setter("height"))
 
-        page.add_widget(_build_brand_header())
+        page.add_widget(_build_brand_header(height=96, title_size="38sp", subtitle_size="17sp"))
 
-        pwr_card = PremiumCard(title="Puissance cible", size_hint_y=None, height=160)
-        pwr_card.add_widget(Label(text="kW demandes au moteur", color=COLORS["GAXD"],
-                                   font_size="14sp", size_hint_y=None, height=24))
+        intro_card = PremiumCard(title="Dimensionnement systeme", size_hint_y=None)
+        intro_card.bind(minimum_height=intro_card.setter("height"))
+
+        intro_top = BoxLayout(size_hint_y=None, height=44, spacing=14)
+        intro_title = Label(
+            text="Entree minimale : une puissance cible. Sortie attendue : un systeme complet, des pieces calculees, un JSON, une base locale et des PDF.",
+            color=COLORS["BF"],
+            font_size="18sp",
+            bold=True,
+            halign="left",
+            valign="middle",
+        )
+        intro_title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        intro_top.add_widget(intro_title)
+        intro_card.add_widget(intro_top)
+
+        intro_body = Label(
+            text="Le dimensionnement reste strict : aucune geometrie, aucun rendement, aucun espace de recherche n'est invente. Si une contrainte manque, le calcul la signale ou la deduit seulement quand une relation physique existe dans le modele.",
+            color=COLORS["GAXD"],
+            font_size="14sp",
+            size_hint_y=None,
+            height=52,
+            halign="left",
+            valign="middle",
+        )
+        intro_body.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        intro_card.add_widget(intro_body)
+
+        intro_grid = GridLayout(cols=3, spacing=[14, 14], size_hint_y=None, height=172)
+        intro_grid.add_widget(self._build_home_info_card(
+            "Ce que le calcul choisit",
+            [
+                "architecture moteur retenue",
+                "carburant dimensionnant sur pire cas",
+                "courants, tensions et chaine electrique",
+                "pieces et composants construits",
+            ],
+        ))
+        intro_grid.add_widget(self._build_home_info_card(
+            "Ce que tu peux contraindre",
+            [
+                "alesage et course si deja imposes",
+                "regime nominal",
+                "PME et pression max",
+                "objectif de rendement mecanique",
+            ],
+        ))
+        intro_grid.add_widget(self._build_home_info_card(
+            "Livrables produits",
+            [
+                "rapport systeme exploitable",
+                "inventaire pieces et composants",
+                "JSON + base de donnees locale",
+                "fiches PDF avec vues 2D, 3D et calculs",
+            ],
+        ))
+        intro_card.add_widget(intro_grid)
+        page.add_widget(intro_card)
+
+        entry_card = PremiumCard(title="Point de depart", size_hint_y=None)
+        entry_card.bind(minimum_height=entry_card.setter("height"))
+        entry_grid = GridLayout(cols=2, spacing=[18, 12], size_hint_y=None)
+        entry_grid.bind(minimum_height=entry_grid.setter("height"))
+
+        power_col = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=176)
+        power_title = Label(
+            text="Puissance cible",
+            color=COLORS["BF"],
+            bold=True,
+            font_size="16sp",
+            size_hint_y=None,
+            height=28,
+            halign="left",
+            valign="middle",
+        )
+        power_title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        power_col.add_widget(power_title)
+        power_note = Label(
+            text="Saisis la puissance mecanique demandee au moteur. Cette valeur pilote tout le pre-dimensionnement.",
+            color=COLORS["GAXD"],
+            font_size="13sp",
+            size_hint_y=None,
+            height=44,
+            halign="left",
+            valign="middle",
+        )
+        power_note.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        power_col.add_widget(power_note)
         self.power_input = NeumorphicInput(text="150")
         self.power_input.hint_text = "Ex: 150"
-        pwr_card.add_widget(self.power_input)
-        page.add_widget(pwr_card)
+        power_col.add_widget(self.power_input)
+        power_hint = Label(
+            text="Unite : kW. Le backend restitue ensuite les grandeurs electriques, mecaniques et les elements de conception disponibles.",
+            color=COLORS["GAXD"],
+            font_size="12sp",
+            size_hint_y=None,
+            height=36,
+            halign="left",
+            valign="middle",
+        )
+        power_hint.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        power_col.add_widget(power_hint)
+        entry_grid.add_widget(power_col)
 
-        arch_card = PremiumCard(title="Architecture moteur", size_hint_y=None, height=120)
+        method_col = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=176)
+        method_col.add_widget(self._build_summary_chip("Mode de calcul", "Strict et multi-composants"))
+        method_col.add_widget(self._build_summary_chip("Carburant", "Multi-carburant, dimensionne sur le pire cas calculable"))
+        method_col.add_widget(self._build_summary_chip("Architecture", "Selectionnee par calcul selon puissance et contraintes"))
+        method_col.add_widget(self._build_summary_chip("Livraison", "Tableau de bord, fiches, PDF, JSON et BDD"))
+        entry_grid.add_widget(method_col)
+        entry_card.add_widget(entry_grid)
+        page.add_widget(entry_card)
+
+        arch_card = PremiumCard(title="Strategie de choix automatique", size_hint_y=None, height=142)
         arch_info = Label(
-            text="Definie par calcul. Le backend compare les architectures autorisees et retient la solution coherente avec la puissance, le gabarit et les contraintes fournies.",
+            text="Le backend compare les architectures autorisees, evalue le pire carburant dimensionnant et retient la solution coherente avec la puissance, la chaine electrique et les contraintes que tu fournis.",
             color=COLORS["GAXD"],
             font_size="14sp",
             halign="left",
@@ -905,10 +1010,10 @@ class AutoConfigScreen(Screen):
         arch_card.add_widget(arch_info)
         page.add_widget(arch_card)
 
-        param_card = PremiumCard(title="Contraintes moteur optionnelles", size_hint_y=None)
+        param_card = PremiumCard(title="Contraintes optionnelles", size_hint_y=None)
         param_card.bind(minimum_height=param_card.setter("height"))
         intro = Label(
-            text="Ces champs servent de contraintes ou d'objectifs si tu les connais. Laisse vide pour eviter toute hypothese imposee.",
+            text="Renseigne seulement ce qui est deja connu ou impose par ton cahier des charges. Laisse vide pour que le calcul reste ouvert.",
             color=COLORS["GAXD"],
             font_size="13sp",
             size_hint_y=None,
@@ -919,7 +1024,7 @@ class AutoConfigScreen(Screen):
         intro.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
         param_card.add_widget(intro)
 
-        param_grid = GridLayout(cols=2, spacing=[20, 10], size_hint_y=None)
+        param_grid = GridLayout(cols=2, spacing=[24, 12], size_hint_y=None)
         param_grid.bind(minimum_height=param_grid.setter("height"))
 
         def _lbl(txt):
@@ -952,31 +1057,126 @@ class AutoConfigScreen(Screen):
 
         param_card.add_widget(param_grid)
 
-        fuel_row = BoxLayout(size_hint_y=None, height=74, spacing=12)
-        fuel_row.add_widget(Label(text="Carburant :", color=COLORS["GAXD"],
-                                   font_size="14sp", size_hint_x=0.22))
-        fuel_note = Label(
-            text="Mode multi-carburant actif. Le dimensionnement retient le pire carburant calculable et signale aussi le meilleur cas.",
-            color=COLORS["BF"],
-            font_size="14sp",
-            halign="left",
-            valign="middle",
-        )
-        fuel_note.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        fuel_row.add_widget(fuel_note)
-        param_card.add_widget(fuel_row)
+        note_grid = GridLayout(cols=2, spacing=[18, 12], size_hint_y=None, height=94)
+        note_grid.add_widget(self._build_note_panel(
+            "Carburant",
+            "Mode multi-carburant actif. Le dimensionnement retient le pire carburant calculable et signale aussi le meilleur cas.",
+        ))
+        note_grid.add_widget(self._build_note_panel(
+            "Resultat attendu",
+            "Le premier ecran de sortie doit t'expliquer ce qui a ete calcule, ce qui reste conditionne a des donnees fines, et quels composants sont deja exploitables.",
+        ))
+        param_card.add_widget(note_grid)
         page.add_widget(param_card)
 
         self.err = Label(text="", color=COLORS["RF"], font_size="13sp",
                          size_hint_y=None, height=22)
         page.add_widget(self.err)
 
-        self.gen_btn = ModernButton(text="GENERER LE SYSTEME", size_hint_y=None, height=64)
+        self.gen_btn = ModernButton(text="LANCER LE DIMENSIONNEMENT", size_hint_y=None, height=66)
         self.gen_btn.bind(on_press=self.launch_generation)
         page.add_widget(self.gen_btn)
 
         root.add_widget(page)
         self.add_widget(root)
+
+    def _build_home_info_card(self, title: str, lines):
+        card = BoxLayout(orientation="vertical", padding=[14, 14], spacing=8)
+        with card.canvas.before:
+            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.92)
+            card._bg = RoundedRectangle(pos=card.pos, size=card.size, radius=[16])
+        card.bind(pos=lambda inst, *_: setattr(inst._bg, "pos", inst.pos))
+        card.bind(size=lambda inst, *_: setattr(inst._bg, "size", inst.size))
+
+        title_lbl = Label(
+            text=title,
+            color=COLORS["BF"],
+            bold=True,
+            font_size="14sp",
+            size_hint_y=None,
+            height=26,
+            halign="left",
+            valign="middle",
+        )
+        title_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        card.add_widget(title_lbl)
+        for line in lines:
+            row = Label(
+                text=f"• {line}",
+                color=COLORS["GAXD"],
+                font_size="13sp",
+                size_hint_y=None,
+                height=24,
+                halign="left",
+                valign="middle",
+            )
+            row.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+            card.add_widget(row)
+        return card
+
+    def _build_summary_chip(self, label_text: str, value_text: str):
+        row = BoxLayout(orientation="vertical", padding=[14, 12], spacing=4, size_hint_y=None, height=38)
+        with row.canvas.before:
+            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.92)
+            row._bg = RoundedRectangle(pos=row.pos, size=row.size, radius=[14])
+        row.bind(pos=lambda inst, *_: setattr(inst._bg, "pos", inst.pos))
+        row.bind(size=lambda inst, *_: setattr(inst._bg, "size", inst.size))
+
+        top = Label(
+            text=label_text.upper(),
+            color=COLORS["BA"],
+            font_size="11sp",
+            size_hint_y=None,
+            height=16,
+            halign="left",
+            valign="middle",
+        )
+        top.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        row.add_widget(top)
+        val = Label(
+            text=value_text,
+            color=COLORS["BF"],
+            font_size="13sp",
+            bold=True,
+            size_hint_y=None,
+            height=20,
+            halign="left",
+            valign="middle",
+        )
+        val.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        row.add_widget(val)
+        row.height = 62
+        return row
+
+    def _build_note_panel(self, title: str, body: str):
+        panel = BoxLayout(orientation="vertical", padding=[14, 12], spacing=6)
+        with panel.canvas.before:
+            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.92)
+            panel._bg = RoundedRectangle(pos=panel.pos, size=panel.size, radius=[16])
+        panel.bind(pos=lambda inst, *_: setattr(inst._bg, "pos", inst.pos))
+        panel.bind(size=lambda inst, *_: setattr(inst._bg, "size", inst.size))
+        title_lbl = Label(
+            text=title,
+            color=COLORS["BF"],
+            bold=True,
+            font_size="14sp",
+            size_hint_y=None,
+            height=22,
+            halign="left",
+            valign="middle",
+        )
+        title_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        panel.add_widget(title_lbl)
+        body_lbl = Label(
+            text=body,
+            color=COLORS["GAXD"],
+            font_size="13sp",
+            halign="left",
+            valign="middle",
+        )
+        body_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        panel.add_widget(body_lbl)
+        return panel
 
     def on_enter(self, *args):
         Clock.schedule_once(lambda dt: setattr(self.power_input, "focus", True), 0)
