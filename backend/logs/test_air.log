@@ -1,14 +1,14 @@
-2026-05-15 22:59:25,967 - INFO - Starting test_composition
-2026-05-15 22:59:25,968 - INFO - RESULT - test_composition: SUCCESS 
-2026-05-15 22:59:25,971 - INFO - Starting test_altitude_conversions
-2026-05-15 22:59:25,971 - INFO - RESULT - test_altitude_conversions: SUCCESS 
-2026-05-15 22:59:25,974 - INFO - Starting test_isa_model
-2026-05-15 22:59:25,975 - INFO - RESULT - test_isa_model: SUCCESS 
-2026-05-15 22:59:25,977 - INFO - Starting test_humidity
-2026-05-15 22:59:25,978 - INFO - RESULT - test_humidity: SUCCESS 
-2026-05-15 22:59:25,980 - INFO - Starting test_fluid_properties
-2026-05-15 22:59:25,980 - INFO - RESULT - test_fluid_properties: SUCCESS 
-2026-05-15 22:59:25,982 - INFO - Starting test_air_state
-2026-05-15 22:59:25,982 - INFO - RESULT - test_air_state: SUCCESS 
-2026-05-15 22:59:25,985 - INFO - Starting test_inversions
-2026-05-15 22:59:25,985 - INFO - RESULT - test_inversions: SUCCESS 
+2026-05-15 23:12:48,745 - INFO - Starting test_composition
+2026-05-15 23:12:48,746 - INFO - RESULT - test_composition: SUCCESS 
+2026-05-15 23:12:48,750 - INFO - Starting test_altitude_conversions
+2026-05-15 23:12:48,750 - INFO - RESULT - test_altitude_conversions: SUCCESS 
+2026-05-15 23:12:48,755 - INFO - Starting test_isa_model
+2026-05-15 23:12:48,755 - INFO - RESULT - test_isa_model: SUCCESS 
+2026-05-15 23:12:48,757 - INFO - Starting test_humidity
+2026-05-15 23:12:48,758 - INFO - RESULT - test_humidity: SUCCESS 
+2026-05-15 23:12:48,761 - INFO - Starting test_fluid_properties
+2026-05-15 23:12:48,761 - INFO - RESULT - test_fluid_properties: SUCCESS 
+2026-05-15 23:12:48,764 - INFO - Starting test_air_state
+2026-05-15 23:12:48,764 - INFO - RESULT - test_air_state: SUCCESS 
+2026-05-15 23:12:48,768 - INFO - Starting test_inversions
+2026-05-15 23:12:48,769 - INFO - RESULT - test_inversions: SUCCESS 

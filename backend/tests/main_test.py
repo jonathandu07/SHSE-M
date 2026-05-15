@@ -192,8 +192,134 @@ def test_derive_chain_energy_targets_without_beta_keeps_non_intermittent_power(m
         alternateur=FakeAlternator(),
     )
 
-    assert bloc["puissance_bus_dc_instantanee_w"] == pytest.approx(bloc["puissance_bus_dc_totale_w"])
+    assert bloc["puissance_bus_dc_instantanee_w"] is None
     assert bloc["fraction_temps_generation_beta"] is None
+    assert any(item["nom"] == "puissance_bus_dc_instantanee_w" for item in bloc["inconnues"]["partielles"])
+
+
+def test_main_recharge_inconnue_non_remplacee(main_mod):
+    class FakeMotor:
+        rendement_moteur = 0.92
+        pertes_fixes_w = 500.0
+        tension_bus_v = 400.0
+
+    class FakeBattery:
+        tension_nominale_v = 400.0
+        tension_charge_v = 420.0
+        rendement_charge = None
+        puissance_charge_kw = None
+
+    class FakeAlternator:
+        rendement_alternateur_impose = 0.95
+
+    bloc = main_mod._derive_chain_energy_targets(
+        puissance_traction_kw=100.0,
+        production_electrique_sortie_w=None,
+        puissance_bus_dc_w=None,
+        puissance_auxiliaire_w=5000.0,
+        energie_utile_imposee_kwh=20.0,
+        temps_charge_cible_h=1.0,
+        charger_batterie=True,
+        tension_bus_dc_v=420.0,
+        rendement_liaison_meca_alt=0.97,
+        rendement_boite=0.96,
+        fraction_temps_generation_beta=0.5,
+        moteur_electrique=FakeMotor(),
+        batterie=FakeBattery(),
+        alternateur=FakeAlternator(),
+    )
+
+    assert bloc["puissance_recharge_batterie_w"] is None
+    assert bloc["puissance_bus_dc_totale_w"] is None
+    assert any(item["nom"] == "puissance_recharge_batterie_w" for item in bloc["inconnues"]["partielles"])
+    assert any(item["nom"] == "puissance_bus_dc_totale_w" for item in bloc["inconnues"]["partielles"])
+
+
+def test_main_rendement_mecanique_absent(main_mod):
+    class FakeMotor:
+        rendement_moteur = 0.92
+        pertes_fixes_w = 500.0
+        tension_bus_v = 400.0
+
+    class FakeBattery:
+        rendement_charge = 0.90
+        puissance_charge_kw = 30.0
+        tension_nominale_v = 400.0
+        tension_charge_v = 420.0
+
+    class FakeAlternator:
+        rendement_alternateur_impose = 0.95
+
+    bloc = main_mod._derive_chain_energy_targets(
+        puissance_traction_kw=100.0,
+        production_electrique_sortie_w=None,
+        puissance_bus_dc_w=None,
+        puissance_auxiliaire_w=5000.0,
+        energie_utile_imposee_kwh=20.0,
+        temps_charge_cible_h=1.0,
+        charger_batterie=True,
+        tension_bus_dc_v=420.0,
+        rendement_liaison_meca_alt=None,
+        rendement_boite=None,
+        fraction_temps_generation_beta=0.5,
+        moteur_electrique=FakeMotor(),
+        batterie=FakeBattery(),
+        alternateur=FakeAlternator(),
+    )
+
+    assert bloc["rendement_chaine_mecanique"] is None
+    assert bloc["puissance_moteur_thermique_requise_w"] is None
+    assert any(item["nom"] == "rendement_chaine_mecanique" for item in bloc["inconnues"]["partielles"])
+
+
+def test_main_puissance_sortie_normalisee(main_mod):
+    if main_mod.normaliser_puissance is None:
+        pytest.skip("normaliser_puissance indisponible")
+
+    kw = main_mod.normaliser_puissance(100.0, "kw")
+    ch = main_mod.normaliser_puissance(136.0, "ch")
+
+    assert kw["valeur_entree"] == pytest.approx(100.0)
+    assert kw["unite_entree"] == "kw"
+    assert kw["puissance_w"] == pytest.approx(100000.0)
+    assert ch["unite_entree"] == "ch"
+    assert ch["puissance_w"] > 0.0
+
+
+def test_main_beta_sans_invention(main_mod):
+    class FakeMotor:
+        rendement_moteur = 0.92
+        pertes_fixes_w = 500.0
+        tension_bus_v = 400.0
+
+    class FakeBattery:
+        rendement_charge = 0.90
+        puissance_charge_kw = 30.0
+        tension_nominale_v = 400.0
+        tension_charge_v = 420.0
+
+    class FakeAlternator:
+        rendement_alternateur_impose = 0.95
+
+    bloc = main_mod._derive_chain_energy_targets(
+        puissance_traction_kw=100.0,
+        production_electrique_sortie_w=None,
+        puissance_bus_dc_w=None,
+        puissance_auxiliaire_w=5000.0,
+        energie_utile_imposee_kwh=20.0,
+        temps_charge_cible_h=1.0,
+        charger_batterie=True,
+        tension_bus_dc_v=420.0,
+        rendement_liaison_meca_alt=0.97,
+        rendement_boite=0.96,
+        fraction_temps_generation_beta=None,
+        moteur_electrique=FakeMotor(),
+        batterie=FakeBattery(),
+        alternateur=FakeAlternator(),
+    )
+
+    assert bloc["puissance_bus_dc_instantanee_w"] is None
+    assert any(item["nom"] == "puissance_bus_dc_instantanee_w" for item in bloc["inconnues"]["partielles"])
 
 
 def test_dimensionner_systeme_shsem_derives_bus_energy_and_engine_power_from_chain(monkeypatch, main_mod):
