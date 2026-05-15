@@ -406,26 +406,26 @@ def calculer_c_rate(i_charge_a: float, capacite_ah: float) -> float:
     """
     C = I / Cap
     """
-    verifier_positif(capacite_ah=capacite_ah)
+    verifier_positif(capacite_ah=capacite_ah, i_charge_a=i_charge_a)
     return i_charge_a / capacite_ah
 
 
-def facteur_usure_arrhenius(t_k: float, ea_j_mol: float, r_gaz: float = 8.314462) -> float:
+def facteur_usure_arrhenius(t_k: float, ea_j_mol: float, r_gaz_j_mol_k: float) -> float:
     """
     k = exp(-Ea / (R * T))
     Formule brute d'activation thermique.
     """
-    verifier_positif(t_k=t_k, ea_j_mol=ea_j_mol, r_gaz=r_gaz)
-    return math.exp(-ea_j_mol / (r_gaz * t_k))
+    verifier_positif(t_k=t_k, ea_j_mol=ea_j_mol, r_gaz_j_mol_k=r_gaz_j_mol_k)
+    return math.exp(-ea_j_mol / (r_gaz_j_mol_k * t_k))
 
 
-def facteur_usure_relatif(t_k: float, t_ref_k: float, ea_j_mol: float, r_gaz: float = 8.314462) -> float:
+def facteur_usure_relatif(t_k: float, t_ref_k: float, ea_j_mol: float, r_gaz_j_mol_k: float) -> float:
     """
     k_rel = exp( (Ea/R) * (1/T_ref - 1/T) )
     Accélération de la dégradation par rapport à une température de référence.
     """
-    verifier_positif(t_k=t_k, t_ref_k=t_ref_k, ea_j_mol=ea_j_mol, r_gaz=r_gaz)
-    return math.exp((ea_j_mol / r_gaz) * (1 / t_ref_k - 1 / t_k))
+    verifier_positif(t_k=t_k, t_ref_k=t_ref_k, ea_j_mol=ea_j_mol, r_gaz_j_mol_k=r_gaz_j_mol_k)
+    return math.exp((ea_j_mol / r_gaz_j_mol_k) * (1 / t_ref_k - 1 / t_k))
 
 
 # ==========================================================
@@ -474,7 +474,7 @@ def reponse_transitoire_premier_ordre(val_init: float, val_cible: float, t_s: fl
     """
     verifier_positif(tau_s=tau_s)
     if t_s < 0:
-        return val_init
+        raise ValueError(f"Le temps t_s doit être positif (reçu: {t_s}).")
     return val_init + (val_cible - val_init) * (1 - math.exp(-t_s / tau_s))
 
 
