@@ -56,8 +56,10 @@ from gui.pieces_view import PieceLibraryScreen, PieceDetailScreen
 # Backend connection (strict)
 try:
     from backend.main import dimensionner_systeme_shsem
+    from backend.modules.systeme.analyse_puissance_sortie import normaliser_puissance
 except ImportError:
     dimensionner_systeme_shsem = None
+    normaliser_puissance = None
 
 def fmt_val(v, unit=""):
     if v is None:
@@ -254,24 +256,75 @@ class AutoLoadingScreen(Screen):
     def run_sim(self, dt): threading.Thread(target=self.do_math, daemon=True).start()
 
     def do_math(self):
-        """Calls the backend dimensioning engine without local inventions."""
+        """
+        Exécute le cycle de calcul sans aucune invention locale.
+        Seules les données explicitement connues sont transmises au backend.
+        """
         app = App.get_running_app()
         params = app.engine_params
 
-        if not dimensionner_systeme_shsem:
-            self.on_error("Backend indisponible (main.py non trouvé)")
+        if not dimensionner_systeme_shsem or not normaliser_puissance:
+            self.on_error("Backend ou module de normalisation indisponible.")
             return
 
         try:
-            # Backend call with strict parameters
-            report = dimensionner_systeme_shsem(**params)
+            # 1. Normalisation de la puissance via le backend (Zéro Invention)
+            p_val = params.get("puissance_entree")
+            p_unit = params.get("unite_entree")
+            
+            if p_val is None or not p_unit:
+                raise ValueError("Cible de puissance ou unité manquante.")
+            
+            # Appel à la fonction officielle du backend
+            norm = normaliser_puissance(p_val, p_unit)
+            p_kw = norm.get("kw")
+            
+            if p_kw is None:
+                raise ValueError(f"Échec de normalisation backend pour l'unité {p_unit}.")
+
+            # 2. Préparation du payload (Mapping strict)
+            # On ne transmet QUE ce qui est explicitement connu.
+            backend_args = {
+                "puissance_traction_kw": p_kw,
+            }
+            
+            # Architecture forcée (uniquement si issue d'un choix explicite)
+            arch = params.get("architecture")
+            if arch:
+                backend_args["architecture_moteur"] = arch
+                
+            # Nombre de cylindres
+            n_cyl = params.get("nombre_cylindres")
+            if n_cyl:
+                backend_args["nombre_cylindres"] = n_cyl
+
+            # Définition moteur (historique des choix)
+            mt_def = params.get("moteur_thermique_definition")
+            if mt_def:
+                backend_args["moteur_thermique_definition"] = mt_def
+            
+            # Géométrie (Conversion mm -> m, sans invention)
+            al_mm = params.get("alesage_mm")
+            if al_mm:
+                backend_args["alesage_m"] = al_mm / 1000.0
+                
+            co_mm = params.get("course_mm")
+            if co_mm:
+                backend_args["course_m"] = co_mm / 1000.0
+
+            # 3. Appel au noyau physique
+            # Note : On ne filtre pas les None ici car on a construit le dict 
+            # de façon à ne contenir que les clés présentes.
+            report = dimensionner_systeme_shsem(**backend_args)
             
             if not report or "erreur" in report:
-                self.on_error(report.get("erreur", "Rapport vide"))
+                self.on_error(report.get("erreur", "Rapport vide ou erreur inconnue"))
                 return
 
-            # Storage: Raw first, then Adapt
+            # 4. Stockage et Adaptation
+            # On conserve TOUJOURS le rapport brut pour inspection.
             app.raw_backend_report = report
+            # L'adaptation est purement visuelle pour l'UI.
             app.ui_report = adapt_backend_report(report)
             
             # Routage vers choix d'architecture si non fige
