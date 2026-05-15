@@ -2218,17 +2218,158 @@ class OptimisationSysteme:
         if P_design is not None and P_design > 0.0 and P_frott_total is not None:
             penalite_pertes = 100.0 * P_frott_total / P_design
 
-        score_global = score_coherence
+        eta_motor = _first_finite(
+            _dig(rep_me, "performances", "rendement_moteur"),
+            _dig(rep_me, "resultats", "rendement_moteur"),
+            _get(self.moteur_electrique, "rendement_moteur"),
+        )
+        eta_alt = _first_finite(
+            _dig(rep_alt, "alternateur", "resultats", "eta_total"),
+            _dig(rep_alt, "resultats", "eta_total"),
+            _get(self.alternateur, "rendement_alternateur_impose"),
+        )
+        eta_charge = _first_finite(
+            _dig(rep_batt, "entrees", "rendement_charge"),
+            _get(self.batterie, "rendement_charge"),
+        )
+        eta_liaison = _first_finite(
+            _dig(rep_sys, "entrees", "rendement_liaison_meca_alt"),
+            _dig(rep_sys, "entrees", "rendement_transmission"),
+            _get(self.moteur_electrique, "rendement_transmission"),
+        )
+        eta_boite = _first_finite(_dig(rep_sys, "entrees", "rendement_boite"))
+
+        etas_connus = [v for v in (eta_motor, eta_alt, eta_charge, eta_liaison, eta_boite) if v is not None and 0.0 < v <= 1.0]
+        rendement_chaine_estime = None
+        if etas_connus:
+            rendement_chaine_estime = 1.0
+            for eta in etas_connus:
+                rendement_chaine_estime *= float(eta)
+
+        score_efficience = score_coherence
+        if rendement_chaine_estime is not None:
+            score_efficience = 100.0 * rendement_chaine_estime
         if penalite_pertes is not None:
-            score_global = max(0.0, score_global - min(50.0, penalite_pertes))
+            score_efficience = max(0.0, score_efficience - min(35.0, penalite_pertes))
+        score_efficience = max(0.0, min(100.0, score_efficience))
+
+        mechanical_alerts = sum(
+            len(_safe_dict(rapport.get("alertes")).get(cat, []) or [])
+            for cat in ("rdm", "interfaces", "assemblage", "interferences")
+        )
+        incoherences_critiques = 0
+        for value in coh.values():
+            if isinstance(value, dict):
+                for flag_name in ("coherent", "coherent_global", "coherent_couvercle", "coherent_vis"):
+                    if value.get(flag_name) is False:
+                        incoherences_critiques += 1
+
+        score_fiabilite_mecanique = 100.0 - (10.0 * mechanical_alerts) - (12.0 * incoherences_critiques)
+        for margin in (
+            _safe_float(ext_ap.get("marge_sigma_vm")),
+            _safe_float(ext_vb.get("marge_von_mises")),
+        ):
+            if margin is not None and margin < 0.0:
+                score_fiabilite_mecanique -= min(25.0, abs(margin) * 100.0)
+        score_fiabilite_mecanique = max(0.0, min(100.0, score_fiabilite_mecanique))
+
+        c_rate_charge = _first_finite(
+            _dig(rep_batt, "electrique", "C_rate_charge_estime"),
+            _dig(rep_batt, "dimensionnement_fin", "rapport", "rapports_charge", "c_rate_charge"),
+        )
+        c_rate_decharge = _first_finite(
+            _dig(rep_batt, "electrique", "C_rate_decharge_estime"),
+            _dig(rep_batt, "dimensionnement_fin", "rapport", "rapports_decharge", "c_rate_decharge"),
+        )
+        fenetre_soc = _first_finite(
+            _dig(rep_batt, "entrees", "fenetre_soc"),
+            _get(self.batterie, "fenetre_soc"),
+        )
+
+        score_duree_vie_batterie = 100.0
+        if c_rate_charge is not None:
+            if c_rate_charge > 0.5:
+                score_duree_vie_batterie -= min(35.0, (c_rate_charge - 0.5) * 22.0)
+        else:
+            score_duree_vie_batterie -= 10.0
+        if c_rate_decharge is not None:
+            if c_rate_decharge > 1.0:
+                score_duree_vie_batterie -= min(25.0, (c_rate_decharge - 1.0) * 12.0)
+        else:
+            score_duree_vie_batterie -= 8.0
+        if fenetre_soc is not None and fenetre_soc > 0.80:
+            score_duree_vie_batterie -= min(15.0, (fenetre_soc - 0.80) * 100.0)
+        score_duree_vie_batterie = max(0.0, min(100.0, score_duree_vie_batterie))
+
+        courant_bus = _first_finite(
+            _dig(rep_sys, "liaisons", "bus_dc", "courant_nominal_a"),
+            _dig(rep_sys, "liaisons", "bus_dc", "courant_bus_dc_a"),
+            _dig(rep_alt, "entrees", "courant_bus_dc_a"),
+            _dig(rep_alt, "bus_dc", "courant_bus_dc_A"),
+        )
+        courant_charge = _first_finite(
+            _dig(rep_batt, "charge", "courant_charge_A"),
+            _dig(rep_batt, "dimensionnement_fin", "rapport", "rapports_charge", "courant_charge_pack_a"),
+        )
+        puissance_charge_reelle = _first_finite(
+            _dig(rep_batt, "optimisation", "puissance_charge_reelle_kw"),
+            _dig(rep_batt, "charge", "puissance_charge_requise_kw"),
+        )
+        puissance_charge_max_autorisee = _first_finite(
+            _dig(rep_batt, "securite_cellules", "puissance_charge_max_autorisee_kw"),
+            _dig(rep_batt, "bms", "resultats", "puissance_charge_max_securisee_kw"),
+        )
+        temperature_alt = _first_finite(
+            _dig(rep_alt, "alternateur", "thermique", "temperature_totale_c"),
+            _dig(rep_alt, "thermique", "temperature_totale_c"),
+        )
+        temperature_alt_max = _first_finite(_get(self.alternateur, "temperature_max_admissible_c"))
+
+        score_conditions_utilisation = 100.0
+        if puissance_charge_reelle is not None and puissance_charge_max_autorisee is not None and puissance_charge_max_autorisee > 0.0:
+            ratio_charge = puissance_charge_reelle / puissance_charge_max_autorisee
+            if ratio_charge > 1.0:
+                score_conditions_utilisation -= min(30.0, (ratio_charge - 1.0) * 60.0)
+            elif ratio_charge > 0.85:
+                score_conditions_utilisation -= min(12.0, (ratio_charge - 0.85) * 40.0)
+        if c_rate_charge is not None and c_rate_charge > 1.0:
+            score_conditions_utilisation -= min(18.0, (c_rate_charge - 1.0) * 15.0)
+        if temperature_alt is not None and temperature_alt_max is not None and temperature_alt_max > 0.0:
+            ratio_temp = temperature_alt / temperature_alt_max
+            if ratio_temp > 1.0:
+                score_conditions_utilisation -= min(30.0, (ratio_temp - 1.0) * 80.0)
+            elif ratio_temp > 0.90:
+                score_conditions_utilisation -= min(10.0, (ratio_temp - 0.90) * 60.0)
+        if courant_bus is None and courant_charge is None:
+            score_conditions_utilisation -= 8.0
+        score_conditions_utilisation = max(0.0, min(100.0, score_conditions_utilisation))
+
+        score_global = (
+            0.30 * score_coherence
+            + 0.25 * score_efficience
+            + 0.25 * score_fiabilite_mecanique
+            + 0.12 * score_duree_vie_batterie
+            + 0.08 * score_conditions_utilisation
+        )
+        score_global = max(0.0, min(100.0, score_global))
 
         rapport["synthese_optimisation"] = {
             "score_coherence_100": score_coherence,
+            "score_efficience_energetique_100": score_efficience,
+            "score_fiabilite_mecanique_100": score_fiabilite_mecanique,
+            "score_duree_vie_batterie_100": score_duree_vie_batterie,
+            "score_conditions_utilisation_100": score_conditions_utilisation,
+            "rendement_chaine_estime": rendement_chaine_estime,
             "penalite_pertes_pct_sur_bus_dc": penalite_pertes,
             "score_global_100": score_global,
             "solidworks_ready_systeme": ext_sys.get("solidworks_ready"),
             "nombre_alertes": nb_alertes,
             "nombre_inconnues": nb_inconnues,
+            "courant_bus_nominal_a": courant_bus,
+            "courant_charge_a": courant_charge,
+            "c_rate_charge_estime": c_rate_charge,
+            "c_rate_decharge_estime": c_rate_decharge,
+            "fenetre_soc": fenetre_soc,
             "systeme_coherent": (score_coherence >= 70.0 and nb_alertes == 0),
         }
 

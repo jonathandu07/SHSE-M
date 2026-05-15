@@ -97,6 +97,12 @@ def test_optimisation_systeme_accepts_named_args_and_backend_reports():
         assert analyse["extractions"]["systeme_complet"]["alesage_m"] == pytest.approx(0.13)
         assert analyse["extractions"]["piston"]["diametre_exterieur_m"] == pytest.approx(0.1295)
         assert "synthese_optimisation" in analyse
+        synthese = analyse["synthese_optimisation"]
+        assert "score_efficience_energetique_100" in synthese
+        assert "score_fiabilite_mecanique_100" in synthese
+        assert "score_duree_vie_batterie_100" in synthese
+        assert "score_conditions_utilisation_100" in synthese
+        assert 0.0 <= synthese["score_global_100"] <= 100.0
         log_test_result(
             "test_optimisation_systeme_accepts_named_args_and_backend_reports",
             "SUCCESS",
