@@ -881,202 +881,68 @@ class AutoConfigScreen(Screen):
         self.bind(pos=self._update_bg, size=self._update_bg)
 
         root = ScrollView(do_scroll_x=False)
-        page = BoxLayout(orientation="vertical", padding=[54, 28, 54, 36], spacing=18, size_hint_y=None)
+        page = BoxLayout(orientation="vertical", padding=[80, 60], spacing=30, size_hint_y=None)
         page.bind(minimum_height=page.setter("height"))
 
-        page.add_widget(_build_brand_header(height=96, title_size="38sp", subtitle_size="17sp"))
+        page.add_widget(_build_brand_header(height=120, title_size="42sp", subtitle_size="18sp"))
 
-        intro_card = PremiumCard(title="Dimensionnement de la chaine complete", size_hint_y=None)
-        intro_card.bind(minimum_height=intro_card.setter("height"))
-
-        intro_top = BoxLayout(size_hint_y=None, height=44, spacing=14)
-        intro_title = Label(
-            text="Entree minimale : une puissance de sortie demandee. Sortie attendue : une chaine complete coherent​e, dimensionnee pour alimenter l'equivalent d'un moteur electrique cible.",
-            color=COLORS["BF"],
-            font_size="18sp",
-            bold=True,
-            halign="left",
-            valign="middle",
+        # Card de saisie minimaliste
+        input_card = PremiumCard(title="Dimensionnement de la chaine complete", size_hint_y=None, height=420)
+        input_card.padding = [40, 30]
+        
+        info = Label(
+            text="Saisis ton besoin de puissance. Le systeme calculera uniquement ce qui est physiquement determinable.",
+            color=COLORS["GAXD"], font_size="16sp", size_hint_y=None, height=40, halign="left"
         )
-        intro_title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        intro_top.add_widget(intro_title)
-        intro_card.add_widget(intro_top)
+        info.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        input_card.add_widget(info)
 
-        intro_body = Label(
-            text="Le calcul organise la chaine batterie, alternateur, boite a crabots, puis moteur thermique thermo-hybride. Il reste strict : rien n'est invente sans loi physique, et chaque deduction doit etre justifiee par le modele.",
-            color=COLORS["GAXD"],
-            font_size="14sp",
-            size_hint_y=None,
-            height=52,
-            halign="left",
-            valign="middle",
-        )
-        intro_body.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        intro_card.add_widget(intro_body)
-
-        intro_grid = GridLayout(cols=3, spacing=[14, 14], size_hint_y=None, height=172)
-        intro_grid.add_widget(self._build_home_info_card(
-            "Ce que le calcul dimensionne",
-            [
-                "taille batterie et capacite de recharge",
-                "alternateur, courant et tension utiles",
-                "boite a crabots et chaine de rendement",
-                "moteur thermique, pieces et composants",
-            ],
-        ))
-        intro_grid.add_widget(self._build_home_info_card(
-            "Contraintes que tu peux imposer",
-            [
-                "geometrie deja imposee",
-                "regime nominal et niveaux de pression",
-                "objectif de rendement mecanique",
-                "cadre du dimensionnement systeme",
-            ],
-        ))
-        intro_grid.add_widget(self._build_home_info_card(
-            "Livrables produits",
-            [
-                "rapport systeme exploitable",
-                "inventaire pieces et composants",
-                "JSON et base de donnees locale",
-                "fiches PDF avec vues 2D, 3D et calculs",
-            ],
-        ))
-        intro_card.add_widget(intro_grid)
-        page.add_widget(intro_card)
-
-        entry_card = PremiumCard(title="Point de depart du besoin", size_hint_y=None)
-        entry_card.bind(minimum_height=entry_card.setter("height"))
-        entry_grid = GridLayout(cols=2, spacing=[18, 12], size_hint_y=None)
-        entry_grid.bind(minimum_height=entry_grid.setter("height"))
-
-        power_col = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=176)
-        power_title = Label(
-            text="Puissance de sortie demandee",
-            color=COLORS["BF"],
-            bold=True,
-            font_size="16sp",
-            size_hint_y=None,
-            height=28,
-            halign="left",
-            valign="middle",
-        )
-        power_title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        power_col.add_widget(power_title)
-        power_note = Label(
-            text="Saisis la puissance equivalente attendue en sortie. Exemple : un besoin correspondant a un moteur electrique de 100 ch ou 150 kW.",
-            color=COLORS["GAXD"],
-            font_size="13sp",
-            size_hint_y=None,
-            height=44,
-            halign="left",
-            valign="middle",
-        )
-        power_note.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        power_col.add_widget(power_note)
-        self.power_input = NeumorphicInput(text="150")
+        # Grille de saisie
+        form = GridLayout(cols=2, spacing=40, size_hint_y=None, height=180, padding=[0, 20])
+        
+        # Colonne Valeur
+        val_col = BoxLayout(orientation="vertical", spacing=10)
+        val_col.add_widget(Label(text="Puissance de sortie voulue", color=COLORS["BF"], bold=True, font_size="16sp", halign="left", size_hint_x=1))
+        self.power_input = NeumorphicInput(text="")
         self.power_input.hint_text = "Ex: 150"
-        power_col.add_widget(self.power_input)
-        power_hint = Label(
-            text="Unite : kW. A partir de cette cible, le backend dimensionne la batterie, l'alternateur, la boite a crabots et enfin le moteur thermique de recharge.",
-            color=COLORS["GAXD"],
-            font_size="12sp",
-            size_hint_y=None,
-            height=36,
-            halign="left",
-            valign="middle",
+        self.power_input.height = 60
+        val_col.add_widget(self.power_input)
+        form.add_widget(val_col)
+
+        # Colonne Unité
+        unit_col = BoxLayout(orientation="vertical", spacing=10)
+        unit_col.add_widget(Label(text="Unite", color=COLORS["BF"], bold=True, font_size="16sp", halign="left", size_hint_x=1))
+        
+        from kivy.uix.spinner import Spinner
+        self.unit_spinner = Spinner(
+            text="Choisir l'unite...",
+            values=("kW", "chevaux (ch)"),
+            size_hint_y=None, height=60,
+            background_color=COLORS["GW"],
+            color=COLORS["BF"],
+            sync_height=True
         )
-        power_hint.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        power_col.add_widget(power_hint)
-        entry_grid.add_widget(power_col)
+        unit_col.add_widget(self.unit_spinner)
+        form.add_widget(unit_col)
+        
+        input_card.add_widget(form)
 
-        method_col = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=176)
-        method_col.add_widget(self._build_summary_chip("Mode de calcul", "Dimensionnement strict de la chaine complete"))
-        method_col.add_widget(self._build_summary_chip("Carburant", "Multi-carburant, optimise mais borne par le pire cas"))
-        method_col.add_widget(self._build_summary_chip("Recharge", "Le moteur thermique vise une recharge rapide avec conso minimale"))
-        method_col.add_widget(self._build_summary_chip("Livraison", "Dashboard, fiches techniques, PDF, JSON et BDD"))
-        entry_grid.add_widget(method_col)
-        entry_card.add_widget(entry_grid)
-        page.add_widget(entry_card)
+        # Erreur
+        self.err = Label(text="", color=COLORS["RF"], font_size="14sp", size_hint_y=None, height=30)
+        input_card.add_widget(self.err)
 
-        arch_card = PremiumCard(title="Logique de dimensionnement systeme", size_hint_y=None, height=142)
-        arch_info = Label(
-            text="Le backend cherche l'equilibre entre puissance de sortie, taille batterie, vitesse de recharge, rendement de transmission, puissance alternateur et dimensionnement du moteur thermique thermo-hybride.",
-            color=COLORS["GAXD"],
-            font_size="14sp",
-            halign="left",
-            valign="middle",
-        )
-        arch_info.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        arch_card.add_widget(arch_info)
-        page.add_widget(arch_card)
-
-        param_card = PremiumCard(title="Contraintes techniques optionnelles", size_hint_y=None)
-        param_card.bind(minimum_height=param_card.setter("height"))
-        intro = Label(
-            text="Renseigne seulement ce qui est deja connu ou impose. Le calcul s'en sert pour fermer des inconnues, sans te forcer des hypotheses inutiles.",
-            color=COLORS["GAXD"],
-            font_size="13sp",
-            size_hint_y=None,
-            height=38,
-            halign="left",
-            valign="middle",
-        )
-        intro.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        param_card.add_widget(intro)
-
-        param_grid = GridLayout(cols=2, spacing=[24, 12], size_hint_y=None)
-        param_grid.bind(minimum_height=param_grid.setter("height"))
-
-        def _lbl(txt):
-            l = Label(text=txt, color=COLORS["GAXD"], font_size="13sp",
-                      size_hint_y=None, height=44, halign="right", valign="middle")
-            l.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
-            return l
-
-        def _inp(hint=""):
-            i = NeumorphicInput(text="")
-            i.size_hint_y = None
-            i.height = 52
-            i.font_size = "18sp"
-            i.hint_text = hint
-            return i
-
-        self._fields = {}
-        for lbl_txt, key in [
-            ("Alesage (mm)", "alesage_mm"),
-            ("Course (mm)", "course_mm"),
-            ("RPM nominal", "rpm_nominal"),
-            ("PME (bar)", "pme_bar"),
-            ("Pression max (bar)", "pression_max_bar"),
-            ("Rend. meca. cible", "rendement_meca"),
-        ]:
-            param_grid.add_widget(_lbl(lbl_txt))
-            inp = _inp("Optionnel")
-            self._fields[key] = inp
-            param_grid.add_widget(inp)
-
-        param_card.add_widget(param_grid)
-
-        note_grid = GridLayout(cols=2, spacing=[18, 12], size_hint_y=None, height=94)
-        note_grid.add_widget(self._build_note_panel(
-            "Carburant",
-            "Le systeme est multi-carburant. Le dimensionnement retient le pire carburant calculable pour rester robuste, tout en signalant le meilleur cas.",
-        ))
-        note_grid.add_widget(self._build_note_panel(
-            "Couplage systeme",
-            "La taille batterie, la puissance alternateur, la boite a crabots et le moteur thermique sont lies. Le calcul doit chercher un ensemble coherent, pas des organes isoles.",
-        ))
-        param_card.add_widget(note_grid)
-        page.add_widget(param_card)
-
-        self.err = Label(text="", color=COLORS["RF"], font_size="13sp",
-                         size_hint_y=None, height=22)
-        page.add_widget(self.err)
-
-        self.gen_btn = ModernButton(text="DIMENSIONNER LA CHAINE COMPLETE", size_hint_y=None, height=66)
+        # Bouton Lancer
+        self.gen_btn = ModernButton(text="LANCER LE DIMENSIONNEMENT", size_hint_y=None, height=80)
         self.gen_btn.bind(on_press=self.launch_generation)
-        page.add_widget(self.gen_btn)
+        input_card.add_widget(self.gen_btn)
+
+        page.add_widget(input_card)
+        
+        # Notes doctrine
+        notes = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=100)
+        notes.add_widget(Label(text="[b]REGLE ABSOLUE :[/b] Zero invention de donnees.", color=COLORS["BA"], markup=True, font_size="14sp"))
+        notes.add_widget(Label(text="Les inconnues et les donnees manquantes seront explicitement affichees.", color=COLORS["GAXD"], font_size="13sp"))
+        page.add_widget(notes)
 
         root.add_widget(page)
         self.add_widget(root)
