@@ -42,7 +42,7 @@ from kivy.graphics import Color, RoundedRectangle
 from kivy.core.window import Window
 from kivy.clock import Clock
 
-# Imports locaux
+# Imports locaux - UNIQUEMENT DEPUIS LES MODULES NEUTRES
 from gui.components import COLORS, ModernButton, PremiumCard, TechRow, NeumorphicInput
 from frontend.gui.viz_utils import get_viz_figure
 from frontend.gui.piece_connector import get_piece_instance
@@ -119,29 +119,15 @@ except Exception as e:
     print(f"[INFO] Matplotlib non disponible : {e}")
 
 # =========================
-# Composants Partages
-# =========================
-class ArchButton(Button):
-    def __init__(self, arch_name, **kwargs):
-        super().__init__(text=arch_name, **kwargs)
-        self.arch_name = arch_name
-        self.background_normal, self.background_down, self.background_color = "", "", (0,0,0,0)
-        self.bold, self.selected = True, False
-        with self.canvas.before:
-            self.bg_color_inst = Color(*COLORS["GF"])
-            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[12])
-        self.bind(pos=self._upd, size=self._upd)
-    def _upd(self, *a): self.rect.pos, self.rect.size = self.pos, self.size
-    def set_selected(self, sel: bool):
-        self.selected = sel
-        self.bg_color_inst.rgba = COLORS["BF"] if sel else COLORS["GF"]
-        self.color = COLORS["white"] if sel else COLORS["BF"]
-
-# =========================
 # Ecrans Principaux
 # =========================
 
 class AutoConfigScreen(Screen):
+    """
+    Page d'accueil minimalist.
+    Entree : Puissance + Unite.
+    Doctrine : Zero-Invention.
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         with self.canvas.before:
@@ -154,106 +140,133 @@ class AutoConfigScreen(Screen):
         page.bind(minimum_height=page.setter("height"))
         page.add_widget(_build_brand_header(height=120, title_size="42sp", subtitle_size="18sp"))
 
-        input_card = PremiumCard(title="Dimensionnement de la chaine complete", size_hint_y=None, height=420)
+        input_card = PremiumCard(title="Besoin Energetique", size_hint_y=None, height=420)
         input_card.padding = [40, 30]
         
-        info = Label(text="Saisis ton besoin de puissance.", color=COLORS["GAXD"], font_size="16sp", size_hint_y=None, height=40, halign="left")
+        info = Label(text="Saisis ton besoin de puissance pour lancer le dimensionnement.", 
+                     color=COLORS["GAXD"], font_size="16sp", size_hint_y=None, height=40, halign="left")
         info.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         input_card.add_widget(info)
 
         form = GridLayout(cols=2, spacing=40, size_hint_y=None, height=180, padding=[0, 20])
+        
+        # Colonne Puissance
         val_col = BoxLayout(orientation="vertical", spacing=10)
-        val_col.add_widget(Label(text="Puissance", color=COLORS["BF"], bold=True, font_size="16sp", halign="left"))
+        val_col.add_widget(Label(text="Puissance", color=COLORS["white"], bold=True, font_size="16sp", halign="left"))
         self.power_input = NeumorphicInput(text="")
-        self.power_input.height = 60
+        self.power_input.hint_text = "ex: 150"
         val_col.add_widget(self.power_input)
         form.add_widget(val_col)
 
+        # Colonne Unite (SANS VALEUR PAR DEFAUT)
         unit_col = BoxLayout(orientation="vertical", spacing=10)
-        unit_col.add_widget(Label(text="Unite", color=COLORS["BF"], bold=True, font_size="16sp", halign="left"))
-        self.unit_spinner = Spinner(text="Choisir l'unite...", values=("kW", "chevaux (ch)"), size_hint_y=None, height=60)
+        unit_col.add_widget(Label(text="Unite", color=COLORS["white"], bold=True, font_size="16sp", halign="left"))
+        self.unit_spinner = Spinner(
+            text="Choisir l'unite...", 
+            values=("kW", "chevaux (ch)"), 
+            size_hint_y=None, height=76,
+            background_color=(0.15, 0.17, 0.22, 1),
+            color=COLORS["white"]
+        )
         unit_col.add_widget(self.unit_spinner)
         form.add_widget(unit_col)
+        
         input_card.add_widget(form)
 
         self.err = Label(text="", color=COLORS["RF"], font_size="14sp", size_hint_y=None, height=30)
         input_card.add_widget(self.err)
+        
         self.gen_btn = ModernButton(text="LANCER LE CALCUL", size_hint_y=None, height=80)
         self.gen_btn.bind(on_press=self.launch_generation)
         input_card.add_widget(self.gen_btn)
-        page.add_widget(input_card)
         
+        page.add_widget(input_card)
         root.add_widget(page)
         self.add_widget(root)
 
     def on_enter(self, *args):
-        Clock.schedule_once(lambda dt: setattr(self.power_input, "focus", True), 0)
+        # Reset local
+        self.err.text = ""
+        Clock.schedule_once(lambda dt: setattr(self.power_input, "focus", True), 0.1)
+
     def _update_bg(self, *args): self.bg_rect.pos, self.bg_rect.size = self.pos, self.size
 
     def launch_generation(self, *_):
         txt_raw = (self.power_input.text or "").strip().replace(",", ".")
+        
+        # Validation Puissance
         try:
-            if not txt_raw: raise ValueError("Puissance manquante")
+            if not txt_raw: raise ValueError("Veuillez saisir une puissance.")
             val = float(txt_raw)
-            if val <= 0: raise ValueError("P > 0 requis")
+            if val <= 0: raise ValueError("La puissance doit être supérieure à zéro.")
         except Exception as e:
-            self.err.text = f"Erreur : {e}"
+            self.err.text = str(e)
             return
 
+        # Validation Unite (STRICTE)
         unit_text = self.unit_spinner.text
         if unit_text == "Choisir l'unite...":
-            self.err.text = "Erreur : Choisir une unite."
+            self.err.text = "Veuillez choisir une unite (kW ou chevaux)."
             return
+            
         unite = "kw" if "kW" in unit_text else "ch"
         
         app = App.get_running_app()
         app.target_power = str(val)
+        # On initialise les engine_params UNIQUEMENT avec ce que l'on sait.
+        # Aucune architecture, aucun alesage, aucune course n'est inventee ici.
         app.engine_params = {
-            "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
-            "temps_moteur": 4,
-            "mode_carburant": "multi_carburant",
-            "carburants_autorises": ["diesel", "essence", "ethanol", "methanol", "gpl", "gnv", "hydrogene"],
             "puissance_entree": val,
-            "unite_entree": unite
+            "unite_entree": unite,
+            "mode_carburant": "multi_carburant",
+            "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
+            "temps_moteur": 4
         }
         self.manager.current = "loading"
 
 
 class AutoLoadingScreen(Screen):
+    """
+    Flux de calcul backend.
+    Doctrine : Le front est un miroir passif.
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         layout = BoxLayout(orientation="vertical", padding=100, spacing=20)
-        self.label = Label(text="Séquençage des calculs physiques...", font_size="24sp", color=COLORS["BF"])
-        self.sub_label = Label(text="", font_size="14sp", color=COLORS["BA"])
+        self.label = Label(text="Séquençage des calculs physiques...", font_size="24sp", color=COLORS["BA"])
+        self.sub_label = Label(text="", font_size="14sp", color=COLORS["GAXD"])
         layout.add_widget(self.label)
         layout.add_widget(self.sub_label)
         self.add_widget(layout)
 
-    def on_enter(self): Clock.schedule_once(self.run_sim, 0.15)
+    def on_enter(self): 
+        self.sub_label.text = "Initialisation du moteur de calcul..."
+        Clock.schedule_once(self.run_sim, 0.2)
+
     def run_sim(self, dt): threading.Thread(target=self.do_math, daemon=True).start()
 
     def do_math(self):
         app = App.get_running_app()
         ep = app.engine_params or {}
         p_target = float(app.target_power)
+        
         Clock.schedule_once(lambda dt: setattr(self.label, "text", "Calcul de la chaine energetique..."))
         
         try:
             from backend.main import dimensionner_systeme_shsem
             from backend.modules.systeme.database import SecureDatabase
+            
             db = SecureDatabase(db_path=os.path.join(BASE_DIR, "backend", "shse_technical_data.db"),
                                 key_path=os.path.join(BASE_DIR, "backend", "secret.key"))
+            
             report_name = f"gui_{str(p_target).replace('.', 'p')}kw"
             
+            # Appel backend - Le backend gere l'enveloppe de robustesse et l'exploration
             report = dimensionner_systeme_shsem(
-                puissance_traction_kw=p_target, charger_batterie=True,
-                vitesse_moteur_thermique_rpm=ep.get("rpm_nominal"),
-                pme_pa=ep.get("pme_pa"), pression_max_pa=ep.get("pression_max_pa"),
-                rendement_mecanique_cible_min=ep.get("rendement_mecanique_cible_min"),
-                carburants_autorises=ep.get("carburants_autorises"),
-                mode_carburant=ep.get("mode_carburant"),
-                architectures_autorisees=ep.get("architectures_autorisees"),
-                moteur_thermique_definition=ep
+                puissance_traction_kw=p_target, 
+                charger_batterie=True,
+                unite=ep.get("unite_entree", "kw"),
+                moteur_thermique_definition=ep # Contient le choix d'architecture si fait precedemment
             )
             
             db.save_main_report(report, report_name=report_name)
@@ -261,117 +274,86 @@ class AutoLoadingScreen(Screen):
             app.simulation_results = res
             app.current_report_name = report_name
 
+            # ROUTAGE INTELLIGENT
+            # Si aucune architecture n'est encore figee et que le backend propose des candidats
             exploration = res.get("sous_systemes", {}).get("architecture", {}).get("exploration", [])
-            target_screen = "arch_choice" if not ep.get("architecture") and exploration else "energy_audit"
+            
+            if not ep.get("architecture") and exploration:
+                target_screen = "arch_choice"
+            else:
+                target_screen = "dashboard"
 
         except Exception:
             app.simulation_results = {"__error__": traceback.format_exc()}
-            target_screen = "energy_audit"
+            target_screen = "energy_audit" # Aller vers l'audit pour voir l'erreur technique
 
         Clock.schedule_once(lambda dt: setattr(self.manager, "current", target_screen))
 
 
 class AutoDashboardScreen(Screen):
+    """
+    Hub de reporting passif.
+    """
     res_pwr = StringProperty("-- kW")
-    res_mass = StringProperty("-- kg")
-    res_vol = StringProperty("-- m³")
-    res_ncyl = StringProperty("--")
     res_arch = StringProperty("--")
+    res_vol = StringProperty("-- L")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
         
+        # Header simple
         top = BoxLayout(size_hint_y=None, height=60, spacing=20)
-        brand = BoxLayout(size_hint_x=0.24, spacing=10)
-        if os.path.exists(PROJECT_LOGO):
-            brand.add_widget(KivyImage(source=PROJECT_LOGO, size_hint=(None, None), size=(46, 46)))
-        brand_txt = BoxLayout(orientation="vertical")
-        brand_txt.add_widget(Label(text=PROJECT_NAME, font_size="20sp", bold=True, color=COLORS["BF"]))
-        brand_txt.add_widget(Label(text=PROJECT_SUBTITLE, font_size="11sp", color=COLORS["BA"]))
-        brand.add_widget(brand_txt)
-        top.add_widget(brand)
+        top.add_widget(Label(text="RESULTATS DU DIMENSIONNEMENT", font_size="22sp", bold=True, color=COLORS["BA"], size_hint_x=0.6))
         
-        top.add_widget(Label(text="RESULTATS DE GENERATION", font_size="22sp", bold=True, color=COLORS["BF"], size_hint_x=0.4))
-        
-        btn_recalc = ModernButton(text="AJUSTER", size_hint_x=0.15)
-        btn_recalc.bind(on_press=self.open_adjust_popup)
-        top.add_widget(btn_recalc)
-        
-        back = Button(text="ACCUEIL", size_hint_x=0.15, background_color=(0,0,0,0), color=COLORS["GAXD"])
+        back = ModernButton(text="NOUVELLE SAISIE", size_hint_x=0.2)
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "config"))
         top.add_widget(back)
         layout.add_widget(top)
 
-        grid = GridLayout(cols=3, rows=2, spacing=20, size_hint_y=0.68)
-        c1 = PremiumCard(title="Puissance"); c1.add_widget(Label(text=self.res_pwr, font_size="30sp", bold=True, color=COLORS["BF"])); grid.add_widget(c1)
-        c2 = PremiumCard(title="Cylindree"); c2.add_widget(Label(text=self.res_vol, font_size="26sp", bold=True, color=COLORS["BF"])); grid.add_widget(c2)
-        c3 = PremiumCard(title="Architecture"); c3.add_widget(Label(text=self.res_arch, font_size="26sp", bold=True, color=COLORS["BF"])); grid.add_widget(c3)
+        # Grille de Bento
+        grid = GridLayout(cols=3, spacing=20, size_hint_y=0.7)
         
-        c4 = PremiumCard(title="Acces Rapide")
-        bg = GridLayout(cols=2, spacing=10)
-        for txt, screen in [("PIÈCES", "piece_library"), ("AUDIT", "energy_audit"), ("VISU", "advanced_visuals"), ("PDF", "pdf_folder")]:
-            b = ModernButton(text=txt, font_size="13sp")
-            b.bind(on_press=lambda _, s=screen: setattr(self.manager, "current", s))
+        c1 = PremiumCard(title="Puissance Sortie")
+        c1.add_widget(Label(text=self.res_pwr, font_size="32sp", bold=True, color=COLORS["white"]))
+        grid.add_widget(c1)
+        
+        c2 = PremiumCard(title="Cylindree Totale")
+        c2.add_widget(Label(text=self.res_vol, font_size="32sp", bold=True, color=COLORS["white"]))
+        grid.add_widget(c2)
+        
+        c3 = PremiumCard(title="Architecture")
+        c3.add_widget(Label(text=self.res_arch, font_size="32sp", bold=True, color=COLORS["white"]))
+        grid.add_widget(c3)
+        
+        # Acces Audit & Details
+        c4 = PremiumCard(title="Rapports Techniques")
+        bg = GridLayout(cols=1, spacing=10, padding=[0, 10])
+        for txt, sc in [("AUDIT ENERGETIQUE", "energy_audit"), ("CHOIX ARCHITECTURE", "arch_choice"), ("BIBLIOTHEQUE PIECES", "piece_library")]:
+            b = ModernButton(text=txt)
+            b.bind(on_press=lambda _, s=sc: setattr(self.manager, "current", s))
             bg.add_widget(b)
-        c4.add_widget(bg); grid.add_widget(c4)
+        c4.add_widget(bg)
+        grid.add_widget(c4)
         
-        c5 = PremiumCard(title="Statut Calcul"); self.status_lbl = Label(text="OK", font_size="28sp", bold=True, color=(30/255, 180/255, 50/255, 1)); c5.add_widget(self.status_lbl); grid.add_widget(c5)
         layout.add_widget(grid)
-        
-        self.dt_card = PremiumCard(title="CHAINE DE TRACTION", size_hint_y=0.3)
-        self.dt_grid = GridLayout(cols=3, spacing=15, padding=10); self.dt_card.add_widget(self.dt_grid)
-        layout.add_widget(self.dt_card)
         self.add_widget(layout)
 
     def on_enter(self, *args):
         app = App.get_running_app()
         report = _safe_dict(app.simulation_results)
         res = _report_resume(report)
+        
         self.res_pwr = f"{float(app.target_power):.1f} kW"
-        self.res_arch = str(res.get("Architecture") or "A definir")
+        self.res_arch = str(res.get("Architecture") or "Non definie")
         vd = res.get("vd_tot_cc")
         self.res_vol = f"{vd/1000:.2f} L" if vd else "-- L"
-        self.status_lbl.text = "ERREUR" if "__error__" in report else "OK"
 
-    def open_adjust_popup(self, *_):
-        app = App.get_running_app()
-        ep = app.engine_params or {}
-        content = BoxLayout(orientation="vertical", padding=20, spacing=12)
-        fields = {}
-        for lbl, key, d in [("Alesage (mm)", "alesage_mm", ep.get("alesage_mm", 130)), ("Course (mm)", "course_mm", ep.get("course_mm", 150)), ("RPM", "rpm_nominal", ep.get("rpm_nominal", 1500))]:
-            row = BoxLayout(size_hint_y=None, height=48, spacing=10)
-            row.add_widget(Label(text=lbl, color=COLORS["BF"], size_hint_x=0.4))
-            inp = TextInput(text=str(d), multiline=False, size_hint_x=0.6)
-            fields[key] = inp; row.add_widget(inp); content.add_widget(row)
-        
-        def do_recalc(*_):
-            new_ep = dict(ep)
-            for k, i in fields.items():
-                try: 
-                    v = float(i.text.replace(",","."))
-                    new_ep[k] = v
-                    if k=="alesage_mm": new_ep["alesage_m"] = v/1000.0
-                    if k=="course_mm": new_ep["course_m"] = v/1000.0
-                except: pass
-            app.engine_params = new_ep
-            popup.dismiss()
-            self.manager.current = "loading"
-            
-        btn = ModernButton(text="RECALCULER", size_hint_y=None, height=52); btn.bind(on_press=do_recalc); content.add_widget(btn)
-        popup = Popup(title="Ajuster", content=content, size_hint=(0.5, 0.6)); popup.open()
 
-# Autres ecrans techniques (PieceLibrary, etc.) - Versions minimalistes pour main.py
-class PieceLibraryScreen(Screen):
-    def on_enter(self, *args):
-        self.clear_widgets()
-        layout = BoxLayout(orientation="vertical", padding=20)
-        layout.add_widget(Label(text="BIBLIOTHEQUE (En developpement)", font_size="24sp", color=COLORS["BF"]))
-        btn = ModernButton(text="RETOUR", size_hint_y=None, height=60)
-        btn.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
-        layout.add_widget(btn)
-        self.add_widget(layout)
-
+# =========================
+# Ecrans Secondaires (Placeholders pour main.py)
+# =========================
+class PieceLibraryScreen(Screen): pass
 class PieceDetailScreen(Screen): pass
 class VectorViewScreen(Screen): pass
 class PdfFolderScreen(Screen): pass
