@@ -179,7 +179,8 @@ def calculer_strategie_couplage(
     rapport = {
         "decision": None, "mode_energetique": "ev_only",
         "enveloppe_batterie": None, "bilan_bus_dc": {},
-        "candidats": [], "validation_transitoire": {"statut": "non_calcule"},
+        "candidats": [], "point_retenu": None,
+        "validation_transitoire": {"statut": "non_calcule"},
         "inconnues": {"impossibles": [], "partielles": []},
         "notes_modele": []
     }

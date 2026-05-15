@@ -19,7 +19,7 @@ class MockAlternateur:
         tension = kwargs.get("tension_v", 400.0)
         # Simulation d'un rendement constant de 0.9 pour le test
         # (Aucun KV ici, juste une réponse structurée métier)
-        p_meca = (rpm * 100 * 2 * math.pi) / 60 # On simule un couple de 100Nm constant pour le mock
+        p_meca = (rpm * 500 * 2 * math.pi) / 60 # Fixture arbitraire : couple 500Nm constant pour test
         return {
             "sortie_electrique": {"puissance_utile_w": p_meca * 0.9},
             "rendement": {"eta_sur_pertes_connues": 0.9},
