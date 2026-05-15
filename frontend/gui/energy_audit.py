@@ -148,7 +148,7 @@ class EnergyAuditScreen(Screen):
         
         # Header
         header = BoxLayout(size_hint_y=None, height=60, spacing=20)
-        header.add_widget(Label(text="AUDIT DE CONFORMITÉ ÉNERGÉTIQUE", font_size="22sp", bold=True, color=COLORS["BF"], halign="left"))
+        header.add_widget(Label(text="AUDIT DE CONFORMITÉ TECHNIQUE", font_size="22sp", bold=True, color=COLORS["BF"], halign="left"))
         
         back = ModernButton(text="RETOUR", size_hint_x=None, width=140)
         back.bind(on_press=lambda *_: setattr(self.manager, "current", "dashboard"))
@@ -168,118 +168,95 @@ class EnergyAuditScreen(Screen):
         self.bg_rect.size = self.size
 
     def on_enter(self, *args):
+        self.refresh()
+
+    def refresh(self):
         self.content.clear_widgets()
         app = App.get_running_app()
-        results = app.simulation_results
+        ui = getattr(app, 'ui_report', {})
         
-        # Extraction du rapport de stratégie
-        strat = results.get("strategie_energie", {})
-        bilan = strat.get("bilan_bus_dc", {})
-        env = strat.get("enveloppe_batterie", {})
-        
-        # 1. Synthèse Générale
-        card_syn = AuditCard(title="Synthèse Générale", status=strat.get("statut", "inconnu"))
-        card_syn.size_hint_y = None
-        card_syn.height = 220
-        
-        card_syn.add_widget(AuditRow("Mode Énergétique", strat.get("mode_energetique"), status="ok" if strat.get("mode_energetique") else "inconnu"))
-        
-        decision_raison = strat.get("decision", {}).get("raison")
-        card_syn.add_widget(AuditRow("Décision", decision_raison, status="ok" if decision_raison is not None else "inconnu"))
-        
-        unit_display = "kW" if app.target_unit == "kw" else "ch"
-        card_syn.add_widget(AuditRow("Cible Utilisateur", app.target_power, unit=unit_display, status="ok"))
-        p_sortie = bilan.get("puissance_sortie_demandee_w")
-        card_syn.add_widget(AuditRow("Puissance Normalisée", p_sortie, unit="W", status="ok" if p_sortie is not None else "impossible"))
-        
-        self.content.add_widget(card_syn)
-        
-        # 2. Chaîne Énergétique
-        card_chain = AuditCard(title="Chaîne de Puissance", size_hint_y=None)
-        card_chain.bind(minimum_height=card_chain.setter("height"))
-        
-        chain_data = [
-            ("Usage Électrique", "puissance_electrique_usage_w", "W"),
-            ("Auxiliaires", "puissance_auxiliaire_w", "W"),
-            ("Recharge Batterie", "puissance_recharge_retenue_w", "W"),
-            ("Bus DC Total", "puissance_bus_dc_totale_w", "W"),
-            ("Bus DC Instantané", "puissance_bus_dc_instantanee_w", "W"),
-            ("Génération Intermittente (Beta)", "fraction_temps_generation_beta", ""),
-            ("Alt. Électrique Requise", "puissance_alternateur_electrique_requise_w", "W"),
-            ("Alt. Mécanique Requise", "puissance_mecanique_alternateur_requise_w", "W"),
-            ("MT Requise", "puissance_moteur_thermique_requise_w", "W"),
-        ]
-        
-        for label, key, unit in chain_data:
-            val = bilan.get(key)
-            status = "ok" if val is not None else "inconnu"
-            card_chain.add_widget(AuditRow(label, val, unit=unit, status=status))
-            
-        self.content.add_widget(card_chain)
-        
-        # 3. Batterie
-        card_bat = AuditCard(title="Enveloppe Batterie", status=env.get("statut", "inconnu"))
-        card_bat.size_hint_y = None
-        card_bat.height = 300
-        
-        card_bat.add_widget(AuditRow("Recharge Recommandée", env.get("p_charge_recommandee_w"), unit="W"))
-        card_bat.add_widget(AuditRow("Raison Limitante", env.get("raison_limite")))
-        
-        limites = env.get("limites_actives", {})
-        if limites:
-            l_box = BoxLayout(orientation="vertical", size_hint_y=None, height=len(limites)*20)
-            for l_name, l_val in limites.items():
-                l_box.add_widget(Label(text=f"• {l_name}: {l_val} W", color=COLORS["GAXD"], font_size="11sp", halign="left"))
-            card_bat.add_widget(l_box)
-            
-        self.content.add_widget(card_bat)
-        
-        # 4. Alternateur / Boîte / Thermique
-        card_mech = AuditCard(title="Chaîne Mécanique (Alternateur/Boîte/MT)")
-        card_mech.size_hint_y = None
-        card_mech.height = 300
-        
-        card_mech.add_widget(AuditRow("Rapport de Boîte", bilan.get("rapport_boite_optimal")))
-        card_mech.add_widget(AuditRow("Régime Alternateur", bilan.get("regime_alternateur_rpm"), unit="tr/min"))
-        card_mech.add_widget(AuditRow("Couple Alternateur", bilan.get("couple_alternateur_nm"), unit="Nm"))
-        
-        p_retenu = strat.get("point_retenu", {})
-        if p_retenu:
-            card_mech.add_widget(AuditRow("Régime MT", p_retenu.get("rpm_moteur"), unit="tr/min"))
-            card_mech.add_widget(AuditRow("Couple MT Requis", p_retenu.get("exigences", {}).get("couple_moteur_requis_Nm"), unit="Nm"))
-            
-            # Rendements et Pertes
-            rendements = p_retenu.get("rendements", {})
-            if rendements:
-                card_mech.add_widget(AuditRow("Rendement Global", rendements.get("global"), unit="%", status="ok"))
-            
-        self.content.add_widget(card_mech)
+        if not ui or ui.get("is_empty", True):
+            self.content.add_widget(Label(text="Données indisponibles — le backend n'a pas fourni de rapport d'audit.", color=COLORS["RF"]))
+            return
 
-        # 5. Transitoire
-        trans = strat.get("validation_transitoire", {})
-        card_trans = AuditCard(title="Validation Transitoire", status=trans.get("statut", "inconnu"))
-        card_trans.size_hint_y = None
-        card_trans.height = 200
+        # Display sections from ui_report
+        for sec_key, section in ui.get("sections", {}).items():
+            if sec_key in ("resume", "energie", "sous_systemes"):
+                card = AuditCard(title=section.get("title", sec_key.upper()))
+                card.size_hint_y = None
+                card.bind(minimum_height=card.setter("height"))
+                
+                for item in section.get("items", []):
+                    card.add_widget(AuditRow(
+                        label=item["label"],
+                        value=item["value"],
+                        unit=item["unit"],
+                        status=item["status"],
+                        source=item.get("source"),
+                        raw_path=item.get("raw_path")
+                    ))
+                
+                self.content.add_widget(card)
+
+        # Inconnues & Alertes
+        if ui.get("unknowns") or ui.get("alerts"):
+            card_alerts = AuditCard(title="Alertes & Inconnues")
+            card_alerts.size_hint_y = None
+            card_alerts.bind(minimum_height=card_alerts.setter("height"))
+            
+            for u in ui.get("unknowns", []):
+                msg = f"• {u['name']}: {u['reason']}"
+                l = Label(text=msg, color=(1, 0.5, 0.5, 1), font_size="11sp", size_hint_y=None, height=24, halign="left", valign="middle")
+                l.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+                card_alerts.add_widget(l)
+                
+            for a in ui.get("alerts", []):
+                msg = f"! {a['name']}: {a['detail']}"
+                l = Label(text=msg, color=(1, 1, 0.5, 1), font_size="11sp", size_hint_y=None, height=24, halign="left", valign="middle")
+                l.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+                card_alerts.add_widget(l)
+                
+            self.content.add_widget(card_alerts)
+
+class AuditRow(BoxLayout):
+    def __init__(self, label, value, unit="", status="ok", source=None, raw_path=None, **kwargs):
+        super().__init__(orientation="vertical", size_hint_y=None, spacing=2, **kwargs)
+        self.padding = [12, 8, 12, 8]
         
-        card_trans.add_widget(AuditRow("Puissance Accessible", trans.get("p_accessible_w"), unit="W"))
-        card_trans.add_widget(AuditRow("Constante de temps (Tau)", trans.get("tau_s"), unit="s"))
-        card_trans.add_widget(AuditRow("Rampe", trans.get("rampe_puissance_w_s"), unit="W/s"))
+        main_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=32, spacing=10)
         
-        self.content.add_widget(card_trans)
+        # Label
+        lbl = Label(text=label, color=COLORS["GAXD"], font_size="13sp", size_hint_x=0.4, halign="left", valign="middle")
+        lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        main_row.add_widget(lbl)
         
-        # 6. Alertes et Inconnues
-        card_alerts = AuditCard(title="Alertes & Inconnues", size_hint_y=None)
-        card_alerts.bind(minimum_height=card_alerts.setter("height"))
+        # Value
+        from frontend.main import fmt_val
+        val_text = fmt_val(value, unit)
         
-        inc = strat.get("inconnues", {})
-        for bucket, color_name in [("impossibles", "impossible"), ("partielles", "partiel")]:
-            items = inc.get(bucket, [])
-            if items:
-                card_alerts.add_widget(Label(text=bucket.upper(), color=STATUS_COLORS[color_name], bold=True, size_hint_y=None, height=24))
-                for item in items:
-                    msg = f"• {item.get('nom')}: {item.get('raison')}"
-                    l = Label(text=msg, color=COLORS["BF"], font_size="11sp", size_hint_y=None, height=24, halign="left", valign="middle")
-                    l.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
-                    card_alerts.add_widget(l)
-                    
-        self.content.add_widget(card_alerts)
+        val_lbl = Label(text=val_text, color=_get_status_color(status), bold=True, font_size="14sp", size_hint_x=0.35, halign="right", valign="middle")
+        val_lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        main_row.add_widget(val_lbl)
+        
+        # Status Badge
+        badge = Label(text=status.upper(), color=_get_status_color(status), bold=True, font_size="10sp", size_hint_x=0.25, halign="right", valign="middle")
+        main_row.add_widget(badge)
+        
+        self.add_widget(main_row)
+        
+        if raw_path:
+            path_lbl = Label(text=f"Path: {raw_path}", color=(0.4, 0.4, 0.4, 1), font_size="9sp", size_hint_y=None, height=12, halign="left")
+            path_lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+            self.add_widget(path_lbl)
+            self.height = 32 + 12 + 16
+        else:
+            self.height = 32 + 16
+
+        with self.canvas.before:
+            Color(COLORS["GW"][0], COLORS["GW"][1], COLORS["GW"][2], 0.5)
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[8])
+        self.bind(pos=self._upd, size=self._upd)
+
+    def _upd(self, *a):
+        self.rect.pos = self.pos
+        self.rect.size = self.size

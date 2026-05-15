@@ -10,6 +10,7 @@ from kivy.properties import DictProperty, ListProperty
 from kivy.clock import Clock
 
 from gui.components import COLORS, ModernButton
+from gui.report_adapter import extract_architecture_candidates
 
 def fmt_value(value, unit="", decimals=1):
     if value is None:
@@ -31,8 +32,11 @@ class CandidateCard(BoxLayout):
         self.bind(pos=self._upd, size=self._upd)
         
         # Header: Architecture + N_cyl
+        arch_type = data.get('architecture') or data.get('Architecture', 'INCONNUE')
+        n_cyl = data.get('nombre_cylindres') or data.get('N_cyl') or data.get('n_cyl', '?')
+        
         header = BoxLayout(size_hint_y=None, height=40)
-        arch_lbl = Label(text=f"{data.get('architecture')} {data.get('N_cyl')}", 
+        arch_lbl = Label(text=f"{arch_type} {n_cyl}", 
                          bold=True, font_size="22sp", color=COLORS["BA"])
         header.add_widget(arch_lbl)
         self.add_widget(header)
@@ -46,7 +50,9 @@ class CandidateCard(BoxLayout):
         _add_row("Score Global", fmt_value(data.get("score_global"), decimals=2))
         
         # Alesage x Course : INCONNU si l'un manque
-        b, c = data.get("bore_mm"), data.get("course_mm")
+        b = data.get("alesage_mm") or data.get("bore_mm")
+        c = data.get("course_mm") or data.get("stroke_mm")
+        
         if b is None or c is None:
             ac_val = "INCONNU"
         else:
@@ -54,13 +60,9 @@ class CandidateCard(BoxLayout):
         _add_row("Alesage x Course", ac_val)
 
         _add_row("Cylindree Unit.", fmt_value(data.get("cylindree_unit_cc"), unit=" cc", decimals=0))
-        _add_row("Masse Est.", fmt_value(data.get("masse_relative"), unit=" kg*", decimals=1))
-        _add_row("Cout Maint.", fmt_value(data.get("cout_maintenance_eur"), unit=" €*", decimals=0))
+        _add_row("Masse Est.", fmt_value(data.get("masse_relative") or data.get("masse_kg"), unit=" kg*", decimals=1))
         
         self.add_widget(grid)
-        
-        # Disclaimer
-        self.add_widget(Label(text="*Valeurs relatives/estimees", font_size="10sp", color=COLORS["GAXD"], size_hint_y=None, height=15))
         
         # Button
         btn = ModernButton(text="CHOISIR CETTE ARCHITECTURE", size_hint_y=None, height=50)
@@ -86,7 +88,7 @@ class ArchitectureChoiceScreen(Screen):
         # Header
         header = BoxLayout(orientation="vertical", size_hint_y=None, height=100)
         header.add_widget(Label(text="ARCHITECTURES CANDIDATES", font_size="32sp", bold=True, color=COLORS["white"]))
-        header.add_widget(Label(text="Selectionne l'architecture moteur proposee par le backend pour ton besoin de puissance.", 
+        header.add_widget(Label(text="Sélectionnez l'architecture proposée par le backend.", 
                                 color=COLORS["GAXD"]))
         root.add_widget(header)
         
@@ -97,13 +99,9 @@ class ArchitectureChoiceScreen(Screen):
         scroll.add_widget(self.grid)
         root.add_widget(scroll)
         
-        # Footer / Manual override
+        # Footer
         footer = BoxLayout(size_hint_y=None, height=60, spacing=20)
-        btn_manual = ModernButton(text="AFFINER LES PARAMETRES (MODE EXPERT)", size_hint_x=0.4)
-        btn_manual.bind(on_release=self.go_manual)
-        footer.add_widget(btn_manual)
-        
-        btn_back = ModernButton(text="RETOUR", size_hint_x=0.2)
+        btn_back = ModernButton(text="ANNULER / RETOUR", size_hint_x=0.2)
         btn_back.bind(on_release=self.go_back)
         footer.add_widget(btn_back)
         
@@ -114,24 +112,18 @@ class ArchitectureChoiceScreen(Screen):
         self.bg_rect.pos = self.pos
         self.bg_rect.size = self.size
 
-    def on_pre_enter(self):
+    def on_enter(self):
         self.update_grid()
 
     def update_grid(self):
         self.grid.clear_widgets()
         app = App.get_running_app()
-        report = app.simulation_results
+        report = getattr(app, 'raw_backend_report', {})
         
-        # On cherche l'exploration dans le rapport
-        exploration = []
-        try:
-            # Structure type SystemeComplet
-            exploration = report.get("sous_systemes", {}).get("architecture", {}).get("exploration", [])
-        except:
-            pass
+        exploration = extract_architecture_candidates(report)
             
         if not exploration:
-            self.grid.add_widget(Label(text="Aucune architecture candidate trouvee.\nLe backend n'a pas pu converger avec ces parametres.",
+            self.grid.add_widget(Label(text="Données indisponibles — le backend n'a pas fourni de candidats d'architecture.",
                                        color=COLORS["RF"], halign="center"))
             return
 
@@ -141,22 +133,32 @@ class ArchitectureChoiceScreen(Screen):
 
     def select_candidate(self, cand):
         app = App.get_running_app()
-        # On injecte le choix dans engine_params pour le prochain calcul complet
-        app.engine_params.update({
-            "architecture": cand.get("architecture"),
-            "nombre_cylindres": cand.get("N_cyl"),
-            "alesage_mm": cand.get("bore_mm"),
-            "course_mm": cand.get("course_mm"),
-        })
-        # On peut maintenant lancer le dimensionnement complet ou aller au dashboard
-        # Le dashboard affichera les inconnues restantes si on n'a pas tout choisi
+        
+        # Strict payload rules: only send present fields
+        payload = {}
+        
+        # Architecture type
+        arch = cand.get('architecture') or cand.get('Architecture')
+        if arch is not None:
+            payload["architecture"] = arch
+            
+        # Number of cylinders
+        n_cyl = cand.get('nombre_cylindres') or cand.get('N_cyl')
+        if n_cyl is not None:
+            payload["nombre_cylindres"] = n_cyl
+            
+        # Dimensions (only if present)
+        b = cand.get('alesage_mm') or cand.get('bore_mm')
+        if b is not None:
+            payload["alesage_mm"] = b
+            
+        c = cand.get('course_mm') or cand.get('stroke_mm')
+        if c is not None:
+            payload["course_mm"] = c
+            
+        # Update app state and reload
+        app.engine_params.update(payload)
         self.manager.current = "loading"
-
-    def go_manual(self, *args):
-        # Pour l'instant, on n'a pas d'écran manuel "expert" compatible 
-        # (on a supprimé l'ancien QuickConfig), on pourrait en recréer un
-        # ou simplement rester sur ce flux guidé.
-        pass
 
     def go_back(self, *args):
         self.manager.current = "config"

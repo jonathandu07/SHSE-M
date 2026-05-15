@@ -2,10 +2,10 @@ import sys
 import os
 from typing import Any, Dict
 
-# Add frontend to path
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+# Add root to path
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from gui.report_adapter import (
+from frontend.gui.report_adapter import (
     adapt_backend_report, 
     flatten_unknowns, 
     flatten_alerts,

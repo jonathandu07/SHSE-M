@@ -49,6 +49,22 @@ from frontend.gui.piece_connector import get_piece_instance
 from frontend.gui.pdf_export import build_element_display_sections, export_element_pdf
 from frontend.gui.energy_audit import EnergyAuditScreen
 from gui.architecture_choice import ArchitectureChoiceScreen
+from gui.report_adapter import adapt_backend_report
+from gui.raw_report_view import RawReportViewScreen
+from gui.pieces_view import PieceLibraryScreen, PieceDetailScreen
+
+# Backend connection (strict)
+try:
+    from backend.main import dimensionner_systeme_shsem
+except ImportError:
+    dimensionner_systeme_shsem = None
+
+def fmt_val(v, unit=""):
+    if v is None:
+        return "INCONNU"
+    if isinstance(v, float):
+        return f"{v:.2f} {unit}".strip()
+    return f"{v} {unit}".strip()
 
 PROJECT_NAME = "STHOME"
 PROJECT_SUBTITLE = "Dimensionnement thermo-hybride de sortie"
@@ -238,94 +254,163 @@ class AutoLoadingScreen(Screen):
     def run_sim(self, dt): threading.Thread(target=self.do_math, daemon=True).start()
 
     def do_math(self):
+        """Calls the backend dimensioning engine without local inventions."""
         app = App.get_running_app()
-        ep = app.engine_params or {}
-        p_target = float(app.target_power)
-        
-        try:
-            from backend.main import dimensionner_systeme_shsem
-            from backend.modules.systeme.database import SecureDatabase
-            
-            db = SecureDatabase(db_path=os.path.join(BASE_DIR, "backend", "shse_technical_data.db"),
-                                key_path=os.path.join(BASE_DIR, "backend", "secret.key"))
-            
-            report_name = f"gui_{str(p_target).replace('.', 'p')}kw"
-            
-            unite = ep.get("unite_entree")
-            if unite not in ("kw", "ch"):
-                raise ValueError(f"Unite d'entree absente ou invalide ('{unite}') : impossible de lancer le calcul.")
-            
-            # Le backend gere toute la logique physique.
-            report = dimensionner_systeme_shsem(
-                puissance_traction_kw=p_target, 
-                unite=unite,
-                moteur_thermique_definition=ep # Contient les choix precedents
-            )
-            
-            db.save_main_report(report, report_name=report_name)
-            res = db.load_main_report(report_name) or {}
-            app.simulation_results = res
-            app.current_report_name = report_name
+        params = app.engine_params
 
+        if not dimensionner_systeme_shsem:
+            self.on_error("Backend indisponible (main.py non trouvé)")
+            return
+
+        try:
+            # Backend call with strict parameters
+            report = dimensionner_systeme_shsem(**params)
+            
+            if not report or "erreur" in report:
+                self.on_error(report.get("erreur", "Rapport vide"))
+                return
+
+            # Storage: Raw first, then Adapt
+            app.raw_backend_report = report
+            app.ui_report = adapt_backend_report(report)
+            
             # Routage vers choix d'architecture si non fige
-            exploration = res.get("sous_systemes", {}).get("architecture", {}).get("exploration", [])
-            if not ep.get("architecture") and exploration:
+            exploration = report.get("systeme_complet", {}).get("synthese", {}).get("architectures_candidates", [])
+            if not params.get("architecture") and exploration:
                 target_screen = "arch_choice"
             else:
                 target_screen = "dashboard"
+                
+            Clock.schedule_once(lambda dt: setattr(self.manager, "current", target_screen))
+            
+        except Exception as e:
+            self.on_error(str(e), traceback.format_exc())
 
-        except Exception:
-            app.simulation_results = {"__error__": traceback.format_exc()}
-            target_screen = "energy_audit"
-
-        Clock.schedule_once(lambda dt: setattr(self.manager, "current", target_screen))
+    def on_error(self, msg, trace=""):
+        def switch_to_error(dt):
+            err_screen = self.manager.get_screen('backend_error')
+            err_screen.set_error(msg, trace)
+            self.manager.current = 'backend_error'
+        Clock.schedule_once(switch_to_error)
 
 
 class AutoDashboardScreen(Screen):
-    """
-    Miroir passif des resultats.
-    """
-    res_pwr = StringProperty("-- kW")
-    res_arch = StringProperty("--")
-    res_vol = StringProperty("-- L")
+    """The Bento-style dashboard: formal reporting source."""
+    
+    def on_enter(self):
+        self.refresh()
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
-        
-        top = BoxLayout(size_hint_y=None, height=60, spacing=20)
-        top.add_widget(Label(text="DASHBOARD DE REPORTING", font_size="22sp", bold=True, color=COLORS["BA"], size_hint_x=0.6))
-        
-        back = ModernButton(text="NOUVELLE ÉTUDE", size_hint_x=0.2)
-        back.bind(on_press=lambda *_: setattr(self.manager, "current", "config"))
-        top.add_widget(back)
-        layout.add_widget(top)
-
-        grid = GridLayout(cols=3, spacing=20, size_hint_y=0.7)
-        c1 = PremiumCard(title="Besoin Cible"); c1.add_widget(Label(text=self.res_pwr, font_size="32sp", bold=True)); grid.add_widget(c1)
-        c2 = PremiumCard(title="Cylindree Totale"); c2.add_widget(Label(text=self.res_vol, font_size="32sp", bold=True)); grid.add_widget(c2)
-        c3 = PremiumCard(title="Architecture"); c3.add_widget(Label(text=self.res_arch, font_size="32sp", bold=True)); grid.add_widget(c3)
-        
-        c4 = PremiumCard(title="Analyses")
-        bg = GridLayout(cols=1, spacing=10, padding=[0, 10])
-        for txt, sc in [("AUDIT ENERGETIQUE", "energy_audit"), ("VISUALISATION 3D", "advanced_visuals"), ("EXPORT PDF", "pdf_folder")]:
-            b = ModernButton(text=txt)
-            b.bind(on_press=lambda _, s=sc: setattr(self.manager, "current", s))
-            bg.add_widget(b)
-        c4.add_widget(bg); grid.add_widget(c4)
-        
-        layout.add_widget(grid)
-        self.add_widget(layout)
-
-    def on_enter(self, *args):
+    def refresh(self):
+        self.clear_widgets()
         app = App.get_running_app()
-        report = _safe_dict(app.simulation_results)
-        res = _report_resume(report)
-        unit_display = "kW" if app.target_unit == "kw" else "ch"
-        self.res_pwr = f"{float(app.target_power):.1f} {unit_display}"
-        self.res_arch = str(res.get("Architecture") or "A determiner")
-        vd = res.get("vd_tot_cc")
-        self.res_vol = f"{vd/1000:.2f} L" if vd else "-- L"
+        ui = app.ui_report
+        
+        # Main Container
+        root = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        
+        # 1. TOP BAR
+        top_bar = BoxLayout(size_hint_y=None, height=60, spacing=10)
+        top_bar.add_widget(Label(text="[b]DASHBOARD TECHNIQUE SHSE-M[/b]", markup=True, font_size='20sp', size_hint_x=0.7))
+        
+        btn_config = Button(text="Nouvelle Étude", size_hint_x=0.15)
+        btn_config.bind(on_release=lambda x: setattr(self.manager, 'current', 'config'))
+        top_bar.add_widget(btn_config)
+        
+        btn_raw = Button(text="JSON Brut", size_hint_x=0.15, background_color=(0.3, 0.3, 0.5, 1))
+        btn_raw.bind(on_release=lambda x: setattr(self.manager, 'current', 'raw_report'))
+        top_bar.add_widget(btn_raw)
+        
+        root.add_widget(top_bar)
+        
+        if not ui or ui.get("is_empty", True):
+            root.add_widget(Label(text="Aucune donnée à afficher. Veuillez lancer une configuration."))
+            self.add_widget(root)
+            return
+
+        # 2. BENTO GRID
+        grid = GridLayout(cols=2, spacing=10, size_hint_y=0.8)
+        
+        # Section A: Résumé
+        sec_a = self.create_bento_box("A: RÉSUMÉ GLOBAL", ui["sections"].get("resume", {"items": []}))
+        grid.add_widget(sec_a)
+        
+        # Section B: Chaîne Énergétique
+        sec_b = self.create_bento_box("B: CHAÎNE ÉNERGÉTIQUE", ui["sections"].get("energie", {"items": []}))
+        grid.add_widget(sec_b)
+        
+        # Section C: Sous-systèmes
+        sec_c = self.create_bento_box("C: SOUS-SYSTÈMES", ui["sections"].get("sous_systemes", {"items": []}))
+        grid.add_widget(sec_c)
+        
+        # Section D: Inconnues & Alertes
+        sec_d = self.create_alert_box(ui.get("unknowns", []), ui.get("alerts", []))
+        grid.add_widget(sec_d)
+        
+        root.add_widget(grid)
+        
+        # 3. ACTION BAR
+        actions = BoxLayout(size_hint_y=None, height=70, spacing=15, padding=[0, 10, 0, 0])
+        
+        btn_arch = Button(text="CANDIDATS ARCHITECTURE", background_color=(0.2, 0.5, 0.2, 1))
+        btn_arch.bind(on_release=lambda x: setattr(self.manager, 'current', 'arch_choice'))
+        actions.add_widget(btn_arch)
+        
+        btn_audit = Button(text="AUDIT ÉNERGÉTIQUE", background_color=(0.2, 0.4, 0.6, 1))
+        btn_audit.bind(on_release=lambda x: setattr(self.manager, 'current', 'energy_audit'))
+        actions.add_widget(btn_audit)
+        
+        btn_pieces = Button(text="BIBLIOTHÈQUE PIÈCES", background_color=(0.4, 0.3, 0.5, 1))
+        btn_pieces.bind(on_release=lambda x: setattr(self.manager, 'current', 'piece_library'))
+        actions.add_widget(btn_pieces)
+        
+        btn_export = Button(text="EXPORTS / PDF", background_color=(0.6, 0.4, 0.2, 1))
+        btn_export.bind(on_release=lambda x: setattr(self.manager, 'current', 'pdf_folder'))
+        actions.add_widget(btn_export)
+        
+        root.add_widget(actions)
+        self.add_widget(root)
+
+    def create_bento_box(self, title, section):
+        box = BoxLayout(orientation='vertical', padding=10)
+        box.add_widget(Label(text=f"[b]{title}[/b]", markup=True, size_hint_y=None, height=30, halign='left'))
+        
+        content = GridLayout(cols=2, spacing=5)
+        for item in section.get("items", []):
+            label = Label(text=item["label"], halign='left', size_hint_x=0.6, color=(0.7, 0.7, 0.7, 1))
+            val_text = fmt_val(item["value"], item["unit"])
+            val = Label(text=val_text, halign='right', size_hint_x=0.4)
+            if item.get("status") == "inconnu":
+                val.color = (1, 0.5, 0.5, 1)
+            content.add_widget(label)
+            content.add_widget(val)
+            
+        box.add_widget(content)
+        return box
+
+    def create_alert_box(self, unknowns, alerts):
+        box = BoxLayout(orientation='vertical', padding=10)
+        box.add_widget(Label(text="[b]D: INCONNUES & ALERTES[/b]", markup=True, size_hint_y=None, height=30, color=(1, 0.8, 0.2, 1)))
+        
+        scroll = ScrollView()
+        list_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=2)
+        list_layout.bind(minimum_height=list_layout.setter('height'))
+        
+        for u in unknowns:
+            txt = f"[color=ff8888]• {u['name']}[/color] : {u['reason']}"
+            lbl = Label(text=txt, markup=True, size_hint_y=None, height=25, halign='left', font_size='11sp')
+            list_layout.add_widget(lbl)
+            
+        for a in alerts:
+            txt = f"[color=ffff88]! {a['name']}[/color] : {a['detail']}"
+            lbl = Label(text=txt, markup=True, size_hint_y=None, height=25, halign='left', font_size='11sp')
+            list_layout.add_widget(lbl)
+            
+        if not unknowns and not alerts:
+            list_layout.add_widget(Label(text="Aucune alerte ou inconnue.", color=(0.5, 0.8, 0.5, 1)))
+            
+        scroll.add_widget(list_layout)
+        box.add_widget(scroll)
+        return box
 
 
 # =========================
@@ -378,6 +463,32 @@ class PdfFolderScreen(Screen):
             return
         self.content.add_widget(Label(text="Generation des fiches PDF basees sur le rapport backend.", color=COLORS["GAXD"]))
 
+class BackendErrorScreen(Screen):
+    """Clean error display when backend fails."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation='vertical', padding=40, spacing=20)
+        self.layout.add_widget(Label(text="[b]ERREUR BACKEND[/b]", markup=True, font_size='24sp', color=(1, 0.3, 0.3, 1)))
+        
+        self.error_label = Label(text="Une erreur inattendue est survenue.", halign='center', valign='middle')
+        self.layout.add_widget(self.error_label)
+        
+        self.trace_input = TextInput(readonly=True, background_color=(0.1, 0.1, 0.1, 1), foreground_color=(1, 0.5, 0.5, 1))
+        self.layout.add_widget(self.trace_input)
+        
+        btn = Button(text="Retour à la configuration", size_hint_y=None, height=50)
+        btn.bind(on_release=self.go_back)
+        self.layout.add_widget(btn)
+        
+        self.add_widget(self.layout)
+
+    def set_error(self, msg, trace=""):
+        self.error_label.text = f"Message : {msg}"
+        self.trace_input.text = trace
+
+    def go_back(self, instance):
+        self.manager.current = 'config'
+
 class PieceLibraryScreen(Screen): pass
 class PieceDetailScreen(Screen): pass
 class VectorViewScreen(Screen): pass
@@ -390,25 +501,37 @@ class SHSEMApp(App):
     title = PROJECT_NAME
     target_power = StringProperty("150")
     target_unit = StringProperty("kw")
-    simulation_results = DictProperty({})
+    
+    # New strict reporting storage
+    raw_backend_report = DictProperty({})
+    ui_report = DictProperty({})
+    
     engine_params = DictProperty({})
     current_report_name = StringProperty("")
+    selected_piece = DictProperty({}) # For detail view
 
     def build(self):
         Window.clearcolor = COLORS["BL"]
         Window.size = (1280, 860)
         sm = ScreenManager(transition=FadeTransition())
+        
+        # Core Screens
         sm.add_widget(AutoConfigScreen(name="config"))
         sm.add_widget(AutoLoadingScreen(name="loading"))
         sm.add_widget(AutoDashboardScreen(name="dashboard"))
+        
+        # Feature Screens
+        sm.add_widget(RawReportViewScreen(name="raw_report"))
         sm.add_widget(PieceLibraryScreen(name="piece_library"))
         sm.add_widget(PieceDetailScreen(name="piece_detail"))
-        sm.add_widget(VectorViewScreen(name="vector_view"))
+        sm.add_widget(BackendErrorScreen(name="backend_error"))
+        
+        # Legacy/Other Screens
         sm.add_widget(PdfFolderScreen(name="pdf_folder"))
-        sm.add_widget(DetailedDatasheetScreen(name="detailed_datasheet"))
         sm.add_widget(AdvancedVisualsScreen(name="advanced_visuals"))
         sm.add_widget(EnergyAuditScreen(name="energy_audit"))
         sm.add_widget(ArchitectureChoiceScreen(name="arch_choice"))
+        
         return sm
 
 if __name__ == "__main__":
