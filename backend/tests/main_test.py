@@ -161,6 +161,41 @@ def test_derive_chain_energy_targets_relinks_output_battery_alternator_and_engin
     assert bloc["puissance_moteur_thermique_requise_w"] == pytest.approx(bloc["puissance_mecanique_alternateur_requise_w"] / (0.97 * 0.96))
 
 
+def test_derive_chain_energy_targets_without_beta_keeps_non_intermittent_power(main_mod):
+    class FakeMotor:
+        rendement_moteur = 0.95
+        pertes_fixes_w = 0.0
+        tension_bus_v = 400.0
+
+    class FakeBattery:
+        rendement_charge = 0.90
+        puissance_charge_kw = 20.0
+        tension_nominale_v = 400.0
+
+    class FakeAlternator:
+        rendement_alternateur_impose = 0.90
+
+    bloc = main_mod._derive_chain_energy_targets(
+        puissance_traction_kw=50.0,
+        production_electrique_sortie_w=None,
+        puissance_bus_dc_w=None,
+        puissance_auxiliaire_w=2000.0,
+        energie_utile_imposee_kwh=10.0,
+        temps_charge_cible_h=1.0,
+        charger_batterie=True,
+        tension_bus_dc_v=400.0,
+        rendement_liaison_meca_alt=None,
+        rendement_boite=None,
+        fraction_temps_generation_beta=None,
+        moteur_electrique=FakeMotor(),
+        batterie=FakeBattery(),
+        alternateur=FakeAlternator(),
+    )
+
+    assert bloc["puissance_bus_dc_instantanee_w"] == pytest.approx(bloc["puissance_bus_dc_totale_w"])
+    assert bloc["fraction_temps_generation_beta"] is None
+
+
 def test_dimensionner_systeme_shsem_derives_bus_energy_and_engine_power_from_chain(monkeypatch, main_mod):
     fake_system_holder = {}
 
@@ -223,6 +258,7 @@ def test_dimensionner_systeme_shsem_derives_bus_energy_and_engine_power_from_cha
     assert config["entrees"]["definition_moteur_thermique"]["puissance_nominale_visee_w"] == pytest.approx(
         (p_bus_total / 0.5) / 0.95 / (0.97 * 0.96)
     )
+    assert config["strategie_energie"]["bilan_bus_dc"]["puissance_bus_dc_instantanee_w"] == pytest.approx(p_bus_total / 0.5)
     assert main_mod._get_nested({"a": {"b": {"c": 9}}}, "a", "b", "c") == 9
     assert main_mod._get_nested({"a": 1}, "a", "b") is None
 
