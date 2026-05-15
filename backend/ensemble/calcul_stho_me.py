@@ -399,14 +399,23 @@ def pertes_joule(r: float, i: float) -> float:
     """
     PJ = R * I²
     """
+    if r < 0: raise ValueError(f"R doit être >= 0 (reçu: {r})")
     return r * i**2
+
+
+def pertes_joule_interne(i_a: float, r_interne_ohm: float) -> float:
+    """
+    PJ = R_interne * I^2
+    """
+    if r_interne_ohm < 0: raise ValueError(f"R_interne doit être >= 0 (reçu: {r_interne_ohm})")
+    return pertes_joule(r_interne_ohm, i_a)
 
 
 def calculer_c_rate(i_charge_a: float, capacite_ah: float) -> float:
     """
     C = I / Cap
     """
-    verifier_positif(capacite_ah=capacite_ah, i_charge_a=i_charge_a)
+    if capacite_ah <= 0: raise ValueError(f"Capacité doit être > 0 (reçu: {capacite_ah})")
     return i_charge_a / capacite_ah
 
 
@@ -426,6 +435,27 @@ def facteur_usure_relatif(t_k: float, t_ref_k: float, ea_j_mol: float, r_gaz_j_m
     """
     verifier_positif(t_k=t_k, t_ref_k=t_ref_k, ea_j_mol=ea_j_mol, r_gaz_j_mol_k=r_gaz_j_mol_k)
     return math.exp((ea_j_mol / r_gaz_j_mol_k) * (1 / t_ref_k - 1 / t_k))
+
+
+def facteur_vieillissement_arrhenius(
+    *,
+    t_k: float,
+    ea_j_mol: float,
+    r_gaz_j_mol_k: float,
+    t_ref_k: float | None = None,
+) -> float:
+    """
+    Renvoie soit le facteur brut de type Arrhenius, soit un facteur relatif
+    si une température de référence explicite est fournie.
+    """
+    if t_ref_k is None:
+        return facteur_usure_arrhenius(t_k=t_k, ea_j_mol=ea_j_mol, r_gaz_j_mol_k=r_gaz_j_mol_k)
+    return facteur_usure_relatif(
+        t_k=t_k,
+        t_ref_k=t_ref_k,
+        ea_j_mol=ea_j_mol,
+        r_gaz_j_mol_k=r_gaz_j_mol_k,
+    )
 
 
 # ==========================================================

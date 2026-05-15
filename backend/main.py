@@ -41,6 +41,7 @@ def _import_attr(module_names: Sequence[str], attr: str, default: Any = None) ->
 SystemeComplet = _import_attr(("backend.ensemble.systeme_complet", "systeme_complet"), "SystemeComplet", default=None)
 OptimisationSysteme = _import_attr(("backend.ensemble.optimisation", "optimisation"), "OptimisationSysteme", default=None)
 STHO_ME = _import_attr(("backend.ensemble.STHO_ME", "STHO_ME"), "STHO_ME", default=None)
+analyser_strategie_energie = _import_attr(("backend.ensemble.strategie_energie", "strategie_energie"), "analyser_strategie_energie", default=None)
 
 MoteurElectrique = _import_attr(("backend.components.moteur_electrique.moteur_electrique", "backend.components.moteur_electrique", "moteur_electrique"), "MoteurElectrique", default=None)
 AnalyserMoteurElectriqueDepuisPuissance = _import_attr(("backend.components.moteur_electrique.moteur_electrique", "backend.components.moteur_electrique", "moteur_electrique"), "analyser_depuis_puissance", default=None)
@@ -1583,6 +1584,31 @@ def analyser_composants_complementaires(*, composants: Mapping[str, Any], rappor
         else:
             rapports["alternateur_bus_dc"] = {"inconnues": {"impossibles": [{"nom": "Alternateur.analyser_pour_bus_dc", "raison": "Manque puissance_bus_dc_w ou puissance_elec_alt_cible_w pour lancer l'analyse."}]}}
 
+    if (
+        batterie is not None
+        and hasattr(batterie, "analyser_recharge_systeme")
+        and isinstance(rapports.get("batterie_dimensionnement"), dict)
+        and isinstance(analyses_user.get("strategie_energie"), dict)
+    ):
+        strategie_user = _safe_dict(analyses_user.get("strategie_energie"))
+        kwargs = _merge_dict_non_none(
+            {
+                "rapport_alternateur": _safe_dict(rapports.get("alternateur_bus_dc")),
+                "rapport_moteur_elec": _safe_dict(rapports.get("moteur_electrique")),
+                "rapport_batterie": _safe_dict(rapports.get("batterie_dimensionnement")),
+                "soc_actuel": _safe_float(strategie_user.get("batterie_soc")),
+                "temperature_pack_c": _safe_float(strategie_user.get("batterie_temp_c")),
+            },
+            _safe_dict(analyses_user.get("batterie_recharge_systeme")),
+        )
+        if kwargs.get("soc_actuel") is not None or kwargs.get("temperature_pack_c") is not None:
+            try:
+                rapports["batterie_recharge_systeme"] = batterie.analyser_recharge_systeme(
+                    **_filter_kwargs_for_callable(batterie.analyser_recharge_systeme, kwargs)
+                )
+            except Exception as exc:
+                rapports["batterie_recharge_systeme"] = {"erreur": str(exc)}
+
     if architecture is not None and hasattr(architecture, "analyser"):
         kwargs = _merge_dict_non_none({
             "puissance_cible_w": _first_finite(mt_synth.get("puissance_requise_W"), definition_moteur.get("puissance_nominale_visee_w")),
@@ -2332,6 +2358,58 @@ def dimensionner_systeme_shsem(
     if rapports_pieces_composants:
         rapports_pieces = _merge_dict_non_none(rapports_pieces, rapports_pieces_composants)
 
+    rapport_strategie_energie: Dict[str, Any]
+    if callable(analyser_strategie_energie):
+        try:
+            strategie_user = _safe_dict(_safe_dict(analyses_complementaires).get("strategie_energie"))
+            etat_strategie = _merge_dict_non_none(
+                {
+                    "puissance_sortie_demandee_w": _first_finite(
+                        derivees_chaine_energie.get("sortie_utilisateur_w"),
+                        production_electrique_sortie_w,
+                        (puissance_traction_kw * 1000.0) if _is_finite(puissance_traction_kw) else None,
+                    ),
+                    "puissance_elec_usage_w": _safe_float(derivees_chaine_energie.get("puissance_elec_usage_w")),
+                    "puissance_auxiliaire_w": _safe_float(derivees_chaine_energie.get("puissance_auxiliaire_w")),
+                    "p_recharge_demandee_w": _safe_float(derivees_chaine_energie.get("puissance_recharge_batterie_w")),
+                    "puissance_bus_dc_totale_w": _safe_float(derivees_chaine_energie.get("puissance_bus_dc_totale_w")),
+                    "v_bus_dc_v": _safe_float(derivees_chaine_energie.get("tension_bus_dc_v")),
+                    "fraction_temps_generation_beta": _safe_float(derivees_chaine_energie.get("fraction_temps_generation_beta")),
+                    "rpm_moteur": _safe_float(_get_nested(rapport_systeme or {}, "synthese", "moteur_thermique", "rpm_nominal")),
+                    "temps_disponible_s": _safe_float(strategie_user.get("temps_disponible_s")),
+                    "point_actuel_thermique": _safe_dict(strategie_user.get("point_actuel_thermique")),
+                    "batterie_soc": _safe_float(strategie_user.get("batterie_soc")),
+                    "batterie_soh": _safe_float(strategie_user.get("batterie_soh")),
+                    "batterie_temp_c": _safe_float(strategie_user.get("batterie_temp_c")),
+                    "temperature_limite_pack_c": _safe_float(strategie_user.get("temperature_limite_pack_c")),
+                    "resistance_interne_batterie_ohm": _safe_float(strategie_user.get("resistance_interne_batterie_ohm")),
+                    "p_charge_max_soh_w": _safe_float(strategie_user.get("p_charge_max_soh_w")),
+                    "p_charge_max_bus_w": _safe_float(strategie_user.get("p_charge_max_bus_w")),
+                    "c_rate_charge_max": _safe_float(strategie_user.get("c_rate_charge_max")),
+                },
+                strategie_user,
+            )
+            composants_strategie = dict(composants)
+            if pieces.get("deplaceur") is not None:
+                composants_strategie["deplaceur"] = pieces.get("deplaceur")
+            rapport_strategie_energie = analyser_strategie_energie(
+                etat_systeme=etat_strategie,
+                composants=composants_strategie,
+                derivees_chaine_energie=derivees_chaine_energie,
+                rapport_batterie=_safe_dict(rapports_composants.get("batterie_dimensionnement")),
+                rapport_alternateur=_safe_dict(rapports_composants.get("alternateur_bus_dc")),
+                rapport_boite=_safe_dict(rapports_composants.get("boite_chaine")),
+                rapport_recharge_batterie=_safe_dict(rapports_composants.get("batterie_recharge_systeme")),
+                point_actuel=_safe_dict(strategie_user.get("point_actuel_thermique")),
+                mode_force=strategie_user.get("mode_force"),
+                autoriser_soutien_traction_si_recharge_interdite=bool(strategie_user.get("autoriser_soutien_traction_si_recharge_interdite", False)),
+                poids_cout=_safe_dict(strategie_user.get("poids_cout")) or None,
+            )
+        except Exception as exc:
+            rapport_strategie_energie = {"erreur": str(exc)}
+    else:
+        rapport_strategie_energie = {"note": "Strategie energie non disponible."}
+
     # Optimisation
     rapport_optimisation: Dict[str, Any]
     if OptimisationSysteme is not None and systeme is not None:
@@ -2410,7 +2488,7 @@ def dimensionner_systeme_shsem(
             legacy["drivechain_erreur"] = str(exc)
 
     # Fusion inconnues / alertes
-    for source in (rapport_systeme, rapports_composants, rapport_construction_pieces, rapports_pieces, rapport_optimisation, rapport_stho_me):
+    for source in (rapport_systeme, rapports_composants, rapport_construction_pieces, rapports_pieces, rapport_strategie_energie, rapport_optimisation, rapport_stho_me):
         if isinstance(source, dict):
             for cat, items in _safe_dict(source.get("inconnues")).items():
                 for item in list(items or []):
@@ -2453,6 +2531,7 @@ def dimensionner_systeme_shsem(
     veh_syn = _safe_dict(synth.get("vehicule"))
     batt_syn = _safe_dict(synth.get("batterie"))
     opt_syn = _safe_dict(_safe_dict(rapport_optimisation).get("synthese_optimisation"))
+    strategie_syn = _safe_dict(rapport_strategie_energie)
 
     force_bielle = _get_nested(rapport_construction_pieces, "propagation_debug", "force_axiale_max_N", "valeur")
     if force_bielle is None:
@@ -2500,6 +2579,9 @@ def dimensionner_systeme_shsem(
         "energie_batterie_kwh": batt_syn.get("energie_utile_kwh"),
         "score_coherence_100": opt_syn.get("score_coherence_100"),
         "score_global_100": opt_syn.get("score_global_100"),
+        "mode_energetique": strategie_syn.get("mode_energetique"),
+        "limitation_batterie": _get_nested(strategie_syn, "enveloppe_batterie", "raison_limitante"),
+        "puissance_recharge_retenue_w": _get_nested(strategie_syn, "bilan_bus_dc", "puissance_recharge_retenue_w"),
         "nb_pieces_construites": sum(1 for obj in pieces.values() if obj is not None),
         "nb_alertes": sum(len(v) for v in _safe_dict(rapport_global.get("alertes")).values()),
         "nb_inconnues": nb_inconnues_total,
@@ -2585,6 +2667,11 @@ def dimensionner_systeme_shsem(
             "force_axiale_max_N": force_bielle
         }
 
+    derivees_chaine_energie = _merge_dict_non_none(
+        derivees_chaine_energie,
+        _safe_dict(rapport_strategie_energie.get("derivees_chaine_energie")),
+    )
+
     resultat = {
         "optimisation_carburant": rapport_optimisation_carburant,
         "meta": _merge_dict_non_none(
@@ -2609,6 +2696,7 @@ def dimensionner_systeme_shsem(
         "construction_pieces": rapport_construction_pieces,
         "pieces": pieces,
         "rapports_pieces": rapports_pieces,
+        "strategie_energie": rapport_strategie_energie,
         "optimisation": rapport_optimisation,
         "stho_me_secondaire": rapport_stho_me,
         "legacy": legacy,
@@ -2627,6 +2715,11 @@ def dimensionner_systeme_shsem(
         "synthese": {
             "systeme": synth,
             "moteur_thermique": mt_syn,
+            "strategie_energie": {
+                "mode": strategie_syn.get("mode_energetique"),
+                "raison_limitante_batterie": _get_nested(strategie_syn, "enveloppe_batterie", "raison_limitante"),
+                "puissance_recharge_retenue_w": _get_nested(strategie_syn, "bilan_bus_dc", "puissance_recharge_retenue_w"),
+            },
             "optimisation": opt_syn,
             "inventaire": inventaire,
         },

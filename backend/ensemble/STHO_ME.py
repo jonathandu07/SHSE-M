@@ -1424,18 +1424,32 @@ class STHO_ME:
 
         # Extraction de l'état dynamique depuis les analyses ou les composants
         etat = {
-            "puissance_traction_roue_w": _first_finite(params.get("puissance_traction_roue_w"), params.get("puissance_moyenne_kw", 0)*1000),
-            "batterie_soc": _first_finite(params.get("batterie_soc"), 0.5),
-            "batterie_soh": _first_finite(params.get("batterie_soh"), 1.0),
-            "batterie_temp_c": _first_finite(params.get("batterie_temp_c"), 25.0),
-            "v_bus_dc_v": _first_finite(params.get("v_bus_dc_v"), 400.0),
-            "temps_disponible_s": _first_finite(params.get("temps_disponible_s"), 1.0),
+            "puissance_traction_roue_w": _first_finite(
+                params.get("puissance_traction_roue_w"),
+                (params.get("puissance_moyenne_kw") * 1000.0) if _is_finite(params.get("puissance_moyenne_kw")) else None,
+            ),
+            "batterie_soc": _first_finite(params.get("batterie_soc")),
+            "batterie_soh": _first_finite(params.get("batterie_soh")),
+            "batterie_temp_c": _first_finite(params.get("batterie_temp_c")),
+            "v_bus_dc_v": _first_finite(params.get("v_bus_dc_v")),
+            "temps_disponible_s": _first_finite(params.get("temps_disponible_s")),
+            "p_recharge_demandee_w": _first_finite(params.get("p_recharge_demandee_w")),
+            "puissance_auxiliaire_w": _first_finite(params.get("puissance_auxiliaire_w")),
+            "fraction_temps_generation_beta": _first_finite(params.get("fraction_temps_generation_beta")),
+            "point_actuel_thermique": _safe_dict(params.get("point_actuel_thermique")),
         }
 
         try:
             rep = calculer_strategie_couplage(
                 etat_systeme=etat,
-                composants={**self.composants_obj, **self.pieces_obj}
+                composants={**self.composants_obj, **self.pieces_obj},
+                derivees_chaine_energie=_safe_dict(params.get("derivees_chaine_energie")),
+                rapport_batterie=_safe_dict(_deep_get(rapport, "rapports", "composants", "batterie_dimensionnement")),
+                rapport_alternateur=_safe_dict(_deep_get(rapport, "rapports", "composants", "alternateur_bus_dc")),
+                rapport_boite=_safe_dict(_deep_get(rapport, "rapports", "composants", "boite_chaine")),
+                point_actuel=_safe_dict(params.get("point_actuel_thermique")),
+                mode_force=params.get("mode_force"),
+                autoriser_soutien_traction_si_recharge_interdite=bool(params.get("autoriser_soutien_traction_si_recharge_interdite", False)),
             )
             rapport["rapports"]["strategie_energie"] = rep
             _merge_inconnues(rapport, rep, prefix="strategie_energie")
