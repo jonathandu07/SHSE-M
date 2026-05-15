@@ -896,7 +896,7 @@ def analyser_strategie_energie(
     rapport["enveloppe_batterie"] = env_report["enveloppe"]
     _append_inconnues(rapport, env_report["inconnues"])
 
-    tension_bus_dc_v = _extract_battery_voltage_v(batterie, rapport_batterie, etat)
+    tension_bus_dc_v = _first_finite(etat.get("v_bus_dc_v"), derivees.get("tension_bus_dc_v"))
     if tension_bus_dc_v is None:
         _push_inconnue(rapport, "impossibles", "v_bus_dc_v", "Tension bus DC requise.")
 

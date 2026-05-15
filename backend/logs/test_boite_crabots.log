@@ -3703,3 +3703,174 @@
   "F_a": 1154.7005383792514
 }
 2026-05-15 22:47:33,907 - test_boite_crabots - INFO - RESULT - test_calcul_forces_engrenage: SUCCESS 
+2026-05-15 22:57:40,010 - test_boite_crabots - INFO - Starting test_calcul_inertie_equivalente
+2026-05-15 22:57:40,010 - test_boite_crabots - INFO - RESULT - test_calcul_inertie_equivalente: SUCCESS 
+2026-05-15 22:57:40,013 - test_boite_crabots - INFO - Starting test_calcul_energie_choc
+2026-05-15 22:57:40,013 - test_boite_crabots - INFO - RESULT - test_calcul_energie_choc: SUCCESS 
+2026-05-15 22:57:40,015 - test_boite_crabots - INFO - Starting test_calcul_couple_synchronisation_moyen
+2026-05-15 22:57:40,015 - test_boite_crabots - INFO - RESULT - test_calcul_couple_synchronisation_moyen: SUCCESS 
+2026-05-15 22:57:40,018 - test_boite_crabots - INFO - Starting test_calcul_contrainte_contact_hertz
+2026-05-15 22:57:40,018 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_contact_hertz: SUCCESS 
+2026-05-15 22:57:40,020 - test_boite_crabots - INFO - Starting test_calcul_contrainte_cisaillement_torsion
+2026-05-15 22:57:40,020 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_cisaillement_torsion: SUCCESS 
+2026-05-15 22:57:40,022 - test_boite_crabots - INFO - Starting test_calcul_contrainte_flexion_arbre
+2026-05-15 22:57:40,024 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_flexion_arbre: SUCCESS 
+2026-05-15 22:57:40,026 - test_boite_crabots - INFO - Starting test_calcul_von_mises_arbre
+2026-05-15 22:57:40,026 - test_boite_crabots - INFO - RESULT - test_calcul_von_mises_arbre: SUCCESS 
+2026-05-15 22:57:40,029 - test_boite_crabots - INFO - Starting test_calcul_coefficient_securite
+2026-05-15 22:57:40,029 - test_boite_crabots - INFO - RESULT - test_calcul_coefficient_securite: SUCCESS 
+2026-05-15 22:57:40,031 - test_boite_crabots - INFO - Starting test_calcul_angle_torsion
+2026-05-15 22:57:40,031 - test_boite_crabots - INFO - RESULT - test_calcul_angle_torsion: SUCCESS 
+2026-05-15 22:57:40,034 - test_boite_crabots - INFO - Starting test_estimer_diametre_minimal_von_mises
+2026-05-15 22:57:40,034 - test_boite_crabots - INFO - RESULT - test_estimer_diametre_minimal_von_mises: SUCCESS 
+2026-05-15 22:57:40,036 - test_boite_crabots - INFO - Starting test_calcul_details_arbre
+2026-05-15 22:57:40,036 - test_boite_crabots - INFO - RESULTATS DETAILLES SYNTHESE ARBRE:
+2026-05-15 22:57:40,036 - test_boite_crabots - INFO - {
+  "diametre_mini": 0.04079775655927827,
+  "unite": "m"
+}
+2026-05-15 22:57:40,036 - test_boite_crabots - INFO - RESULT - test_calcul_details_arbre: SUCCESS 
+2026-05-15 22:57:40,039 - test_boite_crabots - INFO - Starting test_calcul_couple_transmissible_crabot
+2026-05-15 22:57:40,039 - test_boite_crabots - INFO - RESULTATS DETAILLES COUPLE CRABOT:
+2026-05-15 22:57:40,039 - test_boite_crabots - INFO - {
+  "T_cap": 2399.9999999999995,
+  "N_d": 4.0,
+  "p_adm": 100000000.0,
+  "aire_contact": 0.00015,
+  "r_m": 0.04,
+  "facteur_repartition": 1.0
+}
+2026-05-15 22:57:40,040 - test_boite_crabots - INFO - RESULT - test_calcul_couple_transmissible_crabot: SUCCESS 
+2026-05-15 22:57:40,042 - test_boite_crabots - INFO - Starting test_calcul_pression_contact_crabot
+2026-05-15 22:57:40,042 - test_boite_crabots - INFO - RESULT - test_calcul_pression_contact_crabot: SUCCESS 
+2026-05-15 22:57:40,044 - test_boite_crabots - INFO - Starting test_calcul_charge_equivalente_roulement
+2026-05-15 22:57:40,045 - test_boite_crabots - INFO - RESULT - test_calcul_charge_equivalente_roulement: SUCCESS 
+2026-05-15 22:57:40,046 - test_boite_crabots - INFO - Starting test_calcul_duree_vie_l10
+2026-05-15 22:57:40,048 - test_boite_crabots - INFO - RESULT - test_calcul_duree_vie_l10: SUCCESS 
+2026-05-15 22:57:40,050 - test_boite_crabots - INFO - Starting test_calcul_duree_vie_heures
+2026-05-15 22:57:40,050 - test_boite_crabots - INFO - RESULT - test_calcul_duree_vie_heures: SUCCESS 
+2026-05-15 22:57:40,052 - test_boite_crabots - INFO - Starting test_calcul_contrainte_flexion_lewis
+2026-05-15 22:57:40,052 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_flexion_lewis: SUCCESS 
+2026-05-15 22:57:40,055 - test_boite_crabots - INFO - Starting test_calcul_force_tangentielle
+2026-05-15 22:57:40,055 - test_boite_crabots - INFO - RESULT - test_calcul_force_tangentielle: SUCCESS 
+2026-05-15 22:57:40,056 - test_boite_crabots - INFO - Starting test_calcul_forces_engrenage
+2026-05-15 22:57:40,057 - test_boite_crabots - INFO - RESULTATS DETAILLES FORCES ENGRENAGE:
+2026-05-15 22:57:40,057 - test_boite_crabots - INFO - {
+  "F_r": 840.5532509224122,
+  "F_a": 1154.7005383792514
+}
+2026-05-15 22:57:40,057 - test_boite_crabots - INFO - RESULT - test_calcul_forces_engrenage: SUCCESS 
+2026-05-15 22:58:52,209 - test_boite_crabots - INFO - Starting test_calcul_inertie_equivalente
+2026-05-15 22:58:52,210 - test_boite_crabots - INFO - RESULT - test_calcul_inertie_equivalente: SUCCESS 
+2026-05-15 22:58:52,220 - test_boite_crabots - INFO - Starting test_calcul_energie_choc
+2026-05-15 22:58:52,221 - test_boite_crabots - INFO - RESULT - test_calcul_energie_choc: SUCCESS 
+2026-05-15 22:58:52,232 - test_boite_crabots - INFO - Starting test_calcul_couple_synchronisation_moyen
+2026-05-15 22:58:52,232 - test_boite_crabots - INFO - RESULT - test_calcul_couple_synchronisation_moyen: SUCCESS 
+2026-05-15 22:58:52,247 - test_boite_crabots - INFO - Starting test_calcul_contrainte_contact_hertz
+2026-05-15 22:58:52,248 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_contact_hertz: SUCCESS 
+2026-05-15 22:58:52,269 - test_boite_crabots - INFO - Starting test_calcul_contrainte_cisaillement_torsion
+2026-05-15 22:58:52,269 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_cisaillement_torsion: SUCCESS 
+2026-05-15 22:58:52,284 - test_boite_crabots - INFO - Starting test_calcul_contrainte_flexion_arbre
+2026-05-15 22:58:52,284 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_flexion_arbre: SUCCESS 
+2026-05-15 22:58:52,294 - test_boite_crabots - INFO - Starting test_calcul_von_mises_arbre
+2026-05-15 22:58:52,295 - test_boite_crabots - INFO - RESULT - test_calcul_von_mises_arbre: SUCCESS 
+2026-05-15 22:58:52,316 - test_boite_crabots - INFO - Starting test_calcul_coefficient_securite
+2026-05-15 22:58:52,320 - test_boite_crabots - INFO - RESULT - test_calcul_coefficient_securite: SUCCESS 
+2026-05-15 22:58:52,331 - test_boite_crabots - INFO - Starting test_calcul_angle_torsion
+2026-05-15 22:58:52,331 - test_boite_crabots - INFO - RESULT - test_calcul_angle_torsion: SUCCESS 
+2026-05-15 22:58:52,345 - test_boite_crabots - INFO - Starting test_estimer_diametre_minimal_von_mises
+2026-05-15 22:58:52,345 - test_boite_crabots - INFO - RESULT - test_estimer_diametre_minimal_von_mises: SUCCESS 
+2026-05-15 22:58:52,371 - test_boite_crabots - INFO - Starting test_calcul_details_arbre
+2026-05-15 22:58:52,372 - test_boite_crabots - INFO - RESULTATS DETAILLES SYNTHESE ARBRE:
+2026-05-15 22:58:52,372 - test_boite_crabots - INFO - {
+  "diametre_mini": 0.04079775655927827,
+  "unite": "m"
+}
+2026-05-15 22:58:52,372 - test_boite_crabots - INFO - RESULT - test_calcul_details_arbre: SUCCESS 
+2026-05-15 22:58:52,388 - test_boite_crabots - INFO - Starting test_calcul_couple_transmissible_crabot
+2026-05-15 22:58:52,389 - test_boite_crabots - INFO - RESULTATS DETAILLES COUPLE CRABOT:
+2026-05-15 22:58:52,390 - test_boite_crabots - INFO - {
+  "T_cap": 2399.9999999999995,
+  "N_d": 4.0,
+  "p_adm": 100000000.0,
+  "aire_contact": 0.00015,
+  "r_m": 0.04,
+  "facteur_repartition": 1.0
+}
+2026-05-15 22:58:52,390 - test_boite_crabots - INFO - RESULT - test_calcul_couple_transmissible_crabot: SUCCESS 
+2026-05-15 22:58:52,401 - test_boite_crabots - INFO - Starting test_calcul_pression_contact_crabot
+2026-05-15 22:58:52,401 - test_boite_crabots - INFO - RESULT - test_calcul_pression_contact_crabot: SUCCESS 
+2026-05-15 22:58:52,416 - test_boite_crabots - INFO - Starting test_calcul_charge_equivalente_roulement
+2026-05-15 22:58:52,417 - test_boite_crabots - INFO - RESULT - test_calcul_charge_equivalente_roulement: SUCCESS 
+2026-05-15 22:58:52,450 - test_boite_crabots - INFO - Starting test_calcul_duree_vie_l10
+2026-05-15 22:58:52,451 - test_boite_crabots - INFO - RESULT - test_calcul_duree_vie_l10: SUCCESS 
+2026-05-15 22:58:52,469 - test_boite_crabots - INFO - Starting test_calcul_duree_vie_heures
+2026-05-15 22:58:52,469 - test_boite_crabots - INFO - RESULT - test_calcul_duree_vie_heures: SUCCESS 
+2026-05-15 22:58:52,485 - test_boite_crabots - INFO - Starting test_calcul_contrainte_flexion_lewis
+2026-05-15 22:58:52,485 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_flexion_lewis: SUCCESS 
+2026-05-15 22:58:52,506 - test_boite_crabots - INFO - Starting test_calcul_force_tangentielle
+2026-05-15 22:58:52,506 - test_boite_crabots - INFO - RESULT - test_calcul_force_tangentielle: SUCCESS 
+2026-05-15 22:58:52,526 - test_boite_crabots - INFO - Starting test_calcul_forces_engrenage
+2026-05-15 22:58:52,526 - test_boite_crabots - INFO - RESULTATS DETAILLES FORCES ENGRENAGE:
+2026-05-15 22:58:52,526 - test_boite_crabots - INFO - {
+  "F_r": 840.5532509224122,
+  "F_a": 1154.7005383792514
+}
+2026-05-15 22:58:52,527 - test_boite_crabots - INFO - RESULT - test_calcul_forces_engrenage: SUCCESS 
+2026-05-15 22:59:33,925 - test_boite_crabots - INFO - Starting test_calcul_inertie_equivalente
+2026-05-15 22:59:33,925 - test_boite_crabots - INFO - RESULT - test_calcul_inertie_equivalente: SUCCESS 
+2026-05-15 22:59:33,929 - test_boite_crabots - INFO - Starting test_calcul_energie_choc
+2026-05-15 22:59:33,929 - test_boite_crabots - INFO - RESULT - test_calcul_energie_choc: SUCCESS 
+2026-05-15 22:59:33,931 - test_boite_crabots - INFO - Starting test_calcul_couple_synchronisation_moyen
+2026-05-15 22:59:33,932 - test_boite_crabots - INFO - RESULT - test_calcul_couple_synchronisation_moyen: SUCCESS 
+2026-05-15 22:59:33,933 - test_boite_crabots - INFO - Starting test_calcul_contrainte_contact_hertz
+2026-05-15 22:59:33,934 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_contact_hertz: SUCCESS 
+2026-05-15 22:59:33,936 - test_boite_crabots - INFO - Starting test_calcul_contrainte_cisaillement_torsion
+2026-05-15 22:59:33,936 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_cisaillement_torsion: SUCCESS 
+2026-05-15 22:59:33,939 - test_boite_crabots - INFO - Starting test_calcul_contrainte_flexion_arbre
+2026-05-15 22:59:33,939 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_flexion_arbre: SUCCESS 
+2026-05-15 22:59:33,942 - test_boite_crabots - INFO - Starting test_calcul_von_mises_arbre
+2026-05-15 22:59:33,942 - test_boite_crabots - INFO - RESULT - test_calcul_von_mises_arbre: SUCCESS 
+2026-05-15 22:59:33,943 - test_boite_crabots - INFO - Starting test_calcul_coefficient_securite
+2026-05-15 22:59:33,944 - test_boite_crabots - INFO - RESULT - test_calcul_coefficient_securite: SUCCESS 
+2026-05-15 22:59:33,946 - test_boite_crabots - INFO - Starting test_calcul_angle_torsion
+2026-05-15 22:59:33,946 - test_boite_crabots - INFO - RESULT - test_calcul_angle_torsion: SUCCESS 
+2026-05-15 22:59:33,948 - test_boite_crabots - INFO - Starting test_estimer_diametre_minimal_von_mises
+2026-05-15 22:59:33,948 - test_boite_crabots - INFO - RESULT - test_estimer_diametre_minimal_von_mises: SUCCESS 
+2026-05-15 22:59:33,950 - test_boite_crabots - INFO - Starting test_calcul_details_arbre
+2026-05-15 22:59:33,950 - test_boite_crabots - INFO - RESULTATS DETAILLES SYNTHESE ARBRE:
+2026-05-15 22:59:33,950 - test_boite_crabots - INFO - {
+  "diametre_mini": 0.04079775655927827,
+  "unite": "m"
+}
+2026-05-15 22:59:33,950 - test_boite_crabots - INFO - RESULT - test_calcul_details_arbre: SUCCESS 
+2026-05-15 22:59:33,953 - test_boite_crabots - INFO - Starting test_calcul_couple_transmissible_crabot
+2026-05-15 22:59:33,953 - test_boite_crabots - INFO - RESULTATS DETAILLES COUPLE CRABOT:
+2026-05-15 22:59:33,953 - test_boite_crabots - INFO - {
+  "T_cap": 2399.9999999999995,
+  "N_d": 4.0,
+  "p_adm": 100000000.0,
+  "aire_contact": 0.00015,
+  "r_m": 0.04,
+  "facteur_repartition": 1.0
+}
+2026-05-15 22:59:33,953 - test_boite_crabots - INFO - RESULT - test_calcul_couple_transmissible_crabot: SUCCESS 
+2026-05-15 22:59:33,956 - test_boite_crabots - INFO - Starting test_calcul_pression_contact_crabot
+2026-05-15 22:59:33,956 - test_boite_crabots - INFO - RESULT - test_calcul_pression_contact_crabot: SUCCESS 
+2026-05-15 22:59:33,958 - test_boite_crabots - INFO - Starting test_calcul_charge_equivalente_roulement
+2026-05-15 22:59:33,959 - test_boite_crabots - INFO - RESULT - test_calcul_charge_equivalente_roulement: SUCCESS 
+2026-05-15 22:59:33,960 - test_boite_crabots - INFO - Starting test_calcul_duree_vie_l10
+2026-05-15 22:59:33,960 - test_boite_crabots - INFO - RESULT - test_calcul_duree_vie_l10: SUCCESS 
+2026-05-15 22:59:33,963 - test_boite_crabots - INFO - Starting test_calcul_duree_vie_heures
+2026-05-15 22:59:33,963 - test_boite_crabots - INFO - RESULT - test_calcul_duree_vie_heures: SUCCESS 
+2026-05-15 22:59:33,965 - test_boite_crabots - INFO - Starting test_calcul_contrainte_flexion_lewis
+2026-05-15 22:59:33,965 - test_boite_crabots - INFO - RESULT - test_calcul_contrainte_flexion_lewis: SUCCESS 
+2026-05-15 22:59:33,967 - test_boite_crabots - INFO - Starting test_calcul_force_tangentielle
+2026-05-15 22:59:33,967 - test_boite_crabots - INFO - RESULT - test_calcul_force_tangentielle: SUCCESS 
+2026-05-15 22:59:33,969 - test_boite_crabots - INFO - Starting test_calcul_forces_engrenage
+2026-05-15 22:59:33,969 - test_boite_crabots - INFO - RESULTATS DETAILLES FORCES ENGRENAGE:
+2026-05-15 22:59:33,969 - test_boite_crabots - INFO - {
+  "F_r": 840.5532509224122,
+  "F_a": 1154.7005383792514
+}
+2026-05-15 22:59:33,970 - test_boite_crabots - INFO - RESULT - test_calcul_forces_engrenage: SUCCESS 

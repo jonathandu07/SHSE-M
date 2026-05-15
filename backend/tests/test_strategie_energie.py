@@ -110,7 +110,7 @@ class _FakeDeplaceur:
 def _candidate(
     *,
     ratio=1.0,
-    p_out=50000.0,
+    p_out=46000.0,
     p_alt_loss=2000.0,
     p_alt_mec=54000.0,
     p_mt=56000.0,
@@ -313,7 +313,7 @@ def test_avec_toutes_les_donnees_decision_calculable():
             "puissance_mecanique_alternateur_requise_w": 52000.0,
             "puissance_moteur_thermique_requise_w": 55000.0,
         },
-        rapport_boite={"candidats": [_candidate()]},
+        rapport_boite={"candidats": [_candidate(p_out=51000.0)]},
         point_actuel={"rpm": 1200.0, "couple_nm": 40.0},
     )
     assert rep["decision"]["mode_energetique"] == ModeEnergetique.RECHARGE_BATTERIE.value
