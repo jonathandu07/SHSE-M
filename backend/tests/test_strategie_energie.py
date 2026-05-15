@@ -1,95 +1,244 @@
-# backend/tests/test_strategie_energie.py
-import unittest
-import math
-from backend.ensemble.strategie_energie import calculer_strategie_couplage
+import pytest
 
-# ==========================================================
-# FIXTURES DE TEST (Valeurs arbitraires pour validation logique)
-# Ne représentent PAS des valeurs de conception réelles.
-# ==========================================================
-FIXTURE_TEST_REND_ALT = 0.9      # Arbitraire : rendement alternateur stable
-FIXTURE_TEST_VBUS = 400.0        # Arbitraire : tension bus nominale
-FIXTURE_TEST_CAP_AH = 100.0      # Arbitraire : capacité batterie
-FIXTURE_TEST_SOC_MIN = 0.15      # Arbitraire : seuil soutien traction
-FIXTURE_TEST_SOC_MAX = 0.8       # Arbitraire : seuil fin recharge
-FIXTURE_TEST_TOL_P = 0.05        # Arbitraire : tolérance de puissance relative
-FIXTURE_TEST_TOL_TRANS = 0.1     # Arbitraire : tolérance transitoire relative
+from backend.ensemble.strategie_energie import (
+    ModeEnergetique,
+    analyser_strategie_energie,
+    calculer_strategie_couplage,
+    determiner_enveloppe_batterie,
+    generer_cartographie_alternateur,
+)
 
-def FIXTURE_LOI_SOH_ARBITRAIRE(p_crate, soh):
-    """Loi arbitraire pour le test. Ne pas utiliser en production."""
-    return p_crate * soh
 
-class MockComponent:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items(): setattr(self, k, v)
+class _FakeBattery:
+    tension_nominale_v = 400.0
+    tension_charge_v = 420.0
+    capacite_ah = 100.0
+    c_rate_max_charge = 1.0
+    temperature_alerte_c = 45.0
 
-class MockAlternateur:
-    """Mock mimant l'API réelle avec gestion du couple."""
+
+class _FakeAlternateur:
+    rendement_alternateur_impose = 0.92
+    pertes_fixes_w = 500.0
+
     def analyser_point_de_fonctionnement(self, **kwargs):
-        rpm, v, c = kwargs.get("vitesse_rotation_rpm"), kwargs.get("tension_v"), kwargs.get("couple_nm")
-        if c is None: raise TypeError("API sans couple")
-        p_meca = (rpm * c * 2 * math.pi) / 60
+        p_out = kwargs.get("puissance_electrique_cible_w")
+        rpm = kwargs.get("vitesse_rotation_rpm")
         return {
-            "sortie_electrique": {"puissance_utile_w": p_meca * FIXTURE_TEST_REND_ALT},
-            "rendement": {"eta_sur_pertes_connues": FIXTURE_TEST_REND_ALT},
-            "pertes": {"pertes_connues_total_w": p_meca * (1.0 - FIXTURE_TEST_REND_ALT)},
-            "inconnues": {"impossibles": [], "partielles": []}
+            "pertes": {
+                "pertes_cuivre_w": 800.0,
+                "pertes_fer_w": 300.0,
+                "pertes_fixes_w": 500.0,
+                "pertes_connues_total_w": 1600.0,
+            },
+            "rendement": {
+                "rendement_impose": self.rendement_alternateur_impose,
+                "eta_sur_pertes_connues": self.rendement_alternateur_impose,
+            },
+            "sortie_electrique": {"puissance_utile_w": p_out, "tension_v": kwargs.get("tension_v")},
+            "mecanique": {
+                "puissance_mecanique_dimensionnante_w": (p_out / self.rendement_alternateur_impose) if p_out is not None else None,
+                "couple_mecanique_dimensionnant_nm": 120.0 if rpm else None,
+            },
+            "thermique": {"ok_temperature_sur_pertes_connues": True},
+            "inconnues": {"impossibles": [], "partielles": []},
         }
 
-class TestStrategieEnergieV7(unittest.TestCase):
-    def setUp(self):
-        self.composants = {
-            "batterie": MockComponent(
-                capacite_ah=FIXTURE_TEST_CAP_AH, c_rate_charge_max=2.0, temp_cellule_critique_c=60.0, 
-                temp_derating_seuil_c=50.0, soh_seuil_protection=0.85, courant_max_bus_a=200.0,
-                soc_seuil_soutien_traction=FIXTURE_TEST_SOC_MIN, soc_seuil_fin_recharge=FIXTURE_TEST_SOC_MAX,
-                loi_reduction_puissance_soh=FIXTURE_LOI_SOH_ARBITRAIRE
-            ),
-            "alternateur": MockAlternateur(), "boite_crabots": MockComponent(rapports={"direct": 1.0}),
-            "moteur_thermique": MockComponent(rpm_min=800, rpm_max=6000),
-            "moteur_electrique": MockComponent(rendement_moteur_electrique=0.95),
-            "deplaceur": MockComponent(resistance_thermique_k_w=0.1, capacite_thermique_j_k=100.0)
-        }
-        self.etat = {
-            "puissance_traction_roue_w": 20000.0, "batterie_soc": 0.5, "batterie_soh": 0.9, "batterie_temp_c": 25.0,
-            "v_bus_dc_v": FIXTURE_TEST_VBUS, "temps_disponible_s": 1.0, "point_actuel_thermique": {"rpm": 800, "couple_nm": 0.0},
-            "tol_puissance_relative": FIXTURE_TEST_TOL_P, "tol_transitoire_relative": FIXTURE_TEST_TOL_TRANS,
-            "bornes_recherche": {
-                "rpm_min": 1000, "rpm_max": 3000, "rpm_step": 500,
-                "couple_min": 50, "couple_max": 600, "couple_step": 50
-            }
-        }
 
-    def test_rigueur_plage_thermique_incoherente(self):
-        """Vérifie qu'une plage de derating nulle lève une inconnue explicite."""
-        self.composants["batterie"].temp_derating_seuil_c = 60.0 # Egale à temp_critique
-        res = calculer_strategie_couplage(self.etat, self.composants)
-        self.assertTrue(any("incohérent" in i["raison"] for i in res["inconnues"]["partielles"]))
+class _FakeAlternateurNoEta(_FakeAlternateur):
+    rendement_alternateur_impose = None
 
-    def test_propagation_inconnues_globales_carto(self):
-        """Vérifie que les erreurs de bornes (ex: rpm_step=0) remontent au rapport final."""
-        self.etat["bornes_recherche"]["rpm_step"] = 0
-        res = calculer_strategie_couplage(self.etat, self.composants)
-        self.assertTrue(any("strictement positif" in i["raison"] for i in res["inconnues"]["impossibles"]))
 
-    def test_decideur_p_charge_decide_vs_inconnu(self):
-        """Prouve la différence entre p_charge=0.0 (EV Only) et p_charge=None (Inconnu)."""
-        # Cas EV Only : SoC élevé, p_charge doit être 0.0
-        self.etat["batterie_soc"] = 0.9
-        res_ev = calculer_strategie_couplage(self.etat, self.composants)
-        self.assertEqual(res_ev["bilan_bus_dc"]["p_charge_cible_w"], 0.0)
-        
-        # Cas Recharge : SoC faible mais enveloppe incomplète (manque loi SoH)
-        self.etat["batterie_soc"] = 0.5
-        self.composants["batterie"].loi_reduction_puissance_soh = None
-        res_recharge = calculer_strategie_couplage(self.etat, self.composants)
-        self.assertIsNone(res_recharge["bilan_bus_dc"]["p_charge_cible_w"])
+class _FakeBox:
+    pass
 
-    def test_score_priorise_donnee_connue(self):
-        """Vérifie que le tri préfère un rendement connu à un inconnu (drapeau 0 vs 1)."""
-        # Ici tous les points mockés ont un rendement. Le score[7] (rend_inc) doit être 0.
-        res = calculer_strategie_couplage(self.etat, self.composants)
-        self.assertEqual(res["point_retenu"]["alternateur"]["score_lexico"][7], 0)
 
-if __name__ == "__main__":
-    unittest.main()
+class _FakeEngine:
+    pass
+
+
+class _FakeDeplaceur:
+    resistance_thermique_k_w = 0.2
+    capacite_thermique_j_k = 100.0
+
+
+def _candidate(
+    *,
+    ratio=1.0,
+    p_out=50000.0,
+    p_alt_loss=2000.0,
+    p_alt_mec=54000.0,
+    p_mt=56000.0,
+    current=100.0,
+):
+    return {
+        "rapport": ratio,
+        "rpm_alternateur": 3000.0,
+        "alternateur": {
+            "bus_dc": {"courant_bus_dc_A": current},
+            "thermique": {"ok_temperature_sur_pertes_connues": True},
+            "inconnues": {"impossibles": [], "partielles": []},
+        },
+        "boite": {"inconnues": {"impossibles": [], "partielles": []}},
+        "exigences": {
+            "P_out_W": p_out,
+            "P_pertes_alternateur_W": p_alt_loss,
+            "P_mecanique_alternateur_W": p_alt_mec,
+            "puissance_moteur_requise_W": p_mt,
+            "couple_moteur_requis_Nm": 180.0,
+            "couple_moteur_min_theorique_Nm": 170.0,
+        },
+    }
+
+
+def test_strategie_sans_soh_remonte_inconnue_partielle():
+    rep = determiner_enveloppe_batterie(
+        batterie=_FakeBattery(),
+        etat_systeme={"batterie_temp_c": 25.0, "v_bus_dc_v": 420.0},
+    )
+    assert "p_charge_max_soh_w" in {item["nom"] for item in rep["inconnues"]["partielles"]}
+
+
+def test_strategie_sans_resistance_interne_laisse_les_pertes_joule_inconnues_sans_blocage():
+    rep = analyser_strategie_energie(
+        etat_systeme={
+            "puissance_sortie_demandee_w": 40000.0,
+            "puissance_elec_usage_w": 40000.0,
+            "puissance_auxiliaire_w": 0.0,
+            "p_recharge_demandee_w": 0.0,
+            "v_bus_dc_v": 400.0,
+            "temps_disponible_s": 1.0,
+        },
+        composants={"batterie": _FakeBattery(), "alternateur": _FakeAlternateur(), "boite_crabots": _FakeBox(), "moteur_thermique": _FakeEngine(), "deplaceur": _FakeDeplaceur()},
+        rapport_boite={"candidats": [_candidate()]},
+        point_actuel={"rpm": 1000.0, "couple_nm": 10.0},
+    )
+    assert rep["point_retenu"] is not None
+    assert any(item["nom"] == "pertes_joule_batterie_w" for item in rep["inconnues"]["partielles"])
+
+
+def test_batterie_trop_chaude_interdit_recharge():
+    rep = calculer_strategie_couplage(
+        etat_systeme={
+            "puissance_sortie_demandee_w": 30000.0,
+            "puissance_elec_usage_w": 30000.0,
+            "puissance_auxiliaire_w": 0.0,
+            "p_recharge_demandee_w": 10000.0,
+            "batterie_temp_c": 50.0,
+            "v_bus_dc_v": 420.0,
+        },
+        composants={"batterie": _FakeBattery()},
+    )
+    assert rep["mode_energetique"] == ModeEnergetique.MODE_DEGRADE.value
+    assert rep["bilan_bus_dc"]["puissance_recharge_retenue_w"] == 0.0
+
+
+def test_batterie_trop_chaude_mais_soutien_traction_autorise():
+    rep = calculer_strategie_couplage(
+        etat_systeme={
+            "puissance_sortie_demandee_w": 30000.0,
+            "puissance_elec_usage_w": 30000.0,
+            "puissance_auxiliaire_w": 0.0,
+            "p_recharge_demandee_w": 10000.0,
+            "batterie_temp_c": 50.0,
+            "v_bus_dc_v": 420.0,
+        },
+        composants={"batterie": _FakeBattery()},
+        autoriser_soutien_traction_si_recharge_interdite=True,
+    )
+    assert rep["mode_energetique"] == ModeEnergetique.SOUTIEN_TRACTION.value
+    assert rep["bilan_bus_dc"]["puissance_recharge_retenue_w"] == 0.0
+
+
+def test_cartographie_alternateur_sans_bornes_est_impossible():
+    rep = generer_cartographie_alternateur(alternateur=_FakeAlternateur(), tension_bus_dc_v=400.0)
+    assert rep["points"] == []
+    assert any(item["nom"] == "grille_rpm" for item in rep["inconnues"]["impossibles"])
+
+
+def test_lexicographie_prefere_le_point_moins_stressant_pour_la_batterie():
+    rep = analyser_strategie_energie(
+        etat_systeme={
+            "puissance_sortie_demandee_w": 45000.0,
+            "puissance_elec_usage_w": 45000.0,
+            "puissance_auxiliaire_w": 0.0,
+            "p_recharge_demandee_w": 0.0,
+            "v_bus_dc_v": 400.0,
+            "temps_disponible_s": 1.0,
+        },
+        composants={"batterie": _FakeBattery(), "alternateur": _FakeAlternateur(), "boite_crabots": _FakeBox(), "moteur_thermique": _FakeEngine(), "deplaceur": _FakeDeplaceur()},
+        rapport_boite={
+            "candidats": [
+                _candidate(ratio=1.0, p_alt_loss=1500.0, p_alt_mec=53000.0, p_mt=55000.0, current=140.0),
+                _candidate(ratio=1.5, p_alt_loss=1800.0, p_alt_mec=54000.0, p_mt=56000.0, current=80.0),
+            ]
+        },
+        point_actuel={"rpm": 1000.0, "couple_nm": 20.0},
+    )
+    assert rep["point_retenu"]["rapport"] == pytest.approx(1.5)
+
+
+def test_beta_absent_ne_produit_pas_d_intermittence_inventee():
+    rep = analyser_strategie_energie(
+        etat_systeme={
+            "puissance_sortie_demandee_w": 45000.0,
+            "puissance_elec_usage_w": 45000.0,
+            "puissance_auxiliaire_w": 0.0,
+            "p_recharge_demandee_w": 0.0,
+            "v_bus_dc_v": 400.0,
+        },
+        composants={"batterie": _FakeBattery()},
+        derivees_chaine_energie={},
+    )
+    assert rep["bilan_bus_dc"]["fraction_temps_generation_beta"] is None
+    assert rep["bilan_bus_dc"]["puissance_bus_dc_instantanee_w"] == pytest.approx(45000.0)
+
+
+def test_absence_de_rendement_alternateur_rend_la_cartographie_partielle():
+    rep = generer_cartographie_alternateur(
+        alternateur=_FakeAlternateurNoEta(),
+        tension_bus_dc_v=400.0,
+        rpm_min=1000.0,
+        rpm_max=1000.0,
+        rpm_step=500.0,
+        couple_min=50.0,
+        couple_max=50.0,
+        couple_step=25.0,
+    )
+    assert rep["points"][0]["puissance_electrique_w"] is None
+    assert rep["points"][0]["statut"] == "partiel"
+
+
+def test_absence_de_rendement_boite_ou_liaison_remonte_une_inconnue_partielle():
+    rep = analyser_strategie_energie(
+        etat_systeme={
+            "puissance_sortie_demandee_w": 45000.0,
+            "puissance_elec_usage_w": 45000.0,
+            "puissance_auxiliaire_w": 0.0,
+            "p_recharge_demandee_w": 0.0,
+            "v_bus_dc_v": 400.0,
+            "temps_disponible_s": 1.0,
+        },
+        composants={"batterie": _FakeBattery(), "alternateur": _FakeAlternateur(), "boite_crabots": _FakeBox(), "moteur_thermique": _FakeEngine(), "deplaceur": _FakeDeplaceur()},
+        rapport_boite={
+            "candidats": [
+                {
+                    "rapport": 1.0,
+                    "rpm_alternateur": 3000.0,
+                    "alternateur": {"bus_dc": {"courant_bus_dc_A": 90.0}, "inconnues": {"impossibles": [], "partielles": []}},
+                    "boite": {"inconnues": {"impossibles": [], "partielles": []}},
+                    "exigences": {
+                        "P_out_W": 45000.0,
+                        "P_pertes_alternateur_W": 1500.0,
+                        "P_mecanique_alternateur_W": None,
+                        "puissance_moteur_requise_W": None,
+                        "puissance_moteur_min_theorique_W": None,
+                        "couple_moteur_requis_Nm": 150.0,
+                        "couple_moteur_min_theorique_Nm": 140.0,
+                    },
+                }
+            ]
+        },
+        point_actuel={"rpm": 1000.0, "couple_nm": 10.0},
+    )
+    assert any(item["nom"] == "puissance_moteur_thermique_requise_w" for item in rep["inconnues"]["partielles"])
