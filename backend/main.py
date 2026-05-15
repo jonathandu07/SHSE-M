@@ -540,9 +540,7 @@ def _derive_chain_energy_targets(
                 f"Rendements manquants ou invalides : {', '.join(manquants)}.",
             )
         else:
-            eta_chaine_meca = 1.0
-            for eta in rendements:
-                eta_chaine_meca *= eta
+            eta_chaine_meca = math.prod(rendements)
 
         derived["rendement_chaine_mecanique"] = eta_chaine_meca
         derived["puissance_moteur_thermique_borne_basse_w"] = p_bus_inst_w
@@ -2730,8 +2728,8 @@ def dimensionner_systeme_shsem(
     resume_gui = {
         "N_cyl": mt_syn.get("nombre_cylindres"),
         "Architecture": mt_syn.get("architecture"),
-        "Bore_mm": (_safe_float(mt_syn.get("alesage_m")) or 0.0) * 1000.0 if _is_finite(mt_syn.get("alesage_m")) else None,
-        "Stroke_mm": (_safe_float(mt_syn.get("course_m")) or 0.0) * 1000.0 if _is_finite(mt_syn.get("course_m")) else None,
+        "Bore_mm": _safe_float(mt_syn.get("alesage_m")) * 1000.0 if _is_finite(mt_syn.get("alesage_m")) else None,
+        "Stroke_mm": _safe_float(mt_syn.get("course_m")) * 1000.0 if _is_finite(mt_syn.get("course_m")) else None,
         "RPM": rpm_val,
         "PME": mt_syn.get("pme_pa"),
         "PME_Pa": mt_syn.get("pme_pa"),
