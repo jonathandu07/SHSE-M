@@ -11,6 +11,14 @@ from kivy.clock import Clock
 
 from gui.components import COLORS, ModernButton
 
+def fmt_value(value, unit="", decimals=1):
+    if value is None:
+        return "INCONNU"
+    try:
+        return f"{float(value):.{decimals}f}{unit}"
+    except Exception:
+        return str(value)
+
 class CandidateCard(BoxLayout):
     def __init__(self, data, on_select, **kwargs):
         super().__init__(orientation="vertical", padding=20, spacing=10, size_hint_y=None, height=320, **kwargs)
@@ -35,11 +43,19 @@ class CandidateCard(BoxLayout):
             grid.add_widget(Label(text=k, color=COLORS["GAXD"], font_size="13sp", halign="left"))
             grid.add_widget(Label(text=v, color=COLORS["white"], font_size="14sp", halign="right"))
             
-        _add_row("Score Global", f"{data.get('score_global', 0):.2f}")
-        _add_row("Alesage x Course", f"{data.get('bore_mm', 0):.1f}x{data.get('course_mm', 0):.1f} mm")
-        _add_row("Cylindree Unit.", f"{data.get('cylindree_unit_cc', 0):.0f} cc")
-        _add_row("Masse Est.", f"{data.get('masse_relative', 0):.1f} kg*")
-        _add_row("Cout Maint.", f"{data.get('cout_maintenance_eur', 0):.0f} €*")
+        _add_row("Score Global", fmt_value(data.get("score_global"), decimals=2))
+        
+        # Alesage x Course : INCONNU si l'un manque
+        b, c = data.get("bore_mm"), data.get("course_mm")
+        if b is None or c is None:
+            ac_val = "INCONNU"
+        else:
+            ac_val = f"{float(b):.1f}x{float(c):.1f} mm"
+        _add_row("Alesage x Course", ac_val)
+
+        _add_row("Cylindree Unit.", fmt_value(data.get("cylindree_unit_cc"), unit=" cc", decimals=0))
+        _add_row("Masse Est.", fmt_value(data.get("masse_relative"), unit=" kg*", decimals=1))
+        _add_row("Cout Maint.", fmt_value(data.get("cout_maintenance_eur"), unit=" €*", decimals=0))
         
         self.add_widget(grid)
         

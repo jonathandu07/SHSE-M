@@ -209,12 +209,10 @@ class AutoConfigScreen(Screen):
         
         app = App.get_running_app()
         app.target_power = str(val)
+        app.target_unit = unite
         app.engine_params = {
             "puissance_entree": val,
-            "unite_entree": unite,
-            "mode_carburant": "multi_carburant",
-            "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
-            "temps_moteur": 4
+            "unite_entree": unite
         }
         self.manager.current = "loading"
 
@@ -253,11 +251,14 @@ class AutoLoadingScreen(Screen):
             
             report_name = f"gui_{str(p_target).replace('.', 'p')}kw"
             
+            unite = ep.get("unite_entree")
+            if unite not in ("kw", "ch"):
+                raise ValueError(f"Unite d'entree absente ou invalide ('{unite}') : impossible de lancer le calcul.")
+            
             # Le backend gere toute la logique physique.
             report = dimensionner_systeme_shsem(
                 puissance_traction_kw=p_target, 
-                charger_batterie=True,
-                unite=ep.get("unite_entree", "kw"),
+                unite=unite,
                 moteur_thermique_definition=ep # Contient les choix precedents
             )
             
@@ -320,7 +321,8 @@ class AutoDashboardScreen(Screen):
         app = App.get_running_app()
         report = _safe_dict(app.simulation_results)
         res = _report_resume(report)
-        self.res_pwr = f"{float(app.target_power):.1f} kW"
+        unit_display = "kW" if app.target_unit == "kw" else "ch"
+        self.res_pwr = f"{float(app.target_power):.1f} {unit_display}"
         self.res_arch = str(res.get("Architecture") or "A determiner")
         vd = res.get("vd_tot_cc")
         self.res_vol = f"{vd/1000:.2f} L" if vd else "-- L"
@@ -387,6 +389,7 @@ class DetailedDatasheetScreen(Screen): pass
 class SHSEMApp(App):
     title = PROJECT_NAME
     target_power = StringProperty("150")
+    target_unit = StringProperty("kw")
     simulation_results = DictProperty({})
     engine_params = DictProperty({})
     current_report_name = StringProperty("")

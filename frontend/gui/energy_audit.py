@@ -182,10 +182,13 @@ class EnergyAuditScreen(Screen):
         card_syn.size_hint_y = None
         card_syn.height = 220
         
-        card_syn.add_widget(AuditRow("Mode Énergétique", strat.get("mode_energetique"), status="ok" if strat.get("mode_energetique") else "partiel"))
-        card_syn.add_widget(AuditRow("Décision", strat.get("decision", {}).get("raison"), status="ok"))
+        card_syn.add_widget(AuditRow("Mode Énergétique", strat.get("mode_energetique"), status="ok" if strat.get("mode_energetique") else "inconnu"))
         
-        card_syn.add_widget(AuditRow("Cible Utilisateur", app.target_power, unit="kW", status="ok"))
+        decision_raison = strat.get("decision", {}).get("raison")
+        card_syn.add_widget(AuditRow("Décision", decision_raison, status="ok" if decision_raison is not None else "inconnu"))
+        
+        unit_display = "kW" if app.target_unit == "kw" else "ch"
+        card_syn.add_widget(AuditRow("Cible Utilisateur", app.target_power, unit=unit_display, status="ok"))
         p_sortie = bilan.get("puissance_sortie_demandee_w")
         card_syn.add_widget(AuditRow("Puissance Normalisée", p_sortie, unit="W", status="ok" if p_sortie is not None else "impossible"))
         
@@ -209,15 +212,13 @@ class EnergyAuditScreen(Screen):
         
         for label, key, unit in chain_data:
             val = bilan.get(key)
-            # Simuler la récupération des détails si présents dans une structure parallèle ou si la clé contient un dict
-            # Pour l'instant on utilise le statut global ou déduit
-            status = "ok" if val is not None else "partiel"
+            status = "ok" if val is not None else "inconnu"
             card_chain.add_widget(AuditRow(label, val, unit=unit, status=status))
             
         self.content.add_widget(card_chain)
         
         # 3. Batterie
-        card_bat = AuditCard(title="Enveloppe Batterie", status=env.get("statut", "ok"))
+        card_bat = AuditCard(title="Enveloppe Batterie", status=env.get("statut", "inconnu"))
         card_bat.size_hint_y = None
         card_bat.height = 300
         
