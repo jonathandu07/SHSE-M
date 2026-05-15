@@ -1064,16 +1064,39 @@ class AutoConfigScreen(Screen):
     def launch_generation(self, *_):
         txt_raw = (self.power_input.text or "").strip()
         txt = txt_raw.replace(",", ".")
+        
+        # Validation Puissance
         try:
+            if not txt:
+                raise ValueError("Puissance manquante")
             val = float(txt)
             if val <= 0:
                 raise ValueError("P > 0 requis")
-            if val > 5000:
-                self.err.text = "Limite: 5000 kW (Physique)"
-                return
         except Exception as e:
-            self.err.text = f"Entree invalide: {e}"
+            self.err.text = f"Erreur : {e}"
             return
+
+        # Validation Unité
+        unit_text = self.unit_spinner.text
+        if unit_text == "Choisir l'unite...":
+            self.err.text = "Erreur : Tu dois choisir une unite (kW ou chevaux)."
+            return
+            
+        unite = "kw" if "kW" in unit_text else "ch"
+        
+        self.err.text = ""
+        app = App.get_running_app()
+        app.target_power = str(val)
+        app.target_unit = unite
+        
+        # Le backend utilisera ces données pour le premier calcul strict
+        app.engine_params = {
+            "architectures_autorisees": ["L", "V", "W", "Etoile", "Boxer"],
+            "temps_moteur": 4,
+            "mode_carburant": "multi_carburant",
+            "carburants_autorises": ["diesel", "essence", "ethanol", "methanol", "gpl", "gnv", "hydrogene"],
+        }
+        self.manager.current = "loading"
 
         alesage_mm = self._read_float("alesage_mm", None)
         course_mm = self._read_float("course_mm", None)
