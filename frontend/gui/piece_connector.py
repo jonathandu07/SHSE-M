@@ -1031,7 +1031,7 @@ def get_piece_instance(
     engine_params: Optional[Mapping[str, Any]],
     db_data: Optional[Dict[str, Any]] = None,
     *,
-    allow_generic_on_failure: bool = True,
+    allow_generic_on_failure: bool = False,
     silent: bool = False,
 ) -> Optional[Any]:
     """

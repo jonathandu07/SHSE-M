@@ -45,6 +45,66 @@ from frontend.gui.three_d_view import ThreeDScreen
 PROJECT_NAME = "STHOME"
 
 
+def _deep_get(data, *path):
+    cur = data
+    for key in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(key)
+        if cur is None:
+            return None
+    return cur
+
+
+def _display_missing_name(name):
+    labels = {
+        "regime_tr_min": "RPM nominal",
+        "rpm": "RPM nominal",
+        "rpm_nominal": "RPM nominal",
+        "pme_pa": "PME",
+        "pme": "PME",
+        "gabarit (L/W)": "gabarit L/W",
+    }
+    return labels.get(str(name), str(name).replace("_", " "))
+
+
+def _missing_requirements(report):
+    """Compatibility helper used by dashboard tests; reads backend unknowns only."""
+    out = []
+    inconnues = _deep_get(report, "analyses_composants", "architecture", "inconnues") or {}
+    if not isinstance(inconnues, dict):
+        return out
+    for category in ("impossibles", "partielles", "cao", "backend"):
+        values = inconnues.get(category) or []
+        if not isinstance(values, list):
+            continue
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            raw_name = item.get("nom") or item.get("champ") or item.get("piece") or ""
+            out.append(
+                {
+                    "name": _display_missing_name(raw_name),
+                    "raw_name": raw_name,
+                    "reason": item.get("raison") or item.get("detail") or "",
+                    "category": category,
+                }
+            )
+    return out
+
+
+def _fuel_summary(report):
+    """Compatibility helper; exposes the backend fuel summary without deriving values."""
+    block = _deep_get(report, "analyses_composants", "moteur_thermique_bilan_carburant") or {}
+    if not isinstance(block, dict):
+        return {"mode": None, "worst": None, "best": None}
+    return {
+        "mode": block.get("mode"),
+        "worst": block.get("carburant_dimensionnant"),
+        "best": block.get("carburant_optimal"),
+    }
+
+
 class STHOMEApp(App):
     title = PROJECT_NAME
 

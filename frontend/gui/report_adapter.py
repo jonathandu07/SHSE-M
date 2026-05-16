@@ -438,7 +438,7 @@ def _metric_specs() -> Dict[str, List[Tuple[str, Tuple[str, ...], str]]]:
                 "",
             ),
             (
-                "Puissance traction",
+                "Puissance Traction",
                 (
                     "derivees_chaine_energie.details.p_traction_w.valeur",
                     "derivees_chaine_energie.details.p_traction_w",
@@ -712,6 +712,12 @@ def extract_subsystems(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
             if str(k) not in {"inconnues", "alertes", "alerts", "notes", "notes_modele"}
             and _is_present(v, accept_empty_string=True)
         }
+        missing_fields = sum(
+            1
+            for k, v in data.items()
+            if str(k) not in {"inconnues", "alertes", "alerts", "notes", "notes_modele"}
+            and not _is_present(v, accept_empty_string=True)
+        )
 
         out.append(
             {
@@ -722,7 +728,7 @@ def extract_subsystems(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
                 "data": _to_jsonable(data),
                 "resolved_data": resolved_data,
                 "resolved_count": _count_present_leaves(resolved_data),
-                "missing_count": len(unknowns),
+                "missing_count": len(unknowns) + missing_fields,
                 "alert_count": len(alerts),
                 "unknowns": unknowns,
                 "alerts": alerts,

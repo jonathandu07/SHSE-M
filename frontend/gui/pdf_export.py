@@ -115,7 +115,7 @@ def _human_label(value: Any) -> str:
     text = str(value or "").replace("_", " ").replace("-", " ").strip()
     if not text:
         return "Champ"
-    return " ".join(part.capitalize() for part in text.split())
+    return " ".join(text.split()).capitalize()
 
 
 def _slug(value: Any) -> str:
@@ -998,6 +998,8 @@ def build_system_report_sections(report: Optional[Dict[str, Any]]) -> List[Secti
         ("analyses_composants", "Analyses composants"),
         ("construction_pieces", "Construction pièces"),
         ("rapports_pieces", "Rapports pièces"),
+        ("resources", "Ressources croquis / graphiques / 3D / CAO"),
+        ("resource_summary", "Synthese ressources"),
         ("optimisation", "Optimisation"),
         ("legacy", "Legacy"),
         ("inconnues", "Inconnues consolidées"),
