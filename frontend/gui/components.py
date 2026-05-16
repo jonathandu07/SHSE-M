@@ -140,8 +140,8 @@ class GlassPanel(CanvasPanel):
 
 class NeoCard(CanvasPanel):
     def __init__(self, **kwargs: Any) -> None:
-        kwargs.setdefault("padding", 16)
-        kwargs.setdefault("spacing", 10)
+        kwargs.setdefault("padding", 12)
+        kwargs.setdefault("spacing", 8)
         kwargs.setdefault("bg", COLORS["BL"])
         kwargs.setdefault("border", COLORS["BFW_18"])
         super().__init__(**kwargs)
@@ -151,7 +151,9 @@ class PremiumCard(NeoCard):
     def __init__(self, title: str = "", **kwargs: Any) -> None:
         super().__init__(orientation="vertical", **kwargs)
         if title:
-            self.add_widget(SectionTitle(text=title.upper()))
+            header = BoxLayout(size_hint_y=None, height=34, spacing=10)
+            header.add_widget(SectionTitle(text=title.upper()))
+            self.add_widget(header)
 
 
 class BentoGrid(GridLayout):
@@ -290,15 +292,14 @@ class NeumorphicInput(TextInput):
 
 class MetricRow(BoxLayout):
     def __init__(self, label: str, value: Any, unit: str = "", status: str = "", source: str = "", **kwargs: Any) -> None:
-        super().__init__(orientation="horizontal", size_hint_y=None, height=36, spacing=10, **kwargs)
+        super().__init__(orientation="horizontal", size_hint_y=None, height=32, spacing=8, **kwargs)
         self.padding = [4, 0]
         
-        # Fixed width for label to prevent overlap
         lbl = Label(
             text=str(label), 
             color=COLORS["GS"], 
-            font_size="12sp", 
-            size_hint_x=0.45, 
+            font_size="11sp", 
+            size_hint_x=0.5, 
             halign="left", 
             valign="middle",
             shorten=True,
@@ -307,110 +308,206 @@ class MetricRow(BoxLayout):
         lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         self.add_widget(lbl)
         
-        # Value section
-        val_box = BoxLayout(orientation="horizontal", size_hint_x=0.3)
+        val_text = format_value(value, unit)
         val = Label(
-            text=format_value(value, unit),
-            color=COLORS["RS"] if value is None else COLORS["BFW"],
+            text=val_text,
+            color=COLORS["RS"] if value is None or val_text == "..." else COLORS["BFW"],
             bold=value is not None,
-            font_size="13sp",
+            font_size="12sp",
+            size_hint_x=0.3,
             halign="right",
             valign="middle",
             shorten=True
         )
         val.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
-        val_box.add_widget(val)
-        self.add_widget(val_box)
+        self.add_widget(val)
 
         if status:
-            self.add_widget(StatusBadge(status=status, size_hint_x=None, width=100))
+            self.add_widget(StatusBadge(status=status, size_hint_x=None, width=90, font_size="9sp", size=(90, 22)))
         else:
-            # Spacer to maintain alignment
-            self.add_widget(Widget(size_hint_x=None, width=100))
-
-
-TechRow = MetricRow
+            self.add_widget(Widget(size_hint_x=None, width=90))
 
 
 class KpiCard(NeoCard):
     def __init__(self, title: str, value: Any, unit: str = "", status: str = "", **kwargs: Any) -> None:
         kwargs.setdefault("size_hint_y", None)
-        kwargs.setdefault("height", 120)
-        super().__init__(orientation="vertical", spacing=4, **kwargs)
-        self.add_widget(Label(text=str(title).upper(), color=COLORS["GS"], font_size="11sp", size_hint_y=None, height=20, halign="center"))
+        kwargs.setdefault("height", 110)
+        super().__init__(orientation="vertical", spacing=2, **kwargs)
+        self.padding = [10, 8]
+        self.add_widget(Label(text=str(title).upper(), color=COLORS["GS"], font_size="10sp", size_hint_y=None, height=18, halign="center"))
         
+        val_text = format_value(value, unit)
         val_lbl = Label(
-            text=format_value(value, unit), 
+            text=val_text, 
             color=COLORS["BFW"], 
             bold=True, 
-            font_size="22sp",
+            font_size="20sp",
             halign="center",
             valign="middle"
         )
         val_lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         self.add_widget(val_lbl)
         
-        badge_box = BoxLayout(size_hint_y=None, height=26)
-        badge_box.add_widget(Widget()) # Spacer
-        badge_box.add_widget(StatusBadge(status=status or ("missing" if value is None else "ok")))
-        badge_box.add_widget(Widget()) # Spacer
+        badge_box = BoxLayout(size_hint_y=None, height=24)
+        badge_box.add_widget(Widget()) 
+        badge_box.add_widget(StatusBadge(status=status or ("missing" if value is None else "ok"), size=(80, 20), font_size="9sp"))
+        badge_box.add_widget(Widget())
         self.add_widget(badge_box)
 
 
-class EmptyState(Label):
-    def __init__(self, text: str = "INDISPONIBLE", **kwargs: Any) -> None:
-        super().__init__(text=text, color=COLORS["RS"], bold=True, font_size="15sp", halign="center", valign="middle", **kwargs)
-        self.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+class AccordionSection(BoxLayout):
+    def __init__(self, title: str, content: Widget, collapsed: bool = True, **kwargs: Any) -> None:
+        super().__init__(orientation="vertical", size_hint_y=None, **kwargs)
+        self.spacing = 2
+        self.header = Button(
+            text=f"{'▶' if collapsed else '▼'} {title.upper()}",
+            size_hint_y=None,
+            height=34,
+            background_normal="",
+            background_color=COLORS["BFW"],
+            color=COLORS["BL"],
+            bold=True,
+            font_size="13sp",
+            halign="left",
+            padding=[10, 0]
+        )
+        self.header.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        self.add_widget(self.header)
+        
+        self.content_container = BoxLayout(orientation="vertical", size_hint_y=None, spacing=2)
+        self.content_container.bind(minimum_height=self.content_container.setter("height"))
+        self.content_container.add_widget(content)
+        
+        if collapsed:
+            self.content_container.opacity = 0
+            self.content_container.height = 0
+            self.content_container.disabled = True
+        
+        self.add_widget(self.content_container)
+        self.header.bind(on_release=self.toggle)
+        self.bind(minimum_height=self.setter("height"))
+
+    def toggle(self, *_: Any) -> None:
+        if self.content_container.height == 0:
+            self.content_container.height = self.content_container.minimum_height
+            self.content_container.opacity = 1
+            self.content_container.disabled = False
+            self.header.text = self.header.text.replace("▶", "▼")
+        else:
+            self.content_container.height = 0
+            self.content_container.opacity = 0
+            self.content_container.disabled = True
+            self.header.text = self.header.text.replace("▼", "▶")
+        # Force parent update
+        if self.parent:
+            self.parent.height = self.parent.minimum_height
 
 
-class UnknownsPanel(PremiumCard):
-    def __init__(self, items: Iterable[dict[str, Any]], title: str = "INCONNUES", **kwargs: Any) -> None:
-        super().__init__(title=title, **kwargs)
-        self._populate(items)
-
-    def _populate(self, items: Iterable[dict[str, Any]]) -> None:
-        data = list(items or [])
-        if not data:
-            self.add_widget(EmptyState(text="Aucune inconnue remontée."))
-            return
-        for item in data[:80]:
-            self.add_widget(
-                MetricRow(
-                    item.get("name") or item.get("nom") or "inconnue",
-                    item.get("reason") or item.get("raison") or "raison indisponible",
-                    status=item.get("category") or "partiel",
-                )
-            )
-
-
-class AlertPanel(UnknownsPanel):
-    def __init__(self, items: Iterable[dict[str, Any]], **kwargs: Any) -> None:
-        super().__init__(items, title="ALERTES", **kwargs)
-
-
-class ActionCard(NeoCard):
-    def __init__(self, title: str, detail: str, action_text: str, callback: Optional[Callable[..., Any]] = None, **kwargs: Any) -> None:
-        super().__init__(orientation="vertical", **kwargs)
-        self.add_widget(SectionTitle(text=title))
-        label = Label(text=detail, color=COLORS["GS"], font_size="13sp", halign="left", valign="top")
-        label.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        self.add_widget(label)
-        btn = ModernButton(text=action_text, size_hint_y=None, height=42)
-        if callback:
-            btn.bind(on_release=callback)
+class SearchBar(BoxLayout):
+    def __init__(self, callback: Callable[[str], None], **kwargs: Any) -> None:
+        super().__init__(orientation="horizontal", size_hint_y=None, height=46, spacing=10, **kwargs)
+        self.padding = [10, 5]
+        self.input = TextInput(
+            hint_text="Rechercher...",
+            multiline=False,
+            background_color=COLORS["BL"],
+            foreground_color=COLORS["BFW"],
+            font_size="14sp",
+            padding=[10, 8]
+        )
+        self.input.bind(text=lambda _, val: callback(val))
+        self.add_widget(self.input)
+        
+        btn = ModernButton(text="CLEAR", size_hint_x=None, width=80)
+        btn.bind(on_release=lambda *_: setattr(self.input, "text", ""))
         self.add_widget(btn)
 
 
-class EditableField(BoxLayout):
-    def __init__(self, label: str, value: Any, source: str = "", editable: bool = True, **kwargs: Any) -> None:
-        self.key = kwargs.pop("key", label)
-        super().__init__(orientation="vertical", size_hint_y=None, height=92, spacing=6, **kwargs)
-        self.editable = editable
-        self.add_widget(Label(text=label, color=COLORS["BFW"], bold=True, size_hint_y=None, height=22, halign="left"))
-        self.input = NeumorphicInput(text="" if value is None else str(value), size_hint_y=None, height=44, font_size="16sp", halign="left")
-        self.input.disabled = not editable
-        self.add_widget(self.input)
-        self.add_widget(Label(text=source or ("modifiable" if editable else "non modifiable"), color=COLORS["GS"], size_hint_y=None, height=20, font_size="11sp"))
+class FilterChips(BoxLayout):
+    def __init__(self, filters: list[str], callback: Callable[[str], None], **kwargs: Any) -> None:
+        super().__init__(orientation="horizontal", size_hint_y=None, height=40, spacing=8, **kwargs)
+        self.padding = [10, 5]
+        self.active_filter = "Tous"
+        self.buttons: dict[str, Button] = {}
+        
+        for f in ["Tous"] + filters:
+            btn = Button(
+                text=f,
+                size_hint_x=None,
+                width=max(80, len(f) * 10 + 20),
+                background_normal="",
+                background_color=COLORS["NG"] if f == "Tous" else COLORS["BFW_08"],
+                color=COLORS["BL"] if f == "Tous" else COLORS["BFW"],
+                font_size="12sp"
+            )
+            btn.bind(on_release=lambda b, val=f: self._select(val))
+            self.buttons[f] = btn
+            self.add_widget(btn)
+        self.callback = callback
+
+    def _select(self, filter_name: str) -> None:
+        for name, btn in self.buttons.items():
+            if name == filter_name:
+                btn.background_color = COLORS["NG"]
+                btn.color = COLORS["BL"]
+            else:
+                btn.background_color = COLORS["BFW_08"]
+                btn.color = COLORS["BFW"]
+        self.active_filter = filter_name
+        self.callback(filter_name)
+
+
+class RequirementCard(NeoCard):
+    def __init__(self, name: str, subsystem: str, priority: str, reason: str, **kwargs: Any) -> None:
+        super().__init__(orientation="vertical", size_hint_y=None, height=130, spacing=4, **kwargs)
+        self.padding = [12, 10]
+        
+        header = BoxLayout(size_hint_y=None, height=24, spacing=10)
+        header.add_widget(Label(text=name.upper(), bold=True, color=COLORS["BFW"], font_size="13sp", halign="left"))
+        header.add_widget(StatusBadge(status=priority, size=(90, 22), font_size="9sp"))
+        self.add_widget(header)
+        
+        self.add_widget(Label(text=f"Sous-système: {subsystem}", color=COLORS["GS"], font_size="11sp", size_hint_y=None, height=18, halign="left"))
+        
+        reason_lbl = Label(text=reason, color=COLORS["BFW"], font_size="12sp", halign="left", valign="top")
+        reason_lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        self.add_widget(reason_lbl)
+        
+        btn_box = BoxLayout(size_hint_y=None, height=32, spacing=10)
+        btn_box.add_widget(Widget()) # Spacer
+        edit_btn = GhostButton(text="ÉDITER", size_hint_x=None, width=80, font_size="10sp")
+        btn_box.add_widget(edit_btn)
+        self.add_widget(btn_box)
+
+
+class ResourceCard(NeoCard):
+    def __init__(self, name: str, rtype: str, subsystem: str, status: str, **kwargs: Any) -> None:
+        super().__init__(orientation="horizontal", size_hint_y=None, height=60, spacing=15, **kwargs)
+        self.padding = [12, 8]
+        
+        icon_box = BoxLayout(size_hint_x=None, width=40)
+        icon_box.add_widget(Label(text="📄", font_size="24sp"))
+        self.add_widget(icon_box)
+        
+        info_box = BoxLayout(orientation="vertical", spacing=2)
+        info_box.add_widget(Label(text=name, bold=True, color=COLORS["BFW"], font_size="13sp", halign="left"))
+        info_box.add_widget(Label(text=f"{rtype} | {subsystem}", color=COLORS["GS"], font_size="10sp", halign="left"))
+        self.add_widget(info_box)
+        
+        self.add_widget(StatusBadge(status=status, size=(90, 22), font_size="9sp", size_hint_x=None, width=100))
+        
+        open_btn = ModernButton(text="OUVRIR", size_hint_x=None, width=80, font_size="10sp")
+        self.add_widget(open_btn)
+
+
+class EmptyState(BoxLayout):
+    def __init__(self, text: str = "INDISPONIBLE", action_text: str = "", callback: Optional[Callable] = None, **kwargs: Any) -> None:
+        super().__init__(orientation="vertical", spacing=10, padding=20, **kwargs)
+        self.add_widget(Label(text=text, color=COLORS["RS"], bold=True, font_size="15sp", halign="center"))
+        if action_text and callback:
+            btn = ModernButton(text=action_text, size_hint=(None, None), size=(200, 44), pos_hint={"center_x": 0.5})
+            btn.bind(on_release=callback)
+            self.add_widget(btn)
 
 
 class JsonTreeView(ScrollView):
@@ -463,21 +560,6 @@ class JsonTreeView(ScrollView):
                     self._render({f"Item {i}": v}, container, level)
                 else:
                     container.add_widget(MetricRow(f"{indent}[{i}]", v))
-
-
-class DataTable(BoxLayout):
-    def __init__(self, items: list[dict], **kwargs: Any) -> None:
-        super().__init__(orientation="vertical", spacing=2, **kwargs)
-        for item in items:
-            self.add_widget(MetricRow(**item))
-
-
-class ScrollableSection(PremiumCard):
-    def __init__(self, title: str, content: Widget, **kwargs: Any) -> None:
-        super().__init__(title=title, **kwargs)
-        self.scroll = ScrollView(do_scroll_x=False)
-        self.scroll.add_widget(content)
-        self.add_widget(self.scroll)
 
 
 class JsonViewer(BoxLayout):
