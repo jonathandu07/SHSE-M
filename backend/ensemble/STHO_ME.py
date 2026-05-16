@@ -1318,20 +1318,47 @@ class STHO_ME:
         # Contexte moteur thermique, directement compatible avec _context_moteur.
         mt_entrees = _safe_dict(rep_mt.get("entrees"))
         mt_synth = _safe_dict(rep_mt.get("synthese"))
+        mt_entrees_geom = _safe_dict(mt_entrees.get("alesage_m"))
+        mt_alesage = _first_finite(
+            mt_entrees.get("alesage_m"),
+            mt_entrees_geom.get("alesage_m"),
+            _deep_get(rep_mt, "geometrie", "alesage_m"),
+            _safe_dict(analyses_sys).get("alesage_m"),
+        )
+        mt_course = _first_finite(
+            mt_entrees.get("course_m"),
+            mt_entrees_geom.get("course_m"),
+            _deep_get(rep_mt, "geometrie", "course_m"),
+            _safe_dict(analyses_sys).get("course_m"),
+        )
+        mt_nombre_cylindres = _safe_int(_first_non_none(
+            mt_entrees.get("nombre_cylindres"),
+            mt_entrees_geom.get("nombre_cylindres"),
+            _deep_get(rep_mt, "geometrie", "nombre_cylindres"),
+            _safe_dict(analyses_sys).get("nombre_cylindres"),
+        ))
         mt_puissance = _first_finite(
             mt_synth.get("puissance_frein_estimee_w"),
             mt_synth.get("puissance_indiquee_w"),
+            mt_entrees.get("puissance_utile_w"),
+            mt_entrees_geom.get("puissance_utile_w"),
             _safe_dict(analyses_sys).get("puissance_utile_w"),
             _safe_dict(self.analyses.get("moteur_thermique_definition")).get("puissance_visee_w"),
         )
         mt_rpm = _first_finite(
             mt_entrees.get("regime_tr_min"),
+            mt_entrees_geom.get("regime_tr_min"),
             _safe_dict(analyses_sys).get("vitesse_moteur_thermique_rpm"),
             _safe_dict(self.analyses.get("moteur_thermique_definition")).get("rpm"),
         )
         mt_couple = None
         if mt_puissance is not None and mt_rpm is not None and mt_rpm > 0:
             mt_couple = mt_puissance / (2.0 * math.pi * mt_rpm / 60.0)
+        mt_force_bielle = None
+        if mt_couple is not None and mt_course is not None and mt_course > 0.0:
+            rayon_manivelle = 0.5 * mt_course
+            if rayon_manivelle > 0.0:
+                mt_force_bielle = abs(mt_couple) / rayon_manivelle
 
         fallback = {
             "meta": {
@@ -1344,14 +1371,16 @@ class STHO_ME:
                     "puissance_bus_dc_design_w": puissance_bus,
                 },
                 "moteur_thermique": {
-                    "architecture": _first_non_none(mt_entrees.get("architecture"), _safe_dict(analyses_sys).get("architecture_forcee")),
-                    "nombre_cylindres": _safe_int(mt_entrees.get("nombre_cylindres")),
-                    "alesage_m": _first_finite(mt_entrees.get("alesage_m"), _safe_dict(analyses_sys).get("alesage_m")),
-                    "course_m": _first_finite(mt_entrees.get("course_m"), _safe_dict(analyses_sys).get("course_m")),
+                    "architecture": _first_non_none(mt_entrees.get("architecture"), mt_entrees_geom.get("architecture"), _safe_dict(analyses_sys).get("architecture_forcee")),
+                    "nombre_cylindres": mt_nombre_cylindres,
+                    "alesage_m": mt_alesage,
+                    "course_m": mt_course,
                     "rpm_nominal": mt_rpm,
-                    "pression_max_pa": _first_finite(mt_entrees.get("pression_max_pa"), _safe_dict(analyses_sys).get("pression_max_pa")),
-                    "pme_pa": _first_finite(mt_entrees.get("pression_moyenne_effective_pa"), _safe_dict(analyses_sys).get("pme_pa")),
+                    "pression_max_pa": _first_finite(mt_entrees.get("pression_max_pa"), mt_entrees_geom.get("pression_max_pa"), _safe_dict(analyses_sys).get("pression_max_pa")),
+                    "pme_pa": _first_finite(mt_entrees.get("pression_moyenne_effective_pa"), mt_entrees_geom.get("pression_moyenne_effective_pa"), _safe_dict(analyses_sys).get("pme_pa")),
                     "couple_requis_Nm": mt_couple,
+                    "couple_max_Nm": mt_couple,
+                    "force_bielle_N": mt_force_bielle,
                     "puissance_requise_W": mt_puissance,
                 },
                 "batterie": {
