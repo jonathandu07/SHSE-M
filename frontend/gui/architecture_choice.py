@@ -154,7 +154,7 @@ def _candidate_architecture(cand: Mapping[str, Any]) -> str:
             cand.get("type_architecture"),
             _deep_get(cand, "resultats", "architecture"),
             _deep_get(cand, "synthese", "architecture"),
-            "INCONNU",
+            "",
         )
     )
 

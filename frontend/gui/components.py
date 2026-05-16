@@ -423,7 +423,7 @@ def _candidate_architecture(cand: Mapping[str, Any]) -> str:
             _deep_get(cand, "resultats", "architecture"),
             _deep_get(cand, "synthese", "architecture"),
             _deep_get(cand, "meilleur", "architecture"),
-            "INCONNU",
+            "",
         )
     )
 
