@@ -142,7 +142,9 @@ class NeoCard(CanvasPanel):
     def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("padding", 16)
         kwargs.setdefault("spacing", 10)
-        super().__init__(bg=COLORS["BL"], border=COLORS["BFW_18"], **kwargs)
+        kwargs.setdefault("bg", COLORS["BL"])
+        kwargs.setdefault("border", COLORS["BFW_18"])
+        super().__init__(**kwargs)
 
 
 class PremiumCard(NeoCard):
