@@ -103,6 +103,13 @@ class CanvasPanel(BoxLayout):
         self._line.rounded_rectangle = (self.x, self.y, self.width, self.height, self._radius)
 
 
+class GlassPanel(CanvasPanel):
+    def __init__(self, **kwargs: Any) -> None:
+        kwargs.setdefault("padding", 16)
+        kwargs.setdefault("spacing", 10)
+        super().__init__(bg=COLORS["BL_35"], border=COLORS["BFW_18"], **kwargs)
+
+
 class NeoCard(CanvasPanel):
     def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("padding", 12)
@@ -194,6 +201,45 @@ class GhostButton(ModernButton):
         with self.canvas.before:
             Color(*COLORS["NG"])
             self._rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[8])
+
+
+class NeumorphicInput(TextInput):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.background_normal = ""
+        self.background_active = ""
+        self.background_color = (0, 0, 0, 0)
+        self.foreground_color = COLORS["BFW"]
+        self.padding = [18, 16, 18, 16]
+        self.font_size = kwargs.get("font_size", "28sp")
+        self.multiline = False
+        self.write_tab = False
+        self.halign = kwargs.get("halign", "center")
+        with self.canvas.before:
+            Color(*COLORS["BFW_08"])
+            self._outer = RoundedRectangle(pos=self.pos, size=self.size, radius=[10])
+            Color(*COLORS["BL"])
+            self._inner = RoundedRectangle(pos=(self.x + 2, self.y + 2), size=(self.width - 4, self.height - 4), radius=[8])
+        self.bind(pos=self._update_canvas, size=self._update_canvas)
+
+    def _update_canvas(self, *_: Any) -> None:
+        self._outer.pos = self.pos
+        self._outer.size = self.size
+        self._inner.pos = (self.x + 2, self.y + 2)
+        self._inner.size = (max(0, self.width - 4), max(0, self.height - 4))
+
+    def insert_text(self, substring: str, from_undo: bool = False) -> None:
+        s = substring or ""
+        current = self.text or ""
+        selection = self.selection_text or ""
+        out: list[str] = []
+        for ch in s:
+            ch = AZERTY_MAP.get(ch, ch)
+            if ch == ",": ch = "."
+            if ch.isdigit() or ch == ".":
+                if ch == "." and not selection and "." in current: continue
+                out.append(ch)
+        return super().insert_text("".join(out), from_undo=from_undo)
 
 
 class MetricRow(BoxLayout):
@@ -323,6 +369,7 @@ class RequirementCard(NeoCard):
         btn_box = BoxLayout(size_hint_y=None, height=32, spacing=10)
         btn_box.add_widget(Widget())
         edit_btn = GhostButton(text="RÉSOUDRE", size_hint_x=None, width=100, font_size="10sp")
+        btn_box.add_widget(edit_btn)
         self.add_widget(btn_box)
 
 
@@ -405,6 +452,16 @@ class JsonTreeView(ScrollView):
                 else: container.add_widget(MetricRow(f"{indent}[{i}]", v))
 
 
+class JsonViewer(BoxLayout):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(orientation="vertical", **kwargs)
+        self.text_input = TextInput(
+            readonly=True, background_color=COLORS["BL"], foreground_color=COLORS["BFW"],
+            cursor_color=COLORS["RS"], font_size="12sp", multiline=True
+        )
+        self.add_widget(self.text_input)
+
+
 class ActionCard(NeoCard):
     def __init__(self, title: str, detail: str, action_text: str, callback: Optional[Callable[..., Any]] = None, **kwargs: Any) -> None:
         super().__init__(orientation="vertical", **kwargs)
@@ -415,3 +472,9 @@ class ActionCard(NeoCard):
         btn = ModernButton(text=action_text, size_hint_y=None, height=40)
         if callback: btn.bind(on_release=callback)
         self.add_widget(btn)
+
+
+def scrollable(content: Widget) -> ScrollView:
+    scroll = ScrollView(do_scroll_x=False)
+    scroll.add_widget(content)
+    return scroll

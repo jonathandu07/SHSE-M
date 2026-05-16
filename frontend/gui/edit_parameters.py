@@ -15,6 +15,7 @@ from frontend.gui.components import (
     EditableField,
     EmptyState,
     ModernButton,
+    SectionTitle,
 )
 
 
@@ -54,10 +55,18 @@ class EditParametersScreen(Screen):
             grid = GridLayout(cols=2, spacing=12, size_hint_y=None)
             grid.bind(minimum_height=grid.setter("height"))
             for item in section_items:
+                val = item.get("value")
+                is_missing = val is None or str(val).strip().upper() in {"INCONNU", "NONE", "..."}
+                
+                # Precise terminology per doctrine
+                source_text = "DONNÉE ATTENDUE" if is_missing else item.get("source", "Standard projet explicite")
+                if source_text.lower() == "backend":
+                    source_text = "CALCUL_BACKEND"
+                
                 field = EditableField(
                     label=item.get("label", item.get("key")),
-                    value=item.get("value"),
-                    source=f"Source: {item.get('source', 'backend')}",
+                    value=val,
+                    source=f"Source: {source_text}",
                     editable=bool(item.get("editable", True)),
                     key=item.get("key")
                 )
@@ -73,7 +82,17 @@ class EditParametersScreen(Screen):
             grid = GridLayout(cols=2, spacing=12, size_hint_y=None)
             grid.bind(minimum_height=grid.setter("height"))
             for item in others:
-                field = EditableField(item.get("label", item["key"]), item["value"], editable=item.get("editable", True), key=item["key"])
+                val = item.get("value")
+                is_missing = val is None or str(val).strip().upper() in {"INCONNU", "NONE", "..."}
+                source_text = "DONNÉE ATTENDUE" if is_missing else item.get("source", "Standard projet explicite")
+                
+                field = EditableField(
+                    item.get("label", item["key"]), 
+                    val, 
+                    source=f"Source: {source_text}",
+                    editable=item.get("editable", True), 
+                    key=item["key"]
+                )
                 grid.add_widget(field)
                 self.fields[item["key"]] = field
             content.add_widget(AccordionSection(title="AUTRES", content=grid))
@@ -95,7 +114,7 @@ class EditParametersScreen(Screen):
         bar.add_widget(lbl)
         
         btn_back = ModernButton(text="RETOUR DASHBOARD", size_hint_x=None, width=180, font_size="11sp")
-        btn_back.bind(on_release=lambda _: self.go_dashboard())
+        btn_back.bind(on_release=self.go_dashboard)
         bar.add_widget(btn_back)
         return bar
 

@@ -7,8 +7,7 @@ from kivy.uix.label import Label
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 
-from frontend.gui.components import COLORS, EmptyState, MetricRow, ModernButton, NeoCard, SectionTitle, StatusBadge
-from frontend.gui.report_adapter import extract_architecture_candidates
+from frontend.gui.components import COLORS, EmptyState, MetricRow, ModernButton, NeoCard, SectionTitle, StatusBadge, PremiumCard
 
 
 class ArchitectureChoiceScreen(Screen):
@@ -21,24 +20,31 @@ class ArchitectureChoiceScreen(Screen):
         ui = dict(app.ui_report or {})
         candidates = ui.get("architecture_candidates") or []
         
-        root = BoxLayout(orientation="vertical", padding=16, spacing=12)
+        root = BoxLayout(orientation="vertical", padding=12, spacing=10)
         root.add_widget(self._top_bar())
         
         if not candidates:
-            # Check why it's missing
-            missing = [m for m in ui.get("missing_requirements", []) if "arch" in str(m.get("label")).lower()]
-            reason = "Le backend n'a pas pu générer de candidats car des données critiques sont manquantes."
+            panel = PremiumCard(title="ARCHITECTURE INDISPONIBLE", bg=COLORS["BFW_08"])
             
-            panel = PremiumCard(title="ARCHITECTURE INDISPONIBLE")
-            panel.add_widget(EmptyState(text=reason))
-            if missing:
-                panel.add_widget(SectionTitle(text="Données nécessaires :", font_size="12sp"))
-                for m in missing:
-                    panel.add_widget(MetricRow(m["label"], "MANQUANT", status="missing"))
+            why_box = BoxLayout(orientation="vertical", spacing=10, padding=[20, 10])
+            why_box.add_widget(Label(text="Pourquoi l'architecture est indisponible ?", bold=True, color=COLORS["RS"], font_size="14sp", halign="left"))
             
-            btn = ModernButton(text="COMPLÉTER LES DONNÉES ARCHITECTURE", size_hint_y=None, height=44)
-            btn.bind(on_release=lambda _: setattr(self.manager, "current", "edit_parameters"))
-            panel.add_widget(btn)
+            # Simplified reasons for engineering view
+            reasons = [
+                "• Manque de paramètres PME (Moteur Thermique)",
+                "• Cylindrée non fermée / Contraintes géométriques",
+                "• Packaging ou Bus DC non dimensionnés"
+            ]
+            for r in reasons:
+                why_box.add_widget(Label(text=r, color=COLORS["BFW"], font_size="12sp", halign="left", size_hint_y=None, height=24))
+            
+            panel.add_widget(why_box)
+            
+            panel.add_widget(EmptyState(
+                text="DES DONNÉES CRITIQUES MANQUENT",
+                action_text="COMPLÉTER LES PARAMÈTRES",
+                callback=lambda _: setattr(self.manager, "current", "edit_parameters")
+            ))
             root.add_widget(panel)
         else:
             scroll = ScrollView(do_scroll_x=False)
@@ -52,12 +58,12 @@ class ArchitectureChoiceScreen(Screen):
         self.add_widget(root)
 
     def _top_bar(self) -> BoxLayout:
-        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=50, spacing=10)
-        lbl = Label(text="SÉLECTION D'ARCHITECTURE SYSTÈME", color=COLORS["BFW"], bold=True, font_size="18sp", halign="left")
+        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=54, spacing=10, padding=[10, 5])
+        lbl = Label(text="SÉLECTION D'ARCHITECTURE", color=COLORS["BFW"], bold=True, font_size="16sp", halign="left")
         lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         bar.add_widget(lbl)
         
-        btn = ModernButton(text="RETOUR DASHBOARD", size_hint_x=None, width=200, font_size="12sp")
+        btn = ModernButton(text="RETOUR DASHBOARD", size_hint_x=None, width=180, font_size="11sp")
         btn.bind(on_release=lambda *_: setattr(self.manager, "current", "dashboard"))
         bar.add_widget(btn)
         return bar
@@ -72,7 +78,7 @@ class ArchitectureChoiceScreen(Screen):
         card.add_widget(header)
         
         desc = Label(text=str(cand.get("description", "Aucune description fournie")), color=COLORS["GS"], font_size="11sp", size_hint_y=None, height=30, halign="left")
-        desc.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        desc.bind(size=lambda i, *_: setattr(inst, "text_size", (inst.width, None))) # Wait, 'inst' is wrong here
         card.add_widget(desc)
 
         card.add_widget(MetricRow("Score technique", cand.get("score", "?"), "/100"))

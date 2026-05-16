@@ -20,7 +20,6 @@ from frontend.gui.components import (
     PremiumCard,
     SectionTitle,
     StatusBadge,
-    UnknownsPanel,
 )
 
 
