@@ -53,6 +53,27 @@ class STHOMEApp(App):
     engine_params = DictProperty({})
     selected_piece = DictProperty({})
 
+    def fetch_backend_data(self, **kwargs):
+        """
+        Récupère les données en se connectant directement à main.py du backend.
+        Cette méthode garantit que le frontend a un point d'accès direct à la source de vérité.
+        """
+        try:
+            from backend.main import dimensionner_systeme_shsem
+            from frontend.gui.report_adapter import adapt_backend_report
+            
+            report = dimensionner_systeme_shsem(**kwargs)
+            if isinstance(report, dict):
+                self.raw_backend_report = report
+                self.ui_report = adapt_backend_report(report)
+            return report
+        except Exception as e:
+            import traceback
+            print(f"Erreur lors de la connexion directe au backend : {e}")
+            traceback.print_exc()
+            return {}
+
+
     def build(self):
         Window.clearcolor = COLORS["BL"]
         Window.size = (1440, 900)
