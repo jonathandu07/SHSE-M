@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+import importlib.util
 import inspect
 import json
 from pathlib import Path
@@ -27,7 +28,7 @@ RESOURCE_TYPES: Tuple[str, ...] = ("sketches", "charts", "three_d", "pdf", "cao"
 KEYWORDS_BY_TYPE: Dict[str, Tuple[str, ...]] = {
     "sketches": ("sketch", "croquis", "draw", "dessin", "schema", "figure"),
     "charts": ("chart", "graph", "plot", "cartographie"),
-    "three_d": ("3d", "three_d", "view_3d", "vue_3d", "mesh", "modele_3d"),
+    "three_d": ("three_d", "view_3d", "views_3d", "vue_3d", "mesh_3d", "model_3d", "modele_3d"),
     "pdf": ("pdf",),
     "cao": ("cao", "solidworks"),
     "json": ("exporter_rapport_json", "exporter_json", "export_json", "sauvegarder_conception"),
@@ -375,13 +376,20 @@ def _piece_mappings(piece_name: str, inventory: Mapping[str, Any], resource_type
     by_type = _safe_dict(inventory.get("by_type"))
     mappings = [dict(m) for m in _safe_list(by_type.get(resource_type)) if isinstance(m, Mapping)]
     piece_key = piece_name.lower().replace("vilebrequin", "vilbrequin")
-    exact = [
+    exact_name = [
         m
         for m in mappings
         if str(m.get("piece", "")).lower() in {piece_name.lower(), piece_key}
-        or piece_key in str(m.get("backend_module", "")).lower()
     ]
-    return exact or []
+    if exact_name:
+        return exact_name
+
+    module_matches = [
+        m
+        for m in mappings
+        if str(m.get("backend_module", "")).lower().endswith(f".{piece_key}")
+    ]
+    return module_matches
 
 
 def _available_first(items: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]]:
@@ -441,6 +449,25 @@ def build_resource_catalog(raw_backend_report: dict) -> dict:
                 reason="Graphique indisponible : aucun generateur backend trouve.",
             )
         )
+    else:
+        for mapping in chart_generators:
+            if not isinstance(mapping, Mapping):
+                continue
+            catalog["charts"].append(
+                _resource_record(
+                    name=f"Donnees graphique {mapping.get('piece')}",
+                    resource_type="charts",
+                    source=str(mapping.get("backend_module") or ""),
+                    function=str(mapping.get("function") or ""),
+                    reason="Generateur de donnees backend detecte, mais donnees requises absentes ou non fournies.",
+                    required_inputs=[str(v) for v in _safe_list(mapping.get("required_inputs"))],
+                    piece=str(mapping.get("piece") or ""),
+                    backend_module=str(mapping.get("backend_module") or ""),
+                    returns=str(mapping.get("returns") or "dict"),
+                    generator_available=True,
+                    notes=["Aucun graphique n'est trace cote frontend."],
+                )
+            )
 
     json_generators = [m for m in _safe_list(_safe_dict(inventory.get("by_type")).get("json")) if isinstance(m, Mapping)]
     if json_generators:
@@ -476,11 +503,7 @@ def build_resource_catalog(raw_backend_report: dict) -> dict:
 
     # PDF system export is a real frontend formatter over backend data, not a
     # backend calculator. It remains partial until a file is explicitly created.
-    try:
-        importlib.import_module("frontend.gui.pdf_export")
-        pdf_formatter = True
-    except Exception:
-        pdf_formatter = False
+    pdf_formatter = importlib.util.find_spec("frontend.gui.pdf_export") is not None
     catalog["pdf"].append(
         _resource_record(
             name="Rapport PDF systeme",
