@@ -10,7 +10,8 @@ Orchestrateur haut niveau STHO-ME
 Rôle du fichier :
 - assembler les composants fournis : moteur électrique, batterie, alternateur,
   moteur thermique, boîte à crabots, architecture ;
-- appeler SystemeComplet quand les quatre composants cœur sont disponibles ;
+- intégrer un rapport SystemeComplet hérité s'il est fourni, sinon produire
+  une synthèse interne STHO_ME sans dépendre de l'ancien module ;
 - appeler les analyses spécialisées des composants uniquement quand les paramètres
   correspondants sont fournis ;
 - construire les pièces moteur quand elles sont déclarées dans la configuration ;
@@ -1069,11 +1070,14 @@ class STHO_ME:
             return
 
         if SystemeComplet is None:
-            _push_inconnue(
+            rapport["construction"]["composants"]["systeme_complet"] = {
+                "type": None,
+                "source": "module_legacy_absent",
+                "statut": "remplace_par_fallback_STHO_ME",
+            }
+            _add_note(
                 rapport,
-                "partielles",
-                "systeme_complet",
-                "Classe SystemeComplet indisponible : l'assemblage global ne peut pas être lancé dans cet environnement.",
+                "Module legacy SystemeComplet absent : STHO_ME reste l'orchestrateur principal et générera une synthèse interne sans inventer de données.",
             )
             return
 

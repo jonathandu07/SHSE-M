@@ -688,7 +688,7 @@ def test_dimensionner_systeme_shsem_returns_complete_config(monkeypatch, main_mo
     )
 
     assert config["meta"]["backend"] == "main.py"
-    assert config["meta"]["orchestrateur"] == "SystemeComplet + OptimisationSysteme"
+    assert config["meta"]["orchestrateur"] == "STHO_ME + OptimisationSysteme"
 
     resume = config["resume_gui"]
     assert resume["N_cyl"] == 2

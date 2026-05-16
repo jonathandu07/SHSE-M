@@ -12,7 +12,12 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.append(str(_PROJECT_ROOT))
 
 import matplotlib.pyplot as plt
-from backend.ensemble.systeme_complet import SystemeComplet
+try:
+    from backend.ensemble.systeme_complet import SystemeComplet as _LegacySystemeComplet
+except ModuleNotFoundError:
+    _LegacySystemeComplet = None
+
+from backend.ensemble.STHO_ME import STHO_ME
 from backend.components.moteur_electrique.moteur_electrique import MoteurElectrique
 from backend.components.batterie.batterie import Batterie
 from backend.components.alternateur.alternateur import Alternateur
@@ -24,6 +29,29 @@ from backend.components.architechture.architecture import Architecture, ProfilUs
 from frontend.components.batterie.sketches_2d import tracer_croquis_batterie_2d
 from frontend.components.alternateur.sketches_2d import tracer_croquis_alternateur_2d
 from frontend.components.architechture.sketches_2d import tracer_croquis_architecture_2d
+
+
+class _STHOMESystemeCompletAdapter:
+    """Compatibilite script: l'ancien SystemeComplet est remplace par STHO_ME."""
+
+    def __init__(self, **kwargs):
+        self.composants = dict(kwargs)
+
+    def analyser(self, **kwargs):
+        config = {
+            "meta": {
+                "source": "backend/scripts/simulation_shse_m.py",
+                "mode": "simulation_stho_me",
+                "remplace": "backend.ensemble.systeme_complet",
+            },
+            "composants": self.composants,
+            "analyses": {"systeme_complet": dict(kwargs)},
+            "pieces": {},
+        }
+        return STHO_ME.depuis_config(config).analyser()
+
+
+SystemeComplet = _LegacySystemeComplet or _STHOMESystemeCompletAdapter
 
 def executer_simulation():
     print("--- Démarrage de la simulation globale SHSE-M ---")

@@ -2383,8 +2383,9 @@ def dimensionner_systeme_shsem(
         except Exception as exc:
             rapports_partiels["moteur_electrique_depuis_puissance"] = {"erreur": str(exc)}
 
-    # Analyse système complet seulement si tous les composants cœur existent
-    rapport_systeme: Dict[str, Any] = {"note": "SystemeComplet non lancé."}
+    # Analyse système : SystemeComplet est un chemin legacy ; STHO_ME prend le relais
+    # quand ce module n'existe plus dans le dépôt.
+    rapport_systeme: Dict[str, Any] = {"note": "Synthèse système non lancée."}
     systeme = None
     systeme_possible = all(composants.get(k) is not None for k in ("moteur_electrique", "batterie", "alternateur", "moteur_thermique")) and SystemeComplet is not None
     if systeme_possible:
@@ -2476,10 +2477,63 @@ def dimensionner_systeme_shsem(
             rapport_systeme = {"erreur": str(exc)}
     else:
         if SystemeComplet is None:
-            _push_inconnue(rapport_global, "impossibles", "SystemeComplet", "Classe SystemeComplet indisponible.")
+            _append_note(
+                rapport_global,
+                "SystemeComplet legacy absent : l'orchestration globale doit passer par STHO_ME ou par une synthèse déjà fournie.",
+            )
         else:
             manquants = [k for k in ("moteur_electrique", "batterie", "alternateur", "moteur_thermique") if composants.get(k) is None]
             _push_inconnue(rapport_global, "impossibles", "SystemeComplet", f"Impossible de lancer le système complet sans {manquants}.")
+
+    rapport_stho_me: Dict[str, Any] = {"note": "Pipeline STHO_ME non lancé."}
+    st_ho_me_deja_lance = False
+    st_ho_me_requis = bool(lancer_stho_me_secondaire or (SystemeComplet is None and STHO_ME is not None))
+    if st_ho_me_requis and STHO_ME is not None:
+        try:
+            analyses_stho = {
+                "moteur_thermique_definition": _definition_moteur_pour_exigences(definition_moteur),
+                "systeme_complet": _merge_dict_non_none(
+                    {
+                        "puissance_moyenne_kw": puissance_traction_kw,
+                        "puissance_pic_kw": puissance_pic_kw,
+                        "scenario_bus_dc": scenario_bus_dc,
+                        "tension_bus_dc_v": tension_bus_dc_v,
+                        "puissance_elec_alt_cible_w": puissance_bus_dc_w,
+                        "vitesse_moteur_thermique_rpm": vitesse_moteur_thermique_rpm,
+                        "vitesse_alternateur_rpm": vitesse_alternateur_rpm,
+                        "rapport_vitesse_alt_sur_moteur": rapport_vitesse_alt_sur_moteur,
+                        "pme_pa": _first_finite(definition_moteur.get("pme_pa"), pme_pa),
+                        "pression_max_pa": _first_finite(definition_moteur.get("pression_max_pa"), pression_max_pa),
+                        "puissance_auxiliaire_w": puissance_auxiliaire_eval_w,
+                        "energie_utile_imposee_kwh": energie_utile_imposee_kwh,
+                    },
+                    _safe_dict(analyses_complementaires).get("systeme_complet") if isinstance(_safe_dict(analyses_complementaires).get("systeme_complet"), dict) else {},
+                ),
+            }
+            config_stho = {
+                "meta": {
+                    "backend": "main.py",
+                    "source": "config_generee_depuis_main",
+                    "role": "orchestrateur_principal_si_systeme_complet_legacy_absent",
+                },
+                "composants": composants,
+                "pieces": _safe_dict(pieces_definition),
+                "analyses": analyses_stho,
+            }
+            rapport_stho_me = STHO_ME.depuis_config(config_stho).analyser()
+            st_ho_me_deja_lance = True
+            rep_stho_sys = _get_nested(rapport_stho_me, "rapports", "composants", "systeme_complet")
+            if isinstance(rep_stho_sys, dict) and "synthese" in rep_stho_sys:
+                rapport_systeme = rep_stho_sys
+        except Exception as exc:
+            rapport_stho_me = {"erreur": str(exc)}
+    elif SystemeComplet is None and STHO_ME is None:
+        _push_inconnue(
+            rapport_global,
+            "impossibles",
+            "orchestrateur_systeme",
+            "SystemeComplet legacy absent et STHO_ME indisponible : aucune synthèse globale ne peut être lancée.",
+        )
 
     # Pièces
     pieces: Dict[str, Any] = {}
@@ -2577,10 +2631,10 @@ def dimensionner_systeme_shsem(
 
     # Optimisation
     rapport_optimisation: Dict[str, Any]
-    if OptimisationSysteme is not None and systeme is not None:
+    if OptimisationSysteme is not None and (systeme is not None or isinstance(rapport_systeme, dict)):
         try:
             optimiseur = OptimisationSysteme(
-                systeme_complet=systeme,
+                systeme_complet=systeme if systeme is not None else rapport_systeme,
                 moteur_thermique=moteur_thermique,
                 cylindre=pieces.get("cylindre"),
                 piston=pieces.get("piston"),
@@ -2608,8 +2662,7 @@ def dimensionner_systeme_shsem(
     else:
         rapport_optimisation = {"note": "Optimisation non lancée."}
 
-    rapport_stho_me: Dict[str, Any]
-    if lancer_stho_me_secondaire and STHO_ME is not None and systeme is not None:
+    if (not st_ho_me_deja_lance) and lancer_stho_me_secondaire and STHO_ME is not None:
         try:
             config_stho = {
                 "meta": {"backend": "main.py", "source": "config_generee_depuis_main"},
@@ -2620,7 +2673,7 @@ def dimensionner_systeme_shsem(
             rapport_stho_me = STHO_ME.depuis_config(config_stho).analyser()
         except Exception as exc:
             rapport_stho_me = {"erreur": str(exc)}
-    else:
+    elif not st_ho_me_deja_lance:
         rapport_stho_me = {"note": "Pipeline STHO_ME non lancé."}
 
     legacy: Dict[str, Any] = {}
@@ -2841,7 +2894,7 @@ def dimensionner_systeme_shsem(
         "optimisation_carburant": rapport_optimisation_carburant,
         "meta": _merge_dict_non_none(
             rapport_global.get("meta"),
-            {"version": "3.0.0", "modele": "orchestrateur strict SHSE-M", "orchestrateur": "SystemeComplet + OptimisationSysteme"},
+            {"version": "3.0.0", "modele": "orchestrateur strict SHSE-M", "orchestrateur": "STHO_ME + OptimisationSysteme"},
         ),
         "entrees": {
             "puissance_traction_kw": puissance_traction_kw,
