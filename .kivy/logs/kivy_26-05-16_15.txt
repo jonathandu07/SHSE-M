@@ -1,0 +1,70 @@
+[INFO   ] Logger: Record log in C:\Users\alpha\Documents\GitHub\SHSE-M\.kivy\logs\kivy_26-05-16_15.txt
+[INFO   ] deps: Successfully imported "kivy_deps.angle" 0.4.0
+[INFO   ] deps: Successfully imported "kivy_deps.glew" 0.3.1
+[INFO   ] deps: Successfully imported "kivy_deps.sdl2" 0.8.0
+[INFO   ] Kivy: v2.3.1
+[INFO   ] Kivy: Installed at "C:\Python312\Lib\site-packages\kivy\__init__.py"
+[INFO   ] Python: v3.12.0 (tags/v3.12.0:0fb18b0, Oct  2 2023, 13:03:39) [MSC v.1935 64 bit (AMD64)]
+[INFO   ] Python: Interpreter at "C:\Python312\python.exe"
+[INFO   ] Logger: Purge log fired. Processing...
+[INFO   ] Logger: Purge finished!
+[INFO   ] Factory: 195 symbols loaded
+[INFO   ] Image: Providers: img_tex, img_dds, img_sdl2, img_pil (img_ffpyplayer ignored)
+[INFO   ] Window: Provider: sdl2
+[INFO   ] GL: Using the "OpenGL" graphics system
+[INFO   ] GL: GLEW initialization succeeded
+[INFO   ] GL: Backend used <glew>
+[INFO   ] GL: OpenGL version <b'4.6.0 - Build 32.0.101.7084'>
+[INFO   ] GL: OpenGL vendor <b'Intel'>
+[INFO   ] GL: OpenGL renderer <b'Intel(R) Iris(R) Xe Graphics'>
+[INFO   ] GL: OpenGL parsed version: 4, 6
+[INFO   ] GL: Shading version <b'4.60 - Build 32.0.101.7084'>
+[INFO   ] GL: Texture max size <16384>
+[INFO   ] GL: Texture max units <32>
+[INFO   ] Window: auto add sdl2 input provider
+[INFO   ] Window: virtual keyboard not allowed, single mode, not docked
+[INFO   ] Text: Provider: sdl2
+[INFO   ] Clipboard: Provider: winctypes
+[INFO   ] GL: NPOT texture support is available
+[WARNING] Deprecated property "<BooleanProperty name=allow_stretch>" of object "<kivy.uix.image.Image object at 0x000001E81A58C520>" has been set, it will be removed in a future version
+[WARNING] Deprecated property "<BooleanProperty name=keep_ratio>" of object "<kivy.uix.image.Image object at 0x000001E81A58C520>" was accessed, it will be removed in a future version
+[INFO   ] Base: Start application main loop
+[INFO   ] Base: Leaving application in progress...
+[WARNING] stderr: Traceback (most recent call last):
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\main.py", line 125, in <module>
+[WARNING] stderr:     STHOMEApp().run()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\app.py", line 956, in run
+[WARNING] stderr:     runTouchApp()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 574, in runTouchApp
+[WARNING] stderr:     EventLoop.mainloop()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 339, in mainloop
+[WARNING] stderr:     self.idle()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 379, in idle
+[WARNING] stderr:     Clock.tick()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\clock.py", line 733, in tick
+[WARNING] stderr:     self.post_idle(ts, self.idle())
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\clock.py", line 776, in post_idle
+[WARNING] stderr:     self._process_events()
+[WARNING] stderr:   File "kivy\\_clock.pyx", line 620, in kivy._clock.CyClockBase._process_events
+[WARNING] stderr:   File "kivy\\_clock.pyx", line 653, in kivy._clock.CyClockBase._process_events
+[WARNING] stderr:   File "kivy\\_clock.pyx", line 649, in kivy._clock.CyClockBase._process_events
+[WARNING] stderr:   File "kivy\\_clock.pyx", line 218, in kivy._clock.ClockEvent.tick
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\animation.py", line 370, in _update
+[WARNING] stderr:     self.stop(widget)
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\animation.py", line 236, in stop
+[WARNING] stderr:     self.dispatch('on_complete', widget)
+[WARNING] stderr:   File "kivy\\_event.pyx", line 727, in kivy._event.EventDispatcher.dispatch
+[WARNING] stderr:   File "kivy\\_event.pyx", line 1307, in kivy._event.EventObservers.dispatch
+[WARNING] stderr:   File "kivy\\_event.pyx", line 1231, in kivy._event.EventObservers._dispatch
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\uix\screenmanager.py", line 419, in _on_complete
+[WARNING] stderr:     self.screen_in.dispatch('on_enter')
+[WARNING] stderr:   File "kivy\\_event.pyx", line 731, in kivy._event.EventDispatcher.dispatch
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\gui\dashboard.py", line 28, in on_enter
+[WARNING] stderr:     self.refresh()
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\gui\dashboard.py", line 75, in refresh
+[WARNING] stderr:     bento.add_widget(self._subsystems_panel(dash.get("subsystems", [])))
+[WARNING] stderr:                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\gui\dashboard.py", line 162, in _subsystems_panel
+[WARNING] stderr:     row.add_widget(Widget(size_hint_x=0.3))
+[WARNING] stderr:                    ^^^^^^
+[WARNING] stderr: NameError: name 'Widget' is not defined

@@ -6,6 +6,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.widget import Widget
 
 from frontend.gui.components import (
     COLORS,
@@ -18,6 +19,7 @@ from frontend.gui.components import (
     NeoCard,
     PremiumCard,
     SectionTitle,
+    StatusBadge,
     UnknownsPanel,
 )
 
