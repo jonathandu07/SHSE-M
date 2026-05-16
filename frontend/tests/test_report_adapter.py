@@ -76,17 +76,17 @@ def test_scenario_12_none_stays_none():
     print("Test 12: None stays None (None != 0)")
     report = {"resume_gui": {"Bore_mm": None}}
     res = adapt_backend_report(report)
-    items = res["sections"]["resume"]["items"]
+    items = res["missing_requirements"]
     bore = next(i for i in items if i["label"] == "Alésage")
     assert bore["value"] is None
-    assert bore["status"] == "inconnu"
+    assert bore["status"] == "missing"
     print("OK")
 
 def test_scenario_13_no_zero_fallback():
     print("Test 13: No 0 fallback")
     report = {"resume_gui": {}} # Missing key
     res = adapt_backend_report(report)
-    items = res["sections"]["resume"]["items"]
+    items = res["missing_requirements"]
     bore = next(i for i in items if i["label"] == "Alésage")
     assert bore["value"] is None
     print("OK")

@@ -195,6 +195,8 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
             cand = dict(p) if isinstance(p, dict) else {"raw_path": p}
             if "unit" not in cand:
                 cand["unit"] = unit
+            if "label" not in cand:
+                cand["label"] = label
             cands.append(cand)
         energy_metrics.append(resolve_metric(report, cands))
 
