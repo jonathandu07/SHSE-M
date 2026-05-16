@@ -175,21 +175,24 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
 
     # Chaîne énergétique
     energy_specs = [
-        ("Puissance de sortie demandée", [{"raw_path": "derivees_chaine_energie.sortie_utilisateur_w"}], "W"),
-        ("Puissance bus traction", [{"raw_path": "derivees_chaine_energie.puissance_elec_usage_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_electrique_usage_w"}], "W"),
+        ("Cible Traction", [{"raw_path": "entrees.puissance_traction_kw", "unit": "kW"}]),
+        ("Mode Énergétique", [{"raw_path": "strategie_energie.mode_energetique"}]),
+        ("Puissance Traction", [{"raw_path": "derivees_chaine_energie.details.p_traction_w"}, {"raw_path": "derivees_chaine_energie.sortie_utilisateur_w"}], "W"),
+        ("Puissance Bus DC", [{"raw_path": "derivees_chaine_energie.details.p_bus_total"}, {"raw_path": "derivees_chaine_energie.puissance_bus_dc_totale_w"}], "W"),
+        ("Recharge Batterie", [{"raw_path": "strategie_energie.bilan_bus_dc.puissance_recharge_retenue_w"}], "W"),
+        ("Limitation Batterie", [{"raw_path": "strategie_energie.enveloppe_batterie.raison_limitante"}]),
         ("Puissance auxiliaire", [{"raw_path": "derivees_chaine_energie.puissance_auxiliaire_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_auxiliaire_w"}], "W"),
-        ("Puissance recharge batterie", [{"raw_path": "derivees_chaine_energie.puissance_recharge_batterie_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_recharge_retenue_w"}], "W"),
-        ("Puissance bus totale", [{"raw_path": "derivees_chaine_energie.puissance_bus_dc_totale_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_bus_dc_totale_w"}], "W"),
-        ("Alternateur électrique requis", [{"raw_path": "strategie_energie.bilan_bus_dc.puissance_alternateur_electrique_requise_w"}], "W"),
-        ("Alternateur mécanique requis", [{"raw_path": "derivees_chaine_energie.puissance_mecanique_alternateur_requise_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_mecanique_alternateur_requise_w"}], "W"),
         ("Moteur thermique requis", [{"raw_path": "derivees_chaine_energie.puissance_moteur_thermique_requise_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_moteur_thermique_requise_w"}], "W"),
-        ("Rendement global calculé", [{"raw_path": "strategie_energie.bilan_bus_dc.rendement_global_calcule"}], ""),
+        ("Rendement global", [{"raw_path": "strategie_energie.bilan_bus_dc.rendement_global_calcule"}]),
     ]
     energy_metrics = []
-    for label, paths, unit in energy_specs:
+    for spec in energy_specs:
+        label = spec[0]
+        paths = spec[1]
+        unit = spec[2] if len(spec) > 2 else ""
         cands = []
         for p in paths:
-            cand = dict(p)
+            cand = dict(p) if isinstance(p, dict) else {"raw_path": p}
             if "unit" not in cand:
                 cand["unit"] = unit
             cands.append(cand)
