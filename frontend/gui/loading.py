@@ -10,7 +10,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.screenmanager import Screen
 
-from frontend.gui.components import COLORS, GlassPanel, ModernButton, SectionTitle, StatusBadge
+from frontend.gui.components import COLORS, ModernButton, SectionTitle, StatusBadge, NeoCard
 from frontend.gui.report_adapter import adapt_backend_report, extract_architecture_candidates
 
 try:
@@ -34,7 +34,7 @@ class LoadingScreen(Screen):
         super().__init__(**kwargs)
         self.labels: list[Label] = []
         root = BoxLayout(orientation="vertical", padding=[80, 60], spacing=22)
-        panel = GlassPanel(orientation="vertical", padding=28, spacing=14)
+        panel = NeoCard(orientation="vertical", padding=28, spacing=14)
         panel.add_widget(SectionTitle(text="CALCUL EN COURS"))
         self.status = Label(text="Préparation...", color=COLORS["BFW"], font_size="18sp", size_hint_y=None, height=42)
         panel.add_widget(self.status)

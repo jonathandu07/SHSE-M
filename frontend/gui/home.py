@@ -11,7 +11,7 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.spinner import Spinner
 from kivy.uix.widget import Widget
 
-from frontend.gui.components import COLORS, GlassPanel, ModernButton, NeumorphicInput, SectionTitle
+from frontend.gui.components import COLORS, ModernButton, NeumorphicInput, SectionTitle, NeoCard
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -33,7 +33,7 @@ class HomeScreen(Screen):
         hero.add_widget(Widget())
         root.add_widget(hero)
 
-        card = GlassPanel(orientation="vertical", size_hint_y=None, height=430, spacing=18, padding=26)
+        card = NeoCard(orientation="vertical", size_hint_y=None, height=430, spacing=18, padding=26)
         card.add_widget(SectionTitle(text="PUISSANCE DE SORTIE DEMANDÉE"))
         intro = Label(
             text="Saisis uniquement la puissance de départ. Le backend calcule ce qu'il peut et remonte le reste comme inconnu.",
