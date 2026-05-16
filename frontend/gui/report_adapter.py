@@ -1474,6 +1474,9 @@ def _empty_ui(error: str = "Rapport vide ou inexistant") -> Dict[str, Any]:
         "raw_sections": [],
         "architecture_candidates": [],
         "pieces": [],
+        "resources": {rtype: [] for rtype in ("sketches", "charts", "three_d", "pdf", "cao", "json")},
+        "resource_summary": {},
+        "backend_resource_inventory": {},
         "charts": [],
         "sketches": [],
         "three_d": [],
@@ -1502,16 +1505,19 @@ def adapt_backend_report(report: Mapping[str, Any]) -> Dict[str, Any]:
     if not isinstance(report, Mapping) or not report:
         return _empty_ui()
 
+    resource_payload = build_resource_catalog(dict(report))
+    resource_catalog = resource_payload.get("resources", {})
+    resource_summary = resource_payload.get("resource_summary", {})
     unknowns = flatten_unknowns(report)
     alerts = flatten_alerts(report)
-    pieces = extract_piece_list(report)
+    pieces = extract_piece_list(report, resource_catalog=resource_catalog if isinstance(resource_catalog, Mapping) else None)
     arch_candidates = extract_architecture_candidates(report)
     subsystems = extract_subsystems(report)
-    exports = extract_exports(report)
+    exports = extract_exports(report, resource_catalog=resource_catalog if isinstance(resource_catalog, Mapping) else None)
 
-    sketches = extract_visual_resources(report, "sketches")
-    charts = extract_visual_resources(report, "charts")
-    three_d = extract_visual_resources(report, "three_d")
+    sketches = list(resource_catalog.get("sketches", [])) if isinstance(resource_catalog, Mapping) else []
+    charts = list(resource_catalog.get("charts", [])) if isinstance(resource_catalog, Mapping) else []
+    three_d = list(resource_catalog.get("three_d", [])) if isinstance(resource_catalog, Mapping) else []
     editable = extract_editable_parameters(report, arch_candidates)
 
     kpis = [
@@ -1553,6 +1559,9 @@ def adapt_backend_report(report: Mapping[str, Any]) -> Dict[str, Any]:
         "raw_sections": build_data_tree(report),
         "architecture_candidates": arch_candidates,
         "pieces": pieces,
+        "resources": resource_catalog,
+        "resource_summary": resource_summary,
+        "backend_resource_inventory": resource_payload.get("backend_inventory", {}),
         "charts": charts,
         "sketches": sketches,
         "three_d": three_d,
