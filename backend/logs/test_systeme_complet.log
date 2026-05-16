@@ -1,6 +1,6 @@
-2026-05-16 19:15:09,859 - INFO - Starting test_systeme_analyser_full
-2026-05-16 19:15:09,865 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
-2026-05-16 19:15:09,872 - INFO - {
+2026-05-16 19:29:56,848 - INFO - Starting test_systeme_analyser_full
+2026-05-16 19:29:56,854 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-16 19:29:56,863 - INFO - {
   "meta": {
     "orchestrateur": "SystemeComplet",
     "mode": "compatibilite_calculable"
@@ -33,8 +33,21 @@
   },
   "sous_systemes": {
     "traction": {
-      "puissance_traction_w": 18716.600000000002,
-      "puissance_auxiliaire_w": null
+      "puissance_traction_w": 18716.6,
+      "puissance_auxiliaire_w": null,
+      "rapport_puissance": {
+        "valeur": 18716.6,
+        "statut": "ok",
+        "source": "calcul_composantes_vehicule",
+        "composantes": {
+          "acceleration_w": 12000.0,
+          "roulement_w": 3531.5999999999995,
+          "aero_w": 3185.0000000000005,
+          "pente_w": 0.0
+        },
+        "inconnues": [],
+        "notes": []
+      }
     },
     "moteur_thermique": {
       "conception": {
@@ -159,7 +172,7 @@
             "carburant": null,
             "carburant_config": null,
             "debit_massique_carburant_kg_s": null,
-            "puissance_utile_w": 18716.600000000002,
+            "puissance_utile_w": 18716.6,
             "rendement_global": 0.85,
             "lambda_exces_air": null,
             "co2_ppm_air": 420.0,
@@ -372,7 +385,7 @@
                   "carburant": null,
                   "carburant_config": null,
                   "debit_massique_carburant_kg_s": null,
-                  "puissance_utile_w": 18716.600000000002,
+                  "puissance_utile_w": 18716.6,
                   "rendement_global": 0.85,
                   "lambda_exces_air": null,
                   "co2_ppm_air": 420.0,
@@ -476,7 +489,7 @@
                   "carburant": null,
                   "carburant_config": null,
                   "debit_massique_carburant_kg_s": null,
-                  "puissance_utile_w": 18716.600000000002,
+                  "puissance_utile_w": 18716.6,
                   "rendement_global": 0.85,
                   "lambda_exces_air": null,
                   "co2_ppm_air": 420.0,
@@ -581,7 +594,7 @@
                   "carburant": null,
                   "carburant_config": null,
                   "debit_massique_carburant_kg_s": null,
-                  "puissance_utile_w": 18716.600000000002,
+                  "puissance_utile_w": 18716.6,
                   "rendement_global": 0.85,
                   "lambda_exces_air": null,
                   "co2_ppm_air": 420.0,
@@ -903,7 +916,7 @@
                 "carburant": null,
                 "carburant_config": null,
                 "debit_massique_carburant_kg_s": null,
-                "puissance_utile_w": 18716.600000000002,
+                "puissance_utile_w": 18716.6,
                 "rendement_global": 0.85,
                 "lambda_exces_air": null,
                 "co2_ppm_air": 420.0,
@@ -1007,7 +1020,7 @@
                 "carburant": null,
                 "carburant_config": null,
                 "debit_massique_carburant_kg_s": null,
-                "puissance_utile_w": 18716.600000000002,
+                "puissance_utile_w": 18716.6,
                 "rendement_global": 0.85,
                 "lambda_exces_air": null,
                 "co2_ppm_air": 420.0,
@@ -1112,7 +1125,7 @@
                 "carburant": null,
                 "carburant_config": null,
                 "debit_massique_carburant_kg_s": null,
-                "puissance_utile_w": 18716.600000000002,
+                "puissance_utile_w": 18716.6,
                 "rendement_global": 0.85,
                 "lambda_exces_air": null,
                 "co2_ppm_air": 420.0,
@@ -1309,7 +1322,7 @@
           "carburant": null,
           "carburant_config": null,
           "debit_massique_carburant_kg_s": null,
-          "puissance_utile_w": 18716.600000000002,
+          "puissance_utile_w": 18716.6,
           "rendement_global": 0.85,
           "lambda_exces_air": null,
           "co2_ppm_air": 420.0,
@@ -1805,6 +1818,6 @@
   },
   "notes_modele": []
 }
-2026-05-16 19:15:09,874 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
-2026-05-16 19:15:09,878 - INFO - Starting test_systeme_missing_inputs
-2026-05-16 19:15:09,883 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
+2026-05-16 19:29:56,865 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-16 19:29:56,868 - INFO - Starting test_systeme_missing_inputs
+2026-05-16 19:29:56,874 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
