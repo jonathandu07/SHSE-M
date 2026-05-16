@@ -1,6 +1,6 @@
-2026-05-15 23:14:48,224 - INFO - Starting test_systeme_analyser_full
-2026-05-15 23:14:48,231 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
-2026-05-15 23:14:48,238 - INFO - {
+2026-05-16 18:24:57,511 - INFO - Starting test_systeme_analyser_full
+2026-05-16 18:24:57,521 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-16 18:24:57,529 - INFO - {
   "meta": {
     "orchestrateur": "SystemeComplet",
     "mode": "compatibilite_calculable"
@@ -1954,6 +1954,6 @@
   },
   "notes_modele": []
 }
-2026-05-15 23:14:48,241 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
-2026-05-15 23:14:48,244 - INFO - Starting test_systeme_missing_inputs
-2026-05-15 23:14:48,250 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
+2026-05-16 18:24:57,531 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-16 18:24:57,536 - INFO - Starting test_systeme_missing_inputs
+2026-05-16 18:24:57,542 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
