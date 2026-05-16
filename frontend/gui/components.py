@@ -88,11 +88,20 @@ AZERTY_MAP = {
 
 def format_value(value: Any, unit: str = "") -> str:
     if value is None:
-        return "INCONNU"
+        return "..."  # Clean missing placeholder
+    if isinstance(value, dict):
+        return f"[{len(value)} items]"
+    if isinstance(value, list):
+        return f"[{len(value)} items]"
     if isinstance(value, float):
-        text = f"{value:.3g}"
+        text = f"{value:.4g}"
     else:
         text = str(value)
+    
+    # Truncate long strings for dashboard safety
+    if len(text) > 30:
+        text = text[:27] + "..."
+        
     return f"{text} {unit}".strip() if unit else text
 
 
@@ -153,12 +162,12 @@ class BentoGrid(GridLayout):
 class SectionTitle(Label):
     def __init__(self, text: str = "", **kwargs: Any) -> None:
         super().__init__(
-            text=text,
+            text=str(text).upper(),
             bold=True,
             color=COLORS["BFW"],
-            font_size=kwargs.pop("font_size", "15sp"),
-            size_hint_y=kwargs.pop("size_hint_y", None),
-            height=kwargs.pop("height", 30),
+            font_size=kwargs.pop("font_size", "14sp"),
+            size_hint_y=None,
+            height=30,
             halign="left",
             valign="middle",
             **kwargs,
@@ -170,27 +179,27 @@ class StatusBadge(Label):
     status = StringProperty("inconnu")
 
     def __init__(self, status: str = "inconnu", **kwargs: Any) -> None:
-        self.status = status or "inconnu"
+        self.status = str(status or "inconnu")
         text = kwargs.pop("text", self.status.upper())
         super().__init__(
             text=text,
             bold=True,
             color=COLORS["BL"],
-            font_size=kwargs.pop("font_size", "12sp"),
-            size_hint_y=kwargs.pop("size_hint_y", None),
-            height=kwargs.pop("height", 28),
+            font_size="10sp",
+            size_hint=(None, None),
+            size=(110, 24),
             **kwargs,
         )
         with self.canvas.before:
             Color(*self._status_color())
-            self._rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[6])
+            self._rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[4])
         self.bind(pos=self._update_canvas, size=self._update_canvas, status=lambda *_: self._redraw())
 
     def _status_color(self) -> tuple[float, float, float, float]:
         s = (self.status or "").lower()
-        if s in {"ok", "calculée", "calculee", "disponible", "valide", "fourni", "fournie"}:
+        if s in {"ok", "calculée", "calculee", "disponible", "valide", "fourni", "fournie", "complet"}:
             return COLORS["NG"]
-        if s in {"impossible", "erreur", "bloquant", "indisponible"}:
+        if s in {"impossible", "erreur", "bloquant", "indisponible", "missing", "alerte"}:
             return COLORS["RS"]
         return COLORS["BFW"]
 
@@ -198,7 +207,7 @@ class StatusBadge(Label):
         self.canvas.before.clear()
         with self.canvas.before:
             Color(*self._status_color())
-            self._rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[6])
+            self._rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[4])
 
     def _update_canvas(self, *_: Any) -> None:
         self._rect.pos = self.pos
@@ -279,8 +288,25 @@ class NeumorphicInput(TextInput):
 
 class MetricRow(BoxLayout):
     def __init__(self, label: str, value: Any, unit: str = "", status: str = "", source: str = "", **kwargs: Any) -> None:
-        super().__init__(orientation="horizontal", size_hint_y=None, height=34, spacing=8, **kwargs)
-        self.add_widget(Label(text=str(label), color=COLORS["GS"], font_size="13sp", halign="left", valign="middle"))
+        super().__init__(orientation="horizontal", size_hint_y=None, height=36, spacing=10, **kwargs)
+        self.padding = [4, 0]
+        
+        # Fixed width for label to prevent overlap
+        lbl = Label(
+            text=str(label), 
+            color=COLORS["GS"], 
+            font_size="12sp", 
+            size_hint_x=0.45, 
+            halign="left", 
+            valign="middle",
+            shorten=True,
+            shorten_from="right"
+        )
+        lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        self.add_widget(lbl)
+        
+        # Value section
+        val_box = BoxLayout(orientation="horizontal", size_hint_x=0.3)
         val = Label(
             text=format_value(value, unit),
             color=COLORS["RS"] if value is None else COLORS["BFW"],
@@ -288,13 +314,17 @@ class MetricRow(BoxLayout):
             font_size="13sp",
             halign="right",
             valign="middle",
+            shorten=True
         )
-        val.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
-        self.add_widget(val)
+        val.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        val_box.add_widget(val)
+        self.add_widget(val_box)
+
         if status:
-            self.add_widget(StatusBadge(status=status, text=status.upper(), size_hint_x=None, width=110))
-        if source:
-            self.tooltip = source
+            self.add_widget(StatusBadge(status=status, size_hint_x=None, width=100))
+        else:
+            # Spacer to maintain alignment
+            self.add_widget(Widget(size_hint_x=None, width=100))
 
 
 TechRow = MetricRow
@@ -302,10 +332,27 @@ TechRow = MetricRow
 
 class KpiCard(NeoCard):
     def __init__(self, title: str, value: Any, unit: str = "", status: str = "", **kwargs: Any) -> None:
-        super().__init__(orientation="vertical", **kwargs)
-        self.add_widget(Label(text=title.upper(), color=COLORS["GS"], font_size="12sp", size_hint_y=None, height=24))
-        self.add_widget(Label(text=format_value(value, unit), color=COLORS["BFW"], bold=True, font_size="24sp"))
-        self.add_widget(StatusBadge(status=status or ("inconnu" if value is None else "ok"), size_hint_y=None, height=26))
+        kwargs.setdefault("size_hint_y", None)
+        kwargs.setdefault("height", 120)
+        super().__init__(orientation="vertical", spacing=4, **kwargs)
+        self.add_widget(Label(text=str(title).upper(), color=COLORS["GS"], font_size="11sp", size_hint_y=None, height=20, halign="center"))
+        
+        val_lbl = Label(
+            text=format_value(value, unit), 
+            color=COLORS["BFW"], 
+            bold=True, 
+            font_size="22sp",
+            halign="center",
+            valign="middle"
+        )
+        val_lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        self.add_widget(val_lbl)
+        
+        badge_box = BoxLayout(size_hint_y=None, height=26)
+        badge_box.add_widget(Widget()) # Spacer
+        badge_box.add_widget(StatusBadge(status=status or ("missing" if value is None else "ok")))
+        badge_box.add_widget(Widget()) # Spacer
+        self.add_widget(badge_box)
 
 
 class EmptyState(Label):
@@ -364,6 +411,73 @@ class EditableField(BoxLayout):
         self.add_widget(Label(text=source or ("modifiable" if editable else "non modifiable"), color=COLORS["GS"], size_hint_y=None, height=20, font_size="11sp"))
 
 
+class JsonTreeView(ScrollView):
+    def __init__(self, data: Any, **kwargs: Any) -> None:
+        super().__init__(do_scroll_x=True, **kwargs)
+        self.content = BoxLayout(orientation="vertical", size_hint_y=None, padding=10, spacing=4)
+        self.content.bind(minimum_height=self.content.setter("height"))
+        self._render(data, self.content)
+        self.add_widget(self.content)
+
+    def _render(self, data: Any, container: BoxLayout, level: int = 0) -> None:
+        indent = "  " * level
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if isinstance(v, (dict, list)):
+                    btn = Button(
+                        text=f"{indent}▶ {k}",
+                        size_hint_y=None,
+                        height=30,
+                        background_normal="",
+                        background_color=COLORS["BFW_08"],
+                        color=COLORS["BFW"],
+                        halign="left",
+                        font_size="13sp"
+                    )
+                    btn.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+                    container.add_widget(btn)
+                    
+                    sub_container = BoxLayout(orientation="vertical", size_hint_y=None, spacing=2)
+                    sub_container.bind(minimum_height=sub_container.setter("height"))
+                    sub_container.visible = False
+                    sub_container.height = 0
+                    
+                    def toggle(b: Button, sc: BoxLayout = sub_container) -> None:
+                        if sc.height == 0:
+                            sc.height = sc.minimum_height
+                            b.text = b.text.replace("▶", "▼")
+                        else:
+                            sc.height = 0
+                            b.text = b.text.replace("▼", "▶")
+                    
+                    btn.bind(on_release=toggle)
+                    self._render(v, sub_container, level + 1)
+                    container.add_widget(sub_container)
+                else:
+                    container.add_widget(MetricRow(f"{indent}{k}", v))
+        elif isinstance(data, list):
+            for i, v in enumerate(data):
+                if isinstance(v, (dict, list)):
+                    self._render({f"Item {i}": v}, container, level)
+                else:
+                    container.add_widget(MetricRow(f"{indent}[{i}]", v))
+
+
+class DataTable(BoxLayout):
+    def __init__(self, items: list[dict], **kwargs: Any) -> None:
+        super().__init__(orientation="vertical", spacing=2, **kwargs)
+        for item in items:
+            self.add_widget(MetricRow(**item))
+
+
+class ScrollableSection(PremiumCard):
+    def __init__(self, title: str, content: Widget, **kwargs: Any) -> None:
+        super().__init__(title=title, **kwargs)
+        self.scroll = ScrollView(do_scroll_x=False)
+        self.scroll.add_widget(content)
+        self.add_widget(self.scroll)
+
+
 class JsonViewer(BoxLayout):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(orientation="vertical", **kwargs)
@@ -373,16 +487,10 @@ class JsonViewer(BoxLayout):
             foreground_color=COLORS["BFW"],
             cursor_color=COLORS["RS"],
             font_size="12sp",
+            font_name="Courier",
+            multiline=True
         )
         self.add_widget(self.text_input)
-
-    @property
-    def text(self) -> str:
-        return self.text_input.text
-
-    @text.setter
-    def text(self, value: str) -> None:
-        self.text_input.text = value
 
 
 def scrollable(content: Widget) -> ScrollView:

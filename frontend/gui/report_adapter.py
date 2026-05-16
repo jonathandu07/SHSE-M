@@ -106,13 +106,12 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "error": "Rapport vide ou inexistant",
             "is_empty": True,
-            "sections": {},
-            "dashboard_metrics": [],
+            "dashboard": {"kpis": [], "energy_chain": [], "subsystems": [], "actions": []},
             "missing_requirements": [],
-            "unknowns": [],
             "alerts": [],
         }
 
+    # extractions primaires
     unknowns = flatten_unknowns(report)
     alerts = flatten_alerts(report)
     pieces = extract_piece_list(report)
@@ -124,56 +123,31 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
     three_d = extract_visual_resources(report, "three_d")
     editable = extract_editable_parameters(report, arch_candidates)
 
-    # Métriques de synthèse résolues
-    dashboard_specs = [
+    # 1. KPIs Dashboard
+    kpi_specs = [
         ("Puissance demandée", [
             {"raw_path": "derivees_chaine_energie.details.sortie_utilisateur_w.valeur", "unit": "W"},
-            {"raw_path": "derivees_chaine_energie.sortie_utilisateur_w", "unit": "W"},
             {"raw_path": "entrees.puissance_traction_kw", "unit": "kW"},
         ]),
         ("Architecture", [
             {"raw_path": "resume_gui.Architecture"},
             {"raw_path": "systeme_complet.synthese.architecture.nom"},
         ]),
-        ("Nombre de cylindres", [
-            {"raw_path": "resume_gui.N_cyl"},
-            {"raw_path": "systeme_complet.synthese.moteur_thermique.N_cyl"},
+        ("Efficacité globale", [
+            {"raw_path": "strategie_energie.bilan_bus_dc.rendement_global_calcule"},
         ]),
-        ("Alésage", [
-            {"raw_path": "resume_gui.Bore_mm", "unit": "mm"},
-            {"raw_path": "systeme_complet.synthese.moteur_thermique.Bore_mm", "unit": "mm"},
-        ]),
-        ("Course", [
-            {"raw_path": "resume_gui.Stroke_mm", "unit": "mm"},
-            {"raw_path": "systeme_complet.synthese.moteur_thermique.Stroke_mm", "unit": "mm"},
-        ]),
-        ("Régime nominal", [
-            {"raw_path": "resume_gui.RPM", "unit": "rpm"},
-            {"raw_path": "systeme_complet.synthese.moteur_thermique.RPM", "unit": "rpm"},
-        ]),
-        ("Cylindrée totale", [
-            {"raw_path": "resume_gui.vd_tot_cc", "unit": "cc"},
-            {"raw_path": "systeme_complet.synthese.moteur_thermique.vd_tot_cc", "unit": "cc"},
-        ]),
-        ("Score global", [
+        ("Score technique", [
             {"raw_path": "resume_gui.score_global_100", "unit": "/100"},
         ]),
     ]
+    
+    kpis = []
+    for label, paths in kpi_specs:
+        res = resolve_metric(report, [{"raw_path": p.get("raw_path"), "label": label, "unit": p.get("unit", "")} for p in paths])
+        if res["resolved"]:
+            kpis.append(res)
 
-    all_metrics = []
-    for label, paths in dashboard_specs:
-        candidates = []
-        for p in paths:
-            cand = dict(p) if isinstance(p, dict) else {"raw_path": p}
-            if "label" not in cand:
-                cand["label"] = label
-            candidates.append(cand)
-        all_metrics.append(resolve_metric(report, candidates))
-
-    dashboard_metrics = [m for m in all_metrics if m["resolved"]]
-    missing_requirements = [m for m in all_metrics if not m["resolved"]]
-
-    # Chaîne énergétique
+    # 2. Chaîne énergétique (Dashboard)
     energy_specs = [
         ("Cible Traction", [{"raw_path": "entrees.puissance_traction_kw", "unit": "kW"}]),
         ("Mode Énergétique", [{"raw_path": "strategie_energie.mode_energetique"}]),
@@ -181,60 +155,70 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
         ("Puissance Bus DC", [{"raw_path": "derivees_chaine_energie.details.p_bus_total"}, {"raw_path": "derivees_chaine_energie.puissance_bus_dc_totale_w"}], "W"),
         ("Recharge Batterie", [{"raw_path": "strategie_energie.bilan_bus_dc.puissance_recharge_retenue_w"}], "W"),
         ("Limitation Batterie", [{"raw_path": "strategie_energie.enveloppe_batterie.raison_limitante"}]),
-        ("Puissance auxiliaire", [{"raw_path": "derivees_chaine_energie.puissance_auxiliaire_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_auxiliaire_w"}], "W"),
         ("Moteur thermique requis", [{"raw_path": "derivees_chaine_energie.puissance_moteur_thermique_requise_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_moteur_thermique_requise_w"}], "W"),
         ("Rendement global", [{"raw_path": "strategie_energie.bilan_bus_dc.rendement_global_calcule"}]),
     ]
-    energy_metrics = []
+    
+    energy_chain = []
     for spec in energy_specs:
-        label = spec[0]
-        paths = spec[1]
+        label, paths = spec[0], spec[1]
         unit = spec[2] if len(spec) > 2 else ""
-        cands = []
-        for p in paths:
-            cand = dict(p) if isinstance(p, dict) else {"raw_path": p}
-            if "unit" not in cand:
-                cand["unit"] = unit
-            if "label" not in cand:
-                cand["label"] = label
-            cands.append(cand)
-        energy_metrics.append(resolve_metric(report, cands))
+        res = resolve_metric(report, [{"raw_path": p.get("raw_path"), "label": label, "unit": p.get("unit", unit)} for p in paths])
+        if res["resolved"]:
+            energy_chain.append(res)
+
+    # 3. Actions Rapides
+    actions = [
+        {"label": "Données techniques", "target": "system_data"},
+        {"label": "Pièces", "target": "piece_library"},
+        {"label": "Architecture", "target": "architecture_choice"},
+        {"label": "Croquis", "target": "sketches"},
+        {"label": "Graphiques", "target": "charts"},
+        {"label": "3D", "target": "three_d"},
+        {"label": "Exports", "target": "exports"},
+        {"label": "JSON brut", "target": "raw_json"},
+        {"label": "Données à compléter", "target": "missing_requirements"},
+        {"label": "Édition", "target": "edit_parameters"},
+    ]
 
     ui = {
         "is_empty": False,
         "meta": report.get("meta", {}),
-        "summary": {
-            "status": "partiel" if unknowns else "ok",
-            "unknown_count": len(unknowns),
-            "alert_count": len(alerts),
-            "architecture": get_nested(report, "resume_gui.Architecture"),
-            "mode_energetique": get_nested(report, "strategie_energie.mode_energetique"),
+        "dashboard": {
+            "title": f"STHOME COCKPIT - {get_nested(report, 'meta.nom_projet', 'PROJET SANS NOM')}",
+            "kpis": kpis,
+            "energy_chain": energy_chain,
+            "subsystems": subsystems,
+            "actions": actions,
+            "summary": {
+                "values_calculated": len(dashboard_specs_count(report)), # approximatif
+                "missing_count": len(unknowns),
+                "alert_count": len(alerts),
+            }
         },
-        "dashboard_metrics": dashboard_metrics,
-        "resolved_metrics": [m for m in energy_metrics if m["resolved"]],
-        "missing_requirements": missing_requirements + [m for m in energy_metrics if not m["resolved"]],
-        "sections": {
-            "resume": {"title": "Résumé global", "items": dashboard_metrics},
-            "energie": {"title": "Chaîne énergétique", "items": [m for m in energy_metrics if m["resolved"]]},
-            "sous_systemes": {"title": "Sous-systèmes", "items": subsystem_metrics(subsystems)},
-            "exports": {"title": "Exports", "items": [e for e in exports if e["available"]]},
-        },
-        "energy_chain": energy_metrics,
-        "subsystems": subsystems,
-        "unknowns": unknowns,
+        "missing_requirements": unknowns,
         "alerts": alerts,
-        "pieces": pieces,
+        "raw_sections": build_data_tree(report),
         "architecture_candidates": arch_candidates,
-        "sketches": sketches,
+        "pieces": pieces,
         "charts": charts,
+        "sketches": sketches,
         "three_d": three_d,
         "exports": exports,
         "editable_parameters": editable,
-        "technical_audit": build_data_tree(report),
-        "raw_available": True,
         "notes": report.get("notes_modele") if isinstance(report.get("notes_modele"), list) else [],
     }
     return ui
+
+
+def dashboard_specs_count(report: Dict[str, Any]) -> List[str]:
+    # Compte rapide des valeurs non-None dans les sections clés
+    count = 0
+    for key in ("resume_gui", "derivees_chaine_energie", "entrees"):
+        val = report.get(key)
+        if isinstance(val, dict):
+            count += sum(1 for v in val.values() if v is not None)
+    return ["v"] * count
 
 
 def extract_energy_chain(report: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -386,11 +370,19 @@ def extract_architecture_candidates(report: Dict[str, Any]) -> List[Dict[str, An
         "stho_me_secondaire.rapports.composants.architecture_orchestrateur.candidats",
         "stho_me_secondaire.rapports.composants.architecture_orchestrateur.synthese.candidats",
         "optimisation.architectures_candidates",
+        "analyses_composants.architecture.exploration.candidats",
+        "sous_systemes.architecture.exploration.candidats",
     ]
     for path in paths:
         candidates = get_nested(report, path)
-        if isinstance(candidates, list):
+        if isinstance(candidates, list) and candidates:
             return [c for c in candidates if isinstance(c, dict)]
+            
+    # Tentative d'extraction directe depuis resume_gui si c'est le seul présent
+    solo = get_nested(report, "resume_gui.Architecture")
+    if solo:
+        return [{"nom": solo, "description": "Architecture retenue par le backend", "score": 100}]
+        
     return []
 
 
