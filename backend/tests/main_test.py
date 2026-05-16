@@ -414,6 +414,31 @@ def test_dimensionner_systeme_shsem_simple_uses_reorganized_system_modules(main_
     assert sorted(result["drivetrain"]) == ["alternateur", "batterie", "boite_crabots", "moteur_electrique"]
 
 
+def test_mode_simple_marque_assiste(main_mod):
+    result = main_mod.dimensionner_systeme_shsem_simple(40.0)
+
+    assert result["meta"]["mode_calcul"] == "assiste_pre_dimensionnement"
+    assert result["meta"]["strict"] is False
+    assert result["meta"]["non_strict"] is True
+
+
+def test_mode_simple_liste_hypotheses_utilisees(main_mod):
+    result = main_mod.dimensionner_systeme_shsem_simple(40.0, charger_batterie=False)
+
+    hypotheses = result["hypotheses_utilisees"]
+    assert isinstance(hypotheses, list)
+    assert len(hypotheses) >= 5
+    assert all(isinstance(item, dict) for item in hypotheses)
+    noms = {item["nom"] for item in hypotheses}
+    assert "rendement_onduleur" in noms
+    assert "rendement_moteur_electrique" in noms
+    assert "puissance_auxiliaire_w" in noms
+    assert "puissance_charge_batterie_w" in noms
+    charge_item = next(item for item in hypotheses if item["nom"] == "puissance_charge_batterie_w")
+    assert charge_item["valeur"] == 0.0
+    assert charge_item["type"] == "HYPOTHESE_ASSISTEE"
+
+
 def test_constructors_forward_expected_arguments(monkeypatch, main_mod):
     class FakeMoteurElectrique(_Recorder):
         pass

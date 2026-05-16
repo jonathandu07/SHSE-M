@@ -2239,12 +2239,40 @@ class OptimisationSysteme:
         )
         eta_boite = _first_finite(_dig(rep_sys, "entrees", "rendement_boite"))
 
-        etas_connus = [v for v in (eta_motor, eta_alt, eta_charge, eta_liaison, eta_boite) if v is not None and 0.0 < v <= 1.0]
+        eta_map = {
+            "rendement_moteur_electrique": eta_motor,
+            "rendement_alternateur": eta_alt,
+            "rendement_charge_batterie": eta_charge,
+            "rendement_liaison_mecanique": eta_liaison,
+            "rendement_boite": eta_boite,
+        }
+        etas_connus = [float(v) for v in eta_map.values() if v is not None and 0.0 < v <= 1.0]
+        etas_manquants = [nom for nom, valeur in eta_map.items() if valeur is None]
+        etas_invalides = [nom for nom, valeur in eta_map.items() if valeur is not None and not (0.0 < float(valeur) <= 1.0)]
         rendement_chaine_estime = None
-        if etas_connus:
+        if not etas_invalides and not etas_manquants:
             rendement_chaine_estime = 1.0
             for eta in etas_connus:
                 rendement_chaine_estime *= float(eta)
+        else:
+            if etas_manquants:
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "rendement_chaine_estime",
+                    "Rendements manquants : " + ", ".join(etas_manquants),
+                )
+            if etas_invalides:
+                _push_inconnue(
+                    rapport,
+                    "impossibles",
+                    "rendement_chaine_estime",
+                    "Rendements invalides : " + ", ".join(etas_invalides),
+                )
+            _append_note(
+                rapport,
+                "Rendement de chaine non calcule en optimisation faute de rendements explicites complets et valides.",
+            )
 
         score_efficience = score_coherence
         if rendement_chaine_estime is not None:

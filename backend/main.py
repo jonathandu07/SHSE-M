@@ -2914,6 +2914,56 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
         "Charge batterie fixe a 20000 W quand la recharge est active.",
         "Regime nominal fixe a 1000 rpm, PME a 20 bar, 4 cylindres, ratio BN = 0.15.",
     ]
+    hypotheses_mode_simple_details = [
+        {
+            "nom": "rendement_onduleur",
+            "valeur": 0.97,
+            "type": "HYPOTHESE_ASSISTEE",
+            "raison": "Mode simple de pre-dimensionnement ; valeur non utilisee dans le flux strict.",
+        },
+        {
+            "nom": "rendement_moteur_electrique",
+            "valeur": 0.92,
+            "type": "HYPOTHESE_ASSISTEE",
+            "raison": "Mode simple de pre-dimensionnement ; valeur non utilisee dans le flux strict.",
+        },
+        {
+            "nom": "puissance_auxiliaire_w",
+            "valeur": 5000.0,
+            "type": "HYPOTHESE_ASSISTEE",
+            "raison": "Charge auxiliaire assistee pour le mode simple GUI.",
+        },
+        {
+            "nom": "puissance_charge_batterie_w",
+            "valeur": 20000.0 if charger_batterie else 0.0,
+            "type": "HYPOTHESE_ASSISTEE",
+            "raison": "Recharge de batterie assistee dans le mode simple GUI.",
+        },
+        {
+            "nom": "rpm_nominal",
+            "valeur": 1000.0,
+            "type": "HYPOTHESE_ASSISTEE",
+            "raison": "Regime nominal impose par le mode simple de pre-dimensionnement.",
+        },
+        {
+            "nom": "pme_bar",
+            "valeur": 20.0,
+            "type": "HYPOTHESE_ASSISTEE",
+            "raison": "PME imposee par le mode simple de pre-dimensionnement.",
+        },
+        {
+            "nom": "nombre_cylindres",
+            "valeur": 4,
+            "type": "HYPOTHESE_ASSISTEE",
+            "raison": "Nombre de cylindres impose par le mode simple de pre-dimensionnement.",
+        },
+        {
+            "nom": "ratio_bn",
+            "valeur": 0.15,
+            "type": "HYPOTHESE_ASSISTEE",
+            "raison": "Ratio BN impose par le mode simple de pre-dimensionnement.",
+        },
+    ]
 
     eta_inv = 0.97
     eta_mot = 0.92
@@ -2960,6 +3010,11 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
     h_max_m = max(eng.stroke_m * 3.0, 0.35)
 
     return {
+        "meta": {
+            "mode_calcul": "assiste_pre_dimensionnement",
+            "strict": False,
+            "non_strict": True,
+        },
         "N_cyl": eng.n_cyl,
         "Architecture": f"L{eng.n_cyl}",
         "Score": 100.0,
@@ -2986,6 +3041,7 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
         "objets_serialises": pieces_report.get("objets_serialises", {}),
         "pieces_db_error": pieces_report.get("db_error"),
         "notes_modele": hypotheses_mode_simple,
+        "hypotheses_utilisees": hypotheses_mode_simple_details,
         "resume_gui": {
             "N_cyl": eng.n_cyl,
             "Architecture": f"L{eng.n_cyl}",

@@ -116,5 +116,80 @@ def test_optimisation_systeme_accepts_named_args_and_backend_reports():
         )
         raise
 
+
+def test_optimisation_rendement_chaine_inconnu_non_remplace_par_1():
+    logger.info("Starting test_optimisation_rendement_chaine_inconnu_non_remplace_par_1")
+    try:
+        from backend.ensemble.optimisation import OptimisationSysteme
+
+        rapport_backend = {
+            "synthese": {
+                "moteur_thermique": {
+                    "alesage_m": 0.13,
+                    "course_m": 0.15,
+                    "nombre_cylindres": 4,
+                    "rpm_nominal": 1500.0,
+                    "pme_pa": 1.5e6,
+                    "pression_max_pa": 1.8e7,
+                    "architecture": "L4",
+                    "puissance_requise_W": 55000.0,
+                },
+                "vehicule": {
+                    "tension_bus_dc_v": 400.0,
+                    "puissance_bus_dc_design_w": 30000.0,
+                },
+            },
+            "cao": {
+                "solidworks_ready": True,
+            },
+            "entrees": {},
+        }
+        rapports_pieces = {
+            "cylindre": {
+                "entrees": {
+                    "alesage_m": 0.13,
+                    "course_m": 0.15,
+                    "longueur_utile_m": 0.225,
+                    "pression_service_pa": 1.0e7,
+                    "pression_max_pa": 1.8e7,
+                },
+                "dimensionnement": {"epaisseur_retenue_m": 0.008},
+            },
+            "piston": {
+                "entrees": {"alesage_nominal_m": 0.13},
+                "geometrie": {"diametre_exterieur_m": 0.1295},
+                "etancheite": {"jeu_radial_froid_m": 0.00025},
+            },
+        }
+
+        opt = OptimisationSysteme(
+            systeme_complet=rapport_backend,
+            cylindre={"rapport": rapports_pieces["cylindre"]},
+            piston={"rapport": rapports_pieces["piston"]},
+            rapport_backend=rapport_backend,
+            rapports_pieces=rapports_pieces,
+        )
+
+        analyse = opt.analyser()
+        synthese = analyse["synthese_optimisation"]
+
+        assert synthese["rendement_chaine_estime"] is None
+        assert any(
+            item["nom"] == "rendement_chaine_estime"
+            for item in analyse["inconnues"]["partielles"]
+        )
+        log_test_result(
+            "test_optimisation_rendement_chaine_inconnu_non_remplace_par_1",
+            "SUCCESS",
+            "Unknown chain efficiency is no longer replaced by 1.0.",
+        )
+    except Exception as e:
+        log_test_result(
+            "test_optimisation_rendement_chaine_inconnu_non_remplace_par_1",
+            "FAILED",
+            str(e),
+        )
+        raise
+
 if __name__ == "__main__":
     pytest.main([__file__])
