@@ -1,0 +1,76 @@
+[INFO   ] Logger: Record log in C:\Users\alpha\Documents\GitHub\SHSE-M\.kivy\logs\kivy_26-05-17_3.txt
+[INFO   ] deps: Successfully imported "kivy_deps.angle" 0.4.0
+[INFO   ] deps: Successfully imported "kivy_deps.glew" 0.3.1
+[INFO   ] deps: Successfully imported "kivy_deps.sdl2" 0.8.0
+[INFO   ] Kivy: v2.3.1
+[INFO   ] Kivy: Installed at "C:\Python312\Lib\site-packages\kivy\__init__.py"
+[INFO   ] Python: v3.12.0 (tags/v3.12.0:0fb18b0, Oct  2 2023, 13:03:39) [MSC v.1935 64 bit (AMD64)]
+[INFO   ] Python: Interpreter at "C:\Python312\python.exe"
+[INFO   ] Logger: Purge log fired. Processing...
+[INFO   ] Logger: Purge finished!
+[INFO   ] Factory: 195 symbols loaded
+[INFO   ] Image: Providers: img_tex, img_dds, img_sdl2, img_pil (img_ffpyplayer ignored)
+[INFO   ] Window: Provider: sdl2
+[INFO   ] GL: Using the "OpenGL" graphics system
+[INFO   ] GL: GLEW initialization succeeded
+[INFO   ] GL: Backend used <glew>
+[INFO   ] GL: OpenGL version <b'4.6.0 - Build 32.0.101.7084'>
+[INFO   ] GL: OpenGL vendor <b'Intel'>
+[INFO   ] GL: OpenGL renderer <b'Intel(R) Iris(R) Xe Graphics'>
+[INFO   ] GL: OpenGL parsed version: 4, 6
+[INFO   ] GL: Shading version <b'4.60 - Build 32.0.101.7084'>
+[INFO   ] GL: Texture max size <16384>
+[INFO   ] GL: Texture max units <32>
+[INFO   ] Window: auto add sdl2 input provider
+[INFO   ] Window: virtual keyboard not allowed, single mode, not docked
+[INFO   ] Text: Provider: sdl2
+[INFO   ] Clipboard: Provider: winctypes
+[DEBUG  ] matplotlib data path: C:\Python312\Lib\site-packages\matplotlib\mpl-data
+[DEBUG  ] CONFIGDIR=C:\Users\alpha\.matplotlib
+[DEBUG  ] interactive is False
+[DEBUG  ] platform is win32
+[DEBUG  ] CACHEDIR=C:\Users\alpha\.matplotlib
+[DEBUG  ] Using fontManager instance from C:\Users\alpha\.matplotlib\fontlist-v390.json
+[INFO   ] GL: NPOT texture support is available
+[WARNING] Deprecated property "<BooleanProperty name=allow_stretch>" of object "<kivy.uix.image.Image object at 0x000001E5F8704C20>" has been set, it will be removed in a future version
+[WARNING] Deprecated property "<BooleanProperty name=keep_ratio>" of object "<kivy.uix.image.Image object at 0x000001E5F8704C20>" was accessed, it will be removed in a future version
+[INFO   ] Base: Start application main loop
+[INFO   ] Base: Leaving application in progress...
+[WARNING] stderr: Traceback (most recent call last):
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\main.py", line 208, in <module>
+[WARNING] stderr:     STHOMEApp().run()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\app.py", line 956, in run
+[WARNING] stderr:     runTouchApp()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 574, in runTouchApp
+[WARNING] stderr:     EventLoop.mainloop()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 339, in mainloop
+[WARNING] stderr:     self.idle()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 383, in idle
+[WARNING] stderr:     self.dispatch_input()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 334, in dispatch_input
+[WARNING] stderr:     post_dispatch_input(*pop(0))
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 302, in post_dispatch_input
+[WARNING] stderr:     wid.dispatch('on_touch_up', me)
+[WARNING] stderr:   File "kivy\\_event.pyx", line 731, in kivy._event.EventDispatcher.dispatch
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\uix\behaviors\button.py", line 179, in on_touch_up
+[WARNING] stderr:     self.dispatch('on_release')
+[WARNING] stderr:   File "kivy\\_event.pyx", line 727, in kivy._event.EventDispatcher.dispatch
+[WARNING] stderr:   File "kivy\\_event.pyx", line 1307, in kivy._event.EventObservers.dispatch
+[WARNING] stderr:   File "kivy\\_event.pyx", line 1231, in kivy._event.EventObservers._dispatch
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\gui\edit_parameters.py", line 1257, in <lambda>
+[WARNING] stderr:     btn_json.bind(on_release=lambda *_: self._go("raw_report"))
+[WARNING] stderr:                                         ^^^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\gui\edit_parameters.py", line 1465, in _go
+[WARNING] stderr:     self.manager.current = screen_name
+[WARNING] stderr:     ^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "kivy\\properties.pyx", line 520, in kivy.properties.Property.__set__
+[WARNING] stderr:   File "kivy\\properties.pyx", line 567, in kivy.properties.Property.set
+[WARNING] stderr:   File "kivy\\properties.pyx", line 606, in kivy.properties.Property._dispatch
+[WARNING] stderr:   File "kivy\\_event.pyx", line 1307, in kivy._event.EventObservers.dispatch
+[WARNING] stderr:   File "kivy\\_event.pyx", line 1213, in kivy._event.EventObservers._dispatch
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\uix\screenmanager.py", line 1052, in on_current
+[WARNING] stderr:     screen = self.get_screen(value)
+[WARNING] stderr:              ^^^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\uix\screenmanager.py", line 1078, in get_screen
+[WARNING] stderr:     raise ScreenManagerException('No Screen with name "%s".' % name)
+[WARNING] stderr: kivy.uix.screenmanager.ScreenManagerException: No Screen with name "raw_report".

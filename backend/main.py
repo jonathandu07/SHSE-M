@@ -3432,8 +3432,21 @@ if __name__ == "__main__":
             print(f"Erreur lors du chargement du fichier JSON: {e}")
             sys.exit(1)
     else:
-        print("Usage: python main.py <config.json> [sortie.json]\nAucune valeur par défaut n'est injectée, vous devez tout définir (ex: cibles de puissance) dans le JSON.")
-        sys.exit(1)
+        print("Aucun JSON fourni : execution d'un exemple explicite de smoke test CLI.")
+        kwargs = {
+            "puissance_traction_kw": 100.0,
+            "charger_batterie": True,
+            "puissance_auxiliaire_w": 5000.0,
+            "energie_utile_imposee_kwh": 20.0,
+            "temps_charge_cible_h": 1.0,
+            "vitesse_moteur_thermique_rpm": 3000.0,
+            "pme_pa": 9.0e5,
+            "rendement_liaison_meca_alt": 0.97,
+            "rendement_boite": 0.96,
+            "fraction_temps_generation_beta": 0.5,
+            "pression_max_pa": 4.0e6,
+            "contrainte_admissible_pa": 1.2e8,
+        }
 
     try:
         rep = dimensionner_systeme_shsem(**kwargs)
@@ -3444,4 +3457,5 @@ if __name__ == "__main__":
             print(f"Rapport exporté vers {sys.argv[2]}")
     except Exception as e:
         print(f"Erreur d'exécution: {e}")
+        sys.exit(1)
 
