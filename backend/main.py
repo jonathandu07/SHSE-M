@@ -42,6 +42,8 @@ SystemeComplet = _import_attr(("backend.ensemble.systeme_complet", "systeme_comp
 OptimisationSysteme = _import_attr(("backend.ensemble.optimisation", "optimisation"), "OptimisationSysteme", default=None)
 STHO_ME = _import_attr(("backend.ensemble.STHO_ME", "STHO_ME"), "STHO_ME", default=None)
 analyser_strategie_energie = _import_attr(("backend.ensemble.strategie_energie", "strategie_energie"), "analyser_strategie_energie", default=None)
+CahierDesChargesSTHOME = _import_attr(("backend.ensemble.resolution_inconnues", "resolution_inconnues"), "CahierDesChargesSTHOME", default=None)
+resoudre_inconnues_systeme = _import_attr(("backend.ensemble.resolution_inconnues", "resolution_inconnues"), "resoudre_inconnues_systeme", default=None)
 
 MoteurElectrique = _import_attr(("backend.components.moteur_electrique.moteur_electrique", "backend.components.moteur_electrique", "moteur_electrique"), "MoteurElectrique", default=None)
 AnalyserMoteurElectriqueDepuisPuissance = _import_attr(("backend.components.moteur_electrique.moteur_electrique", "backend.components.moteur_electrique", "moteur_electrique"), "analyser_depuis_puissance", default=None)
@@ -2099,6 +2101,104 @@ def dimensionner_systeme_shsem(
     }
 
     composants_def = _safe_dict(composants_definition)
+    rapport_resolution_inconnues: Optional[Any] = None
+    rapport_resolution_inconnues_dict: Dict[str, Any] = {}
+
+    if callable(resoudre_inconnues_systeme):
+        payload_resolution = _merge_dict_non_none(
+            {
+                "puissance_traction_kw": puissance_traction_kw,
+                "production_electrique_sortie_w": production_electrique_sortie_w,
+                "puissance_bus_dc_w": puissance_bus_dc_w,
+                "puissance_moteur_requise_W": puissance_moteur_requise_W,
+                "distance_km": distance_km,
+                "vitesse_moyenne_kmh": vitesse_moyenne_kmh,
+                "masse_kg": masse_kg,
+                "conso_kwh_km": conso_kwh_km,
+                "energie_utile_imposee_kwh": energie_utile_imposee_kwh,
+                "temps_charge_cible_h": temps_charge_cible_h,
+                "tension_bus_dc_v": tension_bus_dc_v,
+                "vitesse_alternateur_rpm": vitesse_alternateur_rpm,
+                "rapport_vitesse_alt_sur_moteur": rapport_vitesse_alt_sur_moteur,
+                "vitesse_moteur_thermique_rpm": vitesse_moteur_thermique_rpm,
+                "rendement_boite": rendement_boite,
+                "pme_pa": pme_pa,
+                "pression_moyenne_effective_pa": pme_pa,
+                "pression_max_pa": pression_max_pa,
+                "contrainte_service_pa": contrainte_admissible_pa,
+                "contrainte_admissible_pa": contrainte_admissible_pa,
+                "densite_materiau_kg_m3": densite_materiau_kg_m3,
+                "nombre_cylindres": nombre_cylindres,
+                "architecture_moteur": architecture_moteur,
+                "architecture_forcee": architecture_forcee,
+                "alesage_m": alesage_m,
+                "course_m": course_m,
+                "rpm_moteur_nominal": rpm_moteur_nominal,
+                "couple_moteur_max_Nm": couple_moteur_max_Nm,
+                "force_bielle_N": force_bielle_N,
+                "moteur_thermique_definition": _safe_dict(moteur_thermique_definition),
+                "pieces_definition": _safe_dict(pieces_definition),
+                "analyses_complementaires": _safe_dict(analyses_complementaires),
+                "composants": composants_def,
+            },
+            {},
+        )
+        try:
+            cdc_kwargs = {
+                "tension_bus_dc_v": tension_bus_dc_v,
+                "architectures_autorisees": tuple(architectures_autorisees) if architectures_autorisees else None,
+                "ratio_course_alesage_max": ratio_course_alesage_max,
+                "ratio_course_alesage_cible": ratio_course_alesage_cible,
+                "vitesse_piston_max_ms": vitesse_piston_max_ms,
+                "temperature_service_max_c": None,
+                "contrainte_service_pa": contrainte_admissible_pa,
+                "rendement_boite_reference": rendement_boite,
+                "rendement_liaison_meca_alt_reference": rendement_liaison_meca_alt,
+            }
+            if CahierDesChargesSTHOME is not None:
+                allowed_cdc = set(getattr(CahierDesChargesSTHOME, "__dataclass_fields__", {}).keys())
+                cdc = CahierDesChargesSTHOME(**{k: v for k, v in cdc_kwargs.items() if k in allowed_cdc and v is not None})
+            else:
+                cdc = {k: v for k, v in cdc_kwargs.items() if v is not None}
+            rapport_resolution_inconnues = resoudre_inconnues_systeme(payload_resolution, {}, cdc)
+            if hasattr(rapport_resolution_inconnues, "en_dict"):
+                rapport_resolution_inconnues_dict = rapport_resolution_inconnues.en_dict()
+            elif isinstance(rapport_resolution_inconnues, dict):
+                rapport_resolution_inconnues_dict = rapport_resolution_inconnues
+            payload_resolu = _safe_dict(rapport_resolution_inconnues_dict.get("payload_resolu"))
+
+            def _apply_resolved_scalar(name: str, current: Any) -> Any:
+                value = payload_resolu.get(name)
+                return value if current is None and value is not None else current
+
+            puissance_bus_dc_w = _apply_resolved_scalar("puissance_bus_dc_w", puissance_bus_dc_w)
+            puissance_moteur_requise_W = _apply_resolved_scalar("puissance_moteur_requise_W", puissance_moteur_requise_W)
+            tension_bus_dc_v = _apply_resolved_scalar("tension_bus_dc_v", tension_bus_dc_v)
+            vitesse_alternateur_rpm = _apply_resolved_scalar("vitesse_alternateur_rpm", vitesse_alternateur_rpm)
+            rapport_vitesse_alt_sur_moteur = _apply_resolved_scalar("rapport_vitesse_alt_sur_moteur", rapport_vitesse_alt_sur_moteur)
+            vitesse_moteur_thermique_rpm = _apply_resolved_scalar("vitesse_moteur_thermique_rpm", vitesse_moteur_thermique_rpm)
+            nombre_cylindres = _apply_resolved_scalar("nombre_cylindres", nombre_cylindres)
+            architecture_moteur = _apply_resolved_scalar("architecture_moteur", architecture_moteur)
+            alesage_m = _apply_resolved_scalar("alesage_m", alesage_m)
+            course_m = _apply_resolved_scalar("course_m", course_m)
+            rpm_moteur_nominal = _apply_resolved_scalar("rpm_moteur_nominal", rpm_moteur_nominal)
+            couple_moteur_max_Nm = _apply_resolved_scalar("couple_moteur_max_Nm", couple_moteur_max_Nm)
+            force_bielle_N = _apply_resolved_scalar("force_bielle_N", force_bielle_N)
+            energie_utile_imposee_kwh = _apply_resolved_scalar("energie_utile_imposee_kwh", energie_utile_imposee_kwh)
+            densite_materiau_kg_m3 = _apply_resolved_scalar("densite_materiau_kg_m3", densite_materiau_kg_m3)
+            if isinstance(payload_resolu.get("moteur_thermique_definition"), dict):
+                moteur_thermique_definition = _merge_dict_non_none(
+                    _safe_dict(payload_resolu.get("moteur_thermique_definition")),
+                    moteur_thermique_definition,
+                )
+            _append_note(rapport_global, "Resolution centrale des inconnues appliquee avant orchestration backend.")
+        except Exception as exc:
+            _push_inconnue(
+                rapport_global,
+                "partielles",
+                "resolution_inconnues",
+                f"Resolution centrale non appliquee : {exc}",
+            )
 
     if puissance_traction_kw is not None:
         _req_pos("puissance_traction_kw", puissance_traction_kw)
