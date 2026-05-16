@@ -78,7 +78,7 @@ class ArchitectureChoiceScreen(Screen):
         card.add_widget(header)
         
         desc = Label(text=str(cand.get("description", "Aucune description fournie")), color=COLORS["GS"], font_size="11sp", size_hint_y=None, height=30, halign="left")
-        desc.bind(size=lambda i, *_: setattr(inst, "text_size", (inst.width, None))) # Wait, 'inst' is wrong here
+        desc.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         card.add_widget(desc)
 
         card.add_widget(MetricRow("Score technique", cand.get("score", "?"), "/100"))
