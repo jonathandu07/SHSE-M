@@ -110,7 +110,9 @@ class STHOMEApp(App):
         self.manager.current = name
         
         def capture_and_next(name, idx, dt):
-            output_path = f"audit_{name}.png"
+            import os
+            cwd = os.getcwd()
+            output_path = os.path.join(cwd, f"audit_{name}.png")
             Window.screenshot(output_path)
             print(f"Captured {output_path}")
             self._screenshot_step(screens, idx + 1)
