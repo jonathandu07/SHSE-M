@@ -17,48 +17,52 @@ class SystemDataScreen(Screen):
         self.clear_widgets()
         app = App.get_running_app()
         ui = dict(app.ui_report or {})
+        candidates = ui.get("architecture_candidates") or []
         
-        root = BoxLayout(orientation="vertical", padding=16, spacing=12)
+        root = BoxLayout(orientation="vertical", padding=12, spacing=10)
         root.add_widget(self._top_bar())
         
-        raw_sections = ui.get("raw_sections") or []
-        if not raw_sections:
-            root.add_widget(EmptyState(text="Données techniques indisponibles."))
-            self.add_widget(root)
-            return
-
-        scroll = ScrollView(do_scroll_x=False, bar_width=4)
-        content = BoxLayout(orientation="vertical", spacing=12, size_hint_y=None)
-        content.bind(minimum_height=content.setter("height"))
-        
-        for sec in raw_sections:
-            content.add_widget(self._section_accordion(sec))
+        if not candidates:
+            panel = PremiumCard(title="ARCHITECTURE INDISPONIBLE", bg=COLORS["BFW_08"])
             
-        scroll.add_widget(content)
-        root.add_widget(scroll)
+            why_box = BoxLayout(orientation="vertical", spacing=10, padding=[20, 10])
+            why_box.add_widget(Label(text="Pourquoi l'architecture est indisponible ?", bold=True, color=COLORS["RS"], font_size="14sp", halign="left"))
+            
+            # Simplified reasons for engineering view
+            reasons = [
+                "• Manque de paramètres PME (Moteur Thermique)",
+                "• Cylindrée non fermée / Contraintes géométriques",
+                "• Packaging ou Bus DC non dimensionnés"
+            ]
+            for r in reasons:
+                why_box.add_widget(Label(text=r, color=COLORS["BFW"], font_size="12sp", halign="left", size_hint_y=None, height=24))
+            
+            panel.add_widget(why_box)
+            
+            panel.add_widget(EmptyState(
+                text="DES DONNÉES CRITIQUES MANQUENT",
+                action_text="COMPLÉTER LES PARAMÈTRES",
+                callback=lambda _: setattr(self.manager, "current", "edit_parameters")
+            ))
+            root.add_widget(panel)
+        else:
+            scroll = ScrollView(do_scroll_x=False)
+            grid = GridLayout(cols=2, spacing=16, size_hint_y=None)
+            grid.bind(minimum_height=grid.setter("height"))
+            for cand in candidates:
+                grid.add_widget(self._candidate_card(cand))
+            scroll.add_widget(grid)
+            root.add_widget(scroll)
+            
         self.add_widget(root)
 
     def _top_bar(self) -> BoxLayout:
-        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=50, spacing=10)
-        lbl = Label(text="RÉPERTOIRE TECHNIQUE COMPLET", color=COLORS["BFW"], bold=True, font_size="18sp", halign="left")
+        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=54, spacing=10, padding=[10, 5])
+        lbl = Label(text="DÉTAILS TECHNIQUES", color=COLORS["BFW"], bold=True, font_size="16sp", halign="left")
         lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         bar.add_widget(lbl)
         
-        btn = ModernButton(text="RETOUR DASHBOARD", size_hint_x=None, width=200, font_size="12sp")
+        btn = ModernButton(text="RETOUR DASHBOARD", size_hint_x=None, width=180, font_size="11sp")
         btn.bind(on_release=lambda *_: setattr(self.manager, "current", "dashboard"))
         bar.add_widget(btn)
         return bar
-
-    def _section_accordion(self, section: dict) -> PremiumCard:
-        name = section.get("name", "section").upper()
-        panel = PremiumCard(title=name, size_hint_y=None, height=400) # Initial height
-        
-        # We use a custom sub-scroll for each section to avoid giant overlaps
-        data = section.get("value")
-        if data is None:
-            panel.add_widget(EmptyState(text="Donnée absente ou nulle."))
-            panel.height = 100
-        else:
-            panel.add_widget(JsonTreeView(data))
-            
-        return panel
