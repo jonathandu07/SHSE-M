@@ -6,7 +6,7 @@ from kivy.uix.label import Label
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 
-from frontend.gui.components import COLORS, EmptyState, MetricRow, ModernButton, NeoCard, SectionTitle
+from frontend.gui.components import COLORS, EmptyState, JsonTreeView, ModernButton, PremiumCard, SectionTitle
 
 
 class SystemDataScreen(Screen):
@@ -17,47 +17,48 @@ class SystemDataScreen(Screen):
         self.clear_widgets()
         app = App.get_running_app()
         ui = dict(app.ui_report or {})
+        
         root = BoxLayout(orientation="vertical", padding=16, spacing=12)
         root.add_widget(self._top_bar())
-        tree = ui.get("data_tree") or []
-        if not tree:
-            root.add_widget(EmptyState(text="Données système indisponibles."))
+        
+        raw_sections = ui.get("raw_sections") or []
+        if not raw_sections:
+            root.add_widget(EmptyState(text="Données techniques indisponibles."))
             self.add_widget(root)
             return
-        scroll = ScrollView(do_scroll_x=False)
+
+        scroll = ScrollView(do_scroll_x=False, bar_width=4)
         content = BoxLayout(orientation="vertical", spacing=12, size_hint_y=None)
         content.bind(minimum_height=content.setter("height"))
-        for section in tree:
-            content.add_widget(self._section_card(section))
+        
+        for sec in raw_sections:
+            content.add_widget(self._section_accordion(sec))
+            
         scroll.add_widget(content)
         root.add_widget(scroll)
         self.add_widget(root)
 
     def _top_bar(self) -> BoxLayout:
-        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=58, spacing=10)
-        bar.add_widget(Label(text="DONNÉES TECHNIQUES COMPLÈTES", color=COLORS["BFW"], bold=True, font_size="19sp"))
-        btn = ModernButton(text="DASHBOARD", size_hint_x=None, width=150)
+        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=50, spacing=10)
+        lbl = Label(text="RÉPERTOIRE TECHNIQUE COMPLET", color=COLORS["BFW"], bold=True, font_size="18sp", halign="left")
+        lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        bar.add_widget(lbl)
+        
+        btn = ModernButton(text="RETOUR DASHBOARD", size_hint_x=None, width=200, font_size="12sp")
         btn.bind(on_release=lambda *_: setattr(self.manager, "current", "dashboard"))
         bar.add_widget(btn)
         return bar
 
-    def _section_card(self, section: dict) -> NeoCard:
-        value = section.get("value")
-        card = NeoCard(orientation="vertical", size_hint_y=None)
-        card.add_widget(SectionTitle(text=str(section.get("name", "section")).upper()))
-        card.add_widget(MetricRow("Statut", section.get("status"), source=section.get("source") or ""))
-        if isinstance(value, dict):
-            for idx, (key, val) in enumerate(value.items()):
-                if idx >= 30:
-                    card.add_widget(MetricRow("Suite", "voir JSON brut"))
-                    break
-                card.add_widget(MetricRow(str(key), val))
-            rows = min(len(value), 30) + 2
-        elif isinstance(value, list):
-            card.add_widget(MetricRow("Nombre", len(value)))
-            rows = 3
+    def _section_accordion(self, section: dict) -> PremiumCard:
+        name = section.get("name", "section").upper()
+        panel = PremiumCard(title=name, size_hint_y=None, height=400) # Initial height
+        
+        # We use a custom sub-scroll for each section to avoid giant overlaps
+        data = section.get("value")
+        if data is None:
+            panel.add_widget(EmptyState(text="Donnée absente ou nulle."))
+            panel.height = 100
         else:
-            card.add_widget(MetricRow("Valeur", value))
-            rows = 3
-        card.height = max(120, rows * 36)
-        return card
+            panel.add_widget(JsonTreeView(data))
+            
+        return panel
