@@ -2171,9 +2171,7 @@ def dimensionner_systeme_shsem(
                 value = payload_resolu.get(name)
                 return value if current is None and value is not None else current
 
-            puissance_bus_dc_w = _apply_resolved_scalar("puissance_bus_dc_w", puissance_bus_dc_w)
             puissance_moteur_requise_W = _apply_resolved_scalar("puissance_moteur_requise_W", puissance_moteur_requise_W)
-            tension_bus_dc_v = _apply_resolved_scalar("tension_bus_dc_v", tension_bus_dc_v)
             vitesse_alternateur_rpm = _apply_resolved_scalar("vitesse_alternateur_rpm", vitesse_alternateur_rpm)
             rapport_vitesse_alt_sur_moteur = _apply_resolved_scalar("rapport_vitesse_alt_sur_moteur", rapport_vitesse_alt_sur_moteur)
             vitesse_moteur_thermique_rpm = _apply_resolved_scalar("vitesse_moteur_thermique_rpm", vitesse_moteur_thermique_rpm)
@@ -2990,6 +2988,19 @@ def dimensionner_systeme_shsem(
         _safe_dict(rapport_strategie_energie.get("derivees_chaine_energie")),
     )
 
+    inconnues_resolution = _safe_dict(rapport_resolution_inconnues_dict.get("inconnues"))
+    inconnues_finales = {
+        "impossibles": list(_safe_dict(rapport_global.get("inconnues")).get("impossibles") or []),
+        "partielles": list(_safe_dict(rapport_global.get("inconnues")).get("partielles") or []),
+        "resolues_automatiquement": list(inconnues_resolution.get("resolues_automatiquement") or []),
+        "restantes_catalogue": list(inconnues_resolution.get("restantes_catalogue") or []),
+        "restantes_physiques": list(inconnues_resolution.get("restantes_physiques") or []),
+        "conflits": list(inconnues_resolution.get("conflits") or []),
+        "bloquantes": list(inconnues_resolution.get("bloquantes") or []),
+        "non_bloquantes": list(inconnues_resolution.get("non_bloquantes") or []),
+    }
+    coherence_resolution = _safe_dict(rapport_resolution_inconnues_dict.get("coherence_systeme"))
+
     resultat = {
         "optimisation_carburant": rapport_optimisation_carburant,
         "meta": _merge_dict_non_none(
@@ -3006,18 +3017,42 @@ def dimensionner_systeme_shsem(
             "analyses_complementaires": _safe_dict(analyses_complementaires),
             "composants_definition": _safe_dict(composants_definition),
         },
+        "raw_sections": {
+            "systeme_complet": rapport_systeme,
+            "analyses_composants": rapports_composants,
+            "construction_pieces": rapport_construction_pieces,
+            "strategie_energie": rapport_strategie_energie,
+            "optimisation": rapport_optimisation,
+        },
         "inventaire": inventaire,
         "resume_gui": resume_gui,
         "systeme_complet": rapport_systeme,
+        "composants": {nom: _to_jsonable(obj) for nom, obj in composants.items()},
         "cao": cao_block,
+        "graphiques": {},
+        "donnees_3d": {
+            "solidworks_ready_minimal": cao_block.get("solidworks_ready_minimal"),
+            "solidworks_ready_pre_dimensionnement": cao_block.get("solidworks_ready_pre_dimensionnement"),
+            "solidworks_ready_detaille": cao_block.get("solidworks_ready_detaille"),
+            "pieces": cao_block.get("pieces", {}),
+        },
         "analyses_composants": rapports_composants,
         "construction_pieces": rapport_construction_pieces,
         "pieces": pieces,
         "rapports_pieces": rapports_pieces,
         "strategie_energie": rapport_strategie_energie,
         "optimisation": rapport_optimisation,
+        "optimisations": {
+            "carburant": rapport_optimisation_carburant,
+            "systeme": rapport_optimisation,
+        },
         "stho_me_secondaire": rapport_stho_me,
         "legacy": legacy,
+        "resolution_inconnues": rapport_resolution_inconnues_dict,
+        "hypotheses_resolues": rapport_resolution_inconnues_dict.get("hypotheses", []),
+        "hypotheses": rapport_resolution_inconnues_dict.get("hypotheses", []),
+        "donnees_auto_completees": rapport_resolution_inconnues_dict.get("donnees_auto_completees", {}),
+        "coherence_systeme": coherence_resolution,
         "objets_serialises": {
             "composants": {nom: _to_jsonable(obj) for nom, obj in composants.items()},
             "pieces": {nom: _to_jsonable(obj) for nom, obj in pieces.items()},
@@ -3025,7 +3060,8 @@ def dimensionner_systeme_shsem(
         "toutes_les_donnees_composants": {nom: _collect_public_data(obj) for nom, obj in composants.items()},
         "toutes_les_donnees_pieces": {nom: _collect_public_data(obj) for nom, obj in pieces.items()},
         "toutes_les_donnees_systeme": _collect_public_data(systeme),
-        "inconnues": rapport_global.get("inconnues"),
+        "inconnues": inconnues_finales,
+        "inconnues_legacy": rapport_global.get("inconnues"),
         "alertes": rapport_global.get("alertes"),
         "notes_modele": rapport_global.get("notes_modele"),
         "inconnues_resume": inconnues_resume,

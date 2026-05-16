@@ -61,6 +61,24 @@ def _import_optional_attr(module_names: Sequence[str], attr: str) -> Any:
             continue
     return None
 
+
+CahierDesChargesSTHOME = _import_optional_attr(
+    (
+        "backend.ensemble.resolution_inconnues",
+        "ensemble.resolution_inconnues",
+        "resolution_inconnues",
+    ),
+    "CahierDesChargesSTHOME",
+)
+resoudre_inconnues_systeme = _import_optional_attr(
+    (
+        "backend.ensemble.resolution_inconnues",
+        "ensemble.resolution_inconnues",
+        "resolution_inconnues",
+    ),
+    "resoudre_inconnues_systeme",
+)
+
 # Constructeurs/orchestrateurs haut niveau des composants. Ils sont optionnels :
 # si l'un manque, le recalcul passera par l'objet existant ou signalera l'inconnue.
 MoteurElectrique = _import_optional_attr(
@@ -1503,11 +1521,44 @@ class OptimisationSysteme:
             "coherences": {},
             "pertes": {},
             "synthese_optimisation": {},
+            "resolution_inconnues": {},
+            "hypotheses_resolues": [],
+            "donnees_auto_completees": {},
+            "coherence_systeme": {},
             "actions": [],
             "alertes": {},
             "inconnues": {"impossibles": [], "partielles": []},
             "notes_modele": [],
         }
+
+        if callable(resoudre_inconnues_systeme):
+            payload_resolution = {
+                "rapport_backend": _to_jsonable(self.rapport_backend, max_depth=6),
+                "rapports_pieces": _to_jsonable(self.rapports_pieces, max_depth=6),
+                "analyses_composants": _to_jsonable(self.analyses_composants, max_depth=6),
+                "configs_composants": _to_jsonable(self.configs_composants, max_depth=6),
+                "configs_analyses": _to_jsonable(self.configs_analyses, max_depth=6),
+            }
+            cdc_cfg = _safe_dict(_safe_dict(self.configs_analyses).get("cahier_des_charges"))
+            try:
+                if CahierDesChargesSTHOME is not None and cdc_cfg:
+                    allowed = set(getattr(CahierDesChargesSTHOME, "__dataclass_fields__", {}).keys())
+                    cdc = CahierDesChargesSTHOME(**{k: v for k, v in cdc_cfg.items() if k in allowed})
+                elif CahierDesChargesSTHOME is not None:
+                    cdc = CahierDesChargesSTHOME()
+                else:
+                    cdc = cdc_cfg
+                rep_resolution = resoudre_inconnues_systeme(payload_resolution, _safe_dict(self.rapport_backend), cdc)
+                rep_resolution_dict = rep_resolution.en_dict() if hasattr(rep_resolution, "en_dict") else _safe_dict(rep_resolution)
+                rapport["resolution_inconnues"] = _to_jsonable(rep_resolution_dict, max_depth=10)
+                rapport["hypotheses_resolues"] = list(_safe_dict(rep_resolution_dict).get("hypotheses") or [])
+                rapport["donnees_auto_completees"] = _safe_dict(rep_resolution_dict.get("donnees_auto_completees"))
+                rapport["coherence_systeme"] = _safe_dict(rep_resolution_dict.get("coherence_systeme"))
+                rapport["resolution_iterations"] = list(_safe_dict(rep_resolution_dict).get("iterations") or [])
+            except Exception as exc:
+                _push_inconnue(rapport, "partielles", "resolution_inconnues", f"Resolution centrale non concluante : {exc}")
+        else:
+            _push_inconnue(rapport, "partielles", "resolution_inconnues", "Module resolution_inconnues indisponible.")
 
         # ----------------------------------------------------
         # 1) Récupération des rapports

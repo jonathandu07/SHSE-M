@@ -104,6 +104,24 @@ OptimisationSysteme = _import_attr_optional(
     "OptimisationSysteme",
 )
 
+CahierDesChargesSTHOME = _import_attr_optional(
+    (
+        "backend.ensemble.resolution_inconnues",
+        "ensemble.resolution_inconnues",
+        "resolution_inconnues",
+    ),
+    "CahierDesChargesSTHOME",
+)
+
+resoudre_inconnues_systeme = _import_attr_optional(
+    (
+        "backend.ensemble.resolution_inconnues",
+        "ensemble.resolution_inconnues",
+        "resolution_inconnues",
+    ),
+    "resoudre_inconnues_systeme",
+)
+
 MoteurElectrique = _import_attr_optional(
     (
         "backend.components.moteur_electrique.moteur_electrique",
@@ -1033,6 +1051,10 @@ class STHO_ME:
             "rapports": {"composants": {}, "pieces": {}, "optimisation": None},
             "synthese": {},
             "inconnues": {"impossibles": [], "partielles": []},
+            "resolution_inconnues": {},
+            "hypotheses_resolues": [],
+            "donnees_auto_completees": {},
+            "coherence_systeme": {},
             "alertes": {},
             "notes_modele": [],
         }
@@ -1777,12 +1799,75 @@ class STHO_ME:
             _add_note(rapport, "Certaines pièces demandées ne sont pas fermées faute de classe, de paramètres ou de dépendances disponibles.")
 
     # ------------------------------------------------------------------
+    # Resolution centrale des inconnues
+    # ------------------------------------------------------------------
+    def _run_resolution_inconnues(self, rapport: Dict[str, Any]) -> None:
+        if not callable(resoudre_inconnues_systeme):
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "resolution_inconnues",
+                "Module backend.ensemble.resolution_inconnues indisponible.",
+            )
+            return
+
+        payload = {
+            "composants": _to_jsonable(self.composants, max_depth=6),
+            "pieces": _to_jsonable(self.pieces, max_depth=6),
+            "analyses": _to_jsonable(self.analyses, max_depth=6),
+            "meta": _to_jsonable(self.meta, max_depth=4),
+        }
+        cdc_cfg = _deep_merge(
+            _safe_dict(self.meta.get("cahier_des_charges")),
+            _safe_dict(self.analyses.get("cahier_des_charges")),
+        )
+
+        try:
+            if CahierDesChargesSTHOME is not None and cdc_cfg:
+                allowed = set(getattr(CahierDesChargesSTHOME, "__dataclass_fields__", {}).keys())
+                cdc = CahierDesChargesSTHOME(**{k: v for k, v in cdc_cfg.items() if k in allowed})
+            elif CahierDesChargesSTHOME is not None:
+                cdc = CahierDesChargesSTHOME()
+            else:
+                cdc = cdc_cfg
+            rep = resoudre_inconnues_systeme(payload, {}, cdc)
+        except Exception as exc:
+            _push_inconnue(rapport, "partielles", "resolution_inconnues", f"Resolution centrale impossible : {exc}")
+            return
+
+        rep_dict = rep.en_dict() if hasattr(rep, "en_dict") else _safe_dict(rep)
+        rapport["resolution_inconnues"] = _to_jsonable(rep_dict, max_depth=10)
+        rapport["hypotheses_resolues"] = list(_safe_dict(rep_dict).get("hypotheses") or [])
+        rapport["donnees_auto_completees"] = _safe_dict(rep_dict.get("donnees_auto_completees"))
+        rapport["coherence_systeme"] = _safe_dict(rep_dict.get("coherence_systeme"))
+
+        payload_resolu = _safe_dict(rep_dict.get("payload_resolu"))
+        composants_resolus = _safe_dict(payload_resolu.get("composants"))
+        pieces_resolues = _safe_dict(payload_resolu.get("pieces"))
+        analyses_resolues = _safe_dict(payload_resolu.get("analyses"))
+        if composants_resolus:
+            self.composants = _deep_merge(self.composants, composants_resolus)
+        if pieces_resolues:
+            self.pieces = _deep_merge(self.pieces, pieces_resolues)
+        if analyses_resolues:
+            self.analyses = _deep_merge(self.analyses, analyses_resolues)
+
+        inconnues_resolution = _safe_dict(rep_dict.get("inconnues"))
+        for key, items in inconnues_resolution.items():
+            if key == "resolues_automatiquement":
+                continue
+            if isinstance(items, list) and items:
+                rapport.setdefault("inconnues_resolution", {})[key] = items
+        _add_note(rapport, "Resolution centrale des inconnues appliquee par STHO_ME avant construction des composants.")
+
+    # ------------------------------------------------------------------
     # API publique
     # ------------------------------------------------------------------
     def analyser(self) -> Dict[str, Any]:
         self._reset_runtime()
         rapport = self._new_report()
 
+        self._run_resolution_inconnues(rapport)
         self._build_components(rapport)
         self._run_component_analyses(rapport)
         self._build_pieces(rapport)

@@ -288,31 +288,32 @@ class _ResolutionState:
         if _is_missing_value(valeur):
             return False
         paths = (champ, *aliases)
-        added = False
+        added_paths: List[str] = []
         for path in paths:
             current = _get_path(self.payload, path)
             if _is_missing_value(current):
                 _set_path(self.payload, path, valeur)
                 self.completed[path] = valeur
-                added = True
+                added_paths.append(path)
             else:
                 _record_conflict_if_needed(self, path, current, valeur, source)
-        if not added:
+        if not added_paths:
             return False
-        hyp = HypotheseResolue(
-            champ=champ,
-            valeur=valeur,
-            unite=unite,
-            type_resolution=type_resolution,
-            source=source,
-            formule=formule,
-            dependances=dict(dependances),
-            justification=justification,
-            niveau_confiance=niveau_confiance,
-            validation=dict(validation or {}),
-        )
-        self.hypotheses.append(hyp)
-        self.inconnues["resolues_automatiquement"].append(_jsonable(hyp))
+        for path in added_paths:
+            hyp = HypotheseResolue(
+                champ=path,
+                valeur=valeur,
+                unite=unite,
+                type_resolution=type_resolution,
+                source=source,
+                formule=formule,
+                dependances=dict(dependances),
+                justification=justification,
+                niveau_confiance=niveau_confiance,
+                validation=dict(validation or {}),
+            )
+            self.hypotheses.append(hyp)
+            self.inconnues["resolues_automatiquement"].append(_jsonable(hyp))
         return True
 
     def unresolved(self, bucket: str, champ: str, raison: str, *, bloquant: bool = False) -> None:
@@ -324,7 +325,7 @@ class _ResolutionState:
 
 
 def _resoudre_puissances_et_bus(state: _ResolutionState) -> None:
-    p_kw = state.number("puissance_traction_kw", "entrees.puissance_traction_kw")
+    p_kw = state.number("puissance_traction_kw", "entrees.puissance_traction_kw", "analyses.systeme_complet.puissance_traction_kw")
     if p_kw is not None:
         state.add(
             "puissance_traction_w",
@@ -338,7 +339,11 @@ def _resoudre_puissances_et_bus(state: _ResolutionState) -> None:
             niveau_confiance="exact",
         )
 
-    p_prod = state.number("production_electrique_sortie_w", "entrees.production_electrique_sortie_w")
+    p_prod = state.number(
+        "production_electrique_sortie_w",
+        "entrees.production_electrique_sortie_w",
+        "analyses.systeme_complet.production_electrique_sortie_w",
+    )
     if p_prod is not None:
         state.add(
             "puissance_bus_dc_w",
@@ -445,7 +450,16 @@ def _resoudre_rotation_et_couple(state: _ResolutionState) -> None:
         "analyses.moteur_thermique_definition.rpm",
         "analyses.systeme_complet.vitesse_moteur_thermique_rpm",
     )
-    p_moteur = state.number("puissance_moteur_w", "puissance_moteur_requise_W", "puissance_nominale_visee_w")
+    p_moteur = state.number(
+        "puissance_moteur_w",
+        "puissance_moteur_requise_W",
+        "puissance_nominale_visee_w",
+        "moteur_thermique_definition.puissance_visee_w",
+        "moteur_thermique_definition.puissance_nominale_visee_w",
+        "analyses.moteur_thermique_definition.puissance_visee_w",
+        "analyses.moteur_thermique_definition.puissance_nominale_visee_w",
+        "analyses.systeme_complet.puissance_moteur_requise_W",
+    )
     pme = state.number(
         "pme_pa",
         "pression_moyenne_effective_pa",
@@ -511,9 +525,33 @@ def _resoudre_geometrie_moteur(state: _ResolutionState) -> None:
     bore = state.number("alesage_m", "moteur_thermique_definition.alesage_m")
     stroke = state.number("course_m", "moteur_thermique_definition.course_m")
     nb_cyl = state.integer("nombre_cylindres", "moteur_thermique_definition.nombre_cylindres")
-    rpm = state.number("rpm_moteur", "rpm_moteur_nominal", "vitesse_moteur_thermique_rpm")
-    pme = state.number("pme_pa", "pression_moyenne_effective_pa", "moteur_thermique_definition.pression_moyenne_effective_pa")
-    p_moteur = state.number("puissance_moteur_w", "puissance_moteur_requise_W", "puissance_nominale_visee_w")
+    rpm = state.number(
+        "rpm_moteur",
+        "rpm_moteur_nominal",
+        "vitesse_moteur_thermique_rpm",
+        "moteur_thermique_definition.rpm_nominal",
+        "moteur_thermique_definition.rpm",
+        "analyses.moteur_thermique_definition.rpm",
+        "analyses.systeme_complet.vitesse_moteur_thermique_rpm",
+    )
+    pme = state.number(
+        "pme_pa",
+        "pression_moyenne_effective_pa",
+        "moteur_thermique_definition.pression_moyenne_effective_pa",
+        "moteur_thermique_definition.pme_nominale_pa",
+        "analyses.moteur_thermique_definition.pression_moyenne_effective_pa",
+        "analyses.moteur_thermique_definition.pme_nominale_pa",
+    )
+    p_moteur = state.number(
+        "puissance_moteur_w",
+        "puissance_moteur_requise_W",
+        "puissance_nominale_visee_w",
+        "moteur_thermique_definition.puissance_visee_w",
+        "moteur_thermique_definition.puissance_nominale_visee_w",
+        "analyses.moteur_thermique_definition.puissance_visee_w",
+        "analyses.moteur_thermique_definition.puissance_nominale_visee_w",
+        "analyses.systeme_complet.puissance_moteur_requise_W",
+    )
 
     if (bore is None or stroke is None or nb_cyl is None) and all(v is not None for v in (rpm, pme, p_moteur)):
         candidate = _chercher_geometrie_moteur(
@@ -1438,4 +1476,3 @@ def _get_material(cle: str) -> Any:
         return get_materiau(cle)
     except Exception:
         return None
-
