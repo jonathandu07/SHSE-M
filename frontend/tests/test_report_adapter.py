@@ -32,7 +32,7 @@ def test_scenario_3_details():
     print("Test 3: derivees_chaine_energie.details")
     report = {"derivees_chaine_energie": {"details": {"p_traction_w": 50000}}}
     res = adapt_backend_report(report)
-    items = res["sections"]["energie"]["items"]
+    items = res["dashboard"]["energy_chain"]
     p_trac = next(i for i in items if i["label"] == "Puissance Traction")
     assert p_trac["value"] == 50000
     print("OK")
