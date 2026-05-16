@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Mapping, Optional
+
+from frontend.gui.backend_resource_adapter import build_resource_catalog
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -112,15 +114,18 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     # extractions primaires
+    resource_payload = build_resource_catalog(report)
+    resource_catalog = resource_payload.get("resources", {})
+    resource_summary = resource_payload.get("resource_summary", {})
     unknowns = flatten_unknowns(report)
     alerts = flatten_alerts(report)
-    pieces = extract_piece_list(report)
+    pieces = extract_piece_list(report, resource_catalog=resource_catalog)
     arch_candidates = extract_architecture_candidates(report)
     subsystems = extract_subsystems(report)
-    exports = extract_exports(report)
-    sketches = extract_visual_resources(report, "sketches")
-    charts = extract_visual_resources(report, "charts")
-    three_d = extract_visual_resources(report, "three_d")
+    exports = extract_exports(report, resource_catalog=resource_catalog)
+    sketches = list(resource_catalog.get("sketches", [])) if isinstance(resource_catalog, dict) else []
+    charts = list(resource_catalog.get("charts", [])) if isinstance(resource_catalog, dict) else []
+    three_d = list(resource_catalog.get("three_d", [])) if isinstance(resource_catalog, dict) else []
     editable = extract_editable_parameters(report, arch_candidates)
 
     # 1. KPIs Dashboard
@@ -201,6 +206,9 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
         "raw_sections": build_data_tree(report),
         "architecture_candidates": arch_candidates,
         "pieces": pieces,
+        "resources": resource_catalog,
+        "resource_summary": resource_summary,
+        "backend_resource_inventory": resource_payload.get("backend_inventory", {}),
         "charts": charts,
         "sketches": sketches,
         "three_d": three_d,
