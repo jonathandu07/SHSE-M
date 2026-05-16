@@ -40,8 +40,72 @@ from frontend.gui.system_data import SystemDataScreen
 from frontend.gui.three_d_view import ThreeDScreen
 
 
+PROJECT_NAME = "STHOME"
+
+
+def _missing_requirements(report: dict) -> list[dict]:
+    """Compatibilite GUI: extrait les inconnues critiques du rapport backend."""
+    if not isinstance(report, dict):
+        return []
+
+    labels = {
+        "regime_tr_min": "RPM nominal",
+        "rpm_nominal": "RPM nominal",
+        "rpm": "RPM nominal",
+        "pme_pa": "PME",
+        "pme": "PME",
+        "gabarit (l/w)": "gabarit L/W",
+        "gabarit_l_w": "gabarit L/W",
+    }
+
+    out = []
+    arch = (
+        report.get("analyses_composants", {})
+        .get("architecture", {})
+        .get("inconnues", {})
+    )
+    for category in ("impossibles", "partielles"):
+        items = arch.get(category, []) if isinstance(arch, dict) else []
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict):
+                raw_name = str(item.get("nom", item.get("champ", "INCONNU")))
+                reason = str(item.get("raison", item.get("detail", "")))
+            else:
+                raw_name = str(item)
+                reason = ""
+            normalized = raw_name.strip().lower()
+            out.append(
+                {
+                    "name": labels.get(normalized, raw_name),
+                    "raw_name": raw_name,
+                    "reason": reason,
+                    "category": category,
+                }
+            )
+    return out
+
+
+def _fuel_summary(report: dict) -> dict:
+    """Compatibilite GUI: resume le bloc multi-carburant sans valeur inventee."""
+    if not isinstance(report, dict):
+        return {"mode": None, "worst": None, "best": None}
+    block = (
+        report.get("analyses_composants", {})
+        .get("moteur_thermique_bilan_carburant", {})
+    )
+    if not isinstance(block, dict):
+        block = {}
+    return {
+        "mode": block.get("mode"),
+        "worst": block.get("carburant_dimensionnant"),
+        "best": block.get("carburant_optimal"),
+    }
+
+
 class STHOMEApp(App):
-    title = "STHOME"
+    title = PROJECT_NAME
 
     raw_backend_report = DictProperty({})
     ui_report = DictProperty({})

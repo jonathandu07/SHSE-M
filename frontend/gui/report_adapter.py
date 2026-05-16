@@ -336,17 +336,7 @@ def extract_architecture_candidates(report: Dict[str, Any]) -> List[Dict[str, An
         candidates = get_nested(report, path)
         if isinstance(candidates, list):
             return [c for c in candidates if isinstance(c, dict)]
-    selected = get_nested(report, "resume_gui.Architecture")
-    if selected is None:
-        return []
-    return [
-        {
-            "architecture": selected,
-            "statut": "CALCULÉE",
-            "source": "resume_gui.Architecture",
-            "note": "Aucun ensemble de candidats n'a été fourni par le backend.",
-        }
-    ]
+    return []
 
 
 def extract_piece_list(report: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -453,7 +443,7 @@ def extract_visual_resources(report: Dict[str, Any], kind: str) -> List[Dict[str
 def extract_editable_parameters(report: Dict[str, Any], arch_candidates: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     params = [
         {"key": "puissance_entree", "label": "Puissance demandée", "value": get_nested(report, "entrees.puissance_traction_kw"), "unit": "kW", "source": "entrée utilisateur", "editable": True},
-        {"key": "unite_entree", "label": "Unité", "value": "kW", "unit": "", "source": "entrée utilisateur", "editable": True},
+        {"key": "unite_entree", "label": "Unité", "value": get_nested(report, "entrees.unite_entree"), "unit": "", "source": "rapport.entrees.unite_entree", "editable": True},
         {"key": "architecture", "label": "Architecture choisie", "value": get_nested(report, "resume_gui.Architecture"), "unit": "", "source": "backend ou choix utilisateur", "editable": bool(arch_candidates)},
         {"key": "nombre_cylindres", "label": "Nombre de cylindres", "value": get_nested(report, "resume_gui.N_cyl"), "unit": "", "source": "backend", "editable": True},
         {"key": "alesage_mm", "label": "Alésage", "value": get_nested(report, "resume_gui.Bore_mm"), "unit": "mm", "source": "backend", "editable": True},

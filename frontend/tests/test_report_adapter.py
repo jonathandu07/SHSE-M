@@ -91,6 +91,21 @@ def test_scenario_13_no_zero_fallback():
     assert bore["value"] is None
     print("OK")
 
+def test_scenario_14_no_architecture_candidate_invented():
+    print("Test 14: No architecture candidate invented from resume only")
+    report = {"resume_gui": {"Architecture": "L4"}}
+    res = adapt_backend_report(report)
+    assert res["architecture_candidates"] == []
+    print("OK")
+
+def test_scenario_15_unit_not_defaulted_to_kw():
+    print("Test 15: Unit is not defaulted to kW")
+    report = {"entrees": {"puissance_traction_kw": 100.0}}
+    res = adapt_backend_report(report)
+    unit = next(item for item in res["editable_parameters"] if item["key"] == "unite_entree")
+    assert unit["value"] is None
+    print("OK")
+
 def run_all_tests():
     try:
         test_scenario_1_empty()
@@ -101,6 +116,8 @@ def run_all_tests():
         test_scenario_9_alerts()
         test_scenario_12_none_stays_none()
         test_scenario_13_no_zero_fallback()
+        test_scenario_14_no_architecture_candidate_invented()
+        test_scenario_15_unit_not_defaulted_to_kw()
         print("\nAll implemented tests PASSED.")
     except AssertionError as e:
         print(f"\nTEST FAILED: {e}")

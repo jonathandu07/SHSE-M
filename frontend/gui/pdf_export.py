@@ -7,6 +7,7 @@ import textwrap
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
+from frontend.gui.components import PALETTE
 from frontend.gui.viz_utils import get_viz_figure
 
 
@@ -182,10 +183,10 @@ def build_element_display_lines(payload: Optional[Dict[str, Any]]) -> List[str]:
 
 def _text_page(pdf: PdfPages, title: str, lines: List[str], *, footer: Optional[str] = None) -> None:
     fig = plt.figure(figsize=(8.27, 11.69))
-    fig.patch.set_facecolor("white")
-    fig.text(0.06, 0.965, title, fontsize=16, fontweight="bold", va="top")
+    fig.patch.set_facecolor(PALETTE["BLANC_LUNAIRE"])
+    fig.text(0.06, 0.965, title, fontsize=16, fontweight="bold", color=PALETTE["BLEU_FRANCE_WEB"], va="top")
     if footer:
-        fig.text(0.06, 0.03, footer, fontsize=8, color="#666666", va="bottom")
+        fig.text(0.06, 0.03, footer, fontsize=8, color=PALETTE["NATURAL_GREEN"], va="bottom")
 
     wrapped: List[str] = []
     for line in lines:
@@ -195,7 +196,7 @@ def _text_page(pdf: PdfPages, title: str, lines: List[str], *, footer: Optional[
     chunk = wrapped[:page_size]
     y = 0.93
     for line in chunk:
-        fig.text(0.06, y, line, fontsize=9, family="monospace", va="top")
+        fig.text(0.06, y, line, fontsize=9, family="monospace", color=PALETTE["GRIGIO_SCURO"], va="top")
         y -= 0.019
 
     pdf.savefig(fig, bbox_inches="tight")

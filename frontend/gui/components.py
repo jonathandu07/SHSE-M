@@ -124,12 +124,16 @@ class CanvasPanel(BoxLayout):
 
 class GlassPanel(CanvasPanel):
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(bg=COLORS["BL_35"], border=COLORS["BFW_18"], padding=16, spacing=10, **kwargs)
+        kwargs.setdefault("padding", 16)
+        kwargs.setdefault("spacing", 10)
+        super().__init__(bg=COLORS["BL_35"], border=COLORS["BFW_18"], **kwargs)
 
 
 class NeoCard(CanvasPanel):
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(bg=COLORS["BL"], border=COLORS["BFW_18"], padding=16, spacing=10, **kwargs)
+        kwargs.setdefault("padding", 16)
+        kwargs.setdefault("spacing", 10)
+        super().__init__(bg=COLORS["BL"], border=COLORS["BFW_18"], **kwargs)
 
 
 class PremiumCard(NeoCard):
@@ -141,7 +145,9 @@ class PremiumCard(NeoCard):
 
 class BentoGrid(GridLayout):
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(cols=2, spacing=12, **kwargs)
+        kwargs.setdefault("cols", 2)
+        kwargs.setdefault("spacing", 12)
+        super().__init__(**kwargs)
 
 
 class SectionTitle(Label):
@@ -348,8 +354,8 @@ class ActionCard(NeoCard):
 
 class EditableField(BoxLayout):
     def __init__(self, label: str, value: Any, source: str = "", editable: bool = True, **kwargs: Any) -> None:
+        self.key = kwargs.pop("key", label)
         super().__init__(orientation="vertical", size_hint_y=None, height=92, spacing=6, **kwargs)
-        self.key = kwargs.get("key", label)
         self.editable = editable
         self.add_widget(Label(text=label, color=COLORS["BFW"], bold=True, size_hint_y=None, height=22, halign="left"))
         self.input = NeumorphicInput(text="" if value is None else str(value), size_hint_y=None, height=44, font_size="16sp", halign="left")

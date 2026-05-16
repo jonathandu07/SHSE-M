@@ -3,6 +3,12 @@ import matplotlib.pyplot as plt
 from frontend.gui.piece_connector import get_piece_instance, hydrate_piece
 from frontend.gui.viz_utils import get_viz_figure
 
+# Fixtures arbitraires de test uniquement.
+# Ne représentent pas des valeurs de conception STHOME.
+FIXTURE_TEST_PUISSANCE_MOTEUR_ELECTRIQUE_W = 100000.0
+FIXTURE_TEST_REGIME_MAX_MOTEUR_ELECTRIQUE_RPM = 6000.0
+FIXTURE_TEST_COUPLE_MAX_MOTEUR_ELECTRIQUE_NM = 250.0
+
 def test_get_piece_instance_moteur_thermique():
     """Vérifie l'instanciation des pièces du moteur thermique."""
     ep = {"alesage_m": 0.130, "course_m": 0.150}
@@ -30,8 +36,20 @@ def test_get_piece_instance_subsystems():
     alt = get_piece_instance("alternateur", ep)
     assert alt is not None
 
-    me = get_piece_instance("moteur_electrique", ep)
+    me_missing_power = get_piece_instance("moteur_electrique", ep)
+    assert me_missing_power is None
+
+    me = get_piece_instance(
+        "moteur_electrique",
+        {
+            **ep,
+            "puissance_max_w": FIXTURE_TEST_PUISSANCE_MOTEUR_ELECTRIQUE_W,
+            "regime_max_rpm": FIXTURE_TEST_REGIME_MAX_MOTEUR_ELECTRIQUE_RPM,
+            "couple_max_nm": FIXTURE_TEST_COUPLE_MAX_MOTEUR_ELECTRIQUE_NM,
+        },
+    )
     assert me is not None
+    assert me.puissance_max_w == pytest.approx(FIXTURE_TEST_PUISSANCE_MOTEUR_ELECTRIQUE_W)
 
     bc = get_piece_instance("boite_crabots", ep)
     assert bc is not None
