@@ -29,3 +29,54 @@
 [WARNING] Deprecated property "<BooleanProperty name=allow_stretch>" of object "<kivy.uix.image.Image object at 0x000001D8570F43D0>" has been set, it will be removed in a future version
 [WARNING] Deprecated property "<BooleanProperty name=keep_ratio>" of object "<kivy.uix.image.Image object at 0x000001D8570F43D0>" was accessed, it will be removed in a future version
 [INFO   ] Base: Start application main loop
+[INFO   ] Base: Leaving application in progress...
+[WARNING] stderr: Traceback (most recent call last):
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\main.py", line 140, in <module>
+[WARNING] stderr:     STHOMEApp().run()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\app.py", line 956, in run
+[WARNING] stderr:     runTouchApp()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 574, in runTouchApp
+[WARNING] stderr:     EventLoop.mainloop()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 339, in mainloop
+[WARNING] stderr:     self.idle()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\base.py", line 379, in idle
+[WARNING] stderr:     Clock.tick()
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\clock.py", line 733, in tick
+[WARNING] stderr:     self.post_idle(ts, self.idle())
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\clock.py", line 776, in post_idle
+[WARNING] stderr:     self._process_events()
+[WARNING] stderr:   File "kivy\\_clock.pyx", line 620, in kivy._clock.CyClockBase._process_events
+[WARNING] stderr:   File "kivy\\_clock.pyx", line 653, in kivy._clock.CyClockBase._process_events
+[WARNING] stderr:   File "kivy\\_clock.pyx", line 649, in kivy._clock.CyClockBase._process_events
+[WARNING] stderr:   File "kivy\\_clock.pyx", line 218, in kivy._clock.ClockEvent.tick
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\animation.py", line 370, in _update
+[WARNING] stderr:     self.stop(widget)
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\animation.py", line 236, in stop
+[WARNING] stderr:     self.dispatch('on_complete', widget)
+[WARNING] stderr:   File "kivy\\_event.pyx", line 727, in kivy._event.EventDispatcher.dispatch
+[WARNING] stderr:   File "kivy\\_event.pyx", line 1307, in kivy._event.EventObservers.dispatch
+[WARNING] stderr:   File "kivy\\_event.pyx", line 1231, in kivy._event.EventObservers._dispatch
+[WARNING] stderr:   File "C:\Python312\Lib\site-packages\kivy\uix\screenmanager.py", line 419, in _on_complete
+[WARNING] stderr:     self.screen_in.dispatch('on_enter')
+[WARNING] stderr:   File "kivy\\_event.pyx", line 731, in kivy._event.EventDispatcher.dispatch
+[WARNING] stderr:   File "C:\Users\alpha\Documents\GitHub\SHSE-M\frontend\gui\raw_report_view.py", line 34, in on_enter
+[WARNING] stderr:     self.viewer.text = json.dumps(report, ensure_ascii=False, indent=2) if report else "Aucun rapport disponible."
+[WARNING] stderr:                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "C:\Python312\Lib\json\__init__.py", line 238, in dumps
+[WARNING] stderr:     **kw).encode(obj)
+[WARNING] stderr:           ^^^^^^^^^^^
+[WARNING] stderr:   File "C:\Python312\Lib\json\encoder.py", line 202, in encode
+[WARNING] stderr:     chunks = list(chunks)
+[WARNING] stderr:              ^^^^^^^^^^^^
+[WARNING] stderr:   File "C:\Python312\Lib\json\encoder.py", line 432, in _iterencode
+[WARNING] stderr:     yield from _iterencode_dict(o, _current_indent_level)
+[WARNING] stderr:   File "C:\Python312\Lib\json\encoder.py", line 406, in _iterencode_dict
+[WARNING] stderr:     yield from chunks
+[WARNING] stderr:   File "C:\Python312\Lib\json\encoder.py", line 406, in _iterencode_dict
+[WARNING] stderr:     yield from chunks
+[WARNING] stderr:   File "C:\Python312\Lib\json\encoder.py", line 439, in _iterencode
+[WARNING] stderr:     o = _default(o)
+[WARNING] stderr:         ^^^^^^^^^^^
+[WARNING] stderr:   File "C:\Python312\Lib\json\encoder.py", line 180, in default
+[WARNING] stderr:     raise TypeError(f'Object of type {o.__class__.__name__} '
+[WARNING] stderr: TypeError: Object of type Deplaceur is not JSON serializable
