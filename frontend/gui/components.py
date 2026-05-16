@@ -487,7 +487,6 @@ class JsonViewer(BoxLayout):
             foreground_color=COLORS["BFW"],
             cursor_color=COLORS["RS"],
             font_size="12sp",
-            font_name="Courier",
             multiline=True
         )
         self.add_widget(self.text_input)
