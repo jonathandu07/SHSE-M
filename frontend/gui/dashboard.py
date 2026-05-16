@@ -33,11 +33,11 @@ class DashboardScreen(Screen):
         app = App.get_running_app()
         ui = dict(app.ui_report or {})
         
-        root = BoxLayout(orientation="vertical", padding=16, spacing=12)
+        root = BoxLayout(orientation="vertical", padding=12, spacing=10)
         
         if not ui or ui.get("is_empty"):
             root.add_widget(self._top_bar("STHOME COCKPIT"))
-            root.add_widget(EmptyState(text="Aucun rapport disponible. Lance un calcul depuis l'accueil."))
+            root.add_widget(EmptyState(text="AUCUN RAPPORT DISPONIBLE", action_text="LANCER UN CALCUL", callback=lambda _: setattr(self.manager, "current", "home")))
             self.add_widget(root)
             return
 
@@ -45,39 +45,52 @@ class DashboardScreen(Screen):
         root.add_widget(self._top_bar(dash.get("title", "STHOME COCKPIT")))
 
         scroll = ScrollView(do_scroll_x=False, bar_width=4)
-        content = BoxLayout(orientation="vertical", spacing=16, size_hint_y=None)
+        content = BoxLayout(orientation="vertical", spacing=12, size_hint_y=None, padding=[4, 4])
         content.bind(minimum_height=content.setter("height"))
 
-        # 1. KPIs Section
-        kpis = GridLayout(cols=4, spacing=16, size_hint_y=None, height=130)
-        for kpi in dash.get("kpis", []):
-            kpis.add_widget(KpiCard(kpi["label"], kpi["value"], kpi.get("unit", ""), kpi.get("status", "ok")))
+        # 1. KPI Row (4 cards max)
+        kpi_row = BoxLayout(size_hint_y=None, height=110, spacing=12)
         
-        # Add summary counts as KPIs
+        # Power Requested
+        p_req = self._find_value(ui, "Puissance totale demandée")
+        kpi_row.add_widget(KpiCard("Puissance demandée", p_req, "kW"))
+        
+        # Technical Score
+        score = self._find_value(ui, "Score technique")
+        kpi_row.add_widget(KpiCard("Score technique", score, "%"))
+        
+        # Missing & Alerts
         summary = dash.get("summary", {})
-        kpis.add_widget(KpiCard("Données à compléter", summary.get("missing_count"), "", "alerte" if summary.get("missing_count") else "ok"))
-        kpis.add_widget(KpiCard("Alertes critiques", summary.get("alert_count"), "", "alerte" if summary.get("alert_count") else "ok"))
+        kpi_row.add_widget(KpiCard("Données à compléter", summary.get("missing_count"), "", "alerte" if summary.get("missing_count") else "ok"))
+        kpi_row.add_widget(KpiCard("Alertes critiques", summary.get("alert_count"), "", "alerte" if summary.get("alert_count") else "ok"))
         
-        content.add_widget(kpis)
+        content.add_widget(kpi_row)
 
-        # 2. Missing Requirements Alert
-        if summary.get("missing_count", 0) > 0:
-            content.add_widget(self._missing_alert(summary.get("missing_count")))
-
-        # 3. Main Bento Grid
-        # Fixed height for bento cards to prevent overlap, use scroll within them if needed
-        bento = BentoGrid(cols=2, spacing=16, size_hint_y=None, height=600)
+        # 2. Tier 1: Energy Chain vs Sub-systems
+        tier1 = BoxLayout(size_hint_y=None, height=320, spacing=12)
         
-        # Energy Chain (max 8)
-        energy_list = dash.get("energy_chain", [])[:8]
-        bento.add_widget(self._metric_panel("Chaîne énergétique", energy_list))
+        # Energy Chain (Compact)
+        energy_panel = self._energy_chain_panel(dash.get("energy_chain", []))
+        tier1.add_widget(energy_panel)
         
         # Subsystems
-        bento.add_widget(self._subsystems_panel(dash.get("subsystems", [])))
+        sub_panel = self._subsystems_panel(dash.get("subsystems", []))
+        tier1.add_widget(sub_panel)
         
-        content.add_widget(bento)
+        content.add_widget(tier1)
 
-        # 4. Quick Actions
+        # 3. Tier 2: Missing Summary vs Alerts/Actions
+        tier2 = BoxLayout(size_hint_y=None, height=220, spacing=12)
+        
+        # Missing Summary
+        tier2.add_widget(self._missing_summary_panel(summary.get("missing_count", 0)))
+        
+        # Alerts / Prochaines actions
+        tier2.add_widget(self._next_actions_panel(dash.get("alerts", [])))
+        
+        content.add_widget(tier2)
+
+        # 4. Tier 3: Quick Access
         content.add_widget(self._actions_panel(dash.get("actions", [])))
 
         scroll.add_widget(content)
@@ -85,101 +98,100 @@ class DashboardScreen(Screen):
         self.add_widget(root)
 
     def _top_bar(self, title: str) -> BoxLayout:
-        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=50, spacing=10)
-        lbl = Label(text=title.upper(), color=COLORS["BFW"], bold=True, font_size="18sp", halign="left", valign="middle")
+        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=54, spacing=10, padding=[10, 5])
+        lbl = Label(text=title.upper(), color=COLORS["BFW"], bold=True, font_size="16sp", halign="left", valign="middle")
         lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
         bar.add_widget(lbl)
         
         for text, target in (
             ("RECALCULER", "loading"),
             ("ÉDITER", "edit_parameters"),
+            ("JSON", "raw_report"),
             ("ACCUEIL", "home"),
         ):
-            btn = ModernButton(text=text, size_hint_x=None, width=120, font_size="12sp")
+            btn = ModernButton(text=text, size_hint_x=None, width=100, font_size="11sp")
             btn.bind(on_release=lambda _, t=target: setattr(self.manager, "current", t))
             bar.add_widget(btn)
         return bar
 
-    def _missing_alert(self, count: int) -> PremiumCard:
-        panel = PremiumCard(bg=COLORS["RS_18"], border=COLORS["RS"], height=70, size_hint_y=None)
-        panel.padding = [20, 10]
-        row = BoxLayout(orientation="horizontal", spacing=20)
-        row.add_widget(Label(
-            text=f"Cockpit incomplet : {count} données manquantes pour fermer le calcul système.",
-            color=COLORS["RS"],
-            bold=True,
-            halign="left",
-            font_size="13sp"
-        ))
-        btn = ModernButton(text="RÉSOUDRE LES MANQUES", size_hint_x=None, width=200, font_size="12sp")
-        btn.bind(on_release=lambda _: setattr(self.manager, "current", "missing_requirements"))
-        row.add_widget(btn)
-        panel.add_widget(row)
-        return panel
-
-    def _metric_panel(self, title: str, items: list[dict]) -> PremiumCard:
-        panel = PremiumCard(title=title)
-        if not items:
-            panel.add_widget(EmptyState(text="Aucune donnée résolue dans cette section."))
-            return panel
+    def _energy_chain_panel(self, items: list[dict]) -> PremiumCard:
+        panel = PremiumCard(title="Chaîne énergétique", size_hint_x=0.6)
+        # Prioritize specific values requested by user
+        priority = ["Puissance totale demandée", "Puissance traction", "Mode énergétique", "Puissance bus DC", "Puissance recharge"]
         
         container = BoxLayout(orientation="vertical", spacing=2)
+        visible = 0
+        for p_label in priority:
+            val = next((i for i in items if i.get("label") == p_label), None)
+            if val:
+                container.add_widget(MetricRow(val["label"], val["value"], val.get("unit", ""), val.get("status", "")))
+                visible += 1
+        
+        # Add others up to 8 total
         for item in items:
-            container.add_widget(MetricRow(
-                item.get("label"), 
-                item.get("value"), 
-                item.get("unit", ""), 
-                item.get("status", ""),
-                source=item.get("source", "")
-            ))
+            if visible >= 8: break
+            if item.get("label") not in priority:
+                container.add_widget(MetricRow(item["label"], item["value"], item.get("unit", ""), item.get("status", "")))
+                visible += 1
+        
         panel.add_widget(container)
+        # Adaptive height if very few items
+        if visible < 4:
+            panel.height = 180
         return panel
 
     def _subsystems_panel(self, items: list[dict]) -> PremiumCard:
-        panel = PremiumCard(title="États sous-systèmes")
-        if not items:
-            panel.add_widget(EmptyState(text="Sous-systèmes indisponibles."))
-            return panel
-            
+        panel = PremiumCard(title="Sous-systèmes", size_hint_x=0.4)
         scroll = ScrollView(do_scroll_x=False)
-        container = BoxLayout(orientation="vertical", spacing=4, size_hint_y=None)
+        container = BoxLayout(orientation="vertical", spacing=2, size_hint_y=None)
         container.bind(minimum_height=container.setter("height"))
         
         for item in items:
-            row = BoxLayout(orientation="horizontal", size_hint_y=None, height=36, spacing=10)
-            name_lbl = Label(text=item.get("name"), color=COLORS["GS"], font_size="13sp", halign="left", valign="middle", size_hint_x=0.4)
-            name_lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
-            row.add_widget(name_lbl)
-            
-            status = item.get("status", "inconnu")
-            row.add_widget(StatusBadge(status=status))
-            
-            missing = item.get("missing_count", 0)
-            if missing > 0:
-                m_lbl = Label(text=f"{missing} à compléter", color=COLORS["RS"], font_size="10sp", halign="right", size_hint_x=0.3)
-                m_lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
-                row.add_widget(m_lbl)
-            else:
-                row.add_widget(Widget(size_hint_x=0.3))
-                
+            row = BoxLayout(orientation="horizontal", size_hint_y=None, height=32, spacing=8)
+            name = Label(text=item.get("name"), color=COLORS["GS"], font_size="11sp", halign="left", size_hint_x=0.6)
+            name.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+            row.add_widget(name)
+            row.add_widget(StatusBadge(status=item.get("status", "ok"), size=(70, 20), font_size="9sp", size_hint_x=None, width=80))
             container.add_widget(row)
             
         scroll.add_widget(container)
         panel.add_widget(scroll)
         return panel
 
+    def _missing_summary_panel(self, count: int) -> PremiumCard:
+        panel = PremiumCard(title="Données à compléter", size_hint_x=0.5, bg=COLORS["RS_18"] if count > 0 else COLORS["BL"])
+        if count == 0:
+            panel.add_widget(Label(text="Système complet.", color=COLORS["NG"], bold=True))
+        else:
+            panel.add_widget(Label(text=f"{count} manques identifiés.", color=COLORS["RS"], bold=True, font_size="14sp"))
+            btn = GhostButton(text="VOIR LES DÉTAILS", size_hint_y=None, height=38)
+            btn.bind(on_release=lambda _: setattr(self.manager, "current", "missing_requirements"))
+            panel.add_widget(btn)
+        return panel
+
+    def _next_actions_panel(self, alerts: list[dict]) -> PremiumCard:
+        panel = PremiumCard(title="Alertes / Actions", size_hint_x=0.5)
+        if not alerts:
+            panel.add_widget(Label(text="Aucune alerte critique.", color=COLORS["NG"], font_size="12sp"))
+        else:
+            container = BoxLayout(orientation="vertical", spacing=2)
+            for alt in alerts[:3]:
+                container.add_widget(MetricRow(alt.get("label", "Alerte"), alt.get("value", ""), status="alerte"))
+            panel.add_widget(container)
+        return panel
+
     def _actions_panel(self, actions: list[dict]) -> PremiumCard:
-        panel = PremiumCard(title="Accès rapides / Cockpit étendu", height=120, size_hint_y=None)
-        grid = GridLayout(cols=5, spacing=10)
+        panel = PremiumCard(title="Accès rapides", height=100, size_hint_y=None)
+        grid = GridLayout(cols=6, spacing=8)
         for act in actions:
-            btn = ModernButton(text=act["label"].upper(), font_size="11sp")
+            btn = ModernButton(text=act["label"].upper(), font_size="10sp")
             btn.bind(on_release=lambda _, t=act["target"]: setattr(self.manager, "current", t))
             grid.add_widget(btn)
         panel.add_widget(grid)
         return panel
 
     def _find_value(self, ui: dict, label: str):
-        for item in ui.get("energy_chain", []):
+        for item in ui.get("dashboard", {}).get("energy_chain", []):
             if item.get("label") == label:
                 return item.get("value")
         return None
