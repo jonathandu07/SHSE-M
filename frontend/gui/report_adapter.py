@@ -11,8 +11,8 @@ Rôle :
 - normaliser les rapports backend hétérogènes ;
 - construire un modèle UI stable : dashboard, sous-systèmes, pièces, ressources,
   exports, paramètres éditables, inconnues, alertes, arbre JSON ;
-- faciliter le branchement de frontend/components sur les données issues du
-  backend/components, sans invention côté interface.
+- faciliter le branchement des vues frontend sur les donnees issues du
+  backend/components, sans invention cote interface.
 """
 
 from __future__ import annotations
@@ -1122,11 +1122,7 @@ def _legacy_extract_export_availability(report: Mapping[str, Any]) -> Dict[str, 
 
 
 def _frontend_component_dirs(piece_short_name: str) -> List[Path]:
-    return [
-        PROJECT_ROOT / "frontend" / "components" / "moteur_thermique" / "pieces" / piece_short_name,
-        PROJECT_ROOT / "frontend" / "gui" / "components" / "moteur_thermique" / "pieces" / piece_short_name,
-        PROJECT_ROOT / "frontend" / "components" / "pieces" / piece_short_name,
-    ]
+    return []
 
 
 def _backend_component_dirs(piece_short_name: str) -> List[Path]:

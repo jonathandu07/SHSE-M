@@ -32,6 +32,7 @@ from frontend.gui.components import (
     SectionTitle,
     StatusBadge,
 )
+from frontend.gui.backend_resource_adapter import build_resource_catalog
 
 
 # =============================================================================
@@ -683,6 +684,39 @@ def build_export_items(
     ]
 
     # Intégration des exports déjà déclarés par le front.
+    resource_catalog = _safe_dict(ui_report.get("resources"))
+    if not resource_catalog:
+        resource_payload = build_resource_catalog(dict(backend_report))
+        resource_catalog = _safe_dict(resource_payload.get("resources"))
+
+    for rtype in ("pdf", "json", "cao"):
+        for resource_idx, resource in enumerate(_safe_list(resource_catalog.get(rtype))):
+            if not isinstance(resource, Mapping):
+                continue
+
+            status = str(resource.get("status") or "unavailable")
+            path_value = resource.get("path")
+            path = Path(path_value).expanduser() if path_value else None
+            data = resource.get("data") if resource.get("data") is not None else None
+            is_existing_file = bool(path and path.is_file())
+            export_fmt = "json" if rtype in {"json", "cao"} else "pdf"
+
+            items.append(
+                ExportItem(
+                    key=f"resource_{rtype}_{resource_idx}",
+                    label=str(resource.get("name") or f"Ressource {rtype}"),
+                    filename=path.name if path else f"resource_{rtype}_{resource_idx + 1}_{timestamp}.json",
+                    fmt=export_fmt,
+                    data=data if data is not None else dict(resource),
+                    available=(status == "available" and (data is not None or is_existing_file)),
+                    status=status,
+                    reason=str(resource.get("reason") or ("Fichier existant" if is_existing_file else "")),
+                    path=path or (export_dir / f"resource_{rtype}_{resource_idx + 1}_{timestamp}.json"),
+                    readonly_existing=is_existing_file,
+                    meta=dict(resource),
+                )
+            )
+
     for idx, raw in enumerate(_safe_list(ui_report.get("exports"))):
         if not isinstance(raw, Mapping):
             continue

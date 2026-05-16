@@ -1077,6 +1077,7 @@ class PieceDetailScreen(Screen):
 
         content.add_widget(self._section("Dimensions", _safe_dict(piece.get("dimensions"))))
         content.add_widget(self._section("Contraintes / performances", _safe_dict(piece.get("constraints"))))
+        content.add_widget(self._resources_section(_safe_dict(piece.get("resources"))))
         content.add_widget(self._unknowns_section(_safe_list(piece.get("unknowns"))))
         content.add_widget(self._connector_section(piece))
         content.add_widget(self._section("Données complètes", _safe_dict(piece.get("data"))))
@@ -1129,14 +1130,17 @@ class PieceDetailScreen(Screen):
         constraints = _safe_dict(piece.get("constraints"))
         unknowns = _safe_list(piece.get("unknowns"))
         data = _safe_dict(piece.get("data"))
+        res_ok, res_partial, res_ko = _resource_counts(_safe_dict(piece.get("resources")))
 
         panel = PremiumCard(title="Résumé pièce", size_hint_y=None, height=dp(118))
 
-        grid = GridLayout(cols=6, spacing=dp(8), size_hint_y=None, height=dp(48))
+        grid = GridLayout(cols=8, spacing=dp(8), size_hint_y=None, height=dp(48))
         grid.add_widget(MetricRow("Statut", status, "", status))
         grid.add_widget(MetricRow("Dimensions", len(dimensions), "", "ok" if dimensions else "missing"))
         grid.add_widget(MetricRow("Contraintes", len(constraints), "", "ok" if constraints else "missing"))
         grid.add_widget(MetricRow("Inconnues", len(unknowns), "", "alerte" if unknowns else "ok"))
+        grid.add_widget(MetricRow("Ress. OK", res_ok, "", "ok" if res_ok else "missing"))
+        grid.add_widget(MetricRow("Ress. KO", res_partial + res_ko, "", "alerte" if (res_partial + res_ko) else "ok"))
         grid.add_widget(MetricRow("Nœuds", _count_nodes(data), "", "ok" if data else "missing"))
         grid.add_widget(MetricRow("PDF", "possible" if export_element_pdf else "module absent", "", "ok" if export_element_pdf else "missing"))
         panel.add_widget(grid)
@@ -1180,6 +1184,35 @@ class PieceDetailScreen(Screen):
             count += 1
 
         card.height = max(dp(128), dp(46 + min(60, max(1, count)) * 34))
+        return card
+
+    def _resources_section(self, resources: Mapping[str, Any]) -> NeoCard:
+        labels = {
+            "sketches": "Croquis disponibles",
+            "charts": "Graphiques disponibles",
+            "three_d": "3D disponible",
+            "pdf": "PDF disponible",
+            "cao": "Donnees CAO",
+            "json": "Export JSON",
+        }
+        card = NeoCard(orientation="vertical", size_hint_y=None, spacing=dp(4), padding=dp(10))
+        card.add_widget(SectionTitle(text="RESSOURCES"))
+
+        rows = 0
+        for rtype, label in labels.items():
+            values = [dict(v) for v in _safe_list(resources.get(rtype)) if isinstance(v, Mapping)]
+            if not values:
+                card.add_widget(MetricRow(label, "indisponible", "", "missing"))
+                rows += 1
+                continue
+            available = [item for item in values if item.get("status") == "available"]
+            first = available[0] if available else values[0]
+            status = "ok" if available else "alerte"
+            value = "disponible" if available else str(first.get("reason") or first.get("status") or "indisponible")
+            card.add_widget(MetricRow(label, _short_text(value, 76), "", status))
+            rows += 1
+
+        card.height = max(dp(150), dp(46 + rows * 34))
         return card
 
     def _unknowns_section(self, unknowns: Sequence[Mapping[str, Any]]) -> NeoCard:
