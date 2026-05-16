@@ -1,6 +1,6 @@
-2026-05-16 18:54:13,900 - INFO - Starting test_systeme_analyser_full
-2026-05-16 18:54:13,907 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
-2026-05-16 18:54:13,912 - INFO - {
+2026-05-16 19:14:36,320 - INFO - Starting test_systeme_analyser_full
+2026-05-16 19:14:36,324 - INFO - REPONSE DETAILLEE DU SYSTEME CLASSIQUE:
+2026-05-16 19:14:36,334 - INFO - {
   "meta": {
     "orchestrateur": "SystemeComplet",
     "mode": "compatibilite_calculable"
@@ -34,7 +34,7 @@
   "sous_systemes": {
     "traction": {
       "puissance_traction_w": 18716.600000000002,
-      "puissance_auxiliaire_w": 0.0
+      "puissance_auxiliaire_w": null
     },
     "moteur_thermique": {
       "conception": {
@@ -1427,244 +1427,6 @@
         "tableaux_en_listes": true
       }
     },
-    "alternateur": {
-      "composant": "alternateur_bus_dc",
-      "entrees": {
-        "puissance_bus_dc_w": 18716.600000000002,
-        "tension_bus_dc_v": 420.0,
-        "courant_bus_dc_a": 44.56333333333334,
-        "energie_a_recharger_kwh": null
-      },
-      "alternateur": {
-        "composant": "alternateur",
-        "entrees": {
-          "vitesse_rotation_rpm": 3000.0,
-          "vitesse_angulaire_rad_s": null,
-          "mode_electrique": "dc",
-          "tension_v": 420.0,
-          "courant_a": 44.56333333333334,
-          "facteur_puissance": 1.0,
-          "entree_puissance_ac": "VLL_IL",
-          "courant_est_ligne": true,
-          "puissance_electrique_cible_w": 18716.600000000002,
-          "connexion": "Y",
-          "nombre_poles": 12
-        },
-        "cinematique": {
-          "vitesse_rotation_rpm": 3000.0,
-          "vitesse_angulaire_rad_s": 314.1592653589793,
-          "frequence_synchrone_hz": 300.0
-        },
-        "electromagnetique": {
-          "flux_max_pole_wb": null,
-          "fem_phase_rms_v": null,
-          "fem_ligne_ligne_rms_v": null,
-          "nombre_spires_serie": null,
-          "facteur_enroulement": null,
-          "onde": "sinus"
-        },
-        "sortie_electrique": {
-          "mode": "dc",
-          "tension_v": 420.0,
-          "courant_a": 44.56333333333334,
-          "facteur_puissance": 1.0,
-          "puissance_utile_w": 18716.600000000002,
-          "courant_phase_rms_stator_a": null
-        },
-        "pertes": {
-          "resistance_phase_ohm": null,
-          "pertes_cuivre_w": null,
-          "pertes_fer_w": null,
-          "pertes_fixes_w": 0.0,
-          "pertes_connues_total_w": 0.0,
-          "pertes_connues_incompletes": true
-        },
-        "rendement": {
-          "rendement_impose": null,
-          "eta_sur_pertes_connues": 1.0,
-          "eta_sur_pertes_connues_est_partiel": true
-        },
-        "mecanique": {
-          "puissance_mecanique_sur_pertes_connues_w": 18716.600000000002,
-          "couple_sur_pertes_connues_nm": 59.57678815747537
-        },
-        "thermique": {},
-        "charge_batterie": {},
-        "pieces": {
-          "rotor": {
-            "piece": "rotor",
-            "resultats": {
-              "frequence_synchrone_hz": 300.0
-            },
-            "inconnues": {
-              "impossibles": [],
-              "partielles": [
-                {
-                  "nom": "couple_resistant_nm",
-                  "raison": "P_out, rendement imposé et vitesse non nulle requis pour une valeur dimensionnante."
-                }
-              ]
-            }
-          },
-          "stator": {
-            "piece": "stator",
-            "resultats": {
-              "fem_phase_rms_v": null,
-              "fem_ligne_ligne_rms_v": null,
-              "resistance_phase_ohm": null
-            },
-            "pertes": {
-              "P_cuivre_total_w": null,
-              "P_fer_total_w": null
-            },
-            "inconnues": {
-              "impossibles": [],
-              "partielles": [
-                {
-                  "nom": "fem_phase_rms_v",
-                  "raison": "Fréquence, spires, flux et facteur d'enroulement requis."
-                },
-                {
-                  "nom": "P_cuivre_total_w",
-                  "raison": "Courant phase et résistance phase requis."
-                },
-                {
-                  "nom": "P_fer_total_w",
-                  "raison": "Paramètres Steinmetz requis."
-                }
-              ]
-            }
-          },
-          "arbre": {
-            "piece": "arbre_alternateur",
-            "entrees": {
-              "couple_nm": 59.57678815747537
-            },
-            "contraintes": {
-              "couple_base": "sur_pertes_connues"
-            },
-            "inconnues": {
-              "impossibles": [],
-              "partielles": [
-                {
-                  "nom": "diametre_arbre_m",
-                  "raison": "Requis pour calculer la contrainte de torsion."
-                }
-              ]
-            }
-          },
-          "carter": {
-            "piece": "carter_alternateur",
-            "thermique": {
-              "puissance_pertes_connues_w": 0.0
-            },
-            "inconnues": {
-              "impossibles": [],
-              "partielles": [
-                {
-                  "nom": "echauffement",
-                  "raison": "Pertes connues et résistance thermique requises."
-                }
-              ]
-            }
-          },
-          "ventilateur": {
-            "piece": "ventilateur",
-            "resultats": {
-              "coeff_convection_estime_w_m2k": 5.477225575051662
-            },
-            "inconnues": {
-              "impossibles": [],
-              "partielles": [
-                {
-                  "nom": "delta_t_refroidissement_proxy_k",
-                  "raison": "h, surface d'échange et pertes connues requis."
-                }
-              ]
-            },
-            "notes_modele": [
-              "Coefficient de convection proxy h=0.1*sqrt(rpm), à remplacer par corrélation aéraulique réelle."
-            ]
-          },
-          "bobine_excitation": {
-            "piece": "bobine_excitation",
-            "entrees": {},
-            "resultats": {},
-            "inconnues": {
-              "impossibles": [],
-              "partielles": [
-                {
-                  "nom": "nombre_spires_excitation",
-                  "raison": "Requis pour caractériser la bobine d'excitation."
-                },
-                {
-                  "nom": "courant_excitation_a",
-                  "raison": "Requis pour calculer les pertes d'excitation."
-                },
-                {
-                  "nom": "resistance_excitation_ohm",
-                  "raison": "Fournir R excitation ou géométrie du fil."
-                }
-              ]
-            }
-          },
-          "roulement": {
-            "piece": "roulement_alternateur",
-            "entrees": {},
-            "resultats": {},
-            "inconnues": {
-              "impossibles": [],
-              "partielles": [
-                {
-                  "nom": "charge_radiale_roulement_n",
-                  "raison": "Requise pour la durée de vie L10."
-                }
-              ]
-            }
-          }
-        },
-        "imports": {
-          "erreurs_optionnelles": {}
-        },
-        "inconnues": {
-          "impossibles": [],
-          "partielles": [
-            {
-              "nom": "flux_max_pole_wb",
-              "raison": "Fournir flux_max_pole_wb ou induction_gap_t + aire_pole_m2."
-            },
-            {
-              "nom": "fem_induite",
-              "raison": "Calculable si fréquence, spires, flux et facteur d'enroulement sont fournis."
-            },
-            {
-              "nom": "resistance_phase_ohm",
-              "raison": "Fournir R_phase ou résistivité + longueur_fil + section_fil."
-            },
-            {
-              "nom": "pertes_fer_w",
-              "raison": "Calculables si fréquence, induction_max, k_h, k_e et exposant Steinmetz sont fournis."
-            },
-            {
-              "nom": "rendement_alternateur_impose",
-              "raison": "Requis pour conclure la puissance mécanique et le couple dimensionnants sans supposer les pertes manquantes."
-            },
-            {
-              "nom": "resistance_thermique_k_w",
-              "raison": "Requise pour évaluer l'échauffement."
-            }
-          ]
-        },
-        "notes_modele": [
-          "Les pertes totales réelles ne sont pas conclues : les pertes cuivre et/ou fer sont manquantes."
-        ]
-      },
-      "inconnues": {
-        "impossibles": [],
-        "partielles": []
-      },
-      "notes_modele": []
-    },
     "batterie": {
       "composant": "batterie",
       "entrees": {
@@ -1901,13 +1663,13 @@
   },
   "liaisons": {
     "bus_dc": {
-      "P_bus_dc_design_w": 18716.600000000002,
+      "P_bus_dc_design_w": null,
       "V_bus_dc_v": null,
       "scenario_bus_dc": null,
       "energie_a_recharger_kwh": null
     },
     "alternateur": {
-      "vitesse_rotation_rpm": 3000.0
+      "vitesse_rotation_rpm": null
     },
     "moteur_thermique_exigences": {
       "rpm_moteur_thermique": 3000.0
@@ -1915,7 +1677,7 @@
   },
   "synthese": {
     "vehicule": {
-      "puissance_bus_dc_design_w": 18716.600000000002,
+      "puissance_bus_dc_design_w": null,
       "tension_bus_dc_v": null
     },
     "batterie": {
@@ -1923,8 +1685,8 @@
       "tension_nominale_v": null
     },
     "alternateur": {
-      "P_electrique_sortie_W": 18716.600000000002,
-      "vitesse_rotation_rpm": 3000.0
+      "P_electrique_sortie_W": null,
+      "vitesse_rotation_rpm": null
     },
     "moteur_thermique": {
       "architecture": "L",
@@ -1934,11 +1696,79 @@
       "rpm_nominal": 3000.0,
       "pme_pa": 1000000.0,
       "cylindree_totale_cc": 880.7811764705888,
-      "puissance_requise_W": 18716.600000000002,
-      "couple_requis_Nm": 59.57678815747537,
-      "couple_max_Nm": 59.57678815747537,
+      "puissance_requise_W": null,
+      "couple_requis_Nm": null,
+      "couple_max_Nm": null,
       "epaisseur_cylindre_retenue_m": null,
       "pression_max_pa": null
+    }
+  },
+  "synthese_detail": {
+    "P_bus_dc_design_w": {
+      "valeur": null,
+      "statut": "partiel",
+      "source": null,
+      "calcul": "puissance bus DC explicite ou somme traction + auxiliaires",
+      "inconnues": [
+        "puissance_bus_dc_w"
+      ],
+      "notes": []
+    },
+    "P_alt_meca_W": {
+      "valeur": null,
+      "statut": "partiel",
+      "source": null,
+      "calcul": "fourni par analyse alternateur",
+      "inconnues": [
+        "P_alt_meca_W"
+      ],
+      "notes": []
+    },
+    "P_moteur_thermique_W": {
+      "valeur": null,
+      "statut": "partiel",
+      "source": null,
+      "calcul": "fourni par l'analyse moteur thermique",
+      "inconnues": [
+        "puissance_moteur_thermique_requise_W"
+      ],
+      "notes": []
+    },
+    "architecture": {
+      "valeur": "L",
+      "statut": "ok",
+      "source": "moteur_thermique.objet",
+      "calcul": "consolidation moteur thermique / architecture",
+      "inconnues": [],
+      "notes": []
+    },
+    "nombre_cylindres": {
+      "valeur": 4,
+      "statut": "ok",
+      "source": "moteur_thermique.conception",
+      "calcul": "consolidation moteur thermique / architecture",
+      "inconnues": [],
+      "notes": []
+    },
+    "rendement_boite": {
+      "valeur": null,
+      "statut": "partiel",
+      "source": null,
+      "calcul": null,
+      "inconnues": [
+        "rendement_boite"
+      ],
+      "notes": []
+    },
+    "rendement_liaison_meca_alt": {
+      "valeur": null,
+      "statut": "partiel",
+      "source": null,
+      "calcul": null,
+      "inconnues": [
+        "rendement_liaison_meca_alt"
+      ],
+      "notes": []
     }
   },
   "cao": {
@@ -1950,10 +1780,31 @@
   },
   "inconnues": {
     "impossibles": [],
-    "partielles": []
+    "partielles": [
+      {
+        "nom": "puissance_auxiliaire_w",
+        "raison": "Puissance auxiliaire absente : ne peut pas etre supposee nulle en mode strict."
+      },
+      {
+        "nom": "puissance_bus_dc_w",
+        "raison": "Puissance bus DC impossible a fermer sans traction et puissance auxiliaire exploitables ou cible explicite."
+      },
+      {
+        "nom": "vitesse_alternateur_rpm",
+        "raison": "Regime alternateur absent : fournir la vitesse alternateur ou le couple regime moteur thermique / rapport alternateur."
+      },
+      {
+        "nom": "puissance_moteur_thermique_requise_W",
+        "raison": "Puissance moteur thermique requise absente : ne peut pas etre remplacee par la traction brute."
+      },
+      {
+        "nom": "P_electrique_sortie_W",
+        "raison": "Puissance electrique alternateur non fournie par l'analyse alternateur."
+      }
+    ]
   },
   "notes_modele": []
 }
-2026-05-16 18:54:13,914 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
-2026-05-16 18:54:13,918 - INFO - Starting test_systeme_missing_inputs
-2026-05-16 18:54:13,924 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 
+2026-05-16 19:14:36,358 - INFO - RESULT - test_systeme_analyser_full: SUCCESS 
+2026-05-16 19:14:36,375 - INFO - Starting test_systeme_missing_inputs
+2026-05-16 19:14:36,405 - INFO - RESULT - test_systeme_missing_inputs: SUCCESS 

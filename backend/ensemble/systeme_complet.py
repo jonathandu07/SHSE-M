@@ -23,6 +23,13 @@ def _safe_int(x: Any) -> Optional[int]:
     return None
 
 
+def _first_finite(*values: Any) -> Optional[float]:
+    for value in values:
+        if _is_finite(value):
+            return float(value)
+    return None
+
+
 def _safe_dict(x: Any) -> Dict[str, Any]:
     return x if isinstance(x, dict) else {}
 
