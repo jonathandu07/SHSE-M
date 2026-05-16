@@ -142,32 +142,32 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
         ("Alésage", [
             {"raw_path": "resume_gui.Bore_mm", "unit": "mm"},
             {"raw_path": "systeme_complet.synthese.moteur_thermique.Bore_mm", "unit": "mm"},
-        ], "mm"),
+        ]),
         ("Course", [
             {"raw_path": "resume_gui.Stroke_mm", "unit": "mm"},
             {"raw_path": "systeme_complet.synthese.moteur_thermique.Stroke_mm", "unit": "mm"},
-        ], "mm"),
+        ]),
         ("Régime nominal", [
             {"raw_path": "resume_gui.RPM", "unit": "rpm"},
             {"raw_path": "systeme_complet.synthese.moteur_thermique.RPM", "unit": "rpm"},
-        ], "rpm"),
+        ]),
         ("Cylindrée totale", [
             {"raw_path": "resume_gui.vd_tot_cc", "unit": "cc"},
             {"raw_path": "systeme_complet.synthese.moteur_thermique.vd_tot_cc", "unit": "cc"},
-        ], "cc"),
+        ]),
         ("Score global", [
             {"raw_path": "resume_gui.score_global_100", "unit": "/100"},
-        ], "/100"),
+        ]),
     ]
 
     all_metrics = []
     for label, paths in dashboard_specs:
         candidates = []
         for p in paths:
-            if isinstance(p, str):
-                candidates.append({"raw_path": p, "label": label})
-            else:
-                candidates.append(p)
+            cand = dict(p) if isinstance(p, dict) else {"raw_path": p}
+            if "label" not in cand:
+                cand["label"] = label
+            candidates.append(cand)
         all_metrics.append(resolve_metric(report, candidates))
 
     dashboard_metrics = [m for m in all_metrics if m["resolved"]]
@@ -187,7 +187,12 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
     ]
     energy_metrics = []
     for label, paths, unit in energy_specs:
-        cands = [{"raw_path": p, "unit": unit} for p in paths]
+        cands = []
+        for p in paths:
+            cand = dict(p)
+            if "unit" not in cand:
+                cand["unit"] = unit
+            cands.append(cand)
         energy_metrics.append(resolve_metric(report, cands))
 
     ui = {

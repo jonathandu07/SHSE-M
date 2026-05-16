@@ -29,10 +29,12 @@ from frontend.gui.charts_view import ChartsScreen
 from frontend.gui.components import COLORS
 from frontend.gui.dashboard import DashboardScreen
 from frontend.gui.edit_parameters import EditParametersScreen
+from frontend.gui.energy_audit import EnergyAuditScreen
 from frontend.gui.error_view import ErrorScreen
 from frontend.gui.exports_view import ExportsScreen
 from frontend.gui.home import HomeScreen
 from frontend.gui.loading import LoadingScreen
+from frontend.gui.missing_requirements import MissingRequirementsScreen
 from frontend.gui.pieces_view import PieceDetailScreen, PieceLibraryScreen
 from frontend.gui.raw_report_view import RawJsonScreen
 from frontend.gui.sketches_view import SketchesScreen
@@ -129,6 +131,8 @@ class STHOMEApp(App):
         manager.add_widget(RawJsonScreen(name="raw_json"))
         manager.add_widget(ExportsScreen(name="exports"))
         manager.add_widget(EditParametersScreen(name="edit_parameters"))
+        manager.add_widget(MissingRequirementsScreen(name="missing_requirements"))
+        manager.add_widget(EnergyAuditScreen(name="energy_audit"))
         manager.add_widget(ErrorScreen(name="error"))
         return manager
 

@@ -41,16 +41,26 @@ class DashboardScreen(Screen):
         content = BoxLayout(orientation="vertical", spacing=12, size_hint_y=None)
         content.bind(minimum_height=content.setter("height"))
 
-        summary = ui.get("summary", {})
+        dashboard_metrics = ui.get("dashboard_metrics", [])
         kpis = GridLayout(cols=4, spacing=12, size_hint_y=None, height=150)
-        kpis.add_widget(KpiCard("Puissance", self._find_value(ui, "Puissance demandée"), "W", "ok"))
-        kpis.add_widget(KpiCard("Architecture", summary.get("architecture"), "", "inconnu" if summary.get("architecture") is None else "ok"))
+        
+        # Power is usually the first one or we find it by label
+        power = next((m for m in dashboard_metrics if "Puissance" in m["label"]), None)
+        kpis.add_widget(KpiCard("Puissance", power["value"] if power else None, power["unit"] if power else "W", power["status"] if power else "missing"))
+        
+        arch = next((m for m in dashboard_metrics if m["label"] == "Architecture"), None)
+        kpis.add_widget(KpiCard("Architecture", arch["value"] if arch else None, "", arch["status"] if arch else "missing"))
+        
         kpis.add_widget(KpiCard("Inconnues", summary.get("unknown_count"), "", "partiel" if summary.get("unknown_count") else "ok"))
         kpis.add_widget(KpiCard("Alertes", summary.get("alert_count"), "", "partiel" if summary.get("alert_count") else "ok"))
         content.add_widget(kpis)
 
+        missing = ui.get("missing_requirements", [])
+        if missing:
+            content.add_widget(self._missing_panel(missing))
+
         bento = BentoGrid(size_hint_y=None, height=710)
-        bento.add_widget(self._metric_panel("Chaîne énergétique", ui.get("energy_chain", [])))
+        bento.add_widget(self._metric_panel("Chaîne énergétique", ui.get("resolved_metrics", [])))
         bento.add_widget(self._subsystems_panel(ui.get("subsystems", [])))
         bento.add_widget(UnknownsPanel(ui.get("unknowns", []), size_hint_y=None))
         bento.add_widget(self._actions_panel())
@@ -77,10 +87,11 @@ class DashboardScreen(Screen):
     def _metric_panel(self, title: str, items: list[dict]) -> PremiumCard:
         panel = PremiumCard(title=title)
         if not items:
-            panel.add_widget(EmptyState(text="Données indisponibles."))
+            panel.add_widget(EmptyState(text="Toutes les données sont à compléter."))
             return panel
         for item in items:
-            panel.add_widget(MetricRow(item.get("label"), item.get("value"), item.get("unit", ""), item.get("status", ""), item.get("source") or ""))
+            if item.get("value") is not None:
+                panel.add_widget(MetricRow(item.get("label"), item.get("value"), item.get("unit", ""), item.get("status", ""), item.get("source") or ""))
         return panel
 
     def _subsystems_panel(self, items: list[dict]) -> PremiumCard:
@@ -89,7 +100,42 @@ class DashboardScreen(Screen):
             panel.add_widget(EmptyState(text="Sous-systèmes indisponibles."))
             return panel
         for item in items:
-            panel.add_widget(MetricRow(item.get("name"), item.get("source") or "INDISPONIBLE", status=item.get("status", "inconnu")))
+            row = BoxLayout(orientation="horizontal", size_hint_y=None, height=40, spacing=8)
+            row.add_widget(Label(text=item.get("name"), color=COLORS["GS"], font_size="14sp", halign="left", valign="middle"))
+            
+            status = item.get("status", "inconnu")
+            row.add_widget(StatusBadge(status=status, text=status.upper(), size_hint_x=None, width=110))
+            
+            missing = item.get("missing_count", 0)
+            if missing > 0:
+                missing_label = Label(text=f"[{missing} à compléter]", color=COLORS["RS"], font_size="12sp", size_hint_x=None, width=120)
+                row.add_widget(missing_label)
+            
+            panel.add_widget(row)
+            
+            # Sub-items only if resolved
+            resolved = item.get("resolved_data", {})
+            for k, v in resolved.items():
+                if v is not None:
+                    panel.add_widget(MetricRow(f"  - {k}", v, status="ok"))
+                    
+        return panel
+
+    def _missing_panel(self, items: list[dict]) -> PremiumCard:
+        panel = PremiumCard(title="DONNÉES NÉCESSAIRES POUR COMPLÉTER LE CALCUL")
+        panel.height = 120
+        row = BoxLayout(orientation="horizontal", spacing=20)
+        label = Label(
+            text=f"Il manque {len(items)} données techniques pour fermer le calcul système.",
+            color=COLORS["RS"],
+            bold=True,
+            halign="left"
+        )
+        row.add_widget(label)
+        btn = ModernButton(text="VOIR LES MANQUES", size_hint_x=None, width=200)
+        btn.bind(on_release=lambda _: setattr(self.manager, "current", "missing_requirements"))
+        row.add_widget(btn)
+        panel.add_widget(row)
         return panel
 
     def _actions_panel(self) -> PremiumCard:
