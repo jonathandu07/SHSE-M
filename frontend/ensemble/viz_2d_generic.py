@@ -67,20 +67,20 @@ def draw(ax, piece: Any) -> None:
     x0 = 0.19
     y0 = 0.38
 
-    ax.add_patch(Rectangle((x0, y0), width, height, fill=False, linewidth=2.0, edgecolor="#03224C"))
-    ax.add_patch(Circle((x0 + 0.11, y0 + height / 2.0), 0.055, fill=False, linewidth=1.5, edgecolor="#81A1B8"))
-    ax.add_patch(Circle((x0 + width - 0.11, y0 + height / 2.0), 0.055, fill=False, linewidth=1.5, edgecolor="#81A1B8"))
-    ax.plot([x0, x0 + width], [y0 + height / 2.0, y0 + height / 2.0], linestyle="--", linewidth=1.0, color="#8A8A8A")
+    ax.add_patch(Rectangle((x0, y0), width, height, fill=False, linewidth=2.0, edgecolor="#091226"))
+    ax.add_patch(Circle((x0 + 0.11, y0 + height / 2.0), 0.055, fill=False, linewidth=1.5, edgecolor="#3E5349"))
+    ax.add_patch(Circle((x0 + width - 0.11, y0 + height / 2.0), 0.055, fill=False, linewidth=1.5, edgecolor="#3E5349"))
+    ax.plot([x0, x0 + width], [y0 + height / 2.0, y0 + height / 2.0], linestyle="--", linewidth=1.0, color="#0A0B0A")
 
     ax.add_patch(FancyArrowPatch((x0, y0 + height + 0.08), (x0 + width, y0 + height + 0.08), arrowstyle="<->", mutation_scale=12, linewidth=1.2))
-    ax.text(x0 + width / 2.0, y0 + height + 0.11, "Longueur utile", ha="center", va="bottom", fontsize=9, color="#03224C")
+    ax.text(x0 + width / 2.0, y0 + height + 0.11, "Longueur utile", ha="center", va="bottom", fontsize=9, color="#091226")
 
     ax.add_patch(FancyArrowPatch((x0 + width + 0.08, y0), (x0 + width + 0.08, y0 + height), arrowstyle="<->", mutation_scale=12, linewidth=1.2))
-    ax.text(x0 + width + 0.11, y0 + height / 2.0, "Section", ha="left", va="center", rotation=90, fontsize=9, color="#03224C")
+    ax.text(x0 + width + 0.11, y0 + height / 2.0, "Section", ha="left", va="center", rotation=90, fontsize=9, color="#091226")
 
     name = _get_value(piece, "nom", "piece", "type") or "Element"
-    ax.text(0.5, 0.78, str(name).replace("_", " ").upper(), ha="center", va="center", fontsize=14, fontweight="bold", color="#05143F")
-    ax.text(0.5, 0.72, "Vue technique generique", ha="center", va="center", fontsize=10, color="#6B6C66")
+    ax.text(0.5, 0.78, str(name).replace("_", " ").upper(), ha="center", va="center", fontsize=14, fontweight="bold", color="#091226")
+    ax.text(0.5, 0.72, "Vue technique generique", ha="center", va="center", fontsize=10, color="#3E5349")
 
     metrics = _candidate_metrics(piece)
     if metrics:
@@ -93,8 +93,8 @@ def draw(ax, piece: Any) -> None:
             va="top",
             fontsize=9,
             family="monospace",
-            bbox=dict(boxstyle="round,pad=0.35", facecolor="white", edgecolor="#CFCFCF"),
-            color="#03224C",
+            bbox=dict(boxstyle="round,pad=0.35", facecolor="white", edgecolor="#0A0B0A"),
+            color="#091226",
         )
     else:
         ax.text(
@@ -104,7 +104,7 @@ def draw(ax, piece: Any) -> None:
             ha="center",
             va="top",
             fontsize=9,
-            color="#6B6C66",
+            color="#3E5349",
         )
 
     ax.set_xlim(0, 1)

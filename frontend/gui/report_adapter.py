@@ -169,7 +169,7 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
 
     # 3. Actions Rapides
     actions = [
-        {"label": "Données techniques", "target": "system_data"},
+        {"label": "Données techniques", "target": "energy_audit"},
         {"label": "Pièces", "target": "piece_library"},
         {"label": "Architecture", "target": "architecture_choice"},
         {"label": "Croquis", "target": "sketches"},

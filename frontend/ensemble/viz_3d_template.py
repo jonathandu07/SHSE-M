@@ -50,7 +50,7 @@ def apply_style(ax, title: str = "", unit: str = "mm"):
     ax.set_zlabel(f"Z [{unit}]", fontsize=8)
     ax.tick_params(labelsize=7)
     if title:
-        ax.set_title(title, fontsize=10, fontweight="bold", color="#05143F", pad=10)
+        ax.set_title(title, fontsize=10, fontweight="bold", color="#091226", pad=10)
     ax.xaxis.pane.fill = False
     ax.yaxis.pane.fill = False
     ax.zaxis.pane.fill = False

@@ -21,11 +21,11 @@ def draw_3d(ax, piece) -> None:
 
     R = D_mm / 2
     X, Y, Z = cylinder_surface(R, H_mm)
-    ax.plot_surface(X, Y, Z, color="#81A1B8", alpha=0.8, linewidth=0)
+    ax.plot_surface(X, Y, Z, color="#3E5349", alpha=0.8, linewidth=0)
 
     for z_fl in [0, H_mm]:
         Xf, Yf, Zf = disk_surface(0, R, z_fl)
-        ax.plot_surface(Xf, Yf, Zf, color="#03224C", alpha=0.85, linewidth=0)
+        ax.plot_surface(Xf, Yf, Zf, color="#091226", alpha=0.85, linewidth=0)
 
     # Nom de la pièce
     nom = getattr(piece, "nom", None) or (piece.get("nom") if isinstance(piece, dict) else None) or "Pièce"

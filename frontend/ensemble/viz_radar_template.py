@@ -92,10 +92,10 @@ def plot_data(ax, piece):
     ax.set_yticks([0.25, 0.5, 0.75, 1.0])
     ax.set_yticklabels(["25%", "50%", "75%", "100%"], fontsize=6, color="gray")
 
-    ax.plot(angles, values, linewidth=2, linestyle="solid", color="#03224C")
-    ax.fill(angles, values, alpha=0.25, color="#81A1B8")
+    ax.plot(angles, values, linewidth=2, linestyle="solid", color="#091226")
+    ax.fill(angles, values, alpha=0.25, color="#3E5349")
 
     # Nom de la pièce
     nom = getattr(piece, "nom", None) or (piece.get("nom") if isinstance(piece, dict) else None) or "Pièce"
     if not ax.get_title():
-        ax.set_title(str(nom).replace("_", " ").title(), fontsize=10, fontweight="bold", pad=15, color="#05143F")
+        ax.set_title(str(nom).replace("_", " ").title(), fontsize=10, fontweight="bold", pad=15, color="#091226")
