@@ -50,72 +50,54 @@ def _detail_point(report: Dict[str, Any], detail_key: str) -> Optional[Dict[str,
     return detail if isinstance(detail, dict) else None
 
 
-def make_data_point(
-    report: Dict[str, Any],
-    path: str,
-    label: str,
-    unit: str = "",
-    source: str = "backend",
-) -> Dict[str, Any]:
-    detail = _detail_point(report, path.split(".")[-1])
-    if detail is not None and "valeur" in detail:
-        value = detail.get("valeur")
-        return {
-            "label": label,
-            "value": value,
-            "unit": unit,
-            "status": _status_from_value(value, detail.get("statut")),
-            "source": detail.get("source") or source,
-            "calculation": detail.get("calcul"),
-            "unknowns": detail.get("inconnues") or [],
-            "notes": detail.get("notes") or [],
-            "raw_path": f"derivees_chaine_energie.details.{path.split('.')[-1]}",
-        }
+def resolve_metric(report: Dict[str, Any], candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Résout une métrique technique à partir de plusieurs chemins candidats.
 
-    value = get_nested(report, path)
-    return {
-        "label": label,
-        "value": value,
-        "unit": unit,
-        "status": _status_from_value(value),
-        "source": source,
-        "raw_path": path,
-        "calculation": None,
-        "unknowns": [],
-        "notes": [],
-    }
+    Règle : prend la première valeur non-None. Ne transforme jamais None en 0.
+    """
+    first_candidate = candidates[0] if candidates else {}
+    label = first_candidate.get("label", "Inconnu")
+    unit = first_candidate.get("unit", "")
 
+    for cand in candidates:
+        path = cand.get("raw_path")
+        if not path:
+            continue
 
-def metric_from_paths(report: Dict[str, Any], label: str, paths: Iterable[str], unit: str = "") -> Dict[str, Any]:
-    for path in paths:
-        detail_key = path.split(".")[-1]
-        detail = _detail_point(report, detail_key)
-        if detail is not None and "valeur" in detail:
-            return make_data_point(report, detail_key, label, unit)
-        marker = object()
-        value = get_nested(report, path, marker)
-        if value is not marker:
+        # Extraction de la valeur
+        val = get_nested(report, path)
+
+        # Si c'est un dictionnaire de détail (format backend standard)
+        if isinstance(val, dict) and "valeur" in val:
+            source = val.get("source") or cand.get("source_type", "backend")
+            status = val.get("statut") or "ok"
+            val = val.get("valeur")
+        else:
+            source = cand.get("source_type", "backend")
+            status = "ok" if val is not None else "missing"
+
+        if val is not None:
             return {
                 "label": label,
-                "value": value,
+                "value": val,
                 "unit": unit,
-                "status": _status_from_value(value),
-                "source": path,
+                "status": status,
+                "source": source,
                 "raw_path": path,
-                "calculation": None,
-                "unknowns": [],
-                "notes": [],
+                "resolved": True,
             }
+
+    # Si rien n'est résolu
     return {
         "label": label,
         "value": None,
         "unit": unit,
-        "status": "inconnu",
+        "status": "missing",
         "source": None,
-        "raw_path": None,
-        "calculation": None,
-        "unknowns": [],
-        "notes": [],
+        "raw_path": candidates[0].get("raw_path") if candidates else None,
+        "resolved": False,
+        "missing_reason": "Donnée non trouvée dans les chemins backend testés",
+        "candidates": [c.get("raw_path") for c in candidates],
     }
 
 
@@ -125,6 +107,8 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
             "error": "Rapport vide ou inexistant",
             "is_empty": True,
             "sections": {},
+            "dashboard_metrics": [],
+            "missing_requirements": [],
             "unknowns": [],
             "alerts": [],
         }
@@ -133,7 +117,6 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
     alerts = flatten_alerts(report)
     pieces = extract_piece_list(report)
     arch_candidates = extract_architecture_candidates(report)
-    energy_chain = extract_energy_chain(report)
     subsystems = extract_subsystems(report)
     exports = extract_exports(report)
     sketches = extract_visual_resources(report, "sketches")
@@ -141,27 +124,71 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
     three_d = extract_visual_resources(report, "three_d")
     editable = extract_editable_parameters(report, arch_candidates)
 
-    resume_items = [
-        metric_from_paths(report, "Puissance demandée", ("derivees_chaine_energie.sortie_utilisateur_w",), "W"),
-        metric_from_paths(report, "Puissance entrée", ("entrees.puissance_traction_kw",), "kW"),
-        make_data_point(report, "resume_gui.Architecture", "Architecture"),
-        make_data_point(report, "resume_gui.N_cyl", "Nombre de cylindres"),
-        make_data_point(report, "resume_gui.Bore_mm", "Alésage", "mm"),
-        make_data_point(report, "resume_gui.Stroke_mm", "Course", "mm"),
-        make_data_point(report, "resume_gui.RPM", "Régime nominal", "rpm"),
-        make_data_point(report, "resume_gui.vd_tot_cc", "Cylindrée totale", "cc"),
-        make_data_point(report, "resume_gui.score_global_100", "Score global", "/100"),
+    # Métriques de synthèse résolues
+    dashboard_specs = [
+        ("Puissance demandée", [
+            {"raw_path": "derivees_chaine_energie.details.sortie_utilisateur_w.valeur", "unit": "W"},
+            {"raw_path": "derivees_chaine_energie.sortie_utilisateur_w", "unit": "W"},
+            {"raw_path": "entrees.puissance_traction_kw", "unit": "kW"},
+        ]),
+        ("Architecture", [
+            {"raw_path": "resume_gui.Architecture"},
+            {"raw_path": "systeme_complet.synthese.architecture.nom"},
+        ]),
+        ("Nombre de cylindres", [
+            {"raw_path": "resume_gui.N_cyl"},
+            {"raw_path": "systeme_complet.synthese.moteur_thermique.N_cyl"},
+        ]),
+        ("Alésage", [
+            {"raw_path": "resume_gui.Bore_mm", "unit": "mm"},
+            {"raw_path": "systeme_complet.synthese.moteur_thermique.Bore_mm", "unit": "mm"},
+        ], "mm"),
+        ("Course", [
+            {"raw_path": "resume_gui.Stroke_mm", "unit": "mm"},
+            {"raw_path": "systeme_complet.synthese.moteur_thermique.Stroke_mm", "unit": "mm"},
+        ], "mm"),
+        ("Régime nominal", [
+            {"raw_path": "resume_gui.RPM", "unit": "rpm"},
+            {"raw_path": "systeme_complet.synthese.moteur_thermique.RPM", "unit": "rpm"},
+        ], "rpm"),
+        ("Cylindrée totale", [
+            {"raw_path": "resume_gui.vd_tot_cc", "unit": "cc"},
+            {"raw_path": "systeme_complet.synthese.moteur_thermique.vd_tot_cc", "unit": "cc"},
+        ], "cc"),
+        ("Score global", [
+            {"raw_path": "resume_gui.score_global_100", "unit": "/100"},
+        ], "/100"),
     ]
 
-    # Compatibilité tests existants.
-    energie_items = [
-        make_data_point(report, "entrees.puissance_traction_kw", "Cible Traction", "kW"),
-        make_data_point(report, "strategie_energie.mode_energetique", "Mode Énergétique"),
-        metric_from_paths(report, "Puissance Traction", ("derivees_chaine_energie.details.p_traction_w", "derivees_chaine_energie.sortie_utilisateur_w"), "W"),
-        metric_from_paths(report, "Puissance Bus DC", ("derivees_chaine_energie.details.p_bus_total", "derivees_chaine_energie.puissance_bus_dc_totale_w"), "W"),
-        make_data_point(report, "strategie_energie.bilan_bus_dc.puissance_recharge_retenue_w", "Recharge Batterie", "W"),
-        make_data_point(report, "strategie_energie.enveloppe_batterie.raison_limitante", "Limitation Batterie"),
+    all_metrics = []
+    for label, paths in dashboard_specs:
+        candidates = []
+        for p in paths:
+            if isinstance(p, str):
+                candidates.append({"raw_path": p, "label": label})
+            else:
+                candidates.append(p)
+        all_metrics.append(resolve_metric(report, candidates))
+
+    dashboard_metrics = [m for m in all_metrics if m["resolved"]]
+    missing_requirements = [m for m in all_metrics if not m["resolved"]]
+
+    # Chaîne énergétique
+    energy_specs = [
+        ("Puissance de sortie demandée", [{"raw_path": "derivees_chaine_energie.sortie_utilisateur_w"}], "W"),
+        ("Puissance bus traction", [{"raw_path": "derivees_chaine_energie.puissance_elec_usage_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_electrique_usage_w"}], "W"),
+        ("Puissance auxiliaire", [{"raw_path": "derivees_chaine_energie.puissance_auxiliaire_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_auxiliaire_w"}], "W"),
+        ("Puissance recharge batterie", [{"raw_path": "derivees_chaine_energie.puissance_recharge_batterie_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_recharge_retenue_w"}], "W"),
+        ("Puissance bus totale", [{"raw_path": "derivees_chaine_energie.puissance_bus_dc_totale_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_bus_dc_totale_w"}], "W"),
+        ("Alternateur électrique requis", [{"raw_path": "strategie_energie.bilan_bus_dc.puissance_alternateur_electrique_requise_w"}], "W"),
+        ("Alternateur mécanique requis", [{"raw_path": "derivees_chaine_energie.puissance_mecanique_alternateur_requise_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_mecanique_alternateur_requise_w"}], "W"),
+        ("Moteur thermique requis", [{"raw_path": "derivees_chaine_energie.puissance_moteur_thermique_requise_w"}, {"raw_path": "strategie_energie.bilan_bus_dc.puissance_moteur_thermique_requise_w"}], "W"),
+        ("Rendement global calculé", [{"raw_path": "strategie_energie.bilan_bus_dc.rendement_global_calcule"}], ""),
     ]
+    energy_metrics = []
+    for label, paths, unit in energy_specs:
+        cands = [{"raw_path": p, "unit": unit} for p in paths]
+        energy_metrics.append(resolve_metric(report, cands))
 
     ui = {
         "is_empty": False,
@@ -173,13 +200,16 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
             "architecture": get_nested(report, "resume_gui.Architecture"),
             "mode_energetique": get_nested(report, "strategie_energie.mode_energetique"),
         },
+        "dashboard_metrics": dashboard_metrics,
+        "resolved_metrics": [m for m in energy_metrics if m["resolved"]],
+        "missing_requirements": missing_requirements + [m for m in energy_metrics if not m["resolved"]],
         "sections": {
-            "resume": {"title": "Résumé global", "items": resume_items},
-            "energie": {"title": "Chaîne énergétique", "items": energie_items},
+            "resume": {"title": "Résumé global", "items": dashboard_metrics},
+            "energie": {"title": "Chaîne énergétique", "items": [m for m in energy_metrics if m["resolved"]]},
             "sous_systemes": {"title": "Sous-systèmes", "items": subsystem_metrics(subsystems)},
-            "exports": {"title": "Exports", "items": exports},
+            "exports": {"title": "Exports", "items": [e for e in exports if e["available"]]},
         },
-        "energy_chain": energy_chain,
+        "energy_chain": energy_metrics,
         "subsystems": subsystems,
         "unknowns": unknowns,
         "alerts": alerts,
@@ -190,7 +220,7 @@ def adapt_backend_report(report: Dict[str, Any]) -> Dict[str, Any]:
         "three_d": three_d,
         "exports": exports,
         "editable_parameters": editable,
-        "data_tree": build_data_tree(report),
+        "technical_audit": build_data_tree(report),
         "raw_available": True,
         "notes": report.get("notes_modele") if isinstance(report.get("notes_modele"), list) else [],
     }
@@ -233,6 +263,19 @@ def extract_subsystems(report: Dict[str, Any]) -> List[Dict[str, Any]]:
                 data = value
                 source = path
                 break
+        
+        # Filtre les données connues
+        resolved_data = {}
+        missing_count = 0
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if k in {"inconnues", "alertes", "notes"}:
+                    continue
+                if v is not None:
+                    resolved_data[k] = v
+                else:
+                    missing_count += 1
+
         inc = flatten_unknowns(data or {})
         out.append(
             {
@@ -240,6 +283,8 @@ def extract_subsystems(report: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "status": "partiel" if inc else ("indisponible" if data is None else "ok"),
                 "source": source,
                 "data": data or {},
+                "resolved_data": resolved_data,
+                "missing_count": missing_count + len(inc),
                 "unknowns": inc,
                 "modifiable": name in {"Batterie", "Architecture", "Stratégie énergétique"},
             }
