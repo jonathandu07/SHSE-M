@@ -38,6 +38,11 @@ except Exception:  # pragma: no cover
     extract_piece_list = None  # type: ignore
 
 try:
+    from frontend.gui.backend_resource_adapter import build_resource_catalog
+except Exception:  # pragma: no cover
+    build_resource_catalog = None  # type: ignore
+
+try:
     from frontend.gui.piece_connector import (
         get_piece_instance,
         get_piece_connector_diagnostic,
@@ -146,6 +151,24 @@ def _fmt_value(value: Any) -> str:
         return f"list:{len(value)}"
 
     return _short_text(value, 70)
+
+
+def _resource_counts(resources: Mapping[str, Any]) -> Tuple[int, int, int]:
+    available = 0
+    partial = 0
+    unavailable = 0
+    for values in resources.values():
+        for item in _safe_list(values):
+            if not isinstance(item, Mapping):
+                continue
+            status = str(item.get("status") or "unavailable")
+            if status == "available":
+                available += 1
+            elif status == "partial":
+                partial += 1
+            else:
+                unavailable += 1
+    return available, partial, unavailable
 
 
 def _jsonable(value: Any, *, depth: int = 0, max_depth: int = 7) -> Any:
@@ -582,6 +605,7 @@ def _normalize_piece(name: str, raw: Mapping[str, Any], *, source: str) -> Dict[
         "source": source,
         "data": payload,
         "raw": dict(raw),
+        "resources": _safe_dict(data.get("resources")),
     }
 
     piece["status"] = _status_from_piece(piece)
@@ -595,7 +619,12 @@ def _extract_pieces_from_mapping(report: Mapping[str, Any]) -> List[Dict[str, An
     # 1) Adapter existant.
     if extract_piece_list is not None:
         try:
-            adapted = extract_piece_list(dict(report))
+            resource_catalog = {}
+            if build_resource_catalog is not None:
+                payload = build_resource_catalog(dict(report))
+                if isinstance(payload, Mapping):
+                    resource_catalog = _safe_dict(payload.get("resources"))
+            adapted = extract_piece_list(dict(report), resource_catalog=resource_catalog)
             if isinstance(adapted, list):
                 for idx, item in enumerate(adapted):
                     if isinstance(item, Mapping):
@@ -927,11 +956,12 @@ class PieceLibraryScreen(Screen):
         unknowns = _safe_list(piece.get("unknowns"))
         dimensions = _safe_dict(piece.get("dimensions"))
         constraints = _safe_dict(piece.get("constraints"))
+        res_ok, res_partial, res_ko = _resource_counts(_safe_dict(piece.get("resources")))
 
         card = NeoCard(
             orientation="vertical",
             size_hint_y=None,
-            height=dp(286),
+            height=dp(356),
             spacing=dp(6),
             padding=dp(10),
         )
@@ -944,6 +974,9 @@ class PieceLibraryScreen(Screen):
         card.add_widget(MetricRow("Dimensions", len(dimensions), "", "ok" if dimensions else "missing"))
         card.add_widget(MetricRow("Contraintes", len(constraints), "", "ok" if constraints else "missing"))
         card.add_widget(MetricRow("Inconnues", len(unknowns), "", "alerte" if unknowns else "ok"))
+        card.add_widget(MetricRow("Ressources OK", res_ok, "", "ok" if res_ok else "missing"))
+        card.add_widget(MetricRow("Ressources partielles", res_partial, "", "partiel" if res_partial else "ok"))
+        card.add_widget(MetricRow("Ressources KO", res_ko, "", "alerte" if res_ko else "ok"))
         card.add_widget(MetricRow("Source", _short_text(piece.get("source"), 38), "", status))
 
         btn_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(8))
