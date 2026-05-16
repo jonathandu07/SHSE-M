@@ -2936,8 +2936,8 @@ def dimensionner_systeme_shsem_simple(puissance_traction_kw: float, charger_batt
         {
             "nom": "puissance_charge_batterie_w",
             "valeur": 20000.0 if charger_batterie else 0.0,
-            "type": "HYPOTHESE_ASSISTEE",
-            "raison": "Recharge de batterie assistee dans le mode simple GUI.",
+            "type": "HYPOTHESE_ASSISTEE" if charger_batterie else "DECISION_SCENARIO",
+            "raison": "Recharge de batterie assistee dans le mode simple GUI." if charger_batterie else "Scenario explicite sans recharge batterie.",
         },
         {
             "nom": "rpm_nominal",

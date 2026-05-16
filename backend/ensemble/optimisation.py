@@ -2246,9 +2246,22 @@ class OptimisationSysteme:
             "rendement_liaison_mecanique": eta_liaison,
             "rendement_boite": eta_boite,
         }
-        etas_connus = [float(v) for v in eta_map.values() if v is not None and 0.0 < v <= 1.0]
-        etas_manquants = [nom for nom, valeur in eta_map.items() if valeur is None]
-        etas_invalides = [nom for nom, valeur in eta_map.items() if valeur is not None and not (0.0 < float(valeur) <= 1.0)]
+        etas_connus: List[float] = []
+        etas_manquants: List[str] = []
+        etas_invalides: List[str] = []
+        for nom, valeur in eta_map.items():
+            if valeur is None:
+                etas_manquants.append(nom)
+                continue
+            try:
+                v = float(valeur)
+            except (TypeError, ValueError):
+                etas_invalides.append(nom)
+                continue
+            if not (0.0 < v <= 1.0):
+                etas_invalides.append(nom)
+                continue
+            etas_connus.append(v)
         rendement_chaine_estime = None
         if not etas_invalides and not etas_manquants:
             rendement_chaine_estime = 1.0

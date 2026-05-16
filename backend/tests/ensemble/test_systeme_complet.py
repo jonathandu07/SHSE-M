@@ -103,5 +103,130 @@ def test_systeme_missing_inputs(mock_system):
         log_test_result("test_systeme_missing_inputs", "FAILED", str(e))
         raise
 
+
+def test_systeme_complet_auxiliaires_absents_ne_deviennent_pas_zero_en_mode_strict():
+    moteur_th = MagicMock()
+    moteur_th.temps_moteur = 4
+    moteur_th.rendement_mecanique_nominal = 0.85
+    moteur_th.facteur_securite_cylindre = 1.5
+    moteur_th.rpm_nominal = 3000.0
+    moteur_th.analyser_point_de_fonctionnement.return_value = {}
+
+    systeme = SystemeComplet(moteur_thermique=moteur_th)
+    rep = systeme.analyser(
+        masse_kg=1200.0,
+        vitesse_ms=20.0,
+        acceleration_ms2=0.5,
+        coef_roulement=0.015,
+        coef_trainee_aero_cda=0.65,
+        vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=10e5,
+    )
+
+    assert rep["sous_systemes"]["traction"]["puissance_auxiliaire_w"] is None
+    assert any(item["nom"] == "puissance_auxiliaire_w" for item in rep["inconnues"]["partielles"])
+    assert rep["synthese_detail"]["P_bus_dc_design_w"]["statut"] == "partiel"
+
+
+def test_systeme_complet_temps_moteur_absent_reste_inconnu():
+    moteur_th = MagicMock()
+    moteur_th.temps_moteur = None
+    moteur_th.rendement_mecanique_nominal = 0.85
+    moteur_th.facteur_securite_cylindre = 1.5
+    moteur_th.definir_depuis_exigences = MagicMock()
+
+    systeme = SystemeComplet(moteur_thermique=moteur_th)
+    rep = systeme.analyser(
+        masse_kg=1200.0,
+        vitesse_ms=20.0,
+        acceleration_ms2=0.5,
+        coef_roulement=0.015,
+        coef_trainee_aero_cda=0.65,
+        puissance_auxiliaire_w=0.0,
+        vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=10e5,
+    )
+
+    assert any(item["nom"] == "temps_moteur" for item in rep["inconnues"]["partielles"])
+    moteur_th.definir_depuis_exigences.assert_not_called()
+
+
+def test_systeme_complet_rendement_mecanique_absent_reste_inconnu():
+    moteur_th = MagicMock()
+    moteur_th.temps_moteur = 4
+    moteur_th.rendement_mecanique_nominal = None
+    moteur_th.facteur_securite_cylindre = 1.5
+    moteur_th.definir_depuis_exigences = MagicMock()
+
+    systeme = SystemeComplet(moteur_thermique=moteur_th)
+    rep = systeme.analyser(
+        masse_kg=1200.0,
+        vitesse_ms=20.0,
+        acceleration_ms2=0.5,
+        coef_roulement=0.015,
+        coef_trainee_aero_cda=0.65,
+        puissance_auxiliaire_w=0.0,
+        vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=10e5,
+    )
+
+    assert any(item["nom"] == "rendement_mecanique" for item in rep["inconnues"]["partielles"])
+    moteur_th.definir_depuis_exigences.assert_not_called()
+    assert rep["synthese_detail"]["P_moteur_thermique_W"]["statut"] == "partiel"
+
+
+def test_systeme_complet_architecture_absente_non_consolidee_comme_ok():
+    class FakeArchitecture:
+        def analyser(self, **kwargs):
+            return {"meilleur": {}}
+
+    moteur_th = MagicMock()
+    moteur_th.temps_moteur = 4
+    moteur_th.rendement_mecanique_nominal = 0.85
+    moteur_th.facteur_securite_cylindre = 1.5
+    moteur_th.architecture = None
+    moteur_th.definir_depuis_exigences.return_value = {"moteur_defini": moteur_th}
+    moteur_th.analyser_point_de_fonctionnement.return_value = {"conception": {}, "resultats": {}, "dimensionnement": {}}
+
+    systeme = SystemeComplet(moteur_thermique=moteur_th, architecture=FakeArchitecture())
+    rep = systeme.analyser(
+        masse_kg=1200.0,
+        vitesse_ms=20.0,
+        acceleration_ms2=0.5,
+        coef_roulement=0.015,
+        coef_trainee_aero_cda=0.65,
+        puissance_auxiliaire_w=0.0,
+        vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=10e5,
+    )
+
+    assert rep["synthese"]["moteur_thermique"]["architecture"] is None
+    assert rep["synthese_detail"]["architecture"]["statut"] == "partiel"
+    assert any(item["nom"] == "architecture" for item in rep["inconnues"]["partielles"])
+
+
+def test_systeme_complet_puissance_thermique_non_calculee_si_rendement_manquant():
+    moteur_th = MagicMock()
+    moteur_th.temps_moteur = 4
+    moteur_th.rendement_mecanique_nominal = None
+    moteur_th.facteur_securite_cylindre = 1.5
+    moteur_th.definir_depuis_exigences = MagicMock()
+    moteur_th.analyser_point_de_fonctionnement.return_value = {"conception": {}, "resultats": {}, "dimensionnement": {}}
+
+    systeme = SystemeComplet(moteur_thermique=moteur_th)
+    rep = systeme.analyser(
+        masse_kg=1200.0,
+        vitesse_ms=20.0,
+        acceleration_ms2=0.5,
+        coef_roulement=0.015,
+        coef_trainee_aero_cda=0.65,
+        puissance_auxiliaire_w=0.0,
+        vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=10e5,
+    )
+
+    assert rep["synthese"]["moteur_thermique"]["puissance_requise_W"] is None
+    assert any(item["nom"] == "puissance_moteur_thermique_requise_W" for item in rep["inconnues"]["partielles"])
+
 if __name__ == "__main__":
     pytest.main([__file__])

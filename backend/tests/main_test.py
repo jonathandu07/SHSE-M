@@ -436,7 +436,7 @@ def test_mode_simple_liste_hypotheses_utilisees(main_mod):
     assert "puissance_charge_batterie_w" in noms
     charge_item = next(item for item in hypotheses if item["nom"] == "puissance_charge_batterie_w")
     assert charge_item["valeur"] == 0.0
-    assert charge_item["type"] == "HYPOTHESE_ASSISTEE"
+    assert charge_item["type"] == "DECISION_SCENARIO"
 
 
 def test_constructors_forward_expected_arguments(monkeypatch, main_mod):
