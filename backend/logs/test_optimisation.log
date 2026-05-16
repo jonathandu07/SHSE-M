@@ -1,6 +1,6 @@
-2026-05-16 19:14:30,731 - INFO - Starting test_import_optimisation
-2026-05-16 19:14:37,397 - INFO - RESULT - test_import_optimisation: SUCCESS Module correctly imported.
-2026-05-16 19:14:37,401 - INFO - Starting test_optimisation_systeme_accepts_named_args_and_backend_reports
-2026-05-16 19:14:37,402 - INFO - RESULT - test_optimisation_systeme_accepts_named_args_and_backend_reports: SUCCESS Named arguments and backend report fallback work correctly.
-2026-05-16 19:14:37,407 - INFO - Starting test_optimisation_rendement_chaine_inconnu_non_remplace_par_1
-2026-05-16 19:14:37,408 - INFO - RESULT - test_optimisation_rendement_chaine_inconnu_non_remplace_par_1: SUCCESS Unknown chain efficiency is no longer replaced by 1.0.
+2026-05-16 19:15:09,843 - INFO - Starting test_import_optimisation
+2026-05-16 19:15:09,844 - INFO - RESULT - test_import_optimisation: SUCCESS Module correctly imported.
+2026-05-16 19:15:09,848 - INFO - Starting test_optimisation_systeme_accepts_named_args_and_backend_reports
+2026-05-16 19:15:09,849 - INFO - RESULT - test_optimisation_systeme_accepts_named_args_and_backend_reports: SUCCESS Named arguments and backend report fallback work correctly.
+2026-05-16 19:15:09,853 - INFO - Starting test_optimisation_rendement_chaine_inconnu_non_remplace_par_1
+2026-05-16 19:15:09,854 - INFO - RESULT - test_optimisation_rendement_chaine_inconnu_non_remplace_par_1: SUCCESS Unknown chain efficiency is no longer replaced by 1.0.
