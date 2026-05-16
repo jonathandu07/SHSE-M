@@ -64,6 +64,75 @@ def _detail_entry(
     }
 
 
+def _vehicle_power_report(
+    *,
+    masse_kg: Optional[float],
+    vitesse_ms: Optional[float],
+    acceleration_ms2: Optional[float],
+    angle_pente: Optional[float],
+    angle_unite: str,
+    coef_roulement: Optional[float],
+    coef_trainee_aero_cda: Optional[float],
+) -> Dict[str, Any]:
+    rapport: Dict[str, Any] = {
+        "valeur": None,
+        "statut": "partiel",
+        "source": "calcul_composantes_vehicule",
+        "composantes": {},
+        "inconnues": [],
+        "notes": [],
+    }
+    if not _is_finite(vitesse_ms) or not _is_finite(masse_kg):
+        if not _is_finite(masse_kg):
+            rapport["inconnues"].append("masse_kg")
+        if not _is_finite(vitesse_ms):
+            rapport["inconnues"].append("vitesse_ms")
+        return rapport
+
+    v = float(vitesse_ms)
+    m = float(masse_kg)
+    g = 9.81
+    rho = 1.225
+    grade = 0.0
+
+    composantes: Dict[str, float] = {}
+    if acceleration_ms2 is None:
+        rapport["inconnues"].append("acceleration_ms2")
+    elif not _is_finite(acceleration_ms2):
+        rapport["inconnues"].append("acceleration_ms2")
+    else:
+        composantes["acceleration_w"] = m * float(acceleration_ms2) * v
+
+    if coef_roulement is None:
+        rapport["inconnues"].append("coef_roulement")
+    elif not _is_finite(coef_roulement):
+        rapport["inconnues"].append("coef_roulement")
+    else:
+        composantes["roulement_w"] = m * g * float(coef_roulement) * v
+
+    if coef_trainee_aero_cda is None:
+        rapport["inconnues"].append("coef_trainee_aero_cda")
+    elif not _is_finite(coef_trainee_aero_cda):
+        rapport["inconnues"].append("coef_trainee_aero_cda")
+    else:
+        composantes["aero_w"] = 0.5 * rho * float(coef_trainee_aero_cda) * v * v * v
+
+    if _is_finite(angle_pente):
+        angle = float(angle_pente)
+        if str(angle_unite).lower() in {"deg", "degre", "degres"}:
+            angle = math.radians(angle)
+        grade = math.sin(angle)
+    composantes["pente_w"] = m * g * grade * v
+
+    rapport["composantes"] = composantes
+    if rapport["inconnues"]:
+        return rapport
+
+    rapport["valeur"] = max(0.0, sum(composantes.values()))
+    rapport["statut"] = "ok"
+    return rapport
+
+
 def _vehicle_power_w(
     *,
     masse_kg: Optional[float],
@@ -74,27 +143,15 @@ def _vehicle_power_w(
     coef_roulement: Optional[float],
     coef_trainee_aero_cda: Optional[float],
 ) -> Optional[float]:
-    if not _is_finite(vitesse_ms) or not _is_finite(masse_kg):
-        return None
-    v = float(vitesse_ms)
-    m = float(masse_kg)
-    acc = 0.0 if acceleration_ms2 is None else float(acceleration_ms2)
-    crr = 0.0 if coef_roulement is None else float(coef_roulement)
-    cda = 0.0 if coef_trainee_aero_cda is None else float(coef_trainee_aero_cda)
-    g = 9.81
-    rho = 1.225
-    grade = 0.0
-    if _is_finite(angle_pente):
-        angle = float(angle_pente)
-        if str(angle_unite).lower() in {"deg", "degre", "degres"}:
-            angle = math.radians(angle)
-        grade = math.sin(angle)
-    f_roll = m * g * crr
-    f_aero = 0.5 * rho * cda * v * v
-    f_acc = m * acc
-    f_grade = m * g * grade
-    force = max(0.0, f_roll + f_aero + f_acc + f_grade)
-    return force * v
+    return _safe_float(_vehicle_power_report(
+        masse_kg=masse_kg,
+        vitesse_ms=vitesse_ms,
+        acceleration_ms2=acceleration_ms2,
+        angle_pente=angle_pente,
+        angle_unite=angle_unite,
+        coef_roulement=coef_roulement,
+        coef_trainee_aero_cda=coef_trainee_aero_cda,
+    ).get("valeur"))
 
 
 @dataclass
@@ -214,7 +271,7 @@ class SystemeComplet:
             "notes_modele": [],
         }
 
-        p_trac = _vehicle_power_w(
+        traction_report = _vehicle_power_report(
             masse_kg=masse_kg,
             vitesse_ms=vitesse_ms,
             acceleration_ms2=acceleration_ms2,
@@ -223,8 +280,13 @@ class SystemeComplet:
             coef_roulement=coef_roulement,
             coef_trainee_aero_cda=coef_trainee_aero_cda,
         )
+        p_trac = _safe_float(traction_report.get("valeur"))
         if p_trac is None and _is_finite(puissance_moyenne_kw):
             p_trac = float(puissance_moyenne_kw) * 1000.0
+            traction_report["valeur"] = p_trac
+            traction_report["statut"] = "ok"
+            traction_report["source"] = "entree.puissance_moyenne_kw"
+            traction_report["notes"].append("Puissance traction fournie explicitement via puissance_moyenne_kw.")
 
         p_aux = _safe_float(puissance_auxiliaire_w)
         p_bus = _safe_float(puissance_elec_alt_cible_w)
@@ -236,6 +298,8 @@ class SystemeComplet:
 
         if p_trac is None:
             _push_inconnue(report, "partielles", "traction", "Masse et vitesse requises pour fermer la puissance de traction.")
+            for nom in list(traction_report.get("inconnues", []) or []):
+                _push_inconnue(report, "partielles", str(nom), "Composante de traction vehicule absente ou non exploitable.")
         if puissance_auxiliaire_w is None:
             _push_inconnue(report, "partielles", "puissance_auxiliaire_w", "Puissance auxiliaire absente : ne peut pas etre supposee nulle en mode strict.")
         if p_bus is None:
@@ -243,6 +307,7 @@ class SystemeComplet:
         report["sous_systemes"]["traction"] = {
             "puissance_traction_w": p_trac,
             "puissance_auxiliaire_w": p_aux,
+            "rapport_puissance": traction_report,
         }
 
         arch_report = None

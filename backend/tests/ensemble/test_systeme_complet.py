@@ -128,6 +128,31 @@ def test_systeme_complet_auxiliaires_absents_ne_deviennent_pas_zero_en_mode_stri
     assert rep["synthese_detail"]["P_bus_dc_design_w"]["statut"] == "partiel"
 
 
+def test_systeme_complet_traction_incomplete_ne_suppose_pas_zero():
+    moteur_th = MagicMock()
+    moteur_th.temps_moteur = 4
+    moteur_th.rendement_mecanique_nominal = 0.85
+    moteur_th.facteur_securite_cylindre = 1.5
+
+    systeme = SystemeComplet(moteur_thermique=moteur_th)
+    rep = systeme.analyser(
+        masse_kg=1200.0,
+        vitesse_ms=20.0,
+        puissance_auxiliaire_w=0.0,
+        vitesse_moteur_thermique_rpm=3000.0,
+        pme_pa=10e5,
+    )
+
+    traction = rep["sous_systemes"]["traction"]["rapport_puissance"]
+    assert traction["valeur"] is None
+    assert traction["statut"] == "partiel"
+    assert "acceleration_ms2" in traction["inconnues"]
+    assert "coef_roulement" in traction["inconnues"]
+    assert "coef_trainee_aero_cda" in traction["inconnues"]
+    assert rep["synthese_detail"]["P_bus_dc_design_w"]["statut"] == "partiel"
+    assert any(item["nom"] == "acceleration_ms2" for item in rep["inconnues"]["partielles"])
+
+
 def test_systeme_complet_temps_moteur_absent_reste_inconnu():
     moteur_th = MagicMock()
     moteur_th.temps_moteur = None
