@@ -175,8 +175,6 @@ class DashboardScreen(Screen):
             grid.add_widget(btn)
         panel.add_widget(grid)
         return panel
-)
-        return panel
 
     def _find_value(self, ui: dict, label: str):
         for item in ui.get("energy_chain", []):

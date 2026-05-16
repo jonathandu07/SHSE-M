@@ -29,8 +29,8 @@ class ResourceListScreen(Screen):
             root.add_widget(EmptyState(text=self.empty_text))
             self.add_widget(root)
             return
-        scroll = ScrollView(do_scroll_x=False)
-        grid = GridLayout(cols=2, spacing=12, size_hint_y=None)
+        scroll = ScrollView(do_scroll_x=False, bar_width=4)
+        grid = GridLayout(cols=2, spacing=16, size_hint_y=None)
         grid.bind(minimum_height=grid.setter("height"))
         for item in resources:
             grid.add_widget(self._resource_card(item))
@@ -39,36 +39,53 @@ class ResourceListScreen(Screen):
         self.add_widget(root)
 
     def _top_bar(self) -> BoxLayout:
-        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=58, spacing=10)
-        bar.add_widget(Label(text=self.title, color=COLORS["BFW"], bold=True, font_size="19sp"))
-        btn = ModernButton(text="DASHBOARD", size_hint_x=None, width=150)
+        bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=50, spacing=10)
+        lbl = Label(text=self.title, color=COLORS["BFW"], bold=True, font_size="18sp", halign="left")
+        lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+        bar.add_widget(lbl)
+        
+        btn = ModernButton(text="RETOUR DASHBOARD", size_hint_x=None, width=200, font_size="12sp")
         btn.bind(on_release=lambda *_: setattr(self.manager, "current", "dashboard"))
         bar.add_widget(btn)
         return bar
 
     def _resource_card(self, item: dict) -> NeoCard:
-        card = NeoCard(orientation="vertical", size_hint_y=None, height=180)
+        card = NeoCard(orientation="vertical", size_hint_y=None, height=200, spacing=8)
         card.add_widget(SectionTitle(text=str(item.get("name", "RESSOURCE")).upper()))
-        card.add_widget(StatusBadge(status=item.get("status", "indisponible"), size_hint_y=None, height=28))
-        card.add_widget(MetricRow("Type", item.get("type")))
-        card.add_widget(MetricRow("Module", item.get("path")))
-        card.add_widget(MetricRow("Raison", item.get("reason")))
+        card.add_widget(StatusBadge(status=item.get("status", "indisponible")))
+        
+        path = str(item.get("path", "Non spécifié"))
+        if len(path) > 40:
+            path = "..." + path[-37:]
+            
+        card.add_widget(MetricRow("Type / Source", item.get("type", "?")))
+        card.add_widget(MetricRow("Localisation", path))
+        
+        reason = item.get("reason", "")
+        if reason:
+            lbl = Label(text=f"Note: {reason}", color=COLORS["RS"], font_size="10sp", halign="left", size_hint_y=None, height=20)
+            lbl.bind(size=lambda i, *_: setattr(i, "text_size", (i.width, None)))
+            card.add_widget(lbl)
+            
+        btn = ModernButton(text="OUVRIR LA RESSOURCE", size_hint_y=None, height=40, font_size="11sp")
+        btn.disabled = item.get("status") != "disponible"
+        card.add_widget(btn)
         return card
 
 
 class SketchesScreen(ResourceListScreen):
     resource_key = "sketches"
-    title = "CROQUIS DISPONIBLES"
-    empty_text = "Croquis indisponibles : aucun module ou rapport exploitable fourni."
+    title = "CROQUIS D'INGÉNIERIE 2D"
+    empty_text = "Aucun croquis disponible pour cette configuration."
 
 
 class ChartsScreen(ResourceListScreen):
     resource_key = "charts"
-    title = "GRAPHIQUES DISPONIBLES"
-    empty_text = "Graphiques indisponibles : le backend n'a pas fourni les données nécessaires."
+    title = "GRAPHES DE PERFORMANCE"
+    empty_text = "Données de performance insuffisantes pour générer des graphes."
 
 
 class ThreeDScreen(ResourceListScreen):
     resource_key = "three_d"
-    title = "RESSOURCES 3D"
-    empty_text = "3D indisponible : aucun fichier ou rapport exploitable fourni."
+    title = "MODÈLES NUMÉRIQUES 3D"
+    empty_text = "Fichiers CAO non générés ou indisponibles."
