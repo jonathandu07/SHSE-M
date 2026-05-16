@@ -24,6 +24,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from frontend.gui.backend_resource_adapter import build_resource_catalog
+
 
 # =============================================================================
 # Configuration
@@ -850,7 +852,33 @@ def _collect_piece_inventory(report: Mapping[str, Any]) -> Dict[str, Dict[str, A
     return {}
 
 
-def extract_piece_list(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
+def _resources_for_piece(resource_catalog: Optional[Mapping[str, Any]], piece_name: str) -> Dict[str, List[Dict[str, Any]]]:
+    out: Dict[str, List[Dict[str, Any]]] = {
+        "sketches": [],
+        "charts": [],
+        "three_d": [],
+        "pdf": [],
+        "cao": [],
+        "json": [],
+    }
+    if not isinstance(resource_catalog, Mapping):
+        return out
+
+    wanted = str(piece_name).lower()
+    for rtype in out:
+        values = resource_catalog.get(rtype)
+        if not isinstance(values, list):
+            continue
+        for item in values:
+            if isinstance(item, Mapping) and str(item.get("piece", "")).lower() == wanted:
+                out[rtype].append(dict(item))
+    return out
+
+
+def extract_piece_list(
+    report: Mapping[str, Any],
+    resource_catalog: Optional[Mapping[str, Any]] = None,
+) -> List[Dict[str, Any]]:
     reports_pieces = _collect_piece_reports(report)
     inventory = _collect_piece_inventory(report)
 
@@ -862,6 +890,8 @@ def extract_piece_list(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
         inv = inventory.get(name, {})
         unknowns = flatten_unknowns(rep)
         alerts = flatten_alerts(rep)
+        resources = _resources_for_piece(resource_catalog, name)
+        pdf_resources = resources.get("pdf") or []
 
         out.append(
             {
@@ -877,7 +907,8 @@ def extract_piece_list(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
                 "data": _to_jsonable(rep),
                 "inventory": _to_jsonable(inv),
                 "backend_report_available": bool(rep),
-                "pdf_available": bool(rep),
+                "resources": resources,
+                "pdf_available": any(item.get("status") == "available" for item in pdf_resources),
             }
         )
 
@@ -1016,7 +1047,7 @@ def _extract_declared_exports(report: Mapping[str, Any]) -> List[Dict[str, Any]]
     return declared
 
 
-def extract_exports(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
+def _legacy_extract_exports(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
     declared = _extract_declared_exports(report)
     declared_keys = {str(item.get("key")) for item in declared}
 
@@ -1079,7 +1110,7 @@ def extract_exports(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
     return _dedup_dicts(merged, keys=("key", "label", "path"))
 
 
-def extract_export_availability(report: Mapping[str, Any]) -> Dict[str, Any]:
+def _legacy_extract_export_availability(report: Mapping[str, Any]) -> Dict[str, Any]:
     exports = extract_exports(report)
     out: Dict[str, Any] = {}
     for item in exports:
@@ -1135,7 +1166,7 @@ def _extract_visual_declarations(piece_report: Mapping[str, Any], kind: str) -> 
     return out
 
 
-def extract_visual_resources(report: Mapping[str, Any], kind: str) -> List[Dict[str, Any]]:
+def _legacy_extract_visual_resources(report: Mapping[str, Any], kind: str) -> List[Dict[str, Any]]:
     """Expose les ressources nécessaires au frontend pour croquis, graphiques et 3D.
 
     Ce module ne rend rien lui-même : il indique au frontend quelle donnée backend
@@ -1181,6 +1212,64 @@ def extract_visual_resources(report: Mapping[str, Any], kind: str) -> List[Dict[
         )
 
     return resources
+
+
+def extract_exports(
+    report: Mapping[str, Any],
+    resource_catalog: Optional[Mapping[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    catalog = resource_catalog
+    if catalog is None:
+        catalog = build_resource_catalog(dict(report)).get("resources", {})
+
+    out: List[Dict[str, Any]] = []
+    if not isinstance(catalog, Mapping):
+        return out
+
+    for rtype in ("pdf", "json", "cao"):
+        values = catalog.get(rtype)
+        if not isinstance(values, list):
+            continue
+        for idx, item in enumerate(values):
+            if not isinstance(item, Mapping):
+                continue
+            status = str(item.get("status") or "unavailable")
+            out.append(
+                {
+                    "key": f"{rtype}_{idx}",
+                    "label": item.get("name") or rtype.upper(),
+                    "available": status == "available",
+                    "status": status,
+                    "path": item.get("path"),
+                    "reason": item.get("reason") or "",
+                    "source": item.get("source"),
+                    "function": item.get("function"),
+                    "type": rtype,
+                    "generator_available": bool(item.get("generator_available")),
+                }
+            )
+
+    return out
+
+
+def extract_export_availability(report: Mapping[str, Any]) -> Dict[str, Any]:
+    exports = extract_exports(report)
+    out: Dict[str, Any] = {}
+    for item in exports:
+        key = str(item.get("key"))
+        out[key] = bool(item.get("available"))
+        out[f"{key}_reason"] = str(item.get("reason", ""))
+        out[f"{key}_source"] = item.get("source")
+    return out
+
+
+def extract_visual_resources(report: Mapping[str, Any], kind: str) -> List[Dict[str, Any]]:
+    resources = build_resource_catalog(dict(report)).get("resources", {})
+    if isinstance(resources, Mapping):
+        values = resources.get(kind, [])
+        if isinstance(values, list):
+            return [dict(item) for item in values if isinstance(item, Mapping)]
+    return []
 
 
 # =============================================================================
