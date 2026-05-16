@@ -17,43 +17,29 @@ class SystemDataScreen(Screen):
         self.clear_widgets()
         app = App.get_running_app()
         ui = dict(app.ui_report or {})
-        candidates = ui.get("architecture_candidates") or []
         
         root = BoxLayout(orientation="vertical", padding=12, spacing=10)
         root.add_widget(self._top_bar())
         
-        if not candidates:
-            panel = PremiumCard(title="ARCHITECTURE INDISPONIBLE", bg=COLORS["BFW_08"])
+        raw_sections = ui.get("raw_sections") or []
+        if not raw_sections:
+            root.add_widget(EmptyState(text="DONNÉES TECHNIQUES INDISPONIBLES"))
+            self.add_widget(root)
+            return
+
+        scroll = ScrollView(do_scroll_x=False, bar_width=4)
+        content = BoxLayout(orientation="vertical", spacing=8, size_hint_y=None)
+        content.bind(minimum_height=content.setter("height"))
+        
+        for sec in raw_sections:
+            name = sec.get("name", "Section").upper()
+            data = sec.get("value")
+            if data:
+                accordion = AccordionSection(title=name, content=JsonTreeView(data), collapsed=(name != "RÉSUMÉ SYSTÈME"))
+                content.add_widget(accordion)
             
-            why_box = BoxLayout(orientation="vertical", spacing=10, padding=[20, 10])
-            why_box.add_widget(Label(text="Pourquoi l'architecture est indisponible ?", bold=True, color=COLORS["RS"], font_size="14sp", halign="left"))
-            
-            # Simplified reasons for engineering view
-            reasons = [
-                "• Manque de paramètres PME (Moteur Thermique)",
-                "• Cylindrée non fermée / Contraintes géométriques",
-                "• Packaging ou Bus DC non dimensionnés"
-            ]
-            for r in reasons:
-                why_box.add_widget(Label(text=r, color=COLORS["BFW"], font_size="12sp", halign="left", size_hint_y=None, height=24))
-            
-            panel.add_widget(why_box)
-            
-            panel.add_widget(EmptyState(
-                text="DES DONNÉES CRITIQUES MANQUENT",
-                action_text="COMPLÉTER LES PARAMÈTRES",
-                callback=lambda _: setattr(self.manager, "current", "edit_parameters")
-            ))
-            root.add_widget(panel)
-        else:
-            scroll = ScrollView(do_scroll_x=False)
-            grid = GridLayout(cols=2, spacing=16, size_hint_y=None)
-            grid.bind(minimum_height=grid.setter("height"))
-            for cand in candidates:
-                grid.add_widget(self._candidate_card(cand))
-            scroll.add_widget(grid)
-            root.add_widget(scroll)
-            
+        scroll.add_widget(content)
+        root.add_widget(scroll)
         self.add_widget(root)
 
     def _top_bar(self) -> BoxLayout:
