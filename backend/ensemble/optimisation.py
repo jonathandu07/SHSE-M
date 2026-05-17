@@ -2982,6 +2982,56 @@ class OptimisationSysteme:
 # Exécution simple
 # ============================================================
 
+def optimiser_rapport_sthome(
+    *,
+    rapport_backend: dict,
+    rapports_pieces: dict | None = None,
+    objets: dict | None = None,
+    cahier_des_charges: dict | None = None,
+    strict: bool = True,
+) -> dict:
+    """API stable d'optimisation utilisee par STHO_ME et le resolveur."""
+    rapport = _safe_dict(rapport_backend)
+    pieces = _safe_dict(rapports_pieces)
+    objets_dict = _safe_dict(objets)
+    try:
+        opt = OptimisationSysteme(
+            rapport_backend=rapport,
+            rapports_pieces=pieces or _safe_dict(_dig(rapport, "rapports", "pieces")),
+            objets_serialises=objets_dict or _safe_dict(rapport.get("objets")),
+            analyses_composants=_safe_dict(_dig(rapport, "rapports", "composants")),
+            configs_composants=_safe_dict(_dig(rapport, "entrees", "composants")),
+            configs_analyses=_safe_dict(_dig(rapport, "entrees", "analyses")),
+        )
+        analyse = opt.analyser()
+        score = _safe_report_score(analyse)
+        return _to_jsonable(
+            {
+                "status": "ok",
+                "strict": bool(strict),
+                "cahier_des_charges_present": bool(cahier_des_charges),
+                "synthese_optimisation": _safe_dict(analyse.get("synthese_optimisation")),
+                "score_global": score / 100.0 if score > 1.0 else score,
+                "actions": list(analyse.get("actions") or []),
+                "inconnues": _safe_dict(analyse.get("inconnues")),
+                "alertes": _safe_dict(analyse.get("alertes")),
+                "trace": {
+                    "fonction": "optimiser_rapport_sthome",
+                    "source": "backend.ensemble.optimisation.OptimisationSysteme.analyser",
+                },
+            }
+        )
+    except Exception as exc:
+        return {
+            "status": "error",
+            "erreur": str(exc),
+            "score_global": None,
+            "actions": [],
+            "inconnues": {"impossibles": [{"nom": "optimisation", "raison": str(exc)}], "partielles": []},
+            "trace": {"fonction": "optimiser_rapport_sthome"},
+        }
+
+
 if __name__ == "__main__":
     opt = OptimisationSysteme()
     rep = opt.analyser()

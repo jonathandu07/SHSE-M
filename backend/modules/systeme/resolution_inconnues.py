@@ -7,6 +7,18 @@ import copy
 import math
 from typing import Any, Callable, Dict, List, Mapping
 
+from backend.modules.systeme.status import (
+    SOURCE_CDC,
+    STATUS_CANDIDATE_FROM_CDC,
+    STATUS_COMPUTED,
+    STATUS_DATABASE,
+    STATUS_DERIVED,
+    STATUS_INPUT,
+    STATUS_REJECTED_BY_OPTIMIZATION,
+    STATUS_VALIDATED_BY_OPTIMIZATION,
+    normalize_status,
+)
+
 
 @dataclass
 class DonneeCandidate:
@@ -68,14 +80,14 @@ def resoudre_inconnues_systeme(
             if not nom and not path:
                 continue
             if _has_value(config_completee, str(path)):
-                candidates.append(_candidate(nom, str(path), _get_path(config_completee, str(path)), "input", "Valeur deja presente dans config."))
+                candidates.append(_candidate(nom, str(path), _get_path(config_completee, str(path)), STATUS_INPUT, "Valeur deja presente dans config."))
                 continue
 
             repo_value = None
             if repository is not None and project_id is not None:
                 repo_value = repository.get_project_parameter(project_id, str(path))
                 if repo_value is not None:
-                    cand = _candidate(nom, str(path), repo_value, "database", "Valeur recuperee depuis repository/BDD.")
+                    cand = _candidate(nom, str(path), repo_value, STATUS_DATABASE, "Valeur recuperee depuis repository/BDD.")
                     if _try_accept(cand, config_completee, rapport_courant, cahier_des_charges, recalculer, optimiser, strict, valider_candidate):
                         candidates.append(cand)
                         changed = accepted_any = True
@@ -84,7 +96,7 @@ def resoudre_inconnues_systeme(
 
             report_value = _get_path(rapport_courant, str(path))
             if report_value is not None:
-                cand = _candidate(nom, str(path), report_value, "derived", "Valeur propagee depuis un rapport deja calcule.")
+                cand = _candidate(nom, str(path), report_value, STATUS_DERIVED, "Valeur propagee depuis un rapport deja calcule.")
                 if _try_accept(cand, config_completee, rapport_courant, cahier_des_charges, recalculer, optimiser, strict, valider_candidate):
                     candidates.append(cand)
                     changed = accepted_any = True
@@ -111,6 +123,16 @@ def resoudre_inconnues_systeme(
             best: DonneeCandidate | None = None
             best_report: dict[str, Any] | None = None
             for cand in generated:
+                cand.statut = normalize_status(cand.statut or cand.source, default=STATUS_CANDIDATE_FROM_CDC)
+                is_cdc_candidate = cand.source == SOURCE_CDC or cand.statut == STATUS_CANDIDATE_FROM_CDC
+                if strict and is_cdc_candidate:
+                    cand.metadata.setdefault("validation", {"ok": False, "raison": "mode strict: candidat CDC non injecte"})
+                    candidates.append(cand)
+                    continue
+                if is_cdc_candidate and optimiser is None:
+                    cand.metadata.setdefault("validation", {"ok": False, "raison": "optimisation absente: candidat CDC non valide"})
+                    candidates.append(cand)
+                    continue
                 trial_config = copy.deepcopy(config_completee)
                 _set_path(trial_config, cand.path or cand.nom, cand.valeur)
                 trial_report = recalculer(trial_config) if recalculer is not None else rapport_courant
@@ -131,11 +153,11 @@ def resoudre_inconnues_systeme(
                         best = cand
                         best_report = trial_report
                 else:
-                    cand.statut = "candidate_rejected"
+                    cand.statut = STATUS_REJECTED_BY_OPTIMIZATION if is_cdc_candidate else "candidate_rejected"
                     rejected.append(_jsonable(cand))
                 candidates.append(cand)
             if best is not None:
-                best.statut = "candidate_optimized"
+                best.statut = STATUS_VALIDATED_BY_OPTIMIZATION if (best.source == SOURCE_CDC or normalize_status(best.statut) == STATUS_CANDIDATE_FROM_CDC) else normalize_status(best.statut or best.source)
                 _set_path(config_completee, best.path or best.nom, best.valeur)
                 rapport_courant = best_report or rapport_courant
                 changed = accepted_any = True
@@ -187,11 +209,21 @@ def _try_accept(
     candidate.score = validation.get("score")
     candidate.verifiee_par.append("validation_candidates.valider_candidate")
     if validation.get("ok"):
-        candidate.statut = "candidate_optimized" if candidate.source == "generated_from_cahier_des_charges" else candidate.source
+        if candidate.source == SOURCE_CDC or normalize_status(candidate.statut or candidate.source) == STATUS_CANDIDATE_FROM_CDC:
+            if strict or optimiser is None:
+                candidate.statut = STATUS_CANDIDATE_FROM_CDC
+                candidate.metadata["validation"] = {
+                    "ok": False,
+                    "raison": "candidat CDC non valide sans optimisation ou hors mode strict",
+                }
+                return False
+            candidate.statut = STATUS_VALIDATED_BY_OPTIMIZATION
+        else:
+            candidate.statut = normalize_status(candidate.source, default=str(candidate.source))
         config.clear()
         config.update(trial)
         return True
-    candidate.statut = "candidate_rejected"
+    candidate.statut = STATUS_REJECTED_BY_OPTIMIZATION if candidate.source == SOURCE_CDC else "candidate_rejected"
     return False
 
 
@@ -226,7 +258,7 @@ def _dedupe_unknowns(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _candidate(nom: str, path: str, value: Any, source: str, reason: str, deps: list[str] | None = None, unit: str | None = None) -> DonneeCandidate:
-    return DonneeCandidate(nom=nom, path=path, valeur=value, unite=unit, source=source, statut="candidate", raison=reason, dependances=deps or [])
+    return DonneeCandidate(nom=nom, path=path, valeur=value, unite=unit, source=source, statut=normalize_status(source, default="candidate"), raison=reason, dependances=deps or [])
 
 
 def _derive_exact(path: str, config: Mapping[str, Any], rapport: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -234,17 +266,17 @@ def _derive_exact(path: str, config: Mapping[str, Any], rapport: Mapping[str, An
     if "omega" in p:
         rpm = _first_number(config, rapport, "rpm_moteur_nominal", "vitesse_moteur_thermique_rpm", "synthese.moteur_thermique.rpm_nominal")
         if rpm:
-            return {"valeur": 2.0 * math.pi * rpm / 60.0, "source": "computed", "raison": "omega = 2*pi*rpm/60", "dependances": ["rpm"], "unite": "rad/s"}
+            return {"valeur": 2.0 * math.pi * rpm / 60.0, "source": STATUS_COMPUTED, "raison": "omega = 2*pi*rpm/60", "dependances": ["rpm"], "unite": "rad/s"}
     if "courant_bus" in p:
         power = _first_number(config, rapport, "puissance_bus_dc_w", "synthese.systeme.P_bus_dc_design_w")
         voltage = _first_number(config, rapport, "tension_bus_dc_v")
         if power is not None and voltage:
-            return {"valeur": power / voltage, "source": "computed", "raison": "I = P/U", "dependances": ["puissance_bus_dc_w", "tension_bus_dc_v"], "unite": "A"}
+            return {"valeur": power / voltage, "source": STATUS_COMPUTED, "raison": "I = P/U", "dependances": ["puissance_bus_dc_w", "tension_bus_dc_v"], "unite": "A"}
     if "couple" in p:
         power = _first_number(config, rapport, "puissance_moteur_requise_W", "puissance_moteur_w")
         omega = _first_number(config, rapport, "omega_moteur_rad_s")
         if power is not None and omega:
-            return {"valeur": power / omega, "source": "computed", "raison": "C = P/omega", "dependances": ["puissance_moteur_requise_W", "omega_moteur_rad_s"], "unite": "N.m"}
+            return {"valeur": power / omega, "source": STATUS_COMPUTED, "raison": "C = P/omega", "dependances": ["puissance_moteur_requise_W", "omega_moteur_rad_s"], "unite": "N.m"}
     return None
 
 
@@ -294,4 +326,3 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (list, tuple, set)):
         return [_jsonable(v) for v in value]
     return value
-

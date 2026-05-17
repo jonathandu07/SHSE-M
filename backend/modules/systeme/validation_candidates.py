@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping
 
+from backend.modules.systeme.status import (
+    SOURCE_CDC,
+    STATUS_CANDIDATE_FROM_CDC,
+    STATUS_VALIDATED_BY_OPTIMIZATION,
+    normalize_status,
+)
+
 
 def valider_candidate(
     *,
@@ -18,9 +25,26 @@ def valider_candidate(
     path = getattr(candidate, "path", None) or getattr(candidate, "nom", "")
     value = getattr(candidate, "valeur", None)
     source = getattr(candidate, "source", None)
+    status = normalize_status(getattr(candidate, "statut", None) or source)
+    reason = str(getattr(candidate, "raison", "") or "").strip()
+    deps = list(getattr(candidate, "dependances", []) or [])
+    metadata = getattr(candidate, "metadata", {}) or {}
+    generated_from_cdc = source == SOURCE_CDC or status == STATUS_CANDIDATE_FROM_CDC
 
     if not source or source == "unknown":
         return {"ok": False, "raison": "source non tracable", "score": None, "details": {"path": path}}
+
+    if generated_from_cdc:
+        if not reason:
+            return {"ok": False, "raison": "justification manquante", "score": None, "details": {"path": path}}
+        if not deps:
+            return {"ok": False, "raison": "dependances manquantes", "score": None, "details": {"path": path}}
+        if "domaine" not in metadata:
+            return {"ok": False, "raison": "domaine de validite manquant", "score": None, "details": {"path": path}}
+
+    locked_conflict = _locked_conflict(path, value, cahier_des_charges)
+    if locked_conflict is not None:
+        return {"ok": False, "raison": "valeur verrouillee contradictoire", "score": 0.0, "details": locked_conflict}
 
     bounds = _bounds_for(path, cahier_des_charges)
     if bounds is not None and isinstance(value, (int, float)):
@@ -47,14 +71,36 @@ def valider_candidate(
     if strict and cao_before and not cao_after:
         return {"ok": False, "raison": "coherence CAO degradee", "score": 0.0, "details": details}
 
+    interface_issue = _interface_issue(rapport_apres)
+    if interface_issue is not None:
+        details["interface_issue"] = interface_issue
+        return {"ok": False, "raison": "interface piece incompatible", "score": 0.0, "details": details}
+
+    if generated_from_cdc and optimisation is None:
+        return {
+            "ok": False,
+            "raison": "optimisation requise pour valider un candidat CDC",
+            "score": None,
+            "details": details,
+        }
+    if generated_from_cdc and optimisation is not None and _optimisation_failed(optimisation):
+        details["optimisation"] = optimisation
+        return {"ok": False, "raison": "optimisation en echec", "score": 0.0, "details": details}
+
     opt_score = _score_from_optimisation(optimisation or {})
     coherence_score = _score_from_report(rapport_apres)
+    before_score = _score_from_report(rapport_avant)
     score = opt_score if opt_score is not None else coherence_score
+    if generated_from_cdc and opt_score is None:
+        return {"ok": False, "raison": "score optimisation absent pour candidat CDC", "score": None, "details": details}
+    if before_score is not None and score is not None and score < before_score - 0.10:
+        return {"ok": False, "raison": "score optimisation degrade", "score": float(score), "details": details}
     if score is None:
         score = max(0.0, 1.0 - 0.05 * after["bloquantes"] - 0.02 * after["partielles"])
     details["score_report"] = coherence_score
     details["score_optimisation"] = opt_score
 
+    details["status_if_accepted"] = STATUS_VALIDATED_BY_OPTIMIZATION if generated_from_cdc else status
     return {"ok": True, "raison": None, "score": float(score), "details": details}
 
 
@@ -116,8 +162,74 @@ def _score_from_optimisation(opt: Mapping[str, Any]) -> float | None:
     return None
 
 
+def _locked_conflict(path: str, value: Any, cdc: Mapping[str, Any]) -> dict[str, Any] | None:
+    locked = cdc.get("locked_values") or cdc.get("valeurs_verrouillees") or {}
+    if not isinstance(locked, Mapping):
+        return None
+    expected = None
+    found = False
+    if path in locked:
+        expected = locked[path]
+        found = True
+    else:
+        key = path.split(".")[-1]
+        if key in locked:
+            expected = locked[key]
+            found = True
+    if not found:
+        return None
+    if expected == value:
+        return None
+    return {"path": path, "locked_value": expected, "candidate_value": value}
+
+
+def _interface_issue(report: Mapping[str, Any]) -> dict[str, Any] | None:
+    for root_key in ("interfaces", "liaisons", "coherence_interfaces"):
+        block = report.get(root_key)
+        issue = _find_false_coherence(block, path=root_key)
+        if issue is not None:
+            return issue
+    return None
+
+
+def _find_false_coherence(node: Any, *, path: str) -> dict[str, Any] | None:
+    if isinstance(node, Mapping):
+        for key, value in node.items():
+            key_l = str(key).lower()
+            next_path = f"{path}.{key}"
+            if key_l in {"compatible", "coherent", "coherent_global", "interface_ok"} and value is False:
+                return {"path": next_path, "value": value}
+            if key_l in {"incompatible", "interface_incompatible"} and value is True:
+                return {"path": next_path, "value": value}
+            child = _find_false_coherence(value, path=next_path)
+            if child is not None:
+                return child
+    elif isinstance(node, list):
+        for idx, value in enumerate(node):
+            child = _find_false_coherence(value, path=f"{path}[{idx}]")
+            if child is not None:
+                return child
+    return None
+
+
+def _optimisation_failed(optimisation: Mapping[str, Any]) -> bool:
+    if not optimisation:
+        return True
+    for key in ("erreur", "error", "echec"):
+        if optimisation.get(key):
+            return True
+    status = str(optimisation.get("status") or optimisation.get("statut") or "").lower()
+    if status in {"error", "erreur", "echec", "failed", "invalide"}:
+        return True
+    synth = optimisation.get("synthese") or optimisation.get("synthese_optimisation") or {}
+    if isinstance(synth, Mapping):
+        status = str(synth.get("status") or synth.get("statut") or "").lower()
+        if status in {"error", "erreur", "echec", "failed", "invalide"}:
+            return True
+    return False
+
+
 def _num(value: Any) -> float | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
     return None
-
