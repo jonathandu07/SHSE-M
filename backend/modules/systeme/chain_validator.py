@@ -270,6 +270,7 @@ def valider_chaine_puissance_sthome(
         "checks": checks,
         "points_bloquants": [check for check in checks if not check["ok"] and check["severity"] == "blocking"],
         "actions": actions,
+        "livrables": _deliverables(data, not blocking_failed),
         "valeurs": {
             "puissance_sortie_moteur_electrique_w": p_out,
             "puissance_bus_dc_design_w": p_bus,
@@ -379,6 +380,23 @@ def _actions(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
             }
         )
     return out
+
+
+def _deliverables(data: Mapping[str, Any], power_chain_ok: bool) -> dict[str, Any]:
+    cao_resume = _get_path(data, "cao_dossier.resume")
+    if not isinstance(cao_resume, Mapping):
+        cao_resume = _get_path(data, "cao")
+    if not isinstance(cao_resume, Mapping):
+        cao_resume = {}
+    return {
+        "power_chain_ok": bool(power_chain_ok),
+        "mechanical_presizing_ok": bool(cao_resume.get("drawing_data_available")),
+        "stress_graphs_available": bool(cao_resume.get("stress_graphs_available")),
+        "sketches_available": bool(cao_resume.get("sketches_available")),
+        "views_3d_available": bool(cao_resume.get("views_3d_available")),
+        "solidworks_ready": bool(cao_resume.get("solidworks_ready")),
+        "step_export": bool(cao_resume.get("step_export")),
+    }
 
 
 def _is_number(value: Any) -> bool:

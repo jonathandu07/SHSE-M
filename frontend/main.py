@@ -27,6 +27,7 @@ from kivy.uix.screenmanager import FadeTransition, ScreenManager
 
 from frontend.gui.architecture_choice import ArchitectureChoiceScreen
 from frontend.gui.charts_view import ChartsScreen
+from frontend.gui.cao_dossier_view import CaoDossierScreen
 from frontend.gui.components import COLORS
 from frontend.gui.dashboard import DashboardScreen
 from frontend.gui.edit_parameters import EditParametersScreen
@@ -148,6 +149,7 @@ class STHOMEApp(App):
         self.manager.add_widget(SketchesScreen(name="sketches"))
         self.manager.add_widget(ChartsScreen(name="charts"))
         self.manager.add_widget(ThreeDScreen(name="three_d"))
+        self.manager.add_widget(CaoDossierScreen(name="cao_dossier"))
         manager_raw_json = RawJsonScreen(name="raw_json")
         self.manager.add_widget(manager_raw_json)
         self.manager.add_widget(JsonDiagnosticScreen(name="json_diagnostic"))

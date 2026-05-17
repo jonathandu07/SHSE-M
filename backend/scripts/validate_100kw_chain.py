@@ -14,9 +14,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.ensemble.STHO_ME import STHO_ME
+from backend.modules.systeme.cao_dossier import construire_dossier_cao_sthome
 from backend.modules.systeme.chain_validator import valider_chaine_puissance_sthome
 from backend.modules.systeme.frontend_contract import build_frontend_contract
 from backend.modules.systeme.json_diagnostic import diagnostiquer_json_sthome
+from backend.modules.systeme.mechanical_graphs import generer_graphiques_mecaniques
 
 
 CONFIG_100KW = {
@@ -47,6 +49,15 @@ def valider_scenario_100kw(*, out_dir: str | Path | None = None, strict: bool = 
     )
     chain = valider_chaine_puissance_sthome(rapport, puissance_sortie_w=100_000.0, strict=strict)
     rapport["validation_chaine_100kw"] = chain
+
+    mechanical_graphs = generer_graphiques_mecaniques(rapport, strict=strict)
+    rapport["mechanical_graphs"] = mechanical_graphs
+    cao_dossier = construire_dossier_cao_sthome(rapport, strict=strict)
+    rapport["cao_dossier"] = cao_dossier
+    rapport["cao"] = _merge_cao(rapport.get("cao"), cao_dossier.get("resume"))
+    chain["livrables"] = _livrables_from_cao(cao_dossier)
+    chain["livrables"]["power_chain_ok"] = bool(chain.get("ok"))
+
     rapport["frontend"] = build_frontend_contract(rapport)
     diagnostic = diagnostiquer_json_sthome(
         data=rapport,
@@ -59,15 +70,21 @@ def valider_scenario_100kw(*, out_dir: str | Path | None = None, strict: bool = 
         "rapport": export_dir / "rapport_100kw.json",
         "frontend_contract": export_dir / "frontend_contract_100kw.json",
         "diagnostic": export_dir / "diagnostic_100kw.json",
+        "cao_dossier": export_dir / "cao_dossier_100kw.json",
+        "mechanical_graphs": export_dir / "mechanical_graphs_100kw.json",
     }
     _write_json(paths["rapport"], rapport)
     _write_json(paths["frontend_contract"], rapport["frontend"])
     _write_json(paths["diagnostic"], diagnostic)
+    _write_json(paths["cao_dossier"], cao_dossier)
+    _write_json(paths["mechanical_graphs"], mechanical_graphs)
 
     return {
         "rapport": rapport,
         "frontend_contract": rapport["frontend"],
         "diagnostic": diagnostic,
+        "cao_dossier": cao_dossier,
+        "mechanical_graphs": mechanical_graphs,
         "validation_chaine": chain,
         "paths": {k: str(v) for k, v in paths.items()},
     }
@@ -90,6 +107,8 @@ def _print_summary(result: Mapping[str, Any]) -> None:
     values = _safe_dict(chain.get("valeurs"))
     diagnostic = _safe_dict(result.get("diagnostic"))
     resume_diag = _safe_dict(diagnostic.get("resume"))
+    cao_dossier = _safe_dict(result.get("cao_dossier"))
+    cao_resume = _safe_dict(cao_dossier.get("resume"))
 
     print("=== VALIDATION CHAINE 100 kW ===")
     print(f"Puissance sortie moteur electrique : {_fmt(values.get('puissance_sortie_moteur_electrique_w'), 'W')}")
@@ -102,6 +121,11 @@ def _print_summary(result: Mapping[str, Any]) -> None:
     print(f"Boite : {_brief(_get_path(rapport, 'sous_systemes.boite_crabots'))}")
     print(f"Statut optimisation : {_brief(rapport.get('optimisation'))}")
     print(f"CAO disponible : {_get_path(rapport, 'frontend.cao.available')}")
+    print(f"Croquis cotes : {_fmt_bool(cao_resume.get('sketches_available'))}")
+    print(f"Vues 3D indicatives : {_fmt_bool(cao_resume.get('views_3d_available'))}")
+    print(f"Graphiques contraintes : {_fmt_bool(cao_resume.get('stress_graphs_available'))}")
+    print(f"SolidWorks ready : {_fmt_bool(cao_resume.get('solidworks_ready'))}")
+    print(f"STEP export : {_fmt_bool(cao_resume.get('step_export'))}")
     print(f"Score chaine : {chain.get('score_chaine_100')}")
     print(f"Chaine OK : {chain.get('ok')}")
     print(f"Causes racines restantes : {resume_diag.get('nb_causes_racines', 0)}")
@@ -116,6 +140,28 @@ def _print_summary(result: Mapping[str, Any]) -> None:
 
 def _write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(_jsonable(data), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _merge_cao(existing: Any, resume: Any) -> dict[str, Any]:
+    out = dict(existing) if isinstance(existing, Mapping) else {}
+    if isinstance(resume, Mapping):
+        out.update({str(k): _jsonable(v) for k, v in resume.items()})
+    out["step_export"] = False
+    out["solidworks_ready"] = False
+    return out
+
+
+def _livrables_from_cao(cao_dossier: Any) -> dict[str, Any]:
+    resume = _safe_dict(cao_dossier.get("resume")) if isinstance(cao_dossier, Mapping) else {}
+    return {
+        "power_chain_ok": None,
+        "mechanical_presizing_ok": bool(resume.get("drawing_data_available")),
+        "stress_graphs_available": bool(resume.get("stress_graphs_available")),
+        "sketches_available": bool(resume.get("sketches_available")),
+        "views_3d_available": bool(resume.get("views_3d_available")),
+        "solidworks_ready": False,
+        "step_export": False,
+    }
 
 
 def _safe_dict(value: Any) -> dict[str, Any]:
@@ -135,6 +181,14 @@ def _get_path(data: Any, path: str) -> Any:
 def _fmt(value: Any, unit: str) -> str:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return f"{float(value):.3g} {unit}"
+    return "-"
+
+
+def _fmt_bool(value: Any) -> str:
+    if value is True:
+        return "OUI"
+    if value is False:
+        return "NON"
     return "-"
 
 

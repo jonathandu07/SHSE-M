@@ -142,6 +142,22 @@ build_frontend_contract_backend = _import_attr_optional(
     "build_frontend_contract",
 )
 
+generer_graphiques_mecaniques_backend = _import_attr_optional(
+    (
+        "backend.modules.systeme.mechanical_graphs",
+        "modules.systeme.mechanical_graphs",
+    ),
+    "generer_graphiques_mecaniques",
+)
+
+construire_dossier_cao_sthome_backend = _import_attr_optional(
+    (
+        "backend.modules.systeme.cao_dossier",
+        "modules.systeme.cao_dossier",
+    ),
+    "construire_dossier_cao_sthome",
+)
+
 MoteurElectrique = _import_attr_optional(
     (
         "backend.components.moteur_electrique.moteur_electrique",
@@ -2260,6 +2276,7 @@ class STHO_ME:
         *,
         frontend_contract: bool,
         project_id: Optional[str],
+        strict: bool,
     ) -> None:
         composants_reports = _safe_dict(_deep_get(rapport, "rapports", "composants"))
         pieces_reports = _safe_dict(_deep_get(rapport, "rapports", "pieces"))
@@ -2292,6 +2309,39 @@ class STHO_ME:
         rapport["optimisation"] = _safe_dict(_deep_get(rapport, "rapports", "optimisation"))
         rapport["cao"] = _safe_dict(_deep_get(composants_reports, "systeme_complet", "cao"))
         rapport["strategie_energie"] = _safe_dict(rapport["rapports"].get("strategie_energie")) or _safe_dict(synth.get("strategie_energie"))
+        if callable(generer_graphiques_mecaniques_backend):
+            try:
+                rapport["mechanical_graphs"] = generer_graphiques_mecaniques_backend(rapport, strict=strict)
+            except Exception as exc:
+                rapport["mechanical_graphs"] = {
+                    "status": "error",
+                    "error": str(exc),
+                    "graphiques": [],
+                }
+        if callable(construire_dossier_cao_sthome_backend):
+            try:
+                rapport["cao_dossier"] = construire_dossier_cao_sthome_backend(rapport, strict=strict)
+                resume_cao = _safe_dict(_deep_get(rapport, "cao_dossier", "resume"))
+                rapport["cao"] = _deep_merge(_safe_dict(rapport.get("cao")), resume_cao)
+                rapport["cao"]["step_export"] = False
+                rapport["cao"]["solidworks_ready"] = False
+            except Exception as exc:
+                rapport["cao_dossier"] = {
+                    "mode": "indisponible",
+                    "error": str(exc),
+                    "resume": {
+                        "step_export": False,
+                        "solidworks_ready": False,
+                        "sketches_available": False,
+                        "views_3d_available": False,
+                        "stress_graphs_available": False,
+                        "drawing_data_available": False,
+                    },
+                }
+                rapport["cao"] = _deep_merge(
+                    _safe_dict(rapport.get("cao")),
+                    _safe_dict(_deep_get(rapport, "cao_dossier", "resume")),
+                )
         trace = _safe_dict(rapport.get("tracabilite"))
         for hyp in rapport.get("hypotheses_resolues", []) if isinstance(rapport.get("hypotheses_resolues"), list) else []:
             if isinstance(hyp, Mapping) and hyp.get("champ"):
@@ -2375,7 +2425,7 @@ class STHO_ME:
                 strict=strict,
                 optimize=optimize,
             )
-        self._finalize_contract_sections(rapport, frontend_contract=frontend_contract, project_id=project_id)
+        self._finalize_contract_sections(rapport, frontend_contract=frontend_contract, project_id=project_id, strict=strict)
         _dedup_report_lists(rapport)
         return _to_jsonable(rapport, max_depth=12)
 

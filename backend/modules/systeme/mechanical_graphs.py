@@ -129,9 +129,10 @@ def _graph_couple_vs_diametre_min(context: Mapping[str, Any]) -> dict:
 def _graph_rpm_vs_vitesse_piston(context: Mapping[str, Any]) -> dict:
     stroke = _num(context.get("course_m"))
     rpm = _num(context.get("rpm_moteur"))
-    if stroke is None:
-        return _graph_missing("rpm_vs_vitesse_piston", "Vitesse piston selon regime", ["course_m"])
-    rpm_max = max(rpm or 3000.0, 3000.0) * 1.4
+    missing = _missing({"course_m": stroke, "rpm_moteur": rpm})
+    if missing:
+        return _graph_missing("rpm_vs_vitesse_piston", "Vitesse piston selon regime", missing)
+    rpm_max = max(rpm, 1.0) * 1.4
     rpms = _linspace(max(500.0, rpm_max / 8.0), rpm_max, 30)
     points = [{"x": r, "y": phys.vitesse_piston(stroke, r)} for r in rpms]
     series = [{"name": "vitesse piston", "points": points, "formula": "Up = 2*S*N/60"}]
@@ -155,10 +156,12 @@ def _graph_alesage_course_vs_cylindree(context: Mapping[str, Any]) -> dict:
     bore = _num(context.get("alesage_m"))
     stroke = _num(context.get("course_m"))
     n_cyl = _num(context.get("nombre_cylindres"))
-    missing = _missing({"alesage_m": bore, "course_m": stroke, "nombre_cylindres": n_cyl})
+    ratio_min = _num(context.get("ratio_course_alesage_min"))
+    ratio_max = _num(context.get("ratio_course_alesage_max"))
+    missing = _missing({"alesage_m": bore, "course_m": stroke, "nombre_cylindres": n_cyl, "ratio_course_alesage_min": ratio_min, "ratio_course_alesage_max": ratio_max})
     if missing:
         return _graph_missing("alesage_course_vs_cylindree", "Cylindree selon alesage/course", missing)
-    ratios = _linspace(0.75, 1.25, 24)
+    ratios = _linspace(ratio_min, ratio_max, 24)
     points = []
     for ratio in ratios:
         b = bore
@@ -174,16 +177,17 @@ def _graph_alesage_course_vs_cylindree(context: Mapping[str, Any]) -> dict:
         [{"name": "cylindree", "points": points, "formula": "Vd = pi/4*B^2*S*Ncyl"}],
         markers=[{"name": "point design", "x": stroke / bore, "y": marker_y}],
         interpretation="Courbe indicative autour de l'alesage design pour comparer des ratios course/alesage.",
-        dependencies={"alesage_m": bore, "course_m": stroke, "nombre_cylindres": int(n_cyl)},
+        dependencies={"alesage_m": bore, "course_m": stroke, "nombre_cylindres": int(n_cyl), "ratio_course_alesage_min": ratio_min, "ratio_course_alesage_max": ratio_max},
     )
 
 
 def _graph_puissance_vs_couple(context: Mapping[str, Any]) -> dict:
     power = _num(context.get("puissance_moteur_thermique_arbre_w")) or _num(context.get("puissance_sortie_moteur_electrique_w"))
     rpm = _num(context.get("rpm_moteur"))
-    if power is None:
-        return _graph_missing("puissance_vs_couple", "Couple selon regime pour puissance cible", ["puissance_moteur_thermique_arbre_w"])
-    rpm_center = rpm or 3000.0
+    missing = _missing({"puissance_moteur_thermique_arbre_w": power, "rpm_moteur": rpm})
+    if missing:
+        return _graph_missing("puissance_vs_couple", "Couple selon regime pour puissance cible", missing)
+    rpm_center = rpm
     rpms = _linspace(max(500.0, rpm_center * 0.4), rpm_center * 1.6, 30)
     points = [{"x": r, "y": phys.couple_moteur(power, phys.pulsation(r))} for r in rpms]
     markers = [{"name": "point design", "x": rpm, "y": phys.couple_moteur(power, phys.pulsation(rpm))}] if rpm is not None else []
@@ -202,9 +206,10 @@ def _graph_puissance_vs_couple(context: Mapping[str, Any]) -> dict:
 def _graph_courant_bus_vs_tension(context: Mapping[str, Any]) -> dict:
     p_bus = _num(context.get("puissance_bus_dc_w"))
     v_bus = _num(context.get("tension_bus_dc_v"))
-    if p_bus is None:
-        return _graph_missing("courant_bus_vs_tension", "Courant bus selon tension", ["puissance_bus_dc_w"])
-    v_center = v_bus or 400.0
+    missing = _missing({"puissance_bus_dc_w": p_bus, "tension_bus_dc_v": v_bus})
+    if missing:
+        return _graph_missing("courant_bus_vs_tension", "Courant bus selon tension", missing)
+    v_center = v_bus
     voltages = _linspace(max(48.0, v_center * 0.5), max(60.0, v_center * 1.5), 30)
     points = [{"x": v, "y": phys.courant_pack(p_bus, v)} for v in voltages]
     markers = [{"name": "point design", "x": v_bus, "y": phys.courant_pack(p_bus, v_bus)}] if v_bus is not None else []
@@ -223,9 +228,10 @@ def _graph_courant_bus_vs_tension(context: Mapping[str, Any]) -> dict:
 def _graph_pertes_joule_vs_courant(context: Mapping[str, Any]) -> dict:
     resistance = _num(context.get("resistance_electrique_ohm"))
     current = _num(context.get("courant_bus_dc_a"))
-    if resistance is None:
-        return _graph_missing("pertes_joule_vs_courant", "Pertes Joule selon courant", ["resistance_electrique_ohm"])
-    i_max = max(current or 100.0, 100.0) * 1.5
+    missing = _missing({"resistance_electrique_ohm": resistance, "courant_bus_dc_a": current})
+    if missing:
+        return _graph_missing("pertes_joule_vs_courant", "Pertes Joule selon courant", missing)
+    i_max = max(current, 1.0) * 1.5
     currents = _linspace(0.0, i_max, 30)
     points = [{"x": i, "y": phys.pertes_joule(resistance, i)} for i in currents]
     markers = [{"name": "point design", "x": current, "y": phys.pertes_joule(resistance, current)}] if current is not None else []
@@ -257,8 +263,12 @@ def _extract_context(data: Mapping[str, Any]) -> dict[str, Any]:
         "alesage_m": _first_num(resolved, data, "alesage_m", "synthese.moteur_thermique.alesage_m"),
         "course_m": _first_num(resolved, data, "course_m", "synthese.moteur_thermique.course_m"),
         "nombre_cylindres": _first_num(resolved, data, "nombre_cylindres", "synthese.moteur_thermique.nombre_cylindres"),
+        "ratio_course_alesage_min": _first_num(resolved, data, "contraintes_resolution.ratio_course_alesage_min", "criteres_conception.ratio_course_alesage_min"),
+        "ratio_course_alesage_max": _first_num(resolved, data, "contraintes_resolution.ratio_course_alesage_max", "criteres_conception.ratio_course_alesage_max"),
         "vitesse_piston_max_ms": _first_num(resolved, data, "vitesse_piston_max_ms", "criteres_conception.vitesse_piston_max_ms"),
         "resistance_electrique_ohm": _first_num(resolved, data, "resistance_electrique_ohm", "resistance_interne_ohm", "cable.resistance_ohm"),
+        "nb_cellules_serie": _first_num(resolved, data, "nb_cellules_serie", "Ns", "synthese.batterie.nb_cellules_serie"),
+        "nb_cellules_parallele": _first_num(resolved, data, "nb_cellules_parallele", "Np", "synthese.batterie.nb_cellules_parallele"),
         "materiaux_autorises": _first_list(resolved, data, "contraintes_resolution.materiaux_autorises", "criteres_conception.materiaux_autorises"),
         "materiau_cle": _first_str(resolved, data, "materiau_cle", "materiau", "synthese.materiau.cle"),
     }
@@ -272,8 +282,6 @@ def _material_rows(context: Mapping[str, Any]) -> list[dict[str, Any]]:
     for key in context.get("materiaux_autorises", []) if isinstance(context.get("materiaux_autorises"), list) else []:
         if isinstance(key, str) and key not in keys:
             keys.append(key)
-    if not keys:
-        keys = ["acier_42crmo4_qt"] if matlib.existe_materiau("acier_42crmo4_qt") else []
     rows: list[dict[str, Any]] = []
     for key in keys[:5]:
         if not matlib.existe_materiau(key):

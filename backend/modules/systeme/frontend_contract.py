@@ -78,6 +78,8 @@ def build_frontend_contract(
         "unknowns": unknowns,
         "alerts": rapport.get("alertes", {}) if isinstance(rapport.get("alertes"), Mapping) else {},
         "cao": cao,
+        "cao_dossier": dict(rapport.get("cao_dossier", {})) if isinstance(rapport.get("cao_dossier"), Mapping) else {},
+        "mechanical_graphs": dict(rapport.get("mechanical_graphs", {})) if isinstance(rapport.get("mechanical_graphs"), Mapping) else {},
         "chain_validation": dict(chain) if isinstance(chain, Mapping) else {},
         "actions": actions,
         "raw_available": True,
@@ -116,14 +118,34 @@ def _build_cao_contract(rapport: Mapping[str, Any], unknowns: Mapping[str, List[
     cao = rapport.get("cao", {})
     if not isinstance(cao, Mapping):
         cao = {}
+    cao_dossier = rapport.get("cao_dossier", {})
+    if not isinstance(cao_dossier, Mapping):
+        cao_dossier = {}
+    cao_resume = cao_dossier.get("resume", {})
+    if not isinstance(cao_resume, Mapping):
+        cao_resume = {}
     blocking = list(unknowns.get("impossibles", [])) + list(unknowns.get("bloquantes", []))
-    ready = bool(cao.get("solidworks_ready_detaille") or cao.get("available"))
+    solidworks_ready = bool(cao.get("solidworks_ready") or cao.get("solidworks_ready_detaille") or cao_resume.get("solidworks_ready"))
+    step_export = bool(cao.get("step_export") or cao_resume.get("step_export"))
+    ready = solidworks_ready and not blocking
     available = ready and not blocking
+    mode = str(cao.get("mode") or cao_resume.get("mode") or ("solidworks_ready" if available else "indisponible"))
     return {
         "available": available,
+        "mode": mode,
+        "step_export": step_export,
+        "solidworks_ready": solidworks_ready,
+        "sketches_available": bool(cao.get("sketches_available") or cao_resume.get("sketches_available")),
+        "views_3d_available": bool(cao.get("views_3d_available") or cao_resume.get("views_3d_available")),
+        "stress_graphs_available": bool(cao.get("stress_graphs_available") or cao_resume.get("stress_graphs_available")),
+        "drawing_data_available": bool(cao.get("drawing_data_available") or cao_resume.get("drawing_data_available")),
         "status": "computed" if available else "missing_required",
         "reason": None if available else "CAO non fermee : champs requis ou validation SolidWorks absents.",
         "missing_required_fields": [_unknown_path(x) for x in blocking],
+        "missing_for_solidworks": _list(cao.get("missing_for_solidworks")) or _list(cao_resume.get("missing_for_solidworks")),
+        "missing_for_sketches": _list(cao.get("missing_for_sketches")) or _list(cao_resume.get("missing_for_sketches")),
+        "missing_for_stress_graphs": _list(cao.get("missing_for_stress_graphs")) or _list(cao_resume.get("missing_for_stress_graphs")),
+        "warning": cao.get("avertissement") or cao_resume.get("avertissement") or "Dossier indicatif : pas un STEP final.",
         "raw": dict(cao),
     }
 
@@ -226,6 +248,10 @@ def _num(value: Any, default: float = 0.0) -> float:
 
 def _unknown_path(item: Mapping[str, Any]) -> str:
     return str(item.get("path") or item.get("champ") or item.get("nom") or "unknown")
+
+
+def _list(value: Any) -> list[Any]:
+    return list(value) if isinstance(value, (list, tuple)) else []
 
 
 def _get_path(data: Mapping[str, Any], path: str) -> Any:
