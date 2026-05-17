@@ -73,7 +73,9 @@ class CaoDossierScreen(Screen):
             ("VOIR CROQUIS", lambda *_: self._scroll_note("croquis"), 120),
             ("VOIR GRAPHIQUES", lambda *_: self._scroll_note("graphiques"), 140),
             ("COPIER COTES", self.copy_solidworks_values, 130),
+            ("COPIER CROQUIS", self.copy_sketches_json, 140),
             ("EXPORT JSON", self.export_json, 120),
+            ("JSON BRUT", lambda *_: self._go("raw_json"), 110),
             ("DASHBOARD", lambda *_: self._go("dashboard"), 120),
         ):
             btn = ModernButton(text=text, size_hint_x=None, width=dp(width), font_size="10sp")
@@ -143,6 +145,10 @@ class CaoDossierScreen(Screen):
     def copy_solidworks_values(self, *_: Any) -> None:
         values = _safe_dict(_safe_dict(_safe_dict(self.payload.get("cao_dossier")).get("donnees_solidworks")).get("valeurs_a_reporter"))
         Clipboard.copy(json.dumps(values, ensure_ascii=False, indent=2))
+
+    def copy_sketches_json(self, *_: Any) -> None:
+        sketches = _safe_list(_safe_dict(self.payload.get("cao_dossier")).get("croquis_2d"))
+        Clipboard.copy(json.dumps(sketches, ensure_ascii=False, indent=2))
 
     def export_json(self, *_: Any) -> None:
         out = Path("backend") / "exports" / "frontend_cao_dossier_export.json"

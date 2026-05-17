@@ -145,6 +145,7 @@ class JsonDiagnosticScreen(Screen):
             ("COPIER CHEMIN", lambda *_: self._copy(cause.get("champ"))),
             ("COPIER RAISON", lambda *_: self._copy(cause.get("raison"))),
             ("COPIER PATCH", lambda *_: self._copy(json.dumps(first_patch, ensure_ascii=False, indent=2))),
+            ("VOIR BRUT", lambda *_: self._go("raw_json")),
         ):
             btn = ModernButton(text=text, font_size="10sp")
             btn.bind(on_release=callback)

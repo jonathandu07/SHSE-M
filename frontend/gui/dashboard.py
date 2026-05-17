@@ -890,7 +890,7 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
             {"label": "Manques", "target": "missing_requirements"},
             {"label": "Diagnostic JSON", "target": "json_diagnostic"},
             {"label": "Paramètres", "target": "edit_parameters"},
-            {"label": "Rapport brut", "target": "raw_report"},
+            {"label": "Rapport brut", "target": "raw_json"},
             {"label": "Dossier CAO", "target": "cao_dossier"},
             {"label": "Dashboard", "target": "dashboard"},
         ],
@@ -907,6 +907,9 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
         "backend_errors": _safe_list(report.get("_dashboard_backend_errors")),
         "inconnues": report.get("inconnues"),
         "alertes": report.get("alertes"),
+        "frontend_contract": frontend_contract,
+        "cao_dossier": cao_dossier,
+        "mechanical_graphs": mechanical_graphs,
     }
 
 
@@ -1068,15 +1071,25 @@ class DashboardScreen(Screen):
         content.add_widget(self._backend_state_panel(summary, backend_sources, backend_errors))
         content.add_widget(self._kpi_row(ui))
 
-        tier1 = BoxLayout(size_hint_y=None, height=dp(330), spacing=dp(12))
-        tier1.add_widget(self._energy_chain_panel(_safe_list(dash.get("energy_chain"))))
-        tier1.add_widget(self._subsystems_panel(_safe_list(dash.get("subsystems"))))
+        tier1 = BoxLayout(size_hint_y=None, height=dp(260), spacing=dp(12))
+        tier1.add_widget(self._technical_metric_panel("Chaîne puissance", _safe_list(dash.get("power_chain"))))
+        tier1.add_widget(self._technical_metric_panel("Fermeture mécanique", _safe_list(dash.get("mechanical_closure"))))
         content.add_widget(tier1)
 
-        tier2 = BoxLayout(size_hint_y=None, height=dp(240), spacing=dp(12))
-        tier2.add_widget(self._missing_summary_panel(summary.get("missing_count", 0), _safe_list(dash.get("unknowns"))))
-        tier2.add_widget(self._next_actions_panel(_safe_list(dash.get("alerts"))))
+        tier2 = BoxLayout(size_hint_y=None, height=dp(260), spacing=dp(12))
+        tier2.add_widget(self._technical_metric_panel("Dossier CAO / Préconception", _safe_list(dash.get("cao_preconception")), action=("OUVRIR DOSSIER", "cao_dossier")))
+        tier2.add_widget(self._diagnostic_causal_panel(_safe_dict(dash.get("diagnostic_causal"))))
         content.add_widget(tier2)
+
+        tier3 = BoxLayout(size_hint_y=None, height=dp(240), spacing=dp(12))
+        tier3.add_widget(self._missing_summary_panel(summary.get("missing_count", 0), _safe_list(dash.get("unknowns"))))
+        tier3.add_widget(self._next_actions_panel(_safe_list(dash.get("alerts"))))
+        content.add_widget(tier3)
+
+        tier4 = BoxLayout(size_hint_y=None, height=dp(300), spacing=dp(12))
+        tier4.add_widget(self._energy_chain_panel(_safe_list(dash.get("energy_chain"))))
+        tier4.add_widget(self._subsystems_panel(_safe_list(dash.get("subsystems"))))
+        content.add_widget(tier4)
 
         content.add_widget(self._actions_panel(_safe_list(dash.get("actions"))))
 
@@ -1115,7 +1128,7 @@ class DashboardScreen(Screen):
             ("RECALCULER", lambda *_: self.sync_backend(force_backend_call=True), 120),
             ("DIAG JSON", lambda *_: self._go("json_diagnostic"), 115),
             ("ÉDITER", lambda *_: self._go("edit_parameters"), 100),
-            ("JSON", lambda *_: self._go("raw_report"), 80),
+            ("JSON", lambda *_: self._go("raw_json"), 80),
             ("ACCUEIL", lambda *_: self._go("home"), 100),
         )
 
@@ -1278,6 +1291,65 @@ class DashboardScreen(Screen):
         )
 
         return kpi_row
+
+    def _technical_metric_panel(
+        self,
+        title: str,
+        items: List[Dict[str, Any]],
+        *,
+        action: Optional[Tuple[str, str]] = None,
+    ) -> PremiumCard:
+        panel = PremiumCard(title=title, size_hint_x=0.5)
+
+        container = BoxLayout(orientation="vertical", spacing=dp(2), size_hint_y=None)
+        container.bind(minimum_height=container.setter("height"))
+
+        if not items:
+            container.add_widget(Label(text="Aucune donnée backend fournie.", color=COLORS["RS"], font_size="12sp"))
+        else:
+            for item in items[:8]:
+                container.add_widget(
+                    MetricRow(
+                        item.get("label", ""),
+                        item.get("value"),
+                        item.get("unit", ""),
+                        item.get("status", ""),
+                    )
+                )
+
+        panel.add_widget(container)
+
+        if action:
+            label, target = action
+            btn = GhostButton(text=label, size_hint_y=None, height=dp(34), font_size="10sp")
+            btn.bind(on_release=lambda *_: self._go(target))
+            panel.add_widget(btn)
+
+        return panel
+
+    def _diagnostic_causal_panel(self, diagnostic: Mapping[str, Any]) -> PremiumCard:
+        panel = PremiumCard(title="Diagnostic causal", size_hint_x=0.5)
+        status = diagnostic.get("status")
+        panel.add_widget(MetricRow("Statut", str(status or "indisponible").upper(), "", "alerte" if status == "bloque" else _status_for_value(status)))
+        panel.add_widget(MetricRow("Score", diagnostic.get("score"), "/100", _status_for_value(diagnostic.get("score"))))
+        panel.add_widget(MetricRow("Causes racines", diagnostic.get("root_causes_count"), "", "alerte" if diagnostic.get("root_causes_count") else "ok"))
+        panel.add_widget(MetricRow("Symptômes", diagnostic.get("symptoms_count"), "", "alerte" if diagnostic.get("symptoms_count") else "ok"))
+
+        causes = [dict(c) for c in _safe_list(diagnostic.get("root_causes")) if isinstance(c, Mapping)]
+        for cause in causes[:2]:
+            panel.add_widget(
+                MetricRow(
+                    _short_text(cause.get("titre") or cause.get("id") or "Cause", 34),
+                    _short_text(cause.get("raison"), 62),
+                    "",
+                    "alerte",
+                )
+            )
+
+        btn = GhostButton(text="VOIR DIAGNOSTIC", size_hint_y=None, height=dp(34), font_size="10sp")
+        btn.bind(on_release=lambda *_: self._go("json_diagnostic"))
+        panel.add_widget(btn)
+        return panel
 
     def _energy_chain_panel(self, items: List[Dict[str, Any]]) -> PremiumCard:
         panel = PremiumCard(title="Chaîne énergétique / moteur", size_hint_x=0.62)
@@ -1455,7 +1527,7 @@ class DashboardScreen(Screen):
             {"label": "Architecture", "target": "architecture_choice"},
             {"label": "Manques", "target": "missing_requirements"},
             {"label": "Paramètres", "target": "edit_parameters"},
-            {"label": "JSON", "target": "raw_report"},
+            {"label": "JSON", "target": "raw_json"},
             {"label": "Accueil", "target": "home"},
         ]
 

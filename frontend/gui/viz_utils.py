@@ -24,6 +24,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import logging
+import math
 import re
 import traceback
 from dataclasses import dataclass, field
@@ -192,6 +193,12 @@ def _slugify(value: Any) -> str:
     text = re.sub(r"[^a-z0-9]+", "_", text)
     text = re.sub(r"_+", "_", text).strip("_")
     return text
+
+
+def _finite_float(value: Any) -> Optional[float]:
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)):
+        return float(value)
+    return None
 
 
 def normalize_piece_key(piece_name: Any) -> str:
@@ -981,6 +988,102 @@ def get_viz_figure(
         allow_fallback=allow_fallback,
     )
     return res.figure if res.ok else None
+
+
+def backend_graph_to_figure(graph: Mapping[str, Any]) -> Optional[Any]:
+    """
+    Rend un graphique mécanique fourni par le backend.
+    Ne génère aucun point : seules les séries et markers présents dans le JSON
+    backend sont affichés.
+    """
+    if not isinstance(graph, Mapping):
+        return None
+
+    plt = _import_pyplot()
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+
+    title = str(graph.get("title") or graph.get("id") or "Graphique backend")
+    ax.set_title(title)
+    ax.set_xlabel(str(graph.get("x_label") or ""))
+    ax.set_ylabel(str(graph.get("y_label") or ""))
+
+    series = graph.get("series", [])
+    plotted = False
+    if isinstance(series, list):
+        for serie in series:
+            if not isinstance(serie, Mapping):
+                continue
+            points = serie.get("points", [])
+            if not isinstance(points, list):
+                continue
+            xs: list[float] = []
+            ys: list[float] = []
+            for point in points:
+                if not isinstance(point, Mapping):
+                    continue
+                x = _finite_float(point.get("x"))
+                y = _finite_float(point.get("y"))
+                if x is None or y is None:
+                    continue
+                xs.append(x)
+                ys.append(y)
+            if xs and ys:
+                ax.plot(xs, ys, label=str(serie.get("name") or "serie"))
+                plotted = True
+
+    markers = graph.get("markers", [])
+    if isinstance(markers, list):
+        for marker in markers:
+            if not isinstance(marker, Mapping):
+                continue
+            x = _finite_float(marker.get("x"))
+            y = _finite_float(marker.get("y"))
+            if x is None or y is None:
+                continue
+            label = str(marker.get("name") or "marker")
+            ax.scatter([x], [y], marker="o")
+            ax.annotate(label, (x, y), fontsize=8)
+            plotted = True
+
+    if plotted:
+        ax.grid(True, alpha=0.25)
+        ax.legend(loc="best", fontsize=8)
+    else:
+        status = str(graph.get("status") or "missing_required")
+        missing = graph.get("missing", [])
+        missing_text = ", ".join(str(x) for x in missing) if isinstance(missing, list) else ""
+        ax.axis("off")
+        ax.text(
+            0.5,
+            0.55,
+            f"Graphique {status}",
+            ha="center",
+            va="center",
+            fontsize=12,
+            fontweight="bold",
+        )
+        ax.text(
+            0.5,
+            0.38,
+            missing_text or "Aucune série backend disponible.",
+            ha="center",
+            va="center",
+            fontsize=9,
+            wrap=True,
+        )
+
+    interpretation = graph.get("interpretation")
+    if interpretation:
+        fig.text(0.02, 0.01, str(interpretation), fontsize=8, ha="left", va="bottom", wrap=True)
+
+    fig.tight_layout()
+    return fig
+
+
+def backend_graphs_available(payload: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """Retourne les graphes backend affichables sans les modifier."""
+    graphs = payload.get("graphiques", []) if isinstance(payload, Mapping) else []
+    return [dict(graph) for graph in graphs if isinstance(graph, Mapping)]
 
 
 # =============================================================================
