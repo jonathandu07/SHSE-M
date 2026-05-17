@@ -85,15 +85,10 @@ def _import_attr_optional(module_names: Sequence[str], attr: str) -> Any:
     return None
 
 
-# Composants principaux
-SystemeComplet = _import_attr_optional(
-    (
-        "backend.ensemble.systeme_complet",
-        "ensemble.systeme_complet",
-        "systeme_complet",
-    ),
-    "SystemeComplet",
-)
+# SystemeComplet n'est plus importe comme orchestrateur principal.
+# La variable reste presente pour compatibilite avec les anciens rapports/tests,
+# mais STHO_ME porte le flux complet.
+SystemeComplet = None
 
 OptimisationSysteme = _import_attr_optional(
     (
@@ -120,6 +115,22 @@ resoudre_inconnues_systeme = _import_attr_optional(
         "resolution_inconnues",
     ),
     "resoudre_inconnues_systeme",
+)
+
+resoudre_inconnues_systeme_modules = _import_attr_optional(
+    (
+        "backend.modules.systeme.resolution_inconnues",
+        "modules.systeme.resolution_inconnues",
+    ),
+    "resoudre_inconnues_systeme",
+)
+
+build_frontend_contract_backend = _import_attr_optional(
+    (
+        "backend.modules.systeme.frontend_contract",
+        "modules.systeme.frontend_contract",
+    ),
+    "build_frontend_contract",
 )
 
 MoteurElectrique = _import_attr_optional(
@@ -1049,7 +1060,16 @@ class STHO_ME:
             "construction": {"composants": {}, "pieces": {}},
             "objets": {"composants": {}, "pieces": {}},
             "rapports": {"composants": {}, "pieces": {}, "optimisation": None},
+            "entrees": {},
+            "donnees": {},
+            "sous_systemes": {},
+            "pieces": {},
+            "liaisons": {},
             "synthese": {},
+            "criteres_conception": {},
+            "optimisation": {},
+            "cao": {},
+            "frontend": {},
             "inconnues": {"impossibles": [], "partielles": []},
             "resolution_inconnues": {},
             "hypotheses_resolues": [],
@@ -1057,6 +1077,8 @@ class STHO_ME:
             "coherence_systeme": {},
             "alertes": {},
             "notes_modele": [],
+            "tracabilite": {"valeurs": {}, "candidates": [], "rejected_candidates": [], "optimization_runs": []},
+            "traçabilite": {"valeurs": {}, "candidates": [], "rejected_candidates": [], "optimization_runs": []},
         }
         return rapport
 
@@ -1801,7 +1823,13 @@ class STHO_ME:
     # ------------------------------------------------------------------
     # Resolution centrale des inconnues
     # ------------------------------------------------------------------
-    def _run_resolution_inconnues(self, rapport: Dict[str, Any]) -> None:
+    def _run_resolution_inconnues(
+        self,
+        rapport: Dict[str, Any],
+        *,
+        repository: Any = None,
+        project_id: Optional[str] = None,
+    ) -> None:
         if not callable(resoudre_inconnues_systeme):
             _push_inconnue(
                 rapport,
@@ -1817,6 +1845,22 @@ class STHO_ME:
             "analyses": _to_jsonable(self.analyses, max_depth=6),
             "meta": _to_jsonable(self.meta, max_depth=4),
         }
+        if repository is not None and project_id:
+            try:
+                repo_params = repository.get_project_parameters(project_id)
+            except Exception as exc:
+                repo_params = {}
+                _push_inconnue(rapport, "partielles", "repository", f"Lecture repository impossible : {exc}")
+            if isinstance(repo_params, Mapping) and repo_params:
+                self.analyses = _deep_merge(_safe_dict(repo_params.get("analyses")), self.analyses)
+                self.composants = _deep_merge(_safe_dict(repo_params.get("composants")), self.composants)
+                self.pieces = _deep_merge(_safe_dict(repo_params.get("pieces")), self.pieces)
+                payload = {
+                    "composants": _to_jsonable(self.composants, max_depth=6),
+                    "pieces": _to_jsonable(self.pieces, max_depth=6),
+                    "analyses": _to_jsonable(self.analyses, max_depth=6),
+                    "meta": _to_jsonable(self.meta, max_depth=4),
+                }
         cdc_cfg = _deep_merge(
             _safe_dict(self.meta.get("cahier_des_charges")),
             _safe_dict(self.analyses.get("cahier_des_charges")),
@@ -1860,21 +1904,183 @@ class STHO_ME:
                 rapport.setdefault("inconnues_resolution", {})[key] = items
         _add_note(rapport, "Resolution centrale des inconnues appliquee par STHO_ME avant construction des composants.")
 
+    def _run_resolution_candidates_pipeline(
+        self,
+        rapport: Dict[str, Any],
+        *,
+        repository: Any = None,
+        project_id: Optional[str] = None,
+        strict: bool = True,
+        optimize: bool = True,
+    ) -> None:
+        if not callable(resoudre_inconnues_systeme_modules):
+            return
+        cdc = _deep_merge(
+            _safe_dict(self.meta.get("cahier_des_charges")),
+            _safe_dict(self.analyses.get("cahier_des_charges")),
+        )
+        config = {
+            "meta": _to_jsonable(self.meta, max_depth=6),
+            "composants": _to_jsonable(self.composants, max_depth=6),
+            "pieces": _to_jsonable(self.pieces, max_depth=6),
+            "analyses": _to_jsonable(self.analyses, max_depth=6),
+        }
+
+        def _recalculer(cfg: Dict[str, Any]) -> Dict[str, Any]:
+            return STHO_ME.depuis_config(cfg).analyser(
+                resolve_unknowns=False,
+                optimize=optimize,
+                strict=strict,
+                frontend_contract=False,
+            )
+
+        try:
+            result = resoudre_inconnues_systeme_modules(
+                config=config,
+                rapport=rapport,
+                cahier_des_charges=cdc,
+                repository=repository,
+                project_id=project_id,
+                recalculer=_recalculer,
+                strict=strict,
+                max_iterations=int(cdc.get("max_iterations", 5) or 5),
+            )
+        except Exception as exc:
+            _push_inconnue(rapport, "partielles", "resolution_candidates", f"Pipeline candidats impossible : {exc}")
+            return
+
+        result_dict = result.en_dict() if hasattr(result, "en_dict") else _safe_dict(result)
+        rapport["resolution_candidates"] = _to_jsonable(result_dict, max_depth=10)
+        trace = _safe_dict(rapport.setdefault("tracabilite", {}))
+        trace.setdefault("candidates", []).extend(result_dict.get("candidates", []) or [])
+        trace.setdefault("rejected_candidates", []).extend(
+            _safe_dict(_safe_dict(result_dict.get("rapport_apres")).get("tracabilite")).get("rejected_candidates", []) or []
+        )
+        rapport["tracabilite"] = trace
+        rapport["traçabilite"] = trace
+        if result_dict.get("accepte"):
+            _add_note(rapport, "Pipeline de candidats : au moins une donnee candidate a ete acceptee apres validation.")
+
+    def _finalize_contract_sections(
+        self,
+        rapport: Dict[str, Any],
+        *,
+        frontend_contract: bool,
+        project_id: Optional[str],
+    ) -> None:
+        composants_reports = _safe_dict(_deep_get(rapport, "rapports", "composants"))
+        pieces_reports = _safe_dict(_deep_get(rapport, "rapports", "pieces"))
+        rapport["entrees"] = {
+            "meta": _to_jsonable(self.meta, max_depth=4),
+            "composants": _to_jsonable(self.composants, max_depth=4),
+            "pieces": _to_jsonable(self.pieces, max_depth=4),
+            "analyses": _to_jsonable(self.analyses, max_depth=4),
+        }
+        rapport["donnees"] = {
+            "composants": _to_jsonable(composants_reports, max_depth=5),
+            "pieces": _to_jsonable(pieces_reports, max_depth=5),
+            "auto_completees": _safe_dict(rapport.get("donnees_auto_completees")),
+        }
+        rapport["sous_systemes"] = {
+            "moteur_electrique": composants_reports.get("moteur_electrique_orchestrateur") or composants_reports.get("moteur_electrique"),
+            "batterie": composants_reports.get("batterie_orchestrateur") or composants_reports.get("batterie"),
+            "alternateur": composants_reports.get("alternateur_orchestrateur") or composants_reports.get("alternateur_bus_dc"),
+            "moteur_thermique": composants_reports.get("moteur_thermique_orchestrateur") or composants_reports.get("moteur_thermique_definition"),
+            "boite_crabots": composants_reports.get("boite_crabots_orchestrateur") or composants_reports.get("boite_chaine"),
+            "architecture": composants_reports.get("architecture_orchestrateur") or composants_reports.get("architecture"),
+        }
+        rapport["pieces"] = pieces_reports
+        rapport["liaisons"] = _safe_dict(_deep_get(composants_reports, "systeme_complet", "liaisons"))
+        rapport["criteres_conception"] = _deep_merge(
+            _safe_dict(self.meta.get("cahier_des_charges")),
+            _safe_dict(self.analyses.get("cahier_des_charges")),
+        )
+        rapport["optimisation"] = _safe_dict(_deep_get(rapport, "rapports", "optimisation"))
+        rapport["cao"] = _safe_dict(_deep_get(composants_reports, "systeme_complet", "cao"))
+        trace = _safe_dict(rapport.get("tracabilite"))
+        for hyp in rapport.get("hypotheses_resolues", []) if isinstance(rapport.get("hypotheses_resolues"), list) else []:
+            if isinstance(hyp, Mapping) and hyp.get("champ"):
+                trace.setdefault("valeurs", {})[str(hyp["champ"])] = {
+                    "source": hyp.get("type_resolution"),
+                    "from": hyp.get("source"),
+                    "formula": hyp.get("formule"),
+                    "dependencies": hyp.get("dependances", {}),
+                    "validated_by": hyp.get("validation", {}),
+                }
+        rapport["tracabilite"] = trace
+        rapport["traçabilite"] = trace
+        if frontend_contract and callable(build_frontend_contract_backend):
+            try:
+                rapport["frontend"] = build_frontend_contract_backend(rapport, project_id=project_id)
+            except Exception as exc:
+                rapport["frontend"] = {"error": str(exc), "raw_available": True}
+
     # ------------------------------------------------------------------
     # API publique
     # ------------------------------------------------------------------
-    def analyser(self) -> Dict[str, Any]:
+    def analyser(
+        self,
+        *,
+        config: Optional[dict] = None,
+        cahier_des_charges: Optional[dict] = None,
+        repository: Any = None,
+        resolve_unknowns: bool = True,
+        optimize: bool = True,
+        strict: bool = True,
+        frontend_contract: bool = True,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        if config is not None or cahier_des_charges is not None or kwargs:
+            merged = {
+                "meta": _to_jsonable(self.meta, max_depth=6),
+                "composants": _to_jsonable(self.composants, max_depth=6),
+                "pieces": _to_jsonable(self.pieces, max_depth=6),
+                "analyses": _to_jsonable(self.analyses, max_depth=6),
+            }
+            if isinstance(config, Mapping):
+                merged = _deep_merge(merged, config)
+            if isinstance(cahier_des_charges, Mapping):
+                merged["meta"] = _deep_merge(_safe_dict(merged.get("meta")), {"cahier_des_charges": dict(cahier_des_charges)})
+                merged["analyses"] = _deep_merge(_safe_dict(merged.get("analyses")), {"cahier_des_charges": dict(cahier_des_charges)})
+            if kwargs:
+                merged["analyses"] = _deep_merge(_safe_dict(merged.get("analyses")), {"systeme_complet": dict(kwargs)})
+            return STHO_ME.depuis_config(merged).analyser(
+                repository=repository,
+                resolve_unknowns=resolve_unknowns,
+                optimize=optimize,
+                strict=strict,
+                frontend_contract=frontend_contract,
+            )
+
         self._reset_runtime()
         rapport = self._new_report()
 
-        self._run_resolution_inconnues(rapport)
+        project_id = str(self.meta.get("project_id") or self.meta.get("id_projet") or "") or None
+        if resolve_unknowns:
+            self._run_resolution_inconnues(rapport, repository=repository, project_id=project_id)
         self._build_components(rapport)
         self._run_component_analyses(rapport)
         self._build_pieces(rapport)
         self._run_piece_analyses(rapport)
-        self._run_optimisation(rapport)
+        if optimize:
+            if isinstance(self.analyses.get("optimisation"), dict):
+                self.analyses["optimisation"].setdefault("active", True)
+            else:
+                self.analyses["optimisation"] = {"active": True}
+            self._run_optimisation(rapport)
+        else:
+            rapport["rapports"]["optimisation"] = {"note": "Optimisation desactivee par appelant."}
         _dedup_report_lists(rapport)
         self._build_synthesis(rapport)
+        if resolve_unknowns:
+            self._run_resolution_candidates_pipeline(
+                rapport,
+                repository=repository,
+                project_id=project_id,
+                strict=strict,
+                optimize=optimize,
+            )
+        self._finalize_contract_sections(rapport, frontend_contract=frontend_contract, project_id=project_id)
         _dedup_report_lists(rapport)
         return _to_jsonable(rapport, max_depth=12)
 
