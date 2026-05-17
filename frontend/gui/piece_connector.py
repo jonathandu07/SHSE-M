@@ -642,13 +642,18 @@ def _make_arbre(ep: Dict[str, Any], db_data: Optional[Dict[str, Any]] = None) ->
 
 
 def _make_moteur_electrique(ep: Dict[str, Any], db_data: Optional[Dict[str, Any]] = None) -> Any:
+    puissance = _f(ep, "puissance_max_w", "puissance_moteur_w", "puissance_bus_dc_w")
+    regime = _f(ep, "regime_max_rpm")
+    couple = _f(ep, "couple_max_nm", "couple_max_Nm")
+    if puissance is None or regime is None or couple is None:
+        return None
     return _construct(
         "backend.components.moteur_electrique.moteur_electrique",
         "MoteurElectrique",
         {
-            "puissance_max_w": _f(ep, "puissance_max_w", "puissance_moteur_w", "puissance_bus_dc_w"),
-            "regime_max_rpm": _f(ep, "regime_max_rpm"),
-            "couple_max_nm": _f(ep, "couple_max_nm", "couple_max_Nm"),
+            "puissance_max_w": puissance,
+            "regime_max_rpm": regime,
+            "couple_max_nm": couple,
             "rendement_moteur": _f(ep, "rendement_moteur"),
             "tension_bus_v": _f(ep, "tension_nominale_v"),
         },

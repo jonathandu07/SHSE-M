@@ -56,6 +56,7 @@ _BACKEND_ROOT = _PROJECT_ROOT / "backend"
 _BACKEND_MAIN_FILE = _BACKEND_ROOT / "main.py"
 _DATA_DIR = _PROJECT_ROOT / "data"
 _REPORTS_DIR = _DATA_DIR / "frontend_reports"
+PROJECT_NAME = "STHOME"
 
 for _candidate in (
     _PROJECT_ROOT,
@@ -72,6 +73,66 @@ for _candidate in (
         _p = str(_candidate)
     if _p not in sys.path:
         sys.path.insert(0, _p)
+
+
+def _deep_get(data: Any, *path: str) -> Any:
+    cur = data
+    for key in path:
+        if not isinstance(cur, Mapping):
+            return None
+        cur = cur.get(key)
+        if cur is None:
+            return None
+    return cur
+
+
+def _display_missing_name(name: Any) -> str:
+    labels = {
+        "regime_tr_min": "RPM nominal",
+        "rpm": "RPM nominal",
+        "rpm_nominal": "RPM nominal",
+        "pme_pa": "PME",
+        "pme": "PME",
+        "gabarit (L/W)": "gabarit L/W",
+    }
+    return labels.get(str(name), str(name).replace("_", " "))
+
+
+def _missing_requirements(report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Compatibilité tests legacy : lit les inconnues backend sans les résoudre."""
+    out: list[dict[str, Any]] = []
+    inconnues = _deep_get(report, "analyses_composants", "architecture", "inconnues") or {}
+    if not isinstance(inconnues, Mapping):
+        return out
+    for category in ("impossibles", "partielles", "cao", "backend"):
+        values = inconnues.get(category) or []
+        if not isinstance(values, list):
+            continue
+        for item in values:
+            if not isinstance(item, Mapping):
+                continue
+            raw_name = item.get("nom") or item.get("champ") or item.get("piece") or ""
+            out.append(
+                {
+                    "name": _display_missing_name(raw_name),
+                    "raw_name": raw_name,
+                    "reason": item.get("raison") or item.get("detail") or "",
+                    "category": category,
+                }
+            )
+    return out
+
+
+def _fuel_summary(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Compatibilité tests legacy : expose seulement le résumé carburant backend."""
+    block = _deep_get(report, "analyses_composants", "moteur_thermique_bilan_carburant") or {}
+    if not isinstance(block, Mapping):
+        return {"mode": None, "worst": None, "best": None}
+    return {
+        "mode": block.get("mode"),
+        "worst": block.get("carburant_dimensionnant"),
+        "best": block.get("carburant_optimal"),
+    }
 
 
 # =============================================================================
@@ -1528,6 +1589,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
+    "PROJECT_NAME",
     "FrontendMainOptions",
     "FrontendRunState",
     "FrontendBackendBridge",
@@ -1536,6 +1598,8 @@ __all__ = [
     "refresh_backend_data",
     "get_ui_report",
     "get_raw_report",
+    "_fuel_summary",
+    "_missing_requirements",
     "main",
 ]
 

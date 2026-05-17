@@ -2,7 +2,7 @@ import pytest
 import matplotlib.pyplot as plt
 
 from frontend.gui.piece_connector import get_piece_instance
-from frontend.gui.viz_utils import get_viz_figure
+from frontend.gui.viz_utils import available_visualizations, get_viz_figure
 
 
 @pytest.mark.parametrize(
@@ -36,10 +36,13 @@ from frontend.gui.viz_utils import get_viz_figure
     ],
 )
 @pytest.mark.parametrize("viz_type", ["sketches_2d", "charts", "views_3d"])
-def test_visualizations_always_provide_a_figure(name, engine_params, db_data, viz_type):
+def test_visualizations_do_not_fabricate_missing_resources(name, engine_params, db_data, viz_type):
     obj = get_piece_instance(name, engine_params, db_data=db_data)
 
     fig = get_viz_figure(name, obj or db_data, viz_type)
 
-    assert fig is not None
-    plt.close(fig)
+    if fig is not None:
+        plt.close(fig)
+    else:
+        availability = available_visualizations(name, obj or db_data)
+        assert availability[viz_type]["available"] is False

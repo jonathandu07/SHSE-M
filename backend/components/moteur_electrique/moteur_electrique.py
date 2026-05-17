@@ -424,6 +424,25 @@ def _call_supported(fn: Any, kwargs: Mapping[str, Any]) -> Any:
         return fn(**dict(kwargs))
 
 
+def _piece_report(module_names: Sequence[str], class_name: str, kwargs: Mapping[str, Any]) -> Dict[str, Any]:
+    cls = _import_attr(module_names, class_name, default=None)
+    if cls is None:
+        return {
+            "piece": class_name,
+            "inconnues": {
+                "impossibles": [
+                    {"nom": class_name, "raison": "Classe de piece moteur electrique indisponible."}
+                ],
+                "partielles": [],
+            },
+            "notes_modele": [],
+        }
+    obj = cls(**dict(kwargs))
+    if hasattr(obj, "analyser") and callable(getattr(obj, "analyser")):
+        return _to_jsonable(obj.analyser())
+    return _to_jsonable(obj)
+
+
 # =============================================================================
 # Dataclasses système
 # =============================================================================
@@ -463,6 +482,67 @@ class MoteurSortie:
     def puissance_continue_totale_w(self) -> Optional[float]:
         p = self.puissance_continue_w if self.puissance_continue_w is not None else self.puissance_max_w
         return None if p is None else p * self.quantite
+
+
+class MoteurElectrique(MoteurSortie):
+    """Compatibilite composant unitaire moteur electrique.
+
+    Cette classe n'ajoute pas de valeur par defaut metier. Elle expose seulement
+    le rapport attendu par les consommateurs historiques quand les entrees sont
+    fournies explicitement.
+    """
+
+    @property
+    def couple_max_nm_calcule(self) -> Optional[float]:
+        return self.couple_max_nm
+
+    @property
+    def regime_base_rpm_calcule(self) -> Optional[float]:
+        if self.regime_base_rpm is not None:
+            return self.regime_base_rpm
+        if self.puissance_max_w is not None and self.couple_max_nm is not None and self.couple_max_nm > 0.0:
+            return float(self.puissance_max_w) * 60.0 / (2.0 * math.pi * float(self.couple_max_nm))
+        return None
+
+    def analyser(self, *, strict: bool = False) -> Dict[str, Any]:
+        rotor_report = _piece_report(
+            (
+                "backend.components.moteur_electrique.pieces.rotor_moteur_electrique",
+                "components.moteur_electrique.pieces.rotor_moteur_electrique",
+            ),
+            "RotorMoteurElectrique",
+            {"moteur": self},
+        )
+        stator_report = _piece_report(
+            (
+                "backend.components.moteur_electrique.pieces.stator_moteur_electrique",
+                "components.moteur_electrique.pieces.stator_moteur_electrique",
+            ),
+            "StatorMoteurElectrique",
+            {"moteur": self},
+        )
+        report: Dict[str, Any] = {
+            "composant": "moteur_electrique",
+            "definition": {
+                "puissance_max_w": self.puissance_max_w,
+                "regime_max_rpm": self.regime_max_rpm,
+                "regime_base_rpm": self.regime_base_rpm_calcule,
+                "couple_max_nm": self.couple_max_nm,
+                "rendement_moteur": self.rendement_moteur,
+                "tension_bus_v": self.tension_bus_v,
+                "courant_max_a": self.courant_max_a,
+            },
+            "pieces": {
+                "rotor": rotor_report,
+                "stator": stator_report,
+            },
+            "inconnues": {"impossibles": [], "partielles": []},
+            "notes_modele": [],
+        }
+        for name in ("puissance_max_w", "regime_max_rpm", "couple_max_nm"):
+            if report["definition"].get(name) is None:
+                report["inconnues"]["partielles"].append({"nom": name, "raison": "Donnee moteur electrique non fournie."})
+        return _to_jsonable(report)
 
 
 @dataclass(frozen=True)
@@ -1481,6 +1561,7 @@ def exporter_rapport_json(rapport: Mapping[str, Any], chemin: str | os.PathLike[
 
 
 __all__ = [
+    "MoteurElectrique",
     "MoteurSortie",
     "ChargeAuxiliaire",
     "MoteurThermiqueSource",

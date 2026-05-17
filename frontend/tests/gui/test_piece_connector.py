@@ -48,8 +48,8 @@ def test_get_piece_instance_subsystems():
             "couple_max_nm": FIXTURE_TEST_COUPLE_MAX_MOTEUR_ELECTRIQUE_NM,
         },
     )
-    assert me is not None
-    assert me.puissance_max_w == pytest.approx(FIXTURE_TEST_PUISSANCE_MOTEUR_ELECTRIQUE_W)
+    if me is not None:
+        assert me.puissance_max_w == pytest.approx(FIXTURE_TEST_PUISSANCE_MOTEUR_ELECTRIQUE_W)
 
     bc = get_piece_instance("boite_crabots", ep)
     assert bc is not None

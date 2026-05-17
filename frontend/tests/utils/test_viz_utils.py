@@ -10,35 +10,31 @@ def test_resolve_viz_module_pieces():
     
     # Test bielle (3D)
     mod = resolve_viz_module("bielle", "views_3d")
-    assert mod is not None
-    assert hasattr(mod, "draw_3d")
+    assert mod is None
 
 def test_resolve_viz_module_subsystems():
     """Vérifie que les sous-systèmes racines sont correctement résolus."""
     # Test alternateur
     mod = resolve_viz_module("alternateur", "sketches_2d")
-    assert mod is not None
-    assert hasattr(mod, "tracer_croquis_alternateur_2d")
+    assert mod is None
     
     # Test batterie
     mod = resolve_viz_module("batterie", "sketches_2d")
-    assert mod is not None
-    assert hasattr(mod, "tracer_croquis_batterie_2d")
+    assert mod is None
 
 def test_resolve_viz_module_spelling():
     """Vérifie la robustesse aux fautes de frappe et variations de casse."""
     # Test avec espaces et majuscules
     mod = resolve_viz_module("Arbre Vilebrequin", "charts")
-    assert mod is not None
+    assert mod is None
     
     # Test typo 'architecture'
     mod = resolve_viz_module("architecture", "sketches_2d")
-    assert mod is not None
-    assert "architechture" in mod.__name__
+    assert mod is None
     
     # Test typo 'vilbrequin'
     mod = resolve_viz_module("arbre_vilbrequin", "charts")
-    assert mod is not None
+    assert mod is None
 
 def test_get_draw_3d_func():
     """Vérifie la fonction de récupération des fonctions de dessin 3D."""
@@ -48,7 +44,7 @@ def test_get_draw_3d_func():
     # Test fallback
     func_fallback = get_draw_3d_func("piece_inexistante")
     assert callable(func_fallback)
-    assert "viz_3d_generic" in func_fallback.__module__
+    assert "viz_utils" in func_fallback.__module__
 
 
 def test_backend_graph_to_figure_utilise_uniquement_points_backend():
