@@ -4,21 +4,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping
 
-
-ALLOWED_STATUSES = {
-    "computed",
-    "input",
-    "database",
-    "derived",
-    "candidate_generated",
-    "candidate_optimized",
-    "candidate_rejected",
-    "missing_required",
-    "missing_optional",
-    "partial",
-    "impossible",
-    "error",
-}
+from backend.modules.systeme.status import (
+    ALLOWED_STATUSES,
+    STATUS_CANDIDATE_FROM_CDC,
+    STATUS_COMPUTED,
+    STATUS_DATABASE,
+    STATUS_MISSING_REQUIRED,
+    STATUS_VALIDATED_BY_OPTIMIZATION,
+    normalize_status,
+)
 
 
 def build_frontend_contract(
@@ -40,18 +34,22 @@ def build_frontend_contract(
         value = _get_path(rapport, path)
         if value is not None:
             trace = trace_by_path.get(path, {})
+            status = _normalize_status(trace.get("status") or trace.get("source") or "computed")
+            metadata = trace.get("metadata") if isinstance(trace.get("metadata"), Mapping) else {}
+            locked = bool(trace.get("locked") or metadata.get("locked"))
             fields.append(
                 {
                     "path": path,
                     "label": label,
                     "value": value,
                     "unit": unit,
-                    "status": _normalize_status(trace.get("status") or trace.get("source") or "computed"),
+                    "status": status,
                     "source": trace.get("from") or trace.get("source") or "STHO_ME",
-                    "editable": False,
+                    "editable": status == STATUS_CANDIDATE_FROM_CDC and not locked,
                     "blocking": False,
                     "reason": trace.get("reason"),
-                    "confidence": trace.get("confidence") or "validated",
+                    "confidence": trace.get("confidence") or ("candidate" if status == STATUS_CANDIDATE_FROM_CDC else "validated"),
+                    "trace": dict(trace),
                 }
             )
 
@@ -131,19 +129,79 @@ def _build_actions(unknowns: Mapping[str, List[Dict[str, Any]]], cao: Mapping[st
     return actions
 
 
-def _normalize_status(value: Any) -> str:
-    mapping = {
-        "calculable": "computed",
-        "computed": "computed",
-        "deduite": "derived",
-        "derived": "derived",
-        "materiau": "database",
-        "database": "database",
-        "optimisee": "candidate_optimized",
-        "candidate_optimized": "candidate_optimized",
+def build_diagnostic_contract(diagnostic: dict[str, Any]) -> dict[str, Any]:
+    """Construit un contrat frontend passif depuis un diagnostic JSON."""
+    causes = [dict(c) for c in diagnostic.get("causes_racines", []) if isinstance(c, Mapping)]
+    fields: List[Dict[str, Any]] = []
+    actions: List[Dict[str, Any]] = []
+    for cause in causes:
+        path = str(cause.get("champ") or cause.get("path") or cause.get("id") or "")
+        priority = _num(cause.get("priorite"), 50.0)
+        impact = cause.get("impact") if isinstance(cause.get("impact"), Mapping) else {}
+        patch = cause.get("patchs_proposes", [])
+        fields.append(
+            {
+                "path": path,
+                "label": str(cause.get("titre") or cause.get("id") or "Cause racine"),
+                "value": cause.get("raison"),
+                "unit": None,
+                "status": STATUS_MISSING_REQUIRED if priority >= 70 else "partial",
+                "source": "json_diagnostic",
+                "editable": False,
+                "blocking": bool(impact.get("bloque_cao") or impact.get("bloque_optimisation") or priority >= 70),
+                "reason": cause.get("raison"),
+                "confidence": "diagnostic",
+                "trace": cause,
+                "patch": patch[0] if isinstance(patch, list) and patch else None,
+            }
+        )
+        actions.append(
+            {
+                "id": f"diagnostic_{cause.get('id', len(actions))}",
+                "label": str(cause.get("actions", ["Voir cause"])[0] if cause.get("actions") else "Voir cause"),
+                "enabled": True,
+                "target": "edit_parameters",
+                "path": path,
+                "patch": patch[0] if isinstance(patch, list) and patch else None,
+            }
+        )
+    resume = diagnostic.get("resume") if isinstance(diagnostic.get("resume"), Mapping) else {}
+    return {
+        "project_id": None,
+        "meta": dict(diagnostic.get("meta", {})) if isinstance(diagnostic.get("meta"), Mapping) else {},
+        "summary": {
+            "status": resume.get("statut"),
+            "score_diagnostic_100": resume.get("score_diagnostic_100"),
+            "root_causes_count": len(causes),
+            "symptoms_count": resume.get("nb_symptomes", 0),
+        },
+        "fields": fields,
+        "unknowns": {
+            "root_causes": causes,
+            "symptoms": diagnostic.get("symptomes", []),
+            "duplicates": diagnostic.get("doublons", []),
+        },
+        "alerts": diagnostic.get("alertes_normalisees", []),
+        "cao": {
+            "available": bool(resume.get("cao_disponible")),
+            "solidworks_ready": bool(resume.get("solidworks_ready")),
+            "status": STATUS_COMPUTED if resume.get("cao_disponible") else STATUS_MISSING_REQUIRED,
+            "reason": None if resume.get("cao_disponible") else "CAO non fermee selon diagnostic JSON.",
+        },
+        "actions": actions,
+        "raw_available": True,
+        "diagnostic": diagnostic,
     }
-    status = mapping.get(str(value), str(value))
-    return status if status in ALLOWED_STATUSES else "partial"
+
+
+def _normalize_status(value: Any) -> str:
+    return normalize_status(value)
+
+
+def _num(value: Any, default: float = 0.0) -> float:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return default
 
 
 def _unknown_path(item: Mapping[str, Any]) -> str:
@@ -160,4 +218,3 @@ def _get_path(data: Mapping[str, Any], path: str) -> Any:
         else:
             return None
     return cur
-
