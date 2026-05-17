@@ -1165,10 +1165,11 @@ class Batterie:
     # Sous-calculs
     # ------------------------------------------------------------------
     def _build_contraintes_equilibre(self, *, contraintes_equilibre: Optional[ContraintesEquilibreBatterie], **kwargs: Any) -> ContraintesEquilibreBatterie:
+        allowed = {f.name for f in fields(ContraintesEquilibreBatterie)}
         if contraintes_equilibre is not None:
-            updates = {k: v for k, v in kwargs.items() if v is not None and k in {f.name for f in fields(ContraintesEquilibreBatterie)}}
+            updates = {k: v for k, v in kwargs.items() if v is not None and k in allowed}
             return replace(contraintes_equilibre, **updates) if updates else contraintes_equilibre
-        return ContraintesEquilibreBatterie(**{k: v for k, v in kwargs.items() if k in {f.name for f in fields(ContraintesEquilibreBatterie)}})
+        return ContraintesEquilibreBatterie(**{k: v for k, v in kwargs.items() if v is not None and k in allowed})
 
     def _analyser_energies_utiles(self, rapport: Dict[str, Any], *, distance_km: Optional[float], conso_kwh_km: Optional[float], puissance_moyenne_kw: Optional[float], vitesse_moyenne_kmh: Optional[float], temps_charge_cible_h: Optional[float], puissance_pic_kw: Optional[float], duree_pic_s: Optional[float], energie_utile_imposee_kwh: Optional[float], mode_aggregation_energie: str, eta_charge: float, eq: ContraintesEquilibreBatterie) -> Optional[float]:
         E_trajet: Optional[float] = None
@@ -1756,6 +1757,16 @@ class Batterie:
             else:
                 _push_inconnue(rapport, "partielles", f"piece.{name}", "Objet pièce sans méthode analyser().")
         rapport["pieces"] = _to_jsonable(pieces)
+        legacy_aliases = {
+            "pack": "pack_batterie",
+            "busbars": "busbars_batterie",
+            "boitier": "boitier_batterie",
+            "bms": "bms_batterie",
+            "tms": "tms_batterie",
+        }
+        for alias, source_name in legacy_aliases.items():
+            if source_name in rapport["pieces"] and alias not in rapport["pieces"]:
+                rapport["pieces"][alias] = rapport["pieces"][source_name]
 
     def _synthese_finale(self, rapport: Dict[str, Any]) -> None:
         eq = _safe_dict(rapport.get("equilibre_systeme"))
