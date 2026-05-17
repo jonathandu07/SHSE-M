@@ -1,4 +1,4 @@
-# backend/components/moteur_thermique/orchestrateur_moteur_thermique.py
+# backend/components/moteur_thermique/backend\components\moteur_thermique\moteur_thermique.py
 from __future__ import annotations
 
 """
@@ -21,7 +21,7 @@ Principes
 
 Placement recommandé
 --------------------
-- backend/components/moteur_thermique/orchestrateur_moteur_thermique.py
+- backend/components/moteur_thermique/backend\components\moteur_thermique\moteur_thermique.py.py
 
 Il fonctionne aussi en fichier autonome si tes modules sont à côté du script
 (calcul_cylindree.py, calcul_gaz.py, cycle_mecanique.py, etc.).
@@ -1382,12 +1382,17 @@ class OrchestrateurMoteurThermique(EntreesOrchestrateurMoteurThermique):
 
         rapports.setdefault("cylindre", {
             "entrees": {"alesage_m": B, "course_m": e.course_m, "pression_max_pa": e.pression_max_pa},
-            "geometrie": {"alesage_m": B, "diametre_exterieur_m": d_cyl_ext},
+            "geometrie": {
+                "alesage_m": B,
+                "diametre_interieur_nominal_m": B,
+                "diametre_exterieur_m": d_cyl_ext,
+            },
         })
         rapports.setdefault("piston", {
             "entrees": {"alesage_m": B},
             "geometrie": {
                 "diametre_piston_m": _first_finite(e.diametre_piston_m, B),
+                "diametre_exterieur_m": _first_finite(e.diametre_piston_m, B),
                 "diametre_axe_m": e.diametre_axe_piston_m,
             },
         })
@@ -1423,7 +1428,13 @@ class OrchestrateurMoteurThermique(EntreesOrchestrateurMoteurThermique):
         
         r["assemblage"]["rapports_pieces_utilises"] = r["rapports_pieces"]
         r["assemblage"]["issues"] = _to_jsonable(issues, tableaux_en_listes=e.tableaux_en_listes)
-        r["assemblage"]["ok"] = bool(not issues)
+        bloquants = [
+            issue for issue in (issues or [])
+            if getattr(issue, "bloquant", False) and getattr(issue, "gravite", "erreur") == "erreur"
+        ]
+        r["assemblage"]["ok"] = not bool(bloquants)
+        r["assemblage"]["nb_issues"] = len(issues or [])
+        r["assemblage"]["nb_bloquants"] = len(bloquants)
         if issues:
             for issue in issues:
                 grav = getattr(issue, "gravite", "erreur")
@@ -1440,7 +1451,7 @@ class OrchestrateurMoteurThermique(EntreesOrchestrateurMoteurThermique):
         Boucle optionnelle : exploite VerificateurAssemblage.resoudre_et_relancer.
         Le callback doit accepter un dictionnaire de paramètres et renvoyer des rapports pièces.
         """
-        e = self.entrees.with_overrides(**overrides)
+        e = self.with_overrides(**overrides)
         base = self.analyser(**overrides)
         if VerificateurAssemblage is None:
             base.setdefault("inconnues", {}).setdefault("partielles", []).append({
@@ -1544,7 +1555,6 @@ def _extract_first_number(obj: Any, *keys: str) -> Optional[float]:
 def exemple_minimal() -> Dict[str, Any]:
     """Exemple de fumée : il ne valide pas un moteur réel, il vérifie le câblage."""
     orch = OrchestrateurMoteurThermique(
-        EntreesOrchestrateurMoteurThermique(
             alesage_m=0.08,
             course_m=0.07,
             nombre_cylindres=4,
@@ -1571,7 +1581,6 @@ def exemple_minimal() -> Dict[str, Any]:
             pression_admission_pa=101325.0,
             pression_echappement_pa=120000.0,
             tableaux_en_listes=False,
-        )
     )
     return orch.analyser()
 
@@ -1615,7 +1624,7 @@ class MoteurThermique:
             overrides.get("pme_pa"),
             self.pme_nominale_pa,
         )
-        return EntreesOrchestrateurMoteurThermique(
+        base = EntreesOrchestrateurMoteurThermique(
             alesage_m=_first_finite(overrides.get("alesage_m"), self.alesage_m),
             course_m=_first_finite(overrides.get("course_m"), self.course_m),
             nombre_cylindres=_safe_int(_first_non_none(overrides.get("nombre_cylindres"), self.nombre_cylindres)),
@@ -1632,6 +1641,10 @@ class MoteurThermique:
             facteur_securite_cylindre=float(_first_non_none(overrides.get("facteur_securite_cylindre"), self.facteur_securite_cylindre, 1.5)),
             carburant=_first_non_none(overrides.get("carburant"), self.carburant),
         )
+        # Important : on réinjecte ensuite toutes les clés valides d'EntreesOrchestrateurMoteurThermique.
+        # Cela permet à MoteurThermique.analyser(longueur_bielle_m=..., ordre_allumage=..., etc.)
+        # de ne pas perdre les paramètres nécessaires au cycle, à l'assemblage et aux pertes.
+        return base.with_overrides(**overrides)
 
     @staticmethod
     def _from_orchestrateur_report(report: Dict[str, Any]) -> Dict[str, Any]:
@@ -1771,7 +1784,7 @@ class MoteurThermique:
                 architectures_autorisees=allowed,
                 architecture_forcee=architecture_forcee,
             )
-            report["moteur_defini"] = moteur
+            report["moteur_defini"] = _to_jsonable(moteur)
             report["dimensionnement"] = {
                 "cylindree_totale_m3": vd_tot,
                 "cylindree_totale_cc": vd_tot * 1e6,
@@ -1786,7 +1799,8 @@ class MoteurThermique:
             return report
 
     def analyser(self, *, strict: bool = False, **overrides: Any) -> Dict[str, Any]:
-        return OrchestrateurMoteurThermique(self._to_entrees(**overrides)).analyser(strict=strict)
+        entrees = self._to_entrees(**overrides)
+        return OrchestrateurMoteurThermique(**asdict(entrees)).analyser(strict=strict)
 
     def analyser_geometrie_definition(self, **kwargs: Any) -> Dict[str, Any]:
         report = self.analyser(**kwargs)
