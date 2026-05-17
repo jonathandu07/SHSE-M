@@ -628,6 +628,68 @@ def tracer_croquis_arbre_piston_2d(
     }, d
 
 
+def build_sketch_contract(*, data: Dict[str, Any], global_report: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    """Retourne un contrat de croquis passif depuis le bloc CAO backend."""
+    from frontend.ensemble.piece_data_adapter import require_fields
+
+    required = require_fields(
+        data or {},
+        [
+            {"path": "cao.axe_x.x_debut_gauche_m", "label": "Debut axe", "unit": "m"},
+            {"path": "cao.axe_x.x_fin_teton_droit_m", "label": "Fin axe", "unit": "m"},
+            {"path": "cao.fut_central.longueur_m", "label": "Longueur fut", "unit": "m"},
+            {"path": "cao.fut_central.diametre_exterieur_m", "label": "Diametre fut", "unit": "m"},
+        ],
+    )
+    if not required["ok"]:
+        return {
+            "id": "arbre_piston_vue_longitudinale",
+            "type": "sketch_2d",
+            "status": "missing_required",
+            "title": "Arbre de piston - vue longitudinale",
+            "figure_path": None,
+            "geometry_json": {},
+            "used_fields": required["used_fields"],
+            "missing_fields": required["missing_fields"],
+            "solidworks_dimensions": [],
+            "source": "backend.rapports_pieces.arbre_piston",
+        }
+
+    cao = data.get("cao") if isinstance(data, dict) else {}
+    geometry = {
+        "plan": "XZ",
+        "unites": "m",
+        "axe_x": (cao or {}).get("axe_x", {}),
+        "sections": {
+            "teton_gauche": (cao or {}).get("teton_gauche", {}),
+            "fut_central": (cao or {}).get("fut_central", {}),
+            "teton_droit": (cao or {}).get("teton_droit", {}),
+        },
+    }
+    dims = [
+        {
+            "path": field["path"],
+            "label": field["label"],
+            "value": field["value"],
+            "unit": field["unit"],
+            "source": "backend",
+        }
+        for field in required["used_fields"]
+    ]
+    return {
+        "id": "arbre_piston_vue_longitudinale",
+        "type": "sketch_2d",
+        "status": "available",
+        "title": "Arbre de piston - vue longitudinale",
+        "figure_path": None,
+        "geometry_json": geometry,
+        "used_fields": required["used_fields"],
+        "missing_fields": [],
+        "solidworks_dimensions": dims,
+        "source": "backend.rapports_pieces.arbre_piston",
+    }
+
+
 # ============================================================
 # EXEMPLE D'UTILISATION
 # ============================================================

@@ -1491,6 +1491,7 @@ def _empty_ui(error: str = "Rapport vide ou inexistant") -> Dict[str, Any]:
 def _dashboard_actions() -> List[Dict[str, Any]]:
     return [
         {"label": "Données techniques", "target": "energy_audit", "requires": "rapport"},
+        {"label": "Visualisation technique", "target": "technical_visualization", "requires": "rapport"},
         {"label": "Pièces", "target": "piece_library", "requires": "pieces"},
         {"label": "Architecture", "target": "architecture_choice", "requires": "architecture_candidates"},
         {"label": "Croquis", "target": "sketches", "requires": "visual_resources"},

@@ -18,7 +18,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple
 
-import pyvista as pv
+try:
+    import pyvista as pv
+except Exception:  # pragma: no cover - dependance optionnelle
+    pv = None  # type: ignore[assignment]
 
 from backend.components.moteur_thermique.pieces.arbre_piston import ArbrePiston
 
@@ -91,6 +94,75 @@ def extraire_geometrie_depuis_rapport(rapport: Dict[str, Any]) -> Dict[str, floa
     return geom
 
 
+def build_view_3d_contract(*, data: Dict[str, Any], global_report: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    """Retourne une vue 3D indicative JSON sans ouvrir PyVista."""
+    from frontend.ensemble.piece_data_adapter import require_fields
+
+    required = require_fields(
+        data or {},
+        [
+            {"path": "cao.axe_x.x_debut_gauche_m", "label": "Debut axe", "unit": "m"},
+            {"path": "cao.axe_x.x_fin_teton_gauche_m", "label": "Fin teton gauche", "unit": "m"},
+            {"path": "cao.axe_x.x_fin_fut_central_m", "label": "Fin fut", "unit": "m"},
+            {"path": "cao.axe_x.x_fin_teton_droit_m", "label": "Fin teton droit", "unit": "m"},
+            {"path": "cao.teton_gauche.diametre_m", "label": "Diametre teton gauche", "unit": "m"},
+            {"path": "cao.fut_central.diametre_exterieur_m", "label": "Diametre fut", "unit": "m"},
+            {"path": "cao.teton_droit.diametre_m", "label": "Diametre teton droit", "unit": "m"},
+        ],
+    )
+    if not required["ok"]:
+        return {
+            "id": "arbre_piston_3d_indicative",
+            "type": "view_3d_indicative",
+            "status": "missing_required",
+            "title": "Arbre de piston - 3D indicative",
+            "mesh_available": False,
+            "json_geometry": {},
+            "warning": "Vue indicative indisponible tant que les cotes backend minimales manquent.",
+            "used_fields": required["used_fields"],
+            "missing_fields": required["missing_fields"],
+            "source": "backend.rapports_pieces.arbre_piston",
+        }
+
+    try:
+        geom = extraire_geometrie_depuis_rapport(dict(data or {}))
+        sections = [
+            {"x0_m": geom["x0"], "x1_m": geom["x1"], "diameter_m": geom["D_g"]},
+            {"x0_m": geom["x1"], "x1_m": geom["x2"], "diameter_m": geom["D_f_ext"], "inner_diameter_m": geom["D_f_int"]},
+            {"x0_m": geom["x2"], "x1_m": geom["x3"], "diameter_m": geom["D_d"]},
+        ]
+    except Exception as exc:
+        return {
+            "id": "arbre_piston_3d_indicative",
+            "type": "view_3d_indicative",
+            "status": "error",
+            "title": "Arbre de piston - 3D indicative",
+            "mesh_available": False,
+            "json_geometry": {},
+            "warning": f"{type(exc).__name__}: {exc}",
+            "used_fields": required["used_fields"],
+            "missing_fields": [],
+            "source": "backend.rapports_pieces.arbre_piston",
+        }
+
+    return {
+        "id": "arbre_piston_3d_indicative",
+        "type": "view_3d_indicative",
+        "status": "available",
+        "title": "Arbre de piston - 3D indicative",
+        "mesh_available": pv is not None,
+        "json_geometry": {
+            "primitive": "shaft_stepped",
+            "axis": "X",
+            "sections": sections,
+        },
+        "warning": "Vue indicative, pas STEP, pas modele final.",
+        "used_fields": required["used_fields"],
+        "missing_fields": [],
+        "source": "backend.rapports_pieces.arbre_piston",
+    }
+
+
 # =============================================================================
 # Construction géométrique simple
 # =============================================================================
@@ -101,6 +173,8 @@ def _cylindre_x(
     rayon: float,
     resolution: int = 96,
 ) -> pv.PolyData:
+    if pv is None:
+        raise RuntimeError("PyVista/VTK indisponible.")
     cyl = pv.Cylinder(
         center=(centre_x, 0.0, 0.0),
         direction=(1.0, 0.0, 0.0),

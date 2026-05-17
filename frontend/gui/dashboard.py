@@ -889,6 +889,7 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
             {"label": "Architecture", "target": "architecture_choice"},
             {"label": "Manques", "target": "missing_requirements"},
             {"label": "Diagnostic JSON", "target": "json_diagnostic"},
+            {"label": "Visualisation technique", "target": "technical_visualization"},
             {"label": "Paramètres", "target": "edit_parameters"},
             {"label": "Rapport brut", "target": "raw_json"},
             {"label": "Dossier CAO", "target": "cao_dossier"},

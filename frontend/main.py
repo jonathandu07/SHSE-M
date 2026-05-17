@@ -209,6 +209,12 @@ analyser_logs_backend = _backend_attr("analyser_logs_backend")
 charger_json_backend = _backend_attr("charger_json")
 sauvegarder_json_backend = _backend_attr("sauvegarder_json")
 
+try:
+    from frontend.ensemble.visualisation_orchestrator import construire_tableau_pages_visualisation
+except BaseException as exc:  # pragma: no cover - dependance frontend optionnelle
+    construire_tableau_pages_visualisation = None  # type: ignore[assignment]
+    _record_import_error("frontend.ensemble.visualisation_orchestrator", exc)
+
 
 # =============================================================================
 # Options frontend
@@ -1165,6 +1171,19 @@ class FrontendBackendBridge:
 
         return paths
 
+    def technical_visualization(self) -> Dict[str, Any]:
+        """Construit le tableau de visualisation technique depuis le rapport courant."""
+        if callable(construire_tableau_pages_visualisation):
+            return construire_tableau_pages_visualisation(_safe_dict(self.raw_report))
+        return {
+            "title": "Visualisation technique",
+            "summary": {},
+            "components": [],
+            "pieces_by_family": {},
+            "solidworks": {"step_export": False, "solidworks_ready": False},
+            "error": "frontend.ensemble.visualisation_orchestrator indisponible",
+        }
+
     def _build_state(self, *, action: str) -> Dict[str, Any]:
         status = _get_path(self.ui_report, "meta.status", "bloque")
         state = FrontendRunState(
@@ -1221,6 +1240,21 @@ def get_ui_report() -> Dict[str, Any]:
 def get_raw_report() -> Dict[str, Any]:
     bridge = get_backend_bridge()
     return bridge.raw_report
+
+
+def get_technical_visualization_report(report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    """Expose le tableau de visualisation technique depuis frontend/main.py."""
+    source = _safe_dict(report) if report is not None else get_raw_report()
+    if callable(construire_tableau_pages_visualisation):
+        return construire_tableau_pages_visualisation(source)
+    return {
+        "title": "Visualisation technique",
+        "summary": {},
+        "components": [],
+        "pieces_by_family": {},
+        "solidworks": {"step_export": False, "solidworks_ready": False},
+        "error": "frontend.ensemble.visualisation_orchestrator indisponible",
+    }
 
 
 # =============================================================================
@@ -1595,6 +1629,7 @@ __all__ = [
     "FrontendBackendBridge",
     "build_frontend_ui_report",
     "get_backend_bridge",
+    "get_technical_visualization_report",
     "refresh_backend_data",
     "get_ui_report",
     "get_raw_report",
