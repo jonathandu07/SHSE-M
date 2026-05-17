@@ -31,6 +31,7 @@ from frontend.gui.components import (
     SectionTitle,
     StatusBadge,
 )
+from frontend.gui.frontend_contract import get_field, field_badge_label
 
 
 # =============================================================================
@@ -607,6 +608,30 @@ def _metric(label: str, value: Any, unit: str = "", status: Optional[str] = None
     }
 
 
+def _contract_metric(contract: Mapping[str, Any], path: str, label: str, unit: str = "") -> Dict[str, Any]:
+    field = get_field(contract, path) if isinstance(contract, Mapping) else None
+    if not field:
+        return _metric(label, None, unit, "missing")
+    status = "ok" if str(field.get("status")) in {"computed", "database", "derived", "input", "validated_by_optimization"} else "alerte"
+    return {
+        "label": label,
+        "value": field.get("value"),
+        "unit": field.get("unit") or unit,
+        "status": status,
+        "source": field.get("source"),
+        "badge": field_badge_label(field),
+        "path": path,
+    }
+
+
+def _chain_check(chain: Mapping[str, Any], name: str) -> Dict[str, Any]:
+    checks = chain.get("checks", []) if isinstance(chain, Mapping) else []
+    for check in checks:
+        if isinstance(check, Mapping) and check.get("name") == name:
+            return dict(check)
+    return {}
+
+
 def _subsystem(name: str, report: Any, *, required: bool = False) -> Dict[str, Any]:
     if isinstance(report, Mapping):
         if report.get("erreur"):
@@ -675,8 +700,19 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
     sc_alt = _safe_dict(sc_synth.get("alternateur"))
     sc_mt = _safe_dict(sc_synth.get("moteur_thermique"))
 
-    cao = _safe_dict(report.get("cao"))
+    frontend_contract = _safe_dict(report.get("frontend"))
+    contract_cao = _safe_dict(frontend_contract.get("cao"))
+    cao_dossier = _safe_dict(report.get("cao_dossier")) or _safe_dict(frontend_contract.get("cao_dossier"))
+    cao_resume = _safe_dict(cao_dossier.get("resume"))
+    mechanical_graphs = _safe_dict(report.get("mechanical_graphs")) or _safe_dict(frontend_contract.get("mechanical_graphs"))
+    cao = _merge_dict_non_none(_safe_dict(report.get("cao")), contract_cao)
+    cao = _merge_dict_non_none(cao, cao_resume)
     chain_validation = _safe_dict(report.get("validation_chaine_100kw")) or _safe_dict(_deep_get(report, "frontend", "chain_validation"))
+    chain_values = _safe_dict(chain_validation.get("valeurs"))
+    chain_livrables = _safe_dict(chain_validation.get("livrables"))
+    diagnostic = _safe_dict(report.get("diagnostic")) or _safe_dict(frontend_contract.get("diagnostic"))
+    diagnostic_resume = _safe_dict(diagnostic.get("resume"))
+    root_causes = [dict(c) for c in _safe_list(diagnostic.get("causes_racines")) if isinstance(c, Mapping)]
     analyses = _safe_dict(report.get("analyses_composants"))
     construction = _safe_dict(report.get("construction_pieces"))
     pieces = _safe_dict(report.get("rapports_pieces"))
@@ -705,6 +741,48 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
     )
     if p_bus is not None:
         puissance_demandee_kw = p_bus / 1000.0
+
+    power_chain = [
+        _contract_metric(frontend_contract, "synthese.moteur_electrique.puissance_sortie_w", "Sortie moteur electrique", "W"),
+        _contract_metric(frontend_contract, "synthese.systeme.P_bus_dc_design_w", "Bus DC design", "W"),
+        _metric("Alternateur electrique", chain_values.get("puissance_alternateur_electrique_w"), "W", _status_for_value(chain_values.get("puissance_alternateur_electrique_w"))),
+        _metric("Moteur thermique arbre", chain_values.get("puissance_moteur_thermique_arbre_w"), "W", _status_for_value(chain_values.get("puissance_moteur_thermique_arbre_w"))),
+        _metric("Regime thermique", chain_values.get("rpm_moteur_thermique"), "rpm", _status_for_value(chain_values.get("rpm_moteur_thermique"))),
+        _metric("Couple thermique", chain_values.get("couple_moteur_thermique_nm"), "Nm", _status_for_value(chain_values.get("couple_moteur_thermique_nm"))),
+        _metric("Score chaine", chain_validation.get("score_chaine_100"), "/100", "ok" if chain_validation.get("ok") else ("alerte" if chain_validation else "missing")),
+    ]
+
+    boite_check = _chain_check(chain_validation, "boite_reliable")
+    couple_check = _chain_check(chain_validation, "couple_moteur_thermique_calculable")
+    materials = _safe_list(_deep_get(mechanical_graphs, "context", "materiaux_autorises"))
+    mechanical_presizing = bool(chain_livrables.get("mechanical_presizing_ok") or cao.get("drawing_data_available"))
+    mechanical_closure = [
+        _metric("Couple connu", _fmt_bool(couple_check.get("ok")) if couple_check else _fmt_bool(chain_values.get("couple_moteur_thermique_nm") is not None), "", "ok" if (couple_check.get("ok") if couple_check else chain_values.get("couple_moteur_thermique_nm") is not None) else "alerte"),
+        _metric("Arbre dimensionnable", _fmt_bool(mechanical_presizing), "", "ok" if mechanical_presizing else "alerte"),
+        _metric("Boite/crabots", _fmt_bool(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
+        _metric("Alternateur relie", _fmt_bool(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
+        _metric("Materiaux candidats", ", ".join(str(x) for x in materials[:3]) or None, "", "ok" if materials else "missing"),
+        _metric("Graphes mecaniques", mechanical_graphs.get("graphs_available"), "", "ok" if mechanical_graphs.get("graphs_available") else "alerte"),
+    ]
+
+    cao_preconception = [
+        _metric("Mode", cao.get("mode"), "", "ok" if cao.get("mode") not in (None, "indisponible") else "missing"),
+        _metric("Croquis cotes", _fmt_bool(cao.get("sketches_available")), "", "ok" if cao.get("sketches_available") else "alerte"),
+        _metric("3D indicative", _fmt_bool(cao.get("views_3d_available")), "", "ok" if cao.get("views_3d_available") else "alerte"),
+        _metric("Graphiques contraintes", _fmt_bool(cao.get("stress_graphs_available")), "", "ok" if cao.get("stress_graphs_available") else "alerte"),
+        _metric("Donnees SolidWorks", _fmt_bool(cao.get("drawing_data_available")), "", "ok" if cao.get("drawing_data_available") else "alerte"),
+        _metric("SolidWorks ready", _fmt_bool(cao.get("solidworks_ready")), "", "ok" if cao.get("solidworks_ready") else "alerte"),
+        _metric("STEP export", _fmt_bool(cao.get("step_export")), "", "ok" if cao.get("step_export") else "alerte"),
+    ]
+
+    diagnostic_causal = {
+        "status": diagnostic_resume.get("statut") or ("bloque" if root_causes else "indisponible"),
+        "score": diagnostic_resume.get("score_diagnostic_100"),
+        "root_causes_count": diagnostic_resume.get("nb_causes_racines", len(root_causes)),
+        "symptoms_count": diagnostic_resume.get("nb_symptomes"),
+        "duplicates_count": diagnostic_resume.get("nb_doublons_probables"),
+        "root_causes": root_causes[:4],
+    }
 
     energy_chain = [
         _metric("Puissance totale demandée", puissance_demandee_kw, "kW"),
@@ -789,7 +867,20 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
                 "score_chaine_100": chain_validation.get("score_chaine_100"),
                 "main_blocking_point": _safe_list(chain_validation.get("points_bloquants"))[0] if _safe_list(chain_validation.get("points_bloquants")) else None,
             },
+            "cao_preconception": {
+                "mode": cao.get("mode"),
+                "sketches_available": bool(cao.get("sketches_available")),
+                "views_3d_available": bool(cao.get("views_3d_available")),
+                "stress_graphs_available": bool(cao.get("stress_graphs_available")),
+                "drawing_data_available": bool(cao.get("drawing_data_available")),
+                "solidworks_ready": bool(cao.get("solidworks_ready")),
+                "step_export": bool(cao.get("step_export")),
+            },
         },
+        "power_chain": power_chain,
+        "mechanical_closure": mechanical_closure,
+        "cao_preconception": cao_preconception,
+        "diagnostic_causal": diagnostic_causal,
         "energy_chain": energy_chain,
         "subsystems": subsystems,
         "alerts": alert_rows,

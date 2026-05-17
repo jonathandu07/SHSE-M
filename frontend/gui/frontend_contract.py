@@ -37,20 +37,102 @@ STATUS_COLORS = {
 
 
 def format_field(field: Mapping[str, Any]) -> str:
+    return format_field_value(field)
+
+
+def get_field(contract: Mapping[str, Any], path: str) -> Dict[str, Any] | None:
+    """Retourne le champ contractuel exact, sans chercher dans le JSON brut."""
+    if not isinstance(contract, Mapping):
+        return None
+    fields = contract.get("fields", [])
+    if not isinstance(fields, list):
+        return None
+    for field in fields:
+        if isinstance(field, Mapping) and field.get("path") == path:
+            return dict(field)
+    return None
+
+
+def get_field_value(contract: Mapping[str, Any], path: str) -> Any:
+    field = get_field(contract, path)
+    return field.get("value") if field else None
+
+
+def get_field_status(contract: Mapping[str, Any], path: str) -> str | None:
+    field = get_field(contract, path)
+    return _normalize_status(field.get("status")) if field else None
+
+
+def format_field_value(field: Mapping[str, Any]) -> str:
     value = field.get("value")
     unit = field.get("unit")
     if value is None:
-        return "indisponible"
+        return "INCONNU"
     return f"{value} {unit}".strip() if unit else str(value)
 
 
 def field_color(field: Mapping[str, Any]) -> str:
+    return field_badge_color(field)
+
+
+def is_field_blocking(field: Mapping[str, Any]) -> bool:
+    if not isinstance(field, Mapping):
+        return False
+    status = _normalize_status(field.get("status"))
+    return bool(field.get("blocking")) or status in {"missing_required", "impossible", "error"}
+
+
+def is_field_editable(field: Mapping[str, Any]) -> bool:
+    if not isinstance(field, Mapping):
+        return False
+    status = _normalize_status(field.get("status"))
+    trace = field.get("trace") if isinstance(field.get("trace"), Mapping) else {}
+    locked = bool(field.get("locked") or trace.get("locked") or field.get("database_locked"))
+    if locked:
+        return False
+    return bool(field.get("editable")) or status == "candidate_from_cdc"
+
+
+def field_badge_label(field: Mapping[str, Any]) -> str:
+    status = _normalize_status(field.get("status"))
+    labels = {
+        "computed": "calcule",
+        "input": "saisi",
+        "database": "bdd",
+        "derived": "deduit",
+        "contrainte_cdc": "contrainte cdc",
+        "candidate_from_cdc": "candidat backend",
+        "validated_by_optimization": "valide optimisation",
+        "rejected_by_optimization": "rejete optimisation",
+        "missing_required": "bloquant",
+        "missing_optional": "optionnel",
+        "partial": "partiel",
+        "impossible": "impossible",
+        "error": "erreur",
+    }
+    return labels.get(status, status or "inconnu")
+
+
+def field_badge_color(field: Mapping[str, Any]) -> str:
     return STATUS_COLORS.get(_normalize_status(field.get("status")), "warning")
 
 
 def is_cao_available(contract: Mapping[str, Any]) -> bool:
     cao = contract.get("cao", {})
     return bool(isinstance(cao, Mapping) and cao.get("available") is True)
+
+
+def is_real_solidworks_available(contract: Mapping[str, Any]) -> bool:
+    """Disponibilite stricte : SolidWorks pret et aucun export STEP invente."""
+    cao = contract.get("cao", {}) if isinstance(contract, Mapping) else {}
+    if not isinstance(cao, Mapping):
+        return False
+    return bool(cao.get("available") and cao.get("solidworks_ready") and not cao.get("step_export"))
+
+
+def is_step_export_available(contract: Mapping[str, Any]) -> bool:
+    cao = contract.get("cao", {}) if isinstance(contract, Mapping) else {}
+    return bool(isinstance(cao, Mapping) and cao.get("step_export") is True)
 
 
 def get_missing_required_fields(contract: Mapping[str, Any]) -> List[str]:
@@ -70,6 +152,16 @@ def candidate_label(field: Mapping[str, Any]) -> str | None:
     if status == "rejected_by_optimization":
         return "rejetee"
     return None
+
+
+def contract_fields_by_status(contract: Mapping[str, Any], status: str) -> List[Dict[str, Any]]:
+    normalized = _normalize_status(status)
+    fields = contract.get("fields", []) if isinstance(contract, Mapping) else []
+    return [
+        dict(field)
+        for field in fields
+        if isinstance(field, Mapping) and _normalize_status(field.get("status")) == normalized
+    ]
 
 
 def diagnostic_root_cause_cards(contract: Mapping[str, Any]) -> List[Dict[str, Any]]:
