@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/moteur_electrique/pieces/rotor_moteur_electrique/mesh_3d.py
+But : Définition et génération du maillage 3D pour la modélisation de la pièce.
+"""
+
 # frontend/components/moteur_electrique/pieces/rotor_moteur_electrique/mesh_3d.py
 from __future__ import annotations
 

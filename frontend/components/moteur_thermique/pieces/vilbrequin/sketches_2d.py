@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/moteur_thermique/pieces/vilbrequin/sketches_2d.py
+But : Définition des esquisses géométriques 2D de la pièce.
+"""
+
 # frontend/pieces/sketches_2d/vilbrequin.py
 from __future__ import annotations
 

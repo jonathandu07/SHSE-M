@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/STHO_ME.py
+But : Modèle global et orchestration du système STHO-ME.
+"""
+
 # frontend/ensemble/STHO_ME.py
 from __future__ import annotations
 import json

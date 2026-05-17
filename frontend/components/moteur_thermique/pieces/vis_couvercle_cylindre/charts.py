@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/moteur_thermique/pieces/vis_couvercle_cylindre/charts.py
+But : Génération des graphiques et visualisations de données pour la pièce.
+"""
+
 # frontend/components/moteur_thermique/pieces/vis_couvercle_cylindre/charts.py
 from __future__ import annotations
 

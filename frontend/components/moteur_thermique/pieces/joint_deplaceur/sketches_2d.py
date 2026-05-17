@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/moteur_thermique/pieces/joint_deplaceur/sketches_2d.py
+But : Définition des esquisses géométriques 2D de la pièce.
+"""
+
 # frontend/pieces/sketches_2d/joint_deplaceur.py
 from __future__ import annotations
 

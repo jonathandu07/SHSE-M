@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/batterie/sketches_2d.py
+But : Orchestrateur front-end servant de page d'affichage et permettant de consulter les données sur les pièces.
+"""
+
 # frontend/pieces/sketches_2d/batterie_pack.py
 from __future__ import annotations
 

@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/calcul_stho_me.py
+But : Calculs thermodynamiques spécifiques pour le système STHO-ME.
+"""
+
 # frontend/ensemble/calcul_stho_me.py
 from __future__ import annotations
 import json

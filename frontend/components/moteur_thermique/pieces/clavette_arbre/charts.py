@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/moteur_thermique/pieces/clavette_arbre/charts.py
+But : Génération des graphiques et visualisations de données pour la pièce.
+"""
+
 # frontend/components/moteur_thermique/pieces/clavette_arbre/charts.py
 from __future__ import annotations
 

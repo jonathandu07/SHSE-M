@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/batterie/pieces/bms_batterie/mesh_3d.py
+But : Définition et génération du maillage 3D pour la modélisation de la pièce.
+"""
+
 # frontend/components/batterie/pieces/bms_batterie/mesh_3d.py
 from __future__ import annotations
 

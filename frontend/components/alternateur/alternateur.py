@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/alternateur/alternateur.py
+But : Orchestrateur front-end servant de page d'affichage et permettant de consulter les données sur les pièces.
+"""
+
 # frontend/pieces/sketches_2d/alternateur_complet.py
 from __future__ import annotations
 

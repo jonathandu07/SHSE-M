@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/batterie/pieces/busbars_batterie/sketches_2d.py
+But : Définition des esquisses géométriques 2D de la pièce.
+"""
+
 # frontend/components/batterie/pieces/busbars_batterie/sketches_2d.py
 from __future__ import annotations
 

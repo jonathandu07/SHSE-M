@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/batterie/pieces/busbars_batterie/charts.py
+But : Génération des graphiques et visualisations de données pour la pièce.
+"""
+
 # frontend/components/batterie/pieces/busbars_batterie/charts.py
 from __future__ import annotations
 

@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/architechture/sketches_2d.py
+But : Orchestrateur front-end servant de page d'affichage et permettant de consulter les données sur les pièces.
+"""
+
 # frontend/pieces/sketches_2d/architecture_layout.py
 from __future__ import annotations
 

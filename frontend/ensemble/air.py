@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/air.py
+But : Définition des propriétés thermodynamiques et calculs liés à l'air.
+"""
+
 # frontend/ensemble/air.py
 from __future__ import annotations
 import json

@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/carburant.py
+But : Définition des propriétés physico-chimiques et calculs liés aux carburants.
+"""
+
 # frontend/ensemble/carburant.py
 from __future__ import annotations
 import json

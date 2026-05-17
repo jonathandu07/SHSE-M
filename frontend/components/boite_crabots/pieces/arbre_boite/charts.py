@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/boite_crabots/pieces/arbre_boite/charts.py
+But : Génération des graphiques et visualisations de données pour la pièce.
+"""
+
 # frontend/components/boite_crabots/pieces/arbre_boite/charts.py
 from __future__ import annotations
 

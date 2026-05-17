@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/moteur_thermique/pieces/coussinet_arbre_piston/sketches_2d.py
+But : Définition des esquisses géométriques 2D de la pièce.
+"""
+
 # frontend/pieces/sketches_2d/coussinet_arbre_piston.py
 from __future__ import annotations
 

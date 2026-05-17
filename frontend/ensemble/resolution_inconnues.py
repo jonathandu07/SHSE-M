@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/resolution_inconnues.py
+But : Résolution des équations et calcul des variables inconnues du système.
+"""
+
 # frontend/ensemble/resolution_inconnues.py
 from __future__ import annotations
 import json

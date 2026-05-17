@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/architechture/pieces/culasse_arch/charts.py
+But : Génération des graphiques et visualisations de données pour la pièce.
+"""
+
 # frontend/components/architechture/pieces/culasse_arch/charts.py
 from __future__ import annotations
 

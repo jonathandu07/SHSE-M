@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/boite_crabots/pieces/arbre_boite/sketches_2d.py
+But : Définition des esquisses géométriques 2D de la pièce.
+"""
+
 # frontend/components/boite_crabots/pieces/arbre_boite/sketches_2d.py
 from __future__ import annotations
 

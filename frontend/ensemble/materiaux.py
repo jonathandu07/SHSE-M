@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/materiaux.py
+But : Définition des propriétés mécaniques et thermiques des matériaux.
+"""
+
 # frontend/ensemble/materiaux.py
 from __future__ import annotations
 import json

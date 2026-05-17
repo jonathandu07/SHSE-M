@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/eau.py
+But : Définition des propriétés thermodynamiques et calculs liés à l'eau de refroidissement.
+"""
+
 # frontend/ensemble/eau.py
 from __future__ import annotations
 import json

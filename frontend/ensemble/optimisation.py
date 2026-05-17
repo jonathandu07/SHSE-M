@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/optimisation.py
+But : Logique d'optimisation des performances et des paramètres du système.
+"""
+
 # frontend/ensemble/optimisation.py
 from __future__ import annotations
 import json

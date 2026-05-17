@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/alternateur/pieces/bobine_excite/sketches_2d.py
+But : Définition des esquisses géométriques 2D de la pièce.
+"""
+
 # frontend/components/alternateur/pieces/bobine_excite/sketches_2d.py
 from __future__ import annotations
 

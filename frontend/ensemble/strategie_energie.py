@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/ensemble/strategie_energie.py
+But : Définition et calcul des stratégies de gestion de l'énergie.
+"""
+
 # frontend/ensemble/strategie_energie.py
 from __future__ import annotations
 import json

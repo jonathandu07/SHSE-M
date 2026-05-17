@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/alternateur/pieces/ventilateur/charts.py
+But : Génération des graphiques et visualisations de données pour la pièce.
+"""
+
 # frontend/components/alternateur/pieces/ventilateur/charts.py
 from __future__ import annotations
 

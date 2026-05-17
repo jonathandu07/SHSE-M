@@ -1,3 +1,8 @@
+"""
+Chemin : frontend/components/alternateur/pieces/carter_alternateur/charts.py
+But : Génération des graphiques et visualisations de données pour la pièce.
+"""
+
 # frontend/components/alternateur/pieces/carter_alternateur/charts.py
 from __future__ import annotations
 
