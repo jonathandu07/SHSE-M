@@ -806,6 +806,33 @@ def _fallback_module_for(viz_type: str) -> Optional[Any]:
     return module
 
 
+def _unavailable_figure(piece_name: Any, viz_type: str, reason: str) -> Any:
+    """Figure d'etat vide : elle ne dessine aucune geometrie metier."""
+    plt = _import_pyplot()
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.axis("off")
+    ax.text(
+        0.5,
+        0.55,
+        "Visualisation indisponible",
+        ha="center",
+        va="center",
+        fontsize=12,
+        fontweight="bold",
+    )
+    ax.text(
+        0.5,
+        0.38,
+        f"{piece_name} - {viz_type}\n{reason}",
+        ha="center",
+        va="center",
+        fontsize=9,
+        wrap=True,
+    )
+    fig.tight_layout()
+    return fig
+
+
 def get_draw_3d_func(piece_name: Any, *, subsystem: Optional[str] = None) -> Callable[..., Any]:
     """
     API historique conservée.
@@ -918,6 +945,11 @@ def get_viz_figure_result(
     except Exception as exc:
         result.errors.append(f"{type(exc).__name__}: {exc}")
         result.diagnostics["traceback"] = traceback.format_exc(limit=8)
+        if allow_fallback:
+            result.figure = _unavailable_figure(piece_name, vt, str(exc))
+            result.ok = True
+            result.fallback_used = True
+            result.diagnostics["unavailable_state"] = True
 
         LOGGER.warning(
             "Erreur get_viz_figure_result(piece=%s, type=%s, module=%s): %s",

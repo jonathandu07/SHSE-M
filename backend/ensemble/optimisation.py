@@ -34,13 +34,7 @@ from pathlib import Path
 # Imports robustes
 # ============================================================
 
-try:
-    from backend.ensemble.systeme_complet import SystemeComplet
-except Exception:  # pragma: no cover
-    try:
-        from ensemble.systeme_complet import SystemeComplet  # type: ignore
-    except Exception:  # pragma: no cover
-        SystemeComplet = None  # type: ignore
+SystemeComplet = None  # compatibilite de type uniquement ; STHO_ME orchestre le systeme complet.
 
 try:
     from backend.components.moteur_thermique.moteur_thermique import MoteurThermique

@@ -12,11 +12,6 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.append(str(_PROJECT_ROOT))
 
 import matplotlib.pyplot as plt
-try:
-    from backend.ensemble.systeme_complet import SystemeComplet as _LegacySystemeComplet
-except ModuleNotFoundError:
-    _LegacySystemeComplet = None
-
 from backend.ensemble.STHO_ME import STHO_ME
 from backend.components.moteur_electrique.moteur_electrique import MoteurElectrique
 from backend.components.batterie.batterie import Batterie
@@ -51,7 +46,7 @@ class _STHOMESystemeCompletAdapter:
         return STHO_ME.depuis_config(config).analyser()
 
 
-SystemeComplet = _LegacySystemeComplet or _STHOMESystemeCompletAdapter
+SystemeComplet = _STHOMESystemeCompletAdapter
 
 def executer_simulation():
     print("--- Démarrage de la simulation globale SHSE-M ---")

@@ -38,12 +38,15 @@ def _import_attr(module_names: Sequence[str], attr: str, default: Any = None) ->
     return default if default is not None or last_error is not None else default
 
 
-SystemeComplet = _import_attr(("backend.ensemble.systeme_complet", "systeme_complet"), "SystemeComplet", default=None)
+# SystemeComplet n'est plus importe comme orchestrateur principal. Le symbole
+# reste monkeypatchable pour les tests legacy, mais STHO_ME est le chemin réel.
+SystemeComplet = None
 OptimisationSysteme = _import_attr(("backend.ensemble.optimisation", "optimisation"), "OptimisationSysteme", default=None)
 STHO_ME = _import_attr(("backend.ensemble.STHO_ME", "STHO_ME"), "STHO_ME", default=None)
 analyser_strategie_energie = _import_attr(("backend.ensemble.strategie_energie", "strategie_energie"), "analyser_strategie_energie", default=None)
 CahierDesChargesSTHOME = _import_attr(("backend.ensemble.resolution_inconnues", "resolution_inconnues"), "CahierDesChargesSTHOME", default=None)
 resoudre_inconnues_systeme = _import_attr(("backend.ensemble.resolution_inconnues", "resolution_inconnues"), "resoudre_inconnues_systeme", default=None)
+build_frontend_contract = _import_attr(("backend.modules.systeme.frontend_contract", "modules.systeme.frontend_contract"), "build_frontend_contract", default=None)
 
 MoteurElectrique = _import_attr(("backend.components.moteur_electrique.moteur_electrique", "backend.components.moteur_electrique", "moteur_electrique"), "MoteurElectrique", default=None)
 AnalyserMoteurElectriqueDepuisPuissance = _import_attr(("backend.components.moteur_electrique.moteur_electrique", "backend.components.moteur_electrique", "moteur_electrique"), "analyser_depuis_puissance", default=None)
@@ -3078,6 +3081,11 @@ def dimensionner_systeme_shsem(
             "inventaire": inventaire,
         },
     }
+    if callable(build_frontend_contract):
+        try:
+            resultat["frontend"] = build_frontend_contract(resultat, project_id=_safe_dict(resultat.get("meta")).get("project_id"))
+        except Exception as exc:
+            resultat["frontend"] = {"error": str(exc), "raw_available": True}
     return resultat
 
 

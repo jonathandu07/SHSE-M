@@ -1521,6 +1521,7 @@ def adapt_backend_report(report: Mapping[str, Any]) -> Dict[str, Any]:
     charts = list(resource_catalog.get("charts", [])) if isinstance(resource_catalog, Mapping) else []
     three_d = list(resource_catalog.get("three_d", [])) if isinstance(resource_catalog, Mapping) else []
     editable = extract_editable_parameters(report, arch_candidates)
+    frontend_contract = _as_dict(report.get("frontend"))
 
     kpis = [
         metric_from_paths(report, label, paths, unit, include_missing=False)
@@ -1570,6 +1571,7 @@ def adapt_backend_report(report: Mapping[str, Any]) -> Dict[str, Any]:
         "exports": exports,
         "export_availability": extract_export_availability(report),
         "editable_parameters": editable,
+        "frontend_contract": frontend_contract,
         "notes": _as_list(report.get("notes_modele")) if isinstance(report.get("notes_modele"), list) else [],
         "audit": {
             "strict_no_physics_calculation": True,
