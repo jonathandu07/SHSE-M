@@ -3,7 +3,6 @@ Chemin : frontend/components/moteur_thermique/pieces/cylindre/views_3d.py
 But : Définition et rendu des vues 3D de la pièce.
 """
 
-"""Vue 3D matplotlib — Cylindre"""
 from __future__ import annotations
 import numpy as np
 from frontend.ensemble.viz_3d_template import _safe, cylinder_surface, disk_surface, apply_style

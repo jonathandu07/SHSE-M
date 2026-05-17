@@ -3,7 +3,6 @@ Chemin : frontend/components/moteur_thermique/pieces/couvercle_cylindre/views_3d
 But : Définition et rendu des vues 3D de la pièce.
 """
 
-"""Vue 3D matplotlib — Couvercle Cylindre"""
 from __future__ import annotations
 import numpy as np
 from frontend.ensemble.viz_3d_template import _safe, cylinder_surface, disk_surface, apply_style
