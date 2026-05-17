@@ -1,26 +1,27 @@
 """
 Chemin : frontend/components/batterie/pieces/busbars_batterie/busbars_batterie.py
-But : Page d'affichage (orchestrateur) pour la pièce busbars_batterie, utilisant frontend/main.py pour extraire les données.
+But : Page d'affichage (orchestrateur) pour la pièce busbars_batterie.
 """
 
 from __future__ import annotations
 import sys
 from pathlib import Path
-import matplotlib.pyplot as plt
 
-# Configuration du sys.path pour accéder à frontend.main
+# Configuration du sys.path pour accéder à frontend.main et backend
 _THIS_FILE = Path(__file__).resolve()
-# Remonter de 4 niveaux : fichier.py -> piece -> pieces -> composant -> components -> frontend -> SHSE-M
 _PROJECT_ROOT = _THIS_FILE.parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from frontend.main import get_backend_bridge
+
+# Import de la classe métier du backend
 try:
-    from frontend.main import get_backend_bridge
-    HAS_FRONTEND = True
+    from backend.components.batterie.pieces.busbars_batterie import BusbarsBatterie
+    HAS_BACKEND_CLASS = True
 except ImportError:
-    HAS_FRONTEND = False
-    print("Erreur : Impossible d'importer frontend.main. Vérifiez les chemins.")
+    HAS_BACKEND_CLASS = False
+    print("Avertissement : Impossible d'importer la classe BusbarsBatterie du backend.")
 
 # Importations conditionnelles des modules graphiques
 try:
@@ -36,61 +37,82 @@ except ImportError:
     HAS_CHARTS = False
 
 try:
+    from . import mesh_3d
+    HAS_MESH = True
+except ImportError:
+    HAS_MESH = False
+
+try:
     from . import views_3d
     HAS_VIEWS = True
 except ImportError:
     HAS_VIEWS = False
 
 def afficher_vues_busbars_batterie():
-    report = {}
-    if HAS_FRONTEND:
-        print("Initialisation du pont frontend-backend...")
-        bridge = get_backend_bridge()
-        print("Calcul du scénario par défaut (100 kW)...")
-        state = bridge.run_100kw()
-        report = state.get("raw_report", {})
+    print("=======================================================")
+    print("  Affichage des vues pour : busbars_batterie")
+    print("=======================================================")
     
-    print("Affichage des modules graphiques pour la pièce : busbars_batterie")
+    print("1. Initialisation du pont frontend-backend via frontend.main...")
+    bridge = get_backend_bridge()
+    state = bridge.run_100kw()
+    report = state.get("raw_report", {})
     
-    # Exécution des fonctions de tracé en leur passant le rapport complet (Zero-Invention)
-    modules_trouves = 0
-    if HAS_SKETCHES:
-        for func_name in dir(sketches_2d):
-            if func_name.startswith("tracer"):
-                func = getattr(sketches_2d, func_name)
-                if callable(func):
-                    modules_trouves += 1
-                    try:
-                        func(report)
-                    except TypeError:
-                        func() # Rétrocompatibilité si la fonction ne prend pas d'arguments
-                        
-    if HAS_CHARTS:
-        for func_name in dir(charts):
-            if func_name.startswith("tracer"):
-                func = getattr(charts, func_name)
-                if callable(func):
-                    modules_trouves += 1
-                    try:
-                        func(report)
-                    except TypeError:
-                        func()
-                        
-    if HAS_VIEWS:
-        for func_name in dir(views_3d):
-            if func_name.startswith("tracer"):
-                func = getattr(views_3d, func_name)
-                if callable(func):
-                    modules_trouves += 1
-                    try:
-                        func(report)
-                    except TypeError:
-                        func()
+    if not HAS_BACKEND_CLASS:
+        print("Erreur : Classe métier introuvable. Affichage impossible.")
+        return
 
-    if modules_trouves > 0:
-        plt.show()
+    print("2. Instanciation de la pièce métier...")
+    try:
+        piece = BusbarsBatterie()
+    except Exception as e:
+        print(f"Erreur lors de l'instanciation de BusbarsBatterie : {e}")
+        return
+
+    print("3. Lancement des modules graphiques...")
+    modules_trouves = 0
+
+    if HAS_SKETCHES:
+        # Recherche des fonctions d'affichage
+        for func_name in ["afficher_2d", "afficher_croquis", "tracer_croquis"]:
+            if hasattr(sketches_2d, func_name):
+                print(f" -> Lancement de sketches_2d.{func_name}...")
+                getattr(sketches_2d, func_name)(piece)
+                modules_trouves += 1
+                break
+
+    if HAS_CHARTS:
+        for func_name in ["afficher_radar", "afficher_graphique", "tracer_graphique"]:
+            if hasattr(charts, func_name):
+                print(f" -> Lancement de charts.{func_name}...")
+                getattr(charts, func_name)(piece)
+                modules_trouves += 1
+                break
+
+    if HAS_MESH:
+        for func_name in dir(mesh_3d):
+            if func_name.startswith("afficher_") and func_name.endswith("3d"):
+                print(f" -> Lancement de mesh_3d.{func_name}...")
+                func = getattr(mesh_3d, func_name)
+                try:
+                    func(piece)
+                except Exception as e:
+                    print(f"Erreur d'exécution de {func_name} : {e}")
+                modules_trouves += 1
+                break
+        
+    if HAS_VIEWS:
+        for func_name in ["afficher_3d", "afficher_vues", "tracer_vues"]:
+            if hasattr(views_3d, func_name):
+                print(f" -> Lancement de views_3d.{func_name}...")
+                getattr(views_3d, func_name)(piece)
+                modules_trouves += 1
+                break
+
+    if modules_trouves == 0:
+        print(" -> Aucun module graphique exécutable n'a été trouvé pour cette pièce.")
     else:
-        print("Aucun module graphique exécutable n'a été trouvé pour cette pièce.")
+        print("Terminé.")
 
 if __name__ == "__main__":
     afficher_vues_busbars_batterie()
