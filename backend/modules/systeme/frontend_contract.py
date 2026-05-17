@@ -29,6 +29,8 @@ def build_frontend_contract(
         ("synthese.moteur_thermique.rpm_nominal", "Regime nominal", "rpm"),
         ("synthese.moteur_thermique.pme_pa", "PME", "Pa"),
         ("synthese.systeme.P_bus_dc_design_w", "Puissance bus DC", "W"),
+        ("synthese.moteur_electrique.puissance_sortie_w", "Puissance sortie moteur electrique", "W"),
+        ("validation_chaine_100kw.score_chaine_100", "Score chaine 100 kW", None),
         ("coherence_systeme.score_global", "Score coherence", None),
     ):
         value = _get_path(rapport, path)
@@ -56,6 +58,7 @@ def build_frontend_contract(
     unknowns = _normalize_unknowns(rapport)
     cao = _build_cao_contract(rapport, unknowns)
     actions = _build_actions(unknowns, cao)
+    chain = rapport.get("validation_chaine_100kw") if isinstance(rapport.get("validation_chaine_100kw"), Mapping) else {}
     return {
         "project_id": project_id,
         "meta": dict(rapport.get("meta", {})) if isinstance(rapport.get("meta"), Mapping) else {},
@@ -64,11 +67,18 @@ def build_frontend_contract(
             "unknowns_count": sum(len(v) for v in unknowns.values() if isinstance(v, list)),
             "cao_available": cao["available"],
             "score_global": _get_path(rapport, "coherence_systeme.score_global"),
+            "chain_validation": {
+                "available": bool(chain),
+                "ok": bool(chain.get("ok")) if isinstance(chain, Mapping) else False,
+                "score_chaine_100": chain.get("score_chaine_100") if isinstance(chain, Mapping) else None,
+                "main_blocking_point": _main_blocking_point(chain),
+            },
         },
         "fields": fields,
         "unknowns": unknowns,
         "alerts": rapport.get("alertes", {}) if isinstance(rapport.get("alertes"), Mapping) else {},
         "cao": cao,
+        "chain_validation": dict(chain) if isinstance(chain, Mapping) else {},
         "actions": actions,
         "raw_available": True,
     }
@@ -127,6 +137,16 @@ def _build_actions(unknowns: Mapping[str, List[Dict[str, Any]]], cao: Mapping[st
     if not cao.get("available"):
         actions.append({"id": "cao_blocked", "label": "CAO non fermee", "enabled": False, "reason": cao.get("reason")})
     return actions
+
+
+def _main_blocking_point(chain: Mapping[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(chain, Mapping):
+        return None
+    blockers = chain.get("points_bloquants")
+    if isinstance(blockers, list) and blockers:
+        first = blockers[0]
+        return dict(first) if isinstance(first, Mapping) else {"reason": str(first)}
+    return None
 
 
 def build_diagnostic_contract(diagnostic: dict[str, Any]) -> dict[str, Any]:

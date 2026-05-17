@@ -2092,6 +2092,14 @@ class STHO_ME:
             },
             "imports_indisponibles": sorted(_safe_dict(rapport.get("imports", {})).get("erreurs", {}).keys()),
         }
+        resolved_synth = _synthese_from_resolution_payload(_resolution_payload_from_report(rapport))
+        if resolved_synth:
+            for section, values in resolved_synth.items():
+                current = rapport["synthese"].get(section)
+                if isinstance(current, dict) and isinstance(values, Mapping):
+                    _merge_missing_values(current, values)
+                elif current is None:
+                    rapport["synthese"][section] = _to_jsonable(values)
 
         if not isinstance(rep_sys, dict):
             _add_note(rapport, "Le système complet n'a pas produit de rapport ; la synthèse dépend uniquement des briques disponibles.")
@@ -2266,12 +2274,13 @@ class STHO_ME:
             "pieces": _to_jsonable(pieces_reports, max_depth=5),
             "auto_completees": _safe_dict(rapport.get("donnees_auto_completees")),
         }
+        synth = _safe_dict(rapport.get("synthese"))
         rapport["sous_systemes"] = {
-            "moteur_electrique": composants_reports.get("moteur_electrique_orchestrateur") or composants_reports.get("moteur_electrique"),
-            "batterie": composants_reports.get("batterie_orchestrateur") or composants_reports.get("batterie"),
-            "alternateur": composants_reports.get("alternateur_orchestrateur") or composants_reports.get("alternateur_bus_dc"),
-            "moteur_thermique": composants_reports.get("moteur_thermique_orchestrateur") or composants_reports.get("moteur_thermique_definition"),
-            "boite_crabots": composants_reports.get("boite_crabots_orchestrateur") or composants_reports.get("boite_chaine"),
+            "moteur_electrique": composants_reports.get("moteur_electrique_orchestrateur") or composants_reports.get("moteur_electrique") or synth.get("moteur_electrique"),
+            "batterie": composants_reports.get("batterie_orchestrateur") or composants_reports.get("batterie") or synth.get("batterie"),
+            "alternateur": composants_reports.get("alternateur_orchestrateur") or composants_reports.get("alternateur_bus_dc") or synth.get("alternateur"),
+            "moteur_thermique": composants_reports.get("moteur_thermique_orchestrateur") or composants_reports.get("moteur_thermique_definition") or synth.get("moteur_thermique"),
+            "boite_crabots": composants_reports.get("boite_crabots_orchestrateur") or composants_reports.get("boite_chaine") or synth.get("boite_crabots"),
             "architecture": composants_reports.get("architecture_orchestrateur") or composants_reports.get("architecture"),
         }
         rapport["pieces"] = pieces_reports
@@ -2282,6 +2291,7 @@ class STHO_ME:
         )
         rapport["optimisation"] = _safe_dict(_deep_get(rapport, "rapports", "optimisation"))
         rapport["cao"] = _safe_dict(_deep_get(composants_reports, "systeme_complet", "cao"))
+        rapport["strategie_energie"] = _safe_dict(rapport["rapports"].get("strategie_energie")) or _safe_dict(synth.get("strategie_energie"))
         trace = _safe_dict(rapport.get("tracabilite"))
         for hyp in rapport.get("hypotheses_resolues", []) if isinstance(rapport.get("hypotheses_resolues"), list) else []:
             if isinstance(hyp, Mapping) and hyp.get("champ"):
@@ -2378,11 +2388,12 @@ class STHO_ME:
 
     @classmethod
     def depuis_config(cls, config: Mapping[str, Any]) -> "STHO_ME":
+        normalized = _normaliser_config_entree(config)
         return cls(
-            composants=dict(_safe_dict(config.get("composants"))),
-            pieces=dict(_safe_dict(config.get("pieces"))),
-            analyses=dict(_safe_dict(config.get("analyses"))),
-            meta=dict(_safe_dict(config.get("meta"))),
+            composants=dict(_safe_dict(normalized.get("composants"))),
+            pieces=dict(_safe_dict(normalized.get("pieces"))),
+            analyses=dict(_safe_dict(normalized.get("analyses"))),
+            meta=dict(_safe_dict(normalized.get("meta"))),
         )
 
 

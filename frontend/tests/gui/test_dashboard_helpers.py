@@ -1,4 +1,5 @@
 from frontend.main import _fuel_summary, _missing_requirements, PROJECT_NAME
+from frontend.gui.dashboard import build_dashboard_ui_from_backend
 
 
 def test_missing_requirements_reads_architecture_analysis():
@@ -45,3 +46,21 @@ def test_fuel_summary_reads_multifuel_backend_block():
 
 def test_project_name_is_sthome():
     assert PROJECT_NAME == "STHOME"
+
+
+def test_dashboard_reads_100kw_chain_validation_without_calculating():
+    ui = build_dashboard_ui_from_backend(
+        {
+            "validation_chaine_100kw": {
+                "ok": False,
+                "score_chaine_100": 42.0,
+                "points_bloquants": [{"name": "rpm_moteur_connu_ou_candidat"}],
+            }
+        }
+    )
+
+    summary = ui["dashboard"]["summary"]["chain_validation"]
+    assert summary["available"] is True
+    assert summary["ok"] is False
+    assert summary["score_chaine_100"] == 42.0
+    assert summary["main_blocking_point"]["name"] == "rpm_moteur_connu_ou_candidat"

@@ -676,6 +676,7 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
     sc_mt = _safe_dict(sc_synth.get("moteur_thermique"))
 
     cao = _safe_dict(report.get("cao"))
+    chain_validation = _safe_dict(report.get("validation_chaine_100kw")) or _safe_dict(_deep_get(report, "frontend", "chain_validation"))
     analyses = _safe_dict(report.get("analyses_composants"))
     construction = _safe_dict(report.get("construction_pieces"))
     pieces = _safe_dict(report.get("rapports_pieces"))
@@ -719,6 +720,7 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
         _metric("Couple max", gui.get("Couple_max_Nm"), "Nm"),
         _metric("Couple moyen", gui.get("couple_moyen_Nm"), "Nm"),
         _metric("Force bielle", gui.get("Force_bielle_N"), "N"),
+        _metric("Validation chaine 100 kW", chain_validation.get("score_chaine_100"), "%", "ok" if chain_validation.get("ok") else "alerte"),
         _metric("Cylindrée totale", gui.get("vd_tot_cc"), "cc"),
         _metric("Score cohérence", score_coherence, "%"),
         _metric("Score global", score_global, "%"),
@@ -781,6 +783,12 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
                 cao.get("solidworks_ready"),
                 cao.get("solidworks_ready_detaille"),
             ),
+            "chain_validation": {
+                "available": bool(chain_validation),
+                "ok": bool(chain_validation.get("ok")),
+                "score_chaine_100": chain_validation.get("score_chaine_100"),
+                "main_blocking_point": _safe_list(chain_validation.get("points_bloquants"))[0] if _safe_list(chain_validation.get("points_bloquants")) else None,
+            },
         },
         "energy_chain": energy_chain,
         "subsystems": subsystems,
@@ -1120,6 +1128,15 @@ class DashboardScreen(Screen):
                 _fmt_bool(summary.get("solidworks_ready")),
                 "",
                 "ok" if summary.get("solidworks_ready") else "alerte",
+            )
+        )
+        chain = _safe_dict(summary.get("chain_validation"))
+        panel.add_widget(
+            MetricRow(
+                "Chaine 100 kW",
+                chain.get("score_chaine_100"),
+                "%",
+                "ok" if chain.get("ok") else ("alerte" if chain.get("available") else "missing"),
             )
         )
         panel.add_widget(

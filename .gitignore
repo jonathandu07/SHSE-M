@@ -13,6 +13,7 @@ venv/
 env/
 
 *.log
+backend/logs/*.log
 backend/logs/
 frontend/logs/
 
@@ -25,6 +26,8 @@ frontend/logs/
 
 output/
 backend/outputs/
+backend/exports/
+.kivy/
 dist/
 build/
 *.egg-info/
