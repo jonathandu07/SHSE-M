@@ -154,6 +154,10 @@ def diagnostiquer_json_sthome(
 def detecter_type_json(data: dict) -> str:
     if not isinstance(data, Mapping):
         return "inconnu"
+    if all(key in data for key in ("sous_systemes", "pieces", "synthese")) and (
+        data.get("tracabilite") is not None or data.get("traçabilite") is not None or data.get("rapports") is not None
+    ):
+        return "rapport_sthome"
     frontend = data.get("frontend")
     if isinstance(frontend, Mapping) and (frontend.get("fields") is not None or frontend.get("cao") is not None):
         return "frontend_contract"
@@ -167,10 +171,6 @@ def detecter_type_json(data: dict) -> str:
         data.get("actions") is not None and data.get("extractions") is not None
     ):
         return "optimisation"
-    if all(key in data for key in ("sous_systemes", "pieces", "synthese")) and (
-        data.get("tracabilite") is not None or data.get("traçabilite") is not None or data.get("rapports") is not None
-    ):
-        return "rapport_sthome"
     if all(key in data for key in ("composants", "pieces", "analyses", "meta")):
         return "config"
     return "inconnu"
