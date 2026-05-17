@@ -472,6 +472,275 @@ def _deep_merge(base: Optional[Mapping[str, Any]], extra: Optional[Mapping[str, 
     return out
 
 
+_CONFIG_ROOT_BLOCKS = {"meta", "composants", "pieces", "analyses"}
+_POWER_INPUT_KEYS = {
+    "puissance_sortie_kw",
+    "puissance_sortie_w",
+    "puissance_sortie_moteur_electrique_kw",
+    "puissance_sortie_moteur_electrique_w",
+    "puissance_moteur_electrique_sortie_w",
+    "puissance_demandee_kw",
+    "puissance_demandee_w",
+    "puissance_traction_kw",
+    "puissance_traction_w",
+}
+
+
+def _normaliser_config_entree(config: Mapping[str, Any]) -> Dict[str, Any]:
+    """Conserve les entrees racine utiles dans les blocs analyses STHO_ME."""
+    cfg = dict(config or {})
+    meta = dict(_safe_dict(cfg.get("meta")))
+    composants = dict(_safe_dict(cfg.get("composants")))
+    pieces = dict(_safe_dict(cfg.get("pieces")))
+    analyses = dict(_safe_dict(cfg.get("analyses")))
+
+    root_inputs = {str(k): v for k, v in cfg.items() if k not in _CONFIG_ROOT_BLOCKS}
+    if root_inputs:
+        analyses["stho_me"] = _deep_merge(_safe_dict(analyses.get("stho_me")), root_inputs)
+
+    power_inputs = {k: v for k, v in root_inputs.items() if k in _POWER_INPUT_KEYS}
+    if power_inputs:
+        analyses["systeme_complet"] = _deep_merge(
+            _safe_dict(analyses.get("systeme_complet")),
+            _normaliser_puissance_sortie_config(power_inputs),
+        )
+
+    return {
+        "meta": meta,
+        "composants": composants,
+        "pieces": pieces,
+        "analyses": analyses,
+    }
+
+
+def _normaliser_puissance_sortie_config(values: Mapping[str, Any]) -> Dict[str, Any]:
+    p_w = _first_finite(
+        values.get("puissance_sortie_moteur_electrique_w"),
+        values.get("puissance_moteur_electrique_sortie_w"),
+        values.get("puissance_sortie_w"),
+        values.get("puissance_demandee_w"),
+        values.get("puissance_traction_w"),
+    )
+    p_kw = _first_finite(
+        values.get("puissance_sortie_moteur_electrique_kw"),
+        values.get("puissance_sortie_kw"),
+        values.get("puissance_demandee_kw"),
+        values.get("puissance_traction_kw"),
+    )
+    if p_w is None and p_kw is not None:
+        p_w = p_kw * 1000.0
+    if p_kw is None and p_w is not None:
+        p_kw = p_w / 1000.0
+
+    out = dict(values)
+    if p_w is not None:
+        out.setdefault("puissance_sortie_moteur_electrique_w", p_w)
+        out.setdefault("puissance_sortie_w", p_w)
+        out.setdefault("puissance_pic_kw", p_w / 1000.0)
+        out.setdefault("puissance_moyenne_kw", p_w / 1000.0)
+    if p_kw is not None:
+        out.setdefault("puissance_sortie_moteur_electrique_kw", p_kw)
+        out.setdefault("puissance_sortie_kw", p_kw)
+    return out
+
+
+def _flatten_resolution_inputs(
+    composants: Mapping[str, Any],
+    pieces: Mapping[str, Any],
+    analyses: Mapping[str, Any],
+    meta: Mapping[str, Any],
+) -> Dict[str, Any]:
+    flat: Dict[str, Any] = {}
+    for block_name in ("stho_me", "systeme_complet", "moteur_thermique_definition"):
+        block = analyses.get(block_name)
+        if isinstance(block, Mapping):
+            flat = _deep_merge(flat, block)
+    cdc = _deep_merge(_safe_dict(meta.get("cahier_des_charges")), _safe_dict(analyses.get("cahier_des_charges")))
+    if cdc:
+        flat["cahier_des_charges"] = cdc
+    flat["composants"] = _to_jsonable(composants, max_depth=6)
+    flat["pieces"] = _to_jsonable(pieces, max_depth=6)
+    flat["analyses"] = _to_jsonable(analyses, max_depth=6)
+    flat["meta"] = _to_jsonable(meta, max_depth=4)
+    return flat
+
+
+def _merge_missing_values(base: Dict[str, Any], fallback: Mapping[str, Any]) -> Dict[str, Any]:
+    for key, value in dict(fallback or {}).items():
+        if isinstance(value, Mapping):
+            current = base.get(key)
+            if isinstance(current, dict):
+                _merge_missing_values(current, value)
+            elif current is None:
+                base[key] = _to_jsonable(value)
+        elif base.get(key) is None and value is not None:
+            base[key] = value
+    return base
+
+
+def _resolution_payload_from_report(rapport: Mapping[str, Any]) -> Dict[str, Any]:
+    return _safe_dict(_deep_get(rapport, "resolution_inconnues", "payload_resolu"))
+
+
+def _synthese_from_resolution_payload(resolved: Mapping[str, Any]) -> Dict[str, Any]:
+    if not isinstance(resolved, Mapping):
+        return {}
+    return {
+        "systeme": {
+            "P_bus_dc_design_w": _first_finite(resolved.get("puissance_bus_dc_w"), resolved.get("P_bus_dc_design_w")),
+            "V_bus_dc_v": _first_finite(resolved.get("tension_bus_dc_v"), resolved.get("V_bus_dc_v")),
+            "courant_bus_dc_a": _first_finite(resolved.get("courant_bus_dc_a")),
+            "puissance_sortie_moteur_electrique_w": _first_finite(resolved.get("puissance_sortie_moteur_electrique_w")),
+        },
+        "moteur_electrique": {
+            "puissance_sortie_w": _first_finite(resolved.get("puissance_sortie_moteur_electrique_w")),
+            "puissance_entree_dc_w": _first_finite(resolved.get("puissance_moteur_electrique_entree_dc_w")),
+            "rendement_moteur_electrique": _first_finite(resolved.get("rendement_moteur_electrique")),
+            "rendement_onduleur": _first_finite(resolved.get("rendement_onduleur")),
+        },
+        "batterie": _deep_merge(
+            _safe_dict(_deep_get(resolved, "synthese", "batterie")),
+            {
+                "energie_utile_kwh": _first_finite(resolved.get("energie_batterie_kwh"), _deep_get(resolved, "synthese", "batterie", "energie_utile_kwh")),
+                "nb_cellules_serie": _safe_int(resolved.get("nb_cellules_serie")),
+                "nb_cellules_parallele": _safe_int(resolved.get("nb_cellules_parallele")),
+            },
+        ),
+        "alternateur": _deep_merge(
+            _safe_dict(_deep_get(resolved, "synthese", "alternateur")),
+            {
+                "puissance_electrique_design_w": _first_finite(resolved.get("puissance_alternateur_electrique_w")),
+                "P_mecanique_W": _first_finite(resolved.get("puissance_alternateur_mecanique_w")),
+                "couple_mecanique_Nm": _first_finite(resolved.get("couple_alternateur_nm")),
+                "rpm_nominal": _first_finite(resolved.get("rpm_alternateur"), resolved.get("vitesse_alternateur_rpm")),
+            },
+        ),
+        "moteur_thermique": _deep_merge(
+            _safe_dict(_deep_get(resolved, "synthese", "moteur_thermique")),
+            {
+                "architecture": _first_non_none(resolved.get("architecture"), resolved.get("architecture_moteur")),
+                "nombre_cylindres": _safe_int(resolved.get("nombre_cylindres")),
+                "alesage_m": _first_finite(resolved.get("alesage_m")),
+                "course_m": _first_finite(resolved.get("course_m")),
+                "rpm_nominal": _first_finite(resolved.get("rpm_moteur"), resolved.get("rpm_moteur_nominal")),
+                "pression_max_pa": _first_finite(resolved.get("pression_max_pa")),
+                "pme_pa": _first_finite(resolved.get("pme_pa"), resolved.get("pression_moyenne_effective_pa")),
+                "couple_requis_Nm": _first_finite(resolved.get("couple_moteur_nm")),
+                "puissance_requise_W": _first_finite(resolved.get("puissance_moteur_thermique_arbre_w"), resolved.get("puissance_moteur_requise_W")),
+                "source": "resolution_inconnues",
+            },
+        ),
+        "boite_crabots": {
+            "rapport_vitesse_alt_sur_moteur": _first_finite(resolved.get("rapport_vitesse_alt_sur_moteur"), resolved.get("rapport_boite_alt")),
+            "rpm_moteur": _first_finite(resolved.get("rpm_moteur"), resolved.get("rpm_moteur_nominal")),
+            "rpm_alternateur": _first_finite(resolved.get("rpm_alternateur"), resolved.get("vitesse_alternateur_rpm")),
+        },
+    }
+
+
+def _analyses_from_resolution_payload(resolved: Mapping[str, Any]) -> Dict[str, Any]:
+    if not isinstance(resolved, Mapping) or not resolved:
+        return {}
+    p_out = _first_finite(resolved.get("puissance_sortie_moteur_electrique_w"))
+    p_bus = _first_finite(resolved.get("puissance_bus_dc_w"), resolved.get("P_bus_dc_design_w"))
+    p_alt = _first_finite(resolved.get("puissance_alternateur_electrique_w"), resolved.get("production_electrique_sortie_w"))
+    p_mt = _first_finite(resolved.get("puissance_moteur_thermique_arbre_w"), resolved.get("puissance_moteur_requise_W"))
+    rpm_mt = _first_finite(resolved.get("rpm_moteur"), resolved.get("rpm_moteur_nominal"))
+    rpm_alt = _first_finite(resolved.get("rpm_alternateur"), resolved.get("vitesse_alternateur_rpm"))
+    ratio = _first_finite(resolved.get("rapport_vitesse_alt_sur_moteur"), resolved.get("rapport_boite_alt"))
+    tension = _first_finite(resolved.get("tension_bus_dc_v"), resolved.get("V_bus_dc_v"))
+    pme = _first_finite(resolved.get("pme_pa"), resolved.get("pression_moyenne_effective_pa"))
+    pression_max = _first_finite(resolved.get("pression_max_pa"))
+    cdc = _safe_dict(resolved.get("cahier_des_charges"))
+
+    systeme = {
+        "puissance_sortie_moteur_electrique_w": p_out,
+        "puissance_pic_kw": p_out / 1000.0 if p_out is not None else None,
+        "puissance_moyenne_kw": p_out / 1000.0 if p_out is not None else None,
+        "puissance_bus_dc_w": p_bus,
+        "puissance_elec_alt_cible_w": p_alt,
+        "tension_bus_dc_v": tension,
+        "vitesse_moteur_thermique_rpm": rpm_mt,
+        "rapport_vitesse_alt_sur_moteur": ratio,
+        "pme_pa": pme,
+        "pression_max_pa": pression_max,
+        "energie_utile_imposee_kwh": _first_finite(resolved.get("energie_batterie_kwh")),
+    }
+    moteur_thermique = {
+        "puissance_visee_w": p_mt,
+        "type_puissance": "frein",
+        "rpm": rpm_mt,
+        "pression_moyenne_effective_pa": pme,
+        "temps_moteur": cdc.get("temps_moteur"),
+        "rendement_mecanique": cdc.get("rendement_mecanique"),
+        "vitesse_piston_max_ms": cdc.get("vitesse_piston_max_ms"),
+        "ratio_course_alesage_max": cdc.get("ratio_course_alesage_max"),
+        "ratio_course_alesage_cible": cdc.get("ratio_course_alesage_cible"),
+        "architectures_autorisees": cdc.get("architectures_autorisees"),
+        "architecture_forcee": resolved.get("architecture"),
+        "pression_max_pa": pression_max,
+        "contrainte_admissible_pa": cdc.get("contrainte_admissible_pa"),
+    }
+    batterie = {
+        "tension_nominale_v": tension,
+        "energie_utile_imposee_kwh": _first_finite(resolved.get("energie_batterie_kwh")),
+        "puissance_sortie_continue_kw": p_out / 1000.0 if p_out is not None else None,
+        "puissance_sortie_moyenne_kw": p_out / 1000.0 if p_out is not None else None,
+        "puissance_sortie_pic_kw": p_out / 1000.0 if p_out is not None else None,
+        "puissance_recharge_source_kw": p_alt / 1000.0 if p_alt is not None else None,
+        "duty_moteur_thermique_max": cdc.get("duty_cycle_moteur_thermique_max"),
+        "marge_usage_wltp": cdc.get("marge_wltp"),
+    }
+    alternateur = {
+        "puissance_bus_dc_w": p_bus,
+        "tension_bus_dc_v": tension,
+        "vitesse_rotation_rpm": rpm_alt,
+        "rendement_alternateur_impose": _first_finite(resolved.get("rendement_alternateur")),
+    }
+    boite = {
+        "puissance_bus_dc_w": p_bus,
+        "rpm_moteur": rpm_mt,
+        "rapports": [ratio] if ratio is not None else None,
+        "rendement_boite": _first_finite(resolved.get("rendement_boite")),
+        "tension_bus_dc_v": tension,
+    }
+    strategie = {
+        "puissance_traction_roue_w": p_out,
+        "v_bus_dc_v": tension,
+        "fraction_temps_generation_beta": cdc.get("duty_cycle_moteur_thermique_max"),
+        "puissance_auxiliaire_w": cdc.get("puissance_auxiliaire_w"),
+        "derivees_chaine_energie": {
+            "puissance_bus_dc_totale_w": p_bus,
+            "puissance_alternateur_electrique_requise_w": p_alt,
+            "puissance_moteur_thermique_requise_w": p_mt,
+        },
+    }
+
+    return {
+        "stho_me": _clean_none(dict(resolved)),
+        "systeme_complet": _clean_none(systeme),
+        "moteur_thermique_definition": _clean_none(moteur_thermique),
+        "batterie": _clean_none(batterie),
+        "alternateur_bus_dc": _clean_none(alternateur),
+        "boite_chaine": _clean_none(boite),
+        "strategie_energie": _clean_none(strategie),
+    }
+
+
+def _clean_none(data: Mapping[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for key, value in data.items():
+        if value is None:
+            continue
+        if isinstance(value, Mapping):
+            nested = _clean_none(value)
+            if nested:
+                out[str(key)] = nested
+        else:
+            out[str(key)] = value
+    return out
+
+
 def _extract_first_report_value(report: Optional[Dict[str, Any]], *paths: str) -> Any:
     for path in paths:
         cur: Any = report
@@ -1848,12 +2117,7 @@ class STHO_ME:
             )
             return
 
-        payload = {
-            "composants": _to_jsonable(self.composants, max_depth=6),
-            "pieces": _to_jsonable(self.pieces, max_depth=6),
-            "analyses": _to_jsonable(self.analyses, max_depth=6),
-            "meta": _to_jsonable(self.meta, max_depth=4),
-        }
+        payload = _flatten_resolution_inputs(self.composants, self.pieces, self.analyses, self.meta)
         if repository is not None and project_id:
             try:
                 repo_params = repository.get_project_parameters(project_id)
@@ -1864,12 +2128,7 @@ class STHO_ME:
                 self.analyses = _deep_merge(_safe_dict(repo_params.get("analyses")), self.analyses)
                 self.composants = _deep_merge(_safe_dict(repo_params.get("composants")), self.composants)
                 self.pieces = _deep_merge(_safe_dict(repo_params.get("pieces")), self.pieces)
-                payload = {
-                    "composants": _to_jsonable(self.composants, max_depth=6),
-                    "pieces": _to_jsonable(self.pieces, max_depth=6),
-                    "analyses": _to_jsonable(self.analyses, max_depth=6),
-                    "meta": _to_jsonable(self.meta, max_depth=4),
-                }
+                payload = _flatten_resolution_inputs(self.composants, self.pieces, self.analyses, self.meta)
         cdc_cfg = _deep_merge(
             _safe_dict(self.meta.get("cahier_des_charges")),
             _safe_dict(self.analyses.get("cahier_des_charges")),
@@ -1898,12 +2157,15 @@ class STHO_ME:
         composants_resolus = _safe_dict(payload_resolu.get("composants"))
         pieces_resolues = _safe_dict(payload_resolu.get("pieces"))
         analyses_resolues = _safe_dict(payload_resolu.get("analyses"))
+        analyses_patch = _analyses_from_resolution_payload(payload_resolu)
         if composants_resolus:
             self.composants = _deep_merge(self.composants, composants_resolus)
         if pieces_resolues:
             self.pieces = _deep_merge(self.pieces, pieces_resolues)
         if analyses_resolues:
             self.analyses = _deep_merge(self.analyses, analyses_resolues)
+        if analyses_patch:
+            self.analyses = _deep_merge(self.analyses, analyses_patch)
 
         inconnues_resolution = _safe_dict(rep_dict.get("inconnues"))
         for key, items in inconnues_resolution.items():

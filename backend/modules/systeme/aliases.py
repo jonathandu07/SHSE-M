@@ -6,9 +6,27 @@ from typing import Any, Mapping
 
 
 ALIASES_CHAMPS: dict[str, list[str]] = {
+    "puissance_sortie_moteur_electrique_w": [
+        "puissance_sortie_moteur_electrique_w",
+        "puissance_moteur_electrique_sortie_w",
+        "puissance_sortie_w",
+        "puissance_demandee_w",
+        "entrees.puissance_sortie_moteur_electrique_w",
+        "entrees.puissance_sortie_w",
+        "resolution_inconnues.payload_resolu.puissance_sortie_moteur_electrique_w",
+        "resolution_inconnues.payload_resolu.synthese.moteur_electrique.puissance_sortie_w",
+        "synthese.moteur_electrique.puissance_sortie_w",
+        "synthese.vehicule.puissance_traction_w",
+    ],
+    "puissance_sortie_moteur_electrique_kw": [
+        "puissance_sortie_moteur_electrique_kw",
+        "puissance_sortie_kw",
+        "puissance_demandee_kw",
+        "entrees.puissance_sortie_moteur_electrique_kw",
+        "entrees.puissance_sortie_kw",
+    ],
     "puissance_traction_w": [
         "puissance_traction_w",
-        "puissance_moteur_requise_W",
         "entrees.puissance_traction_w",
         "synthese.vehicule.puissance_traction_w",
         "liaisons.puissance_traction_w",
@@ -185,4 +203,3 @@ def get_path(data: Mapping[str, Any], path: str) -> Any:
         else:
             return None
     return cur
-

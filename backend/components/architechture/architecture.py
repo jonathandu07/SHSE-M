@@ -7,29 +7,47 @@ import math
 
 
 # ============================================================
-# Types / profils d'usage
+# Types / profils d'usage + mobilité
 # ============================================================
 
-UsageType = Literal["voiture", "moto", "bateau", "avion", "stationnaire", "autre"]
+UsageType = Literal[
+    "routier", "voiture", "moto", "quad", "buggy", "utilitaire",
+    "nautique", "bateau", "drone_marin",
+    "aerien", "aérien", "avion", "drone", "aeronef", "aéronef",
+    "ferroviaire", "stationnaire", "autre",
+]
+DomaineMobiliteType = Literal["routier", "nautique", "aerien", "ferroviaire", "stationnaire", "autre"]
+ModeTransmissionType = Literal["traction", "propulsion", "integrale", "inconnue"]
 ArchitectureType = Literal["L", "V", "W", "Etoile", "Boxer"]
 
 
 @dataclass(frozen=True)
 class ProfilUsageMoteur:
     """
-    Profil d'usage : aucune donnée cachée.
+    Profil d'usage moteur + mobilité.
 
-    Deux modes :
-    - mode simple historique : pré-sélection rapide sur PME + vitesse piston + gabarit ;
-    - mode fin multi-cas : activé si cas_de_charge et taux_compression sont fournis.
+    Ce profil ne force pas une architecture : il transporte les contraintes qui
+    permettent de la calculer.
+
+    Deux modes restent possibles :
+    - mode simple : puissance + régime + PME + vitesse piston + gabarit ;
+    - mode fin multi-cas : cas_de_charge + taux_compression ;
+    - mode mobilité : domaine/type/transmission + demande_mobilite permettant de
+      déduire la puissance cible si elle n'est pas fournie directement.
     """
-    usage: UsageType
     longueur_dispo_m: float
     largeur_dispo_m: float
+    usage: UsageType = "autre"
     hauteur_dispo_m: Optional[float] = None
     horizon_usage_h: float = 20000.0
     vitesse_piston_max_ms: Optional[float] = None
     taux_compression: Optional[float] = None
+
+    # Couche mobilité / vecteur.
+    domaine_mobilite: Optional[str] = None
+    type_vehicule: Optional[str] = None
+    mode_transmission: Optional[str] = None
+    demande_mobilite: Optional[Mapping[str, Any]] = None
 
     # cas de charge explicites (mode fin)
     cas_de_charge: Optional[Tuple[Any, ...]] = None
@@ -50,6 +68,454 @@ class ProfilUsageMoteur:
 
     commentaire: str = ""
 
+
+# ============================================================
+# Normalisation mobilité
+# ============================================================
+
+def _norm_token(x: Any) -> str:
+    s = "" if x is None else str(x)
+    s = s.strip().lower()
+    table = str.maketrans({
+        "à": "a", "â": "a", "ä": "a",
+        "é": "e", "è": "e", "ê": "e", "ë": "e",
+        "î": "i", "ï": "i",
+        "ô": "o", "ö": "o",
+        "ù": "u", "û": "u", "ü": "u",
+        "ç": "c",
+    })
+    s = s.translate(table)
+    for ch in (" ", "-", "/", "\\"):
+        s = s.replace(ch, "_")
+    while "__" in s:
+        s = s.replace("__", "_")
+    return s
+
+
+def normaliser_domaine_mobilite(
+    domaine_mobilite: Optional[str] = None,
+    *,
+    type_vehicule: Optional[str] = None,
+    usage: Optional[str] = None,
+) -> str:
+    """
+    Normalise le domaine d'application.
+
+    Exemples :
+    - voiture/moto/quad/buggy/utilitaire -> routier
+    - bateau/drone marin -> nautique
+    - avion/drone/aéronef -> aerien
+    - train/rail -> ferroviaire
+    """
+    raw = _norm_token(domaine_mobilite) or _norm_token(type_vehicule) or _norm_token(usage)
+    aliases = {
+        "route": "routier",
+        "routier": "routier",
+        "road": "routier",
+        "voiture": "routier",
+        "auto": "routier",
+        "automobile": "routier",
+        "vehicule": "routier",
+        "vehicule_routier": "routier",
+        "moto": "routier",
+        "quad": "routier",
+        "buggy": "routier",
+        "utilitaire": "routier",
+        "camion": "routier",
+
+        "nautique": "nautique",
+        "marin": "nautique",
+        "marine": "nautique",
+        "bateau": "nautique",
+        "navire": "nautique",
+        "drone_marin": "nautique",
+        "surface": "nautique",
+
+        "aerien": "aerien",
+        "aerial": "aerien",
+        "air": "aerien",
+        "avion": "aerien",
+        "aeronef": "aerien",
+        "drone": "aerien",
+        "uav": "aerien",
+
+        "ferroviaire": "ferroviaire",
+        "rail": "ferroviaire",
+        "train": "ferroviaire",
+
+        "stationnaire": "stationnaire",
+        "fixe": "stationnaire",
+        "generateur": "stationnaire",
+        "groupe_electrogene": "stationnaire",
+
+        "autre": "autre",
+        "": "autre",
+    }
+    return aliases.get(raw, "autre")
+
+
+def normaliser_type_vehicule(type_vehicule: Optional[str] = None, *, usage: Optional[str] = None) -> str:
+    raw = _norm_token(type_vehicule) or _norm_token(usage)
+    aliases = {
+        "auto": "voiture",
+        "automobile": "voiture",
+        "car": "voiture",
+        "voiture": "voiture",
+        "moto": "moto",
+        "motorcycle": "moto",
+        "quad": "quad",
+        "buggy": "buggy",
+        "utilitaire": "utilitaire",
+        "van": "utilitaire",
+        "bateau": "bateau",
+        "navire": "bateau",
+        "drone_marin": "drone_marin",
+        "avion": "avion",
+        "aeronef": "aeronef",
+        "drone": "drone",
+        "train": "train",
+        "stationnaire": "stationnaire",
+        "generateur": "stationnaire",
+        "": "autre",
+    }
+    return aliases.get(raw, raw or "autre")
+
+
+def normaliser_mode_transmission(
+    mode_transmission: Optional[str] = None,
+    *,
+    domaine_mobilite: Optional[str] = None,
+    type_vehicule: Optional[str] = None,
+) -> str:
+    """
+    Normalise la motricité / propulsion.
+
+    Corrections volontaires :
+    - propultion -> propulsion
+    - intégrale / integral / AWD / 4x4 -> integrale
+
+    Sens :
+    - routier : traction = essieu avant moteur ; propulsion = essieu arrière moteur ;
+      integrale = plusieurs essieux moteurs.
+    - aérien : traction = hélice/réacteur tracteur ; propulsion = poussée arrière.
+    - nautique : propulsion = cas normal.
+    """
+    raw = _norm_token(mode_transmission)
+    aliases = {
+        "traction": "traction",
+        "fwd": "traction",
+        "avant": "traction",
+        "essieu_avant": "traction",
+        "front": "traction",
+        "front_wheel_drive": "traction",
+        "helice_tractrice": "traction",
+        "tracteur": "traction",
+
+        "propulsion": "propulsion",
+        "propultion": "propulsion",  # faute fréquente explicitement corrigée
+        "rwd": "propulsion",
+        "arriere": "propulsion",
+        "essieu_arriere": "propulsion",
+        "rear": "propulsion",
+        "rear_wheel_drive": "propulsion",
+        "pusher": "propulsion",
+        "poussee": "propulsion",
+        "helice_propulsive": "propulsion",
+
+        "integrale": "integrale",
+        "integral": "integrale",
+        "intégrale": "integrale",
+        "awd": "integrale",
+        "4x4": "integrale",
+        "4wd": "integrale",
+        "toutes_roues_motrices": "integrale",
+        "quatre_roues_motrices": "integrale",
+
+        "inconnue": "inconnue",
+        "": "inconnue",
+    }
+    if raw in aliases:
+        return aliases[raw]
+
+    domaine = normaliser_domaine_mobilite(domaine_mobilite, type_vehicule=type_vehicule)
+    if not raw:
+        # Pas d'hypothèse métier forte : on signale l'inconnue dans le rapport.
+        return "inconnue"
+    if domaine == "nautique" and raw in ("helice", "jet", "waterjet"):
+        return "propulsion"
+    return "inconnue"
+
+
+def _mobilite_get(cfg: Optional[Mapping[str, Any]], *names: str, default: Any = None) -> Any:
+    if not isinstance(cfg, Mapping):
+        return default
+    for name in names:
+        if name in cfg:
+            return cfg[name]
+    return default
+
+
+def calculer_demande_mobilite(
+    demande: Optional[Mapping[str, Any]] = None,
+    *,
+    domaine_mobilite: Optional[str] = None,
+    type_vehicule: Optional[str] = None,
+    usage: Optional[str] = None,
+    mode_transmission: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Calcule la demande mécanique minimale du vecteur quand les données sont fournies.
+
+    Cette fonction ne remplace pas une simulation véhicule complète : elle produit un
+    pré-dimensionnement transparent, avec inconnues explicites.
+
+    Sortie centrale :
+    - puissance_mecanique_requise_w : valeur utilisable comme puissance_cible_w
+      pour l'architecture thermique, si l'utilisateur ne l'a pas fournie.
+    """
+    cfg: Mapping[str, Any] = demande or {}
+    domaine = normaliser_domaine_mobilite(domaine_mobilite, type_vehicule=type_vehicule, usage=usage)
+    vehicule = normaliser_type_vehicule(type_vehicule, usage=usage)
+    transmission = normaliser_mode_transmission(
+        mode_transmission or _mobilite_get(cfg, "mode_transmission", "transmission", "motricite"),
+        domaine_mobilite=domaine,
+        type_vehicule=vehicule,
+    )
+
+    rapport: Dict[str, Any] = {
+        "domaine_mobilite": domaine,
+        "type_vehicule": vehicule,
+        "mode_transmission": transmission,
+        "resultats": {},
+        "inconnues": {"impossibles": [], "partielles": []},
+        "notes_modele": [],
+    }
+
+    def miss(cat: str, nom: str, raison: str) -> None:
+        rapport["inconnues"][cat].append({"nom": nom, "raison": raison})
+
+    # Entrées directes : priorité absolue, aucune recomposition.
+    p_direct = _mobilite_get(
+        cfg,
+        "puissance_mecanique_requise_w",
+        "puissance_cible_w",
+        "puissance_thermique_mecanique_w",
+        default=None,
+    )
+    if p_direct is not None:
+        P = _require_positive("puissance_mecanique_requise_w", p_direct, strict=False)
+        rapport["resultats"]["puissance_mecanique_requise_w"] = P
+        rapport["resultats"]["puissance_mecanique_requise_kw"] = P / 1000.0
+        rapport["notes_modele"].append("Puissance mécanique requise fournie directement : aucun modèle de mobilité appliqué.")
+        return rapport
+
+    p_kw_direct = _mobilite_get(cfg, "puissance_mecanique_requise_kw", "puissance_cible_kw", default=None)
+    if p_kw_direct is not None:
+        P = 1000.0 * _require_positive("puissance_mecanique_requise_kw", p_kw_direct, strict=False)
+        rapport["resultats"]["puissance_mecanique_requise_w"] = P
+        rapport["resultats"]["puissance_mecanique_requise_kw"] = P / 1000.0
+        rapport["notes_modele"].append("Puissance mécanique requise fournie directement en kW.")
+        return rapport
+
+    eta = _mobilite_get(cfg, "rendement_chaine", "rendement_transmission", "rendement_propulsif_global", default=1.0)
+    eta = _require_positive("rendement_chaine", eta, strict=True)
+    if eta > 1.0:
+        raise ValueError("rendement_chaine doit être <= 1.0.")
+
+    # ------------------------------------------------------------
+    # Routier / ferroviaire : roulement + aéro + pente + accélération.
+    # ------------------------------------------------------------
+    if domaine in ("routier", "ferroviaire"):
+        vitesse_ms = _mobilite_get(cfg, "vitesse_ms", default=None)
+        if vitesse_ms is None:
+            vitesse_kmh = _mobilite_get(cfg, "vitesse_kmh", "vitesse_moyenne_kmh", default=None)
+            if vitesse_kmh is not None:
+                vitesse_ms = _require_positive("vitesse_kmh", vitesse_kmh, strict=False) / 3.6
+
+        masse = _mobilite_get(cfg, "masse_totale_kg", "masse_kg", default=None)
+        if vitesse_ms is None:
+            miss("impossibles", "vitesse_ms|vitesse_kmh", "Requis pour calculer la puissance du vecteur routier/ferroviaire.")
+        if masse is None:
+            miss("impossibles", "masse_totale_kg", "Requise pour calculer roulement, pente et accélération.")
+
+        if vitesse_ms is not None and masse is not None:
+            v = _require_positive("vitesse_ms", vitesse_ms, strict=False)
+            m = _require_positive("masse_totale_kg", masse, strict=True)
+            g = _require_positive("g_ms2", _mobilite_get(cfg, "g_ms2", default=9.80665), strict=True)
+            crr = _require_positive("crr", _mobilite_get(cfg, "crr", default=0.0), strict=False)
+            pente = _require_finite("pente", _mobilite_get(cfg, "pente", "pente_ratio", default=0.0))
+            acceleration = _require_finite("acceleration_ms2", _mobilite_get(cfg, "acceleration_ms2", default=0.0))
+            rho = _require_positive("rho_air_kg_m3", _mobilite_get(cfg, "rho_air_kg_m3", default=1.225), strict=True)
+            cda = _require_positive("cda_m2", _mobilite_get(cfg, "cda_m2", "cx_s_m2", default=0.0), strict=False)
+
+            f_roulement = m * g * crr
+            f_pente = m * g * pente
+            f_accel = m * acceleration
+            f_aero = 0.5 * rho * cda * v * v
+            f_total = f_roulement + f_pente + f_accel + f_aero
+            p_roues_w = max(0.0, f_total * v)
+            p_meca_w = p_roues_w / eta if eta > 0.0 else float("inf")
+
+            rapport["resultats"].update({
+                "vitesse_ms": v,
+                "masse_totale_kg": m,
+                "force_roulement_n": f_roulement,
+                "force_pente_n": f_pente,
+                "force_acceleration_n": f_accel,
+                "force_aerodynamique_n": f_aero,
+                "force_totale_n": f_total,
+                "puissance_aux_roues_w": p_roues_w,
+                "puissance_mecanique_requise_w": p_meca_w,
+                "puissance_mecanique_requise_kw": p_meca_w / 1000.0,
+                "consommation_mecanique_kwh_km": (p_meca_w / 1000.0) / (v * 3.6) if v > 0.0 else None,
+            })
+
+            # Vérification motricité si les données d'adhérence sont fournies.
+            mu = _mobilite_get(cfg, "coefficient_adherence", "mu", default=None)
+            rep_av = _mobilite_get(cfg, "repartition_masse_avant", default=None)
+            emp = _mobilite_get(cfg, "empattement_m", default=None)
+            hcg = _mobilite_get(cfg, "hauteur_cg_m", default=None)
+            if mu is not None and rep_av is not None:
+                mu = _require_positive("coefficient_adherence", mu, strict=False)
+                rep_av = _require_finite("repartition_masse_avant", rep_av)
+                if not (0.0 <= rep_av <= 1.0):
+                    raise ValueError("repartition_masse_avant doit être dans [0,1].")
+                transfert_n = 0.0
+                if emp is not None and hcg is not None:
+                    emp = _require_positive("empattement_m", emp, strict=True)
+                    hcg = _require_positive("hauteur_cg_m", hcg, strict=False)
+                    transfert_n = m * acceleration * hcg / emp
+
+                normal_av = m * g * rep_av - transfert_n
+                normal_ar = m * g * (1.0 - rep_av) + transfert_n
+                if transmission == "traction":
+                    f_motrice_max = mu * max(0.0, normal_av)
+                elif transmission == "propulsion":
+                    f_motrice_max = mu * max(0.0, normal_ar)
+                elif transmission == "integrale":
+                    f_motrice_max = mu * max(0.0, normal_av + normal_ar)
+                else:
+                    f_motrice_max = None
+
+                rapport["resultats"]["motricite"] = {
+                    "normal_avant_n": normal_av,
+                    "normal_arriere_n": normal_ar,
+                    "transfert_charge_n": transfert_n,
+                    "force_motrice_max_n": f_motrice_max,
+                    "force_demandee_n": f_total,
+                    "respecte_adherence": None if f_motrice_max is None else f_total <= f_motrice_max + 1e-12,
+                }
+            else:
+                miss("partielles", "adhérence/motricité", "Fournir coefficient_adherence et repartition_masse_avant pour vérifier traction/propulsion/intégrale.")
+
+        if transmission == "inconnue":
+            miss("partielles", "mode_transmission", "Traction/propulsion/intégrale non fourni ; l'énergie reste calculable mais pas la motricité.")
+
+    # ------------------------------------------------------------
+    # Nautique : résistance imposée ou traînée quadratique.
+    # ------------------------------------------------------------
+    elif domaine == "nautique":
+        vitesse_ms = _mobilite_get(cfg, "vitesse_ms", default=None)
+        if vitesse_ms is None:
+            vitesse_kmh = _mobilite_get(cfg, "vitesse_kmh", default=None)
+            if vitesse_kmh is not None:
+                vitesse_ms = _require_positive("vitesse_kmh", vitesse_kmh, strict=False) / 3.6
+        force_res = _mobilite_get(cfg, "force_resistance_n", "resistance_hydrodynamique_n", default=None)
+
+        if vitesse_ms is None:
+            miss("impossibles", "vitesse_ms|vitesse_kmh", "Requis pour calculer la puissance nautique.")
+        if force_res is None:
+            rho = _mobilite_get(cfg, "rho_fluide_kg_m3", default=None)
+            cd = _mobilite_get(cfg, "coefficient_trainee", "cd", default=None)
+            surface = _mobilite_get(cfg, "surface_mouillee_equivalente_m2", "surface_frontale_m2", "surface_m2", default=None)
+            if rho is not None and cd is not None and surface is not None and vitesse_ms is not None:
+                v = _require_positive("vitesse_ms", vitesse_ms, strict=False)
+                force_res = 0.5 * _require_positive("rho_fluide_kg_m3", rho, strict=True) * _require_positive("coefficient_trainee", cd, strict=False) * _require_positive("surface_m2", surface, strict=False) * v * v
+                rapport["notes_modele"].append("Résistance nautique estimée par traînée quadratique simplifiée.")
+            else:
+                miss("impossibles", "force_resistance_n", "Fournir force_resistance_n ou rho_fluide_kg_m3 + coefficient_trainee + surface_m2.")
+
+        if vitesse_ms is not None and force_res is not None:
+            v = _require_positive("vitesse_ms", vitesse_ms, strict=False)
+            F = _require_positive("force_resistance_n", force_res, strict=False)
+            p_prop_w = F * v
+            p_meca_w = p_prop_w / eta if eta > 0.0 else float("inf")
+            rapport["resultats"].update({
+                "vitesse_ms": v,
+                "force_resistance_n": F,
+                "puissance_propulsive_w": p_prop_w,
+                "puissance_mecanique_requise_w": p_meca_w,
+                "puissance_mecanique_requise_kw": p_meca_w / 1000.0,
+            })
+        if transmission == "inconnue":
+            rapport["mode_transmission"] = "propulsion"
+            rapport["notes_modele"].append("Nautique : sans précision contraire, le terme fonctionnel est propulsion.")
+
+    # ------------------------------------------------------------
+    # Aérien : traînée + montée.
+    # ------------------------------------------------------------
+    elif domaine == "aerien":
+        vitesse_ms = _mobilite_get(cfg, "vitesse_ms", default=None)
+        if vitesse_ms is None:
+            vitesse_kmh = _mobilite_get(cfg, "vitesse_kmh", default=None)
+            if vitesse_kmh is not None:
+                vitesse_ms = _require_positive("vitesse_kmh", vitesse_kmh, strict=False) / 3.6
+        if vitesse_ms is None:
+            miss("impossibles", "vitesse_ms|vitesse_kmh", "Requis pour calculer la puissance aérienne.")
+        else:
+            v = _require_positive("vitesse_ms", vitesse_ms, strict=False)
+            rho = _require_positive("rho_air_kg_m3", _mobilite_get(cfg, "rho_air_kg_m3", default=1.225), strict=True)
+            cda = _mobilite_get(cfg, "cda_m2", "cx_s_m2", default=None)
+            force_trainee = _mobilite_get(cfg, "force_trainee_n", default=None)
+            if force_trainee is None:
+                if cda is None:
+                    miss("impossibles", "cda_m2|force_trainee_n", "Fournir CdA ou force de traînée pour le domaine aérien.")
+                    force_trainee = None
+                else:
+                    force_trainee = 0.5 * rho * _require_positive("cda_m2", cda, strict=False) * v * v
+
+            masse = _mobilite_get(cfg, "masse_totale_kg", "masse_kg", default=None)
+            taux_montee = _require_finite("taux_montee_ms", _mobilite_get(cfg, "taux_montee_ms", default=0.0))
+            p_montee_w = 0.0
+            if masse is not None and taux_montee > 0.0:
+                p_montee_w = _require_positive("masse_totale_kg", masse, strict=True) * 9.80665 * taux_montee
+            elif taux_montee > 0.0:
+                miss("partielles", "masse_totale_kg", "Requise pour calculer la puissance de montée.")
+
+            if force_trainee is not None:
+                Fd = _require_positive("force_trainee_n", force_trainee, strict=False)
+                p_trainee_w = Fd * v
+                p_meca_w = (p_trainee_w + p_montee_w) / eta if eta > 0.0 else float("inf")
+                rapport["resultats"].update({
+                    "vitesse_ms": v,
+                    "force_trainee_n": Fd,
+                    "puissance_trainee_w": p_trainee_w,
+                    "puissance_montee_w": p_montee_w,
+                    "puissance_mecanique_requise_w": p_meca_w,
+                    "puissance_mecanique_requise_kw": p_meca_w / 1000.0,
+                })
+
+        if transmission == "inconnue":
+            miss("partielles", "mode_transmission", "Préciser traction ou propulsion pour localiser l'hélice/réacteur, même si la puissance reste calculable.")
+
+    # ------------------------------------------------------------
+    # Stationnaire / autre : puissance directe requise.
+    # ------------------------------------------------------------
+    else:
+        miss("impossibles", "puissance_mecanique_requise_w", "Pour stationnaire/autre, fournir directement la puissance mécanique cible.")
+
+    # Déduplication locale.
+    for cat in ("impossibles", "partielles"):
+        seen: set[Tuple[str, str]] = set()
+        dedup: List[Dict[str, str]] = []
+        for it in rapport["inconnues"][cat]:
+            key = (str(it.get("nom", "")), str(it.get("raison", "")))
+            if key not in seen:
+                seen.add(key)
+                dedup.append(dict(it))
+        rapport["inconnues"][cat] = dedup
+
+    return rapport
 
 def estimer_pme_depuis_couple_et_cylindree(
     couple_nm: float,
@@ -942,6 +1408,10 @@ class Architecture:
             cas_de_charge=list(profil.cas_de_charge) if profil.cas_de_charge else None,
             ordre_allumage_map=dict(profil.ordre_allumage_map) if profil.ordre_allumage_map else None,
             ponderations_cas=dict(profil.ponderations_cas) if profil.ponderations_cas else None,
+            domaine_mobilite=profil.domaine_mobilite,
+            type_vehicule=profil.type_vehicule,
+            mode_transmission=profil.mode_transmission,
+            demande_mobilite=dict(profil.demande_mobilite) if profil.demande_mobilite else None,
             architectures_autorisees=list(profil.architectures_autorisees) if profil.architectures_autorisees else None,
             architecture_forcee=profil.architecture_forcee,
             poids_maintenance=profil.poids_maintenance,
@@ -970,6 +1440,13 @@ class Architecture:
         ordre_allumage_map: Optional[Mapping[int, Sequence[int] | str]] = None,
         ponderations_cas: Optional[Mapping[str, float]] = None,
         activer_mode_fine: bool = True,
+
+        # Couche mobilité / vecteur : si puissance_cible_w est absente,
+        # le script peut la déduire d'une demande routière/nautique/aérienne.
+        domaine_mobilite: Optional[str] = None,
+        type_vehicule: Optional[str] = None,
+        mode_transmission: Optional[str] = None,
+        demande_mobilite: Optional[Mapping[str, Any]] = None,
 
         # contraintes / préférences architecture
         architectures_autorisees: Optional[List[ArchitectureType]] = None,
@@ -1012,13 +1489,67 @@ class Architecture:
             "meilleurs_par_architecture": {},
             "solution_module_globale": None,
             "solution_fine_multicas": None,
+            "mobilite": {},
             "inconnues": {"impossibles": [], "partielles": []},
             "notes_modele": [],
         }
 
+        # ------------------------------------------------------------
+        # Couche mobilité : normalisation domaine/type/transmission et
+        # dérivation éventuelle de la puissance cible.
+        # ------------------------------------------------------------
+        rapport_mobilite: Optional[Dict[str, Any]] = None
+        if (
+            demande_mobilite is not None
+            or domaine_mobilite is not None
+            or type_vehicule is not None
+            or mode_transmission is not None
+            or usage is not None
+        ):
+            try:
+                rapport_mobilite = calculer_demande_mobilite(
+                    demande_mobilite,
+                    domaine_mobilite=domaine_mobilite,
+                    type_vehicule=type_vehicule,
+                    usage=usage,
+                    mode_transmission=mode_transmission,
+                )
+                rapport["mobilite"] = rapport_mobilite
+                p_mob = rapport_mobilite.get("resultats", {}).get("puissance_mecanique_requise_w")
+                if puissance_cible_w is None and _is_finite(p_mob):
+                    puissance_cible_w = float(p_mob)
+                    rapport["notes_modele"].append(
+                        "puissance_cible_w déduite automatiquement depuis la demande de mobilité normalisée."
+                    )
+                for cat in ("impossibles", "partielles"):
+                    for inc in rapport_mobilite.get("inconnues", {}).get(cat, []) or []:
+                        _push_inconnue(
+                            rapport,
+                            cat,
+                            f"mobilite.{inc.get('nom')}",
+                            str(inc.get("raison")),
+                        )
+            except Exception as exc:
+                rapport["mobilite"] = {
+                    "erreur": str(exc),
+                    "domaine_mobilite": domaine_mobilite,
+                    "type_vehicule": type_vehicule,
+                    "mode_transmission": mode_transmission,
+                }
+                _push_inconnue(
+                    rapport,
+                    "partielles",
+                    "mobilite",
+                    f"Demande de mobilité non calculable ({exc}).",
+                )
+
         rapport["entrees"] = {
             "usage": usage,
             "commentaire_usage": commentaire_usage,
+            "domaine_mobilite": normaliser_domaine_mobilite(domaine_mobilite, type_vehicule=type_vehicule, usage=usage),
+            "type_vehicule": normaliser_type_vehicule(type_vehicule, usage=usage),
+            "mode_transmission": normaliser_mode_transmission(mode_transmission, domaine_mobilite=domaine_mobilite, type_vehicule=type_vehicule),
+            "demande_mobilite_fournie": demande_mobilite is not None,
             "puissance_cible_w": puissance_cible_w,
             "regime_tr_min": regime_tr_min,
             "pme_pa": pme_pa,
@@ -1578,6 +2109,28 @@ def concevoir_architecture(config: Optional[Mapping[str, Any]] = None, **overrid
         if k not in {"architecture", "analyse", "profil", "pieces"}:
             analyse_cfg.setdefault(k, v)
 
+    # Autorise une configuration plate : les paramètres physiques de mobilité
+    # peuvent être fournis au niveau racine au lieu d'être rangés dans
+    # `demande_mobilite`.
+    mobility_flat_keys = {
+        "masse_totale_kg", "masse_kg",
+        "vitesse_ms", "vitesse_kmh", "vitesse_moyenne_kmh",
+        "crr", "cda_m2", "cx_s_m2", "rho_air_kg_m3", "pente", "pente_ratio",
+        "acceleration_ms2", "coefficient_adherence", "mu",
+        "repartition_masse_avant", "empattement_m", "hauteur_cg_m",
+        "rendement_chaine", "rendement_transmission", "rendement_propulsif_global",
+        "force_resistance_n", "resistance_hydrodynamique_n",
+        "rho_fluide_kg_m3", "coefficient_trainee", "cd",
+        "surface_mouillee_equivalente_m2", "surface_frontale_m2", "surface_m2",
+        "force_trainee_n", "taux_montee_ms",
+        "puissance_mecanique_requise_w", "puissance_cible_kw",
+        "puissance_mecanique_requise_kw", "puissance_thermique_mecanique_w",
+    }
+    if "demande_mobilite" not in analyse_cfg:
+        flat_demande = {k: cfg[k] for k in mobility_flat_keys if k in cfg}
+        if flat_demande:
+            analyse_cfg["demande_mobilite"] = flat_demande
+
     profil_cfg = cfg.get("profil")
     if isinstance(profil_cfg, Mapping):
         profil = ProfilUsageMoteur(**_filtrer_kwargs(ProfilUsageMoteur, dict(profil_cfg)))
@@ -1603,6 +2156,10 @@ def concevoir_architecture(config: Optional[Mapping[str, Any]] = None, **overrid
             "ordre_allumage_map",
             "ponderations_cas",
             "activer_mode_fine",
+            "domaine_mobilite",
+            "type_vehicule",
+            "mode_transmission",
+            "demande_mobilite",
             "architectures_autorisees",
             "architecture_forcee",
             "poids_maintenance",
@@ -1637,6 +2194,10 @@ __all__ = [
     "UsageType",
     "ArchitectureType",
     "ProfilUsageMoteur",
+    "normaliser_domaine_mobilite",
+    "normaliser_type_vehicule",
+    "normaliser_mode_transmission",
+    "calculer_demande_mobilite",
     "estimer_pme_depuis_couple_et_cylindree",
     "estimer_pme_depuis_puissance_et_cylindree",
     "Architecture",
@@ -1655,6 +2216,22 @@ if __name__ == "__main__":
         "longueur_dispo_m": 1.2,
         "largeur_dispo_m": 0.8,
         "hauteur_dispo_m": 0.7,
+        "domaine_mobilite": "routier",
+        "type_vehicule": "buggy",
+        "mode_transmission": "propultion",
+        "demande_mobilite": {
+            "masse_totale_kg": 850.0,
+            "vitesse_kmh": 110.0,
+            "crr": 0.018,
+            "cda_m2": 0.75,
+            "rho_air_kg_m3": 1.225,
+            "pente": 0.0,
+            "rendement_chaine": 0.90,
+            "coefficient_adherence": 0.85,
+            "repartition_masse_avant": 0.42,
+            "empattement_m": 2.35,
+            "hauteur_cg_m": 0.55,
+        },
     }
     rapport = concevoir_architecture(exemple)
     print(json.dumps(_to_plain_data({

@@ -37,3 +37,4 @@
 [INFO   ] Base: Start application main loop
 [WARNING] stderr: <unknown>:4: SyntaxWarning: invalid escape sequence '\c'
 [WARNING] stderr: <unknown>:4: SyntaxWarning: invalid escape sequence '\c'
+[INFO   ] Base: Leaving application in progress...
