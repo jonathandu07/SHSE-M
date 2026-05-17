@@ -83,7 +83,7 @@ def diagnostiquer_json_file(
 ) -> dict:
     _ = repository, project_id
     path = Path(path_json).expanduser().resolve()
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
     if not isinstance(data, dict):
         raise ValueError("Le fichier JSON doit contenir un objet racine.")
     return diagnostiquer_json_data(data, source_name=str(path), strict=strict)
