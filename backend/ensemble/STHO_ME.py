@@ -99,6 +99,15 @@ OptimisationSysteme = _import_attr_optional(
     "OptimisationSysteme",
 )
 
+optimiser_rapport_sthome = _import_attr_optional(
+    (
+        "backend.ensemble.optimisation",
+        "ensemble.optimisation",
+        "optimisation",
+    ),
+    "optimiser_rapport_sthome",
+)
+
 CahierDesChargesSTHOME = _import_attr_optional(
     (
         "backend.ensemble.resolution_inconnues",
@@ -1934,6 +1943,19 @@ class STHO_ME:
                 frontend_contract=False,
             )
 
+        def _optimiser(rep: Dict[str, Any]) -> Dict[str, Any]:
+            if not optimize or not callable(optimiser_rapport_sthome):
+                return {"status": "error", "erreur": "optimisation indisponible ou desactivee"}
+            out = optimiser_rapport_sthome(
+                rapport_backend=rep,
+                rapports_pieces=_safe_dict(_deep_get(rep, "rapports", "pieces")),
+                objets=_safe_dict(rep.get("objets")),
+                cahier_des_charges=cdc,
+                strict=strict,
+            )
+            rep.setdefault("tracabilite", {}).setdefault("optimization_runs", []).append(out)
+            return out
+
         try:
             result = resoudre_inconnues_systeme_modules(
                 config=config,
@@ -1942,6 +1964,7 @@ class STHO_ME:
                 repository=repository,
                 project_id=project_id,
                 recalculer=_recalculer,
+                optimiser=_optimiser if optimize else None,
                 strict=strict,
                 max_iterations=int(cdc.get("max_iterations", 5) or 5),
             )
