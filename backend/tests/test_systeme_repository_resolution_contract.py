@@ -122,7 +122,9 @@ def test_aucun_import_direct_obligatoire_systeme_complet():
         if "tests" in path.parts:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        if "from backend.ensemble.systeme_complet import" in text or "import backend.ensemble.systeme_complet" in text:
+        import_from = "from backend.ensemble." + "systeme_complet import"
+        import_module = "import backend.ensemble." + "systeme_complet"
+        if import_from in text or import_module in text:
             offenders.append(str(path))
     assert offenders == []
 
