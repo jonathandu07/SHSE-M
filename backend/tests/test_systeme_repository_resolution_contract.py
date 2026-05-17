@@ -64,6 +64,29 @@ def test_inconnue_deductible_est_source_computed():
     assert any(c.source == "computed" for c in result.candidates)
 
 
+def test_mode_strict_n_injecte_pas_tension_ni_rpm_depuis_cdc():
+    result = resoudre_inconnues_systeme(
+        config={},
+        rapport={
+            "inconnues": {
+                "partielles": [
+                    {"nom": "tension_bus_dc_v", "path": "tension_bus_dc_v"},
+                    {"nom": "rpm_moteur", "path": "rpm_moteur_nominal"},
+                ],
+                "impossibles": [],
+            }
+        },
+        cahier_des_charges={"tension_bus_dc_v": 400.0, "rpm_moteur_min": 2500.0, "rpm_moteur_max": 3500.0},
+        strict=True,
+        recalculer=lambda cfg: _clean_report(),
+    )
+
+    assert result.accepte is False
+    assert "tension_bus_dc_v" not in result.config_completee
+    assert "rpm_moteur_nominal" not in result.config_completee
+    assert all(c.statut != "computed" for c in result.candidates)
+
+
 def test_candidate_genere_depuis_cahier_des_charges_est_trace():
     result = resoudre_inconnues_systeme(
         config={"course_m": 0.1},
@@ -72,9 +95,10 @@ def test_candidate_genere_depuis_cahier_des_charges_est_trace():
         recalculer=lambda cfg: _clean_report(),
     )
 
-    assert result.accepte is True
-    assert result.config_completee["pieces"]["bielle"]["longueur_bielle_m"] >= 0.3
+    assert result.accepte is False
+    assert "pieces" not in result.config_completee
     assert any(c.source == "generated_from_cahier_des_charges" for c in result.candidates)
+    assert any(c.statut == "candidate_from_cdc" for c in result.candidates)
 
 
 def test_candidate_incompatible_est_rejete():
@@ -83,6 +107,10 @@ def test_candidate_incompatible_est_rejete():
         path="pieces.bielle.longueur_bielle_m",
         valeur=0.8,
         source="generated_from_cahier_des_charges",
+        statut="candidate_from_cdc",
+        raison="Candidat de test issu d'une borne CDC.",
+        dependances=["cdc.borne"],
+        metadata={"domaine": {"min": 0.2, "max": 0.5}},
     )
 
     validation = valider_candidate(
@@ -157,3 +185,29 @@ def test_inconnues_dedoublonnees():
     )
 
     assert len(result.inconnues_restantes) == 1
+
+
+def test_repository_locked_non_ecrase_sans_autorisation(tmp_path):
+    repo = SystemDataRepository(db_path=str(tmp_path / "repo.json"))
+    repo.save_project_parameter(
+        project_id="p1",
+        path="tension_bus_dc_v",
+        name="Tension bus",
+        value=420.0,
+        source="input",
+        status="input",
+        locked=True,
+    )
+    try:
+        repo.save_project_parameter(
+            project_id="p1",
+            path="tension_bus_dc_v",
+            name="Tension bus",
+            value=430.0,
+            source="test",
+            status="input",
+        )
+    except ValueError as exc:
+        assert "verrouille" in str(exc)
+    else:
+        raise AssertionError("La valeur verrouillee a ete ecrasee sans autorisation.")

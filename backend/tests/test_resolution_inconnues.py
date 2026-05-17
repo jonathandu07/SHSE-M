@@ -50,12 +50,18 @@ def test_donnee_optimisable_est_resolue_avec_justification():
             "pme_pa": 900_000.0,
         },
         {},
-        CahierDesChargesSTHOME(
-            autoriser_choix_materiau=False,
-            vitesse_piston_max_ms=14.0,
-            nombres_cylindres_autorises=(2, 3, 4, 6),
-        ),
-    )
+            CahierDesChargesSTHOME(
+                autoriser_choix_materiau=False,
+                vitesse_piston_max_ms=14.0,
+                nombres_cylindres_autorises=(2, 3, 4, 6),
+                alesage_min_m=0.04,
+                alesage_max_m=0.18,
+                course_min_m=0.04,
+                course_max_m=0.22,
+                ratio_course_alesage_min=0.75,
+                ratio_course_alesage_max=1.35,
+            ),
+        )
 
     payload = report.payload_resolu
     assert payload["nombre_cylindres"] in {2, 3, 4, 6}
@@ -64,7 +70,7 @@ def test_donnee_optimisable_est_resolue_avec_justification():
 
     traces = [h for h in report.hypotheses if h.champ in {"alesage_m", "course_m", "nombre_cylindres"}]
     assert traces
-    assert all(h.type_resolution == "optimisee" for h in traces)
+    assert all(h.type_resolution == "candidate_from_cdc" for h in traces)
     assert all(h.justification for h in traces)
     assert all("domaine" in h.validation for h in traces)
 
@@ -82,4 +88,3 @@ def test_application_et_trace_json_safe():
     traces = tracer_resolution_inconnues(report)
     assert isinstance(traces, list)
     assert any(trace["champ"] == "puissance_traction_w" for trace in traces)
-

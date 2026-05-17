@@ -6,10 +6,17 @@ def test_stho_me_inclut_resolution_inconnues_avant_construction():
         {
             "meta": {
                 "cahier_des_charges": {
-                    "autoriser_choix_materiau": False,
-                    "tension_bus_dc_v": 400.0,
-                }
-            },
+                        "autoriser_choix_materiau": False,
+                        "tension_bus_dc_v": 400.0,
+                        "nombres_cylindres_autorises": [2, 3, 4],
+                        "alesage_min_m": 0.04,
+                        "alesage_max_m": 0.16,
+                        "course_min_m": 0.04,
+                        "course_max_m": 0.20,
+                        "ratio_course_alesage_min": 0.75,
+                        "ratio_course_alesage_max": 1.35,
+                    }
+                },
             "analyses": {
                 "moteur_thermique_definition": {
                     "puissance_visee_w": 50_000.0,
@@ -35,4 +42,3 @@ def test_stho_me_ancienne_api_depuis_config_reste_compatible():
     assert rapport["meta"]["orchestrateur"] == "STHO_ME.py"
     assert "synthese" in rapport
     assert "inconnues" in rapport
-

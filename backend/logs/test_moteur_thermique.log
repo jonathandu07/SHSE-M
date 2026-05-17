@@ -5810,3 +5810,153 @@
 2026-05-17 08:16:34,449 - test_moteur_thermique - INFO - RESULT - test_calcul_perte_epaisseur: SUCCESS 
 2026-05-17 08:16:34,452 - test_moteur_thermique - INFO - Starting test_calcul_vitesse_moyenne_piston
 2026-05-17 08:16:34,452 - test_moteur_thermique - INFO - RESULT - test_calcul_vitesse_moyenne_piston: SUCCESS 
+2026-05-17 08:52:36,909 - test_moteur_thermique - INFO - Starting test_calcul_couple_instantane
+2026-05-17 08:52:36,910 - test_moteur_thermique - INFO - RESULT - test_calcul_couple_instantane: SUCCESS 
+2026-05-17 08:52:36,912 - test_moteur_thermique - INFO - Starting test_calcul_cylindree_unitaire
+2026-05-17 08:52:36,913 - test_moteur_thermique - INFO - RESULT - test_calcul_cylindree_unitaire: SUCCESS 
+2026-05-17 08:52:36,916 - test_moteur_thermique - INFO - Starting test_calcul_cylindree_totale
+2026-05-17 08:52:36,916 - test_moteur_thermique - INFO - RESULT - test_calcul_cylindree_totale: SUCCESS 
+2026-05-17 08:52:36,918 - test_moteur_thermique - INFO - Starting test_calcul_volume_mort
+2026-05-17 08:52:36,919 - test_moteur_thermique - INFO - RESULT - test_calcul_volume_mort: SUCCESS 
+2026-05-17 08:52:36,921 - test_moteur_thermique - INFO - Starting test_calcul_epaisseur_cylindre_mince
+2026-05-17 08:52:36,921 - test_moteur_thermique - INFO - RESULT - test_calcul_epaisseur_cylindre_mince: SUCCESS 
+2026-05-17 08:52:36,924 - test_moteur_thermique - INFO - Starting test_calculer_cylindre_complet
+2026-05-17 08:52:36,924 - test_moteur_thermique - INFO - RESULTATS DETAILLES CYLINDREE:
+2026-05-17 08:52:36,925 - test_moteur_thermique - INFO - {
+  "alesage_m": 0.08,
+  "rayon_interne_m": 0.04,
+  "course_m": 0.08,
+  "nombre_cylindres": 4.0,
+  "aire_section_m2": 0.005026548245743669,
+  "aire_piston_m2": 0.005026548245743669,
+  "cylindree_unitaire_m3": 0.00040212385965949355,
+  "cylindree_unitaire_l": 0.40212385965949354,
+  "cylindree_unitaire_cm3": 402.1238596594935,
+  "cylindree_totale_m3": 0.0016084954386379742,
+  "cylindree_totale_l": 1.6084954386379742,
+  "cylindree_totale_cm3": 1608.495438637974,
+  "ratio_alesage_course": 1.0,
+  "architecture_code": 0.0,
+  "taux_compression": 11.0,
+  "volume_mort_m3": 4.021238596594935e-05,
+  "volume_mort_cm3": 40.21238596594935,
+  "inconnues": "pression_pa / force_gaz_n; contrainte_admissible_pa / epaisseur_paroi"
+}
+2026-05-17 08:52:36,925 - test_moteur_thermique - INFO - RESULT - test_calculer_cylindre_complet: SUCCESS 
+2026-05-17 08:52:36,928 - test_moteur_thermique - INFO - Starting test_calcul_force_inertie_alternative
+2026-05-17 08:52:36,928 - test_moteur_thermique - INFO - RESULT - test_calcul_force_inertie_alternative: SUCCESS 
+2026-05-17 08:52:36,931 - test_moteur_thermique - INFO - Starting test_calcul_pression_gaz_parfait
+2026-05-17 08:52:36,932 - test_moteur_thermique - INFO - RESULT - test_calcul_pression_gaz_parfait: SUCCESS 
+2026-05-17 08:52:36,934 - test_moteur_thermique - INFO - Starting test_calcul_temperature_compression_adiabatique
+2026-05-17 08:52:36,935 - test_moteur_thermique - INFO - RESULT - test_calcul_temperature_compression_adiabatique: SUCCESS 
+2026-05-17 08:52:36,937 - test_moteur_thermique - INFO - Starting test_calcul_debit_fuite_annulaire
+2026-05-17 08:52:36,937 - test_moteur_thermique - INFO - RESULT - test_calcul_debit_fuite_annulaire: SUCCESS 
+2026-05-17 08:52:36,940 - test_moteur_thermique - INFO - Starting test_calculer_gaz_complet
+2026-05-17 08:52:36,940 - test_moteur_thermique - INFO - RESULTATS DETAILLES GAZ:
+2026-05-17 08:52:36,941 - test_moteur_thermique - INFO - {
+  "constante_gaz_r": 287.05,
+  "pression_pa": 100000.0,
+  "masse_kg": 0.0011612378795796319,
+  "volume_m3": 0.001,
+  "temperature_k": 300.0,
+  "densite_kg_m3": 1.1612378795796319,
+  "volume_specifique_m3_kg": 0.8611500000000001,
+  "gamma": 1.4,
+  "inconnues": ""
+}
+2026-05-17 08:52:36,941 - test_moteur_thermique - INFO - RESULT - test_calculer_gaz_complet: SUCCESS 
+2026-05-17 08:52:36,944 - test_moteur_thermique - INFO - Starting test_calcul_puissance_frottement_segment
+2026-05-17 08:52:36,944 - test_moteur_thermique - INFO - RESULT - test_calcul_puissance_frottement_segment: SUCCESS 
+2026-05-17 08:52:36,946 - test_moteur_thermique - INFO - Starting test_calcul_puissance_frottement_palier
+2026-05-17 08:52:36,948 - test_moteur_thermique - INFO - RESULT - test_calcul_puissance_frottement_palier: SUCCESS 
+2026-05-17 08:52:36,950 - test_moteur_thermique - INFO - Starting test_calcul_force_separation
+2026-05-17 08:52:36,951 - test_moteur_thermique - INFO - RESULT - test_calcul_force_separation: SUCCESS 
+2026-05-17 08:52:36,953 - test_moteur_thermique - INFO - Starting test_calcul_precharge_vis_totale
+2026-05-17 08:52:36,954 - test_moteur_thermique - INFO - RESULT - test_calcul_precharge_vis_totale: SUCCESS 
+2026-05-17 08:52:36,956 - test_moteur_thermique - INFO - Starting test_calcul_couple_serrage
+2026-05-17 08:52:36,957 - test_moteur_thermique - INFO - RESULT - test_calcul_couple_serrage: SUCCESS 
+2026-05-17 08:52:36,959 - test_moteur_thermique - INFO - Starting test_calcul_travail_indique_pme
+2026-05-17 08:52:36,960 - test_moteur_thermique - INFO - RESULT - test_calcul_travail_indique_pme: SUCCESS 
+2026-05-17 08:52:36,962 - test_moteur_thermique - INFO - Starting test_calcul_puissance_indiquee
+2026-05-17 08:52:36,962 - test_moteur_thermique - INFO - RESULT - test_calcul_puissance_indiquee: SUCCESS 
+2026-05-17 08:52:36,965 - test_moteur_thermique - INFO - Starting test_calcul_volume_usure_archard
+2026-05-17 08:52:36,965 - test_moteur_thermique - INFO - RESULT - test_calcul_volume_usure_archard: SUCCESS 
+2026-05-17 08:52:36,968 - test_moteur_thermique - INFO - Starting test_calcul_perte_epaisseur
+2026-05-17 08:52:36,969 - test_moteur_thermique - INFO - RESULT - test_calcul_perte_epaisseur: SUCCESS 
+2026-05-17 08:52:36,971 - test_moteur_thermique - INFO - Starting test_calcul_vitesse_moyenne_piston
+2026-05-17 08:52:36,972 - test_moteur_thermique - INFO - RESULT - test_calcul_vitesse_moyenne_piston: SUCCESS 
+2026-05-17 09:00:31,272 - test_moteur_thermique - INFO - Starting test_calcul_couple_instantane
+2026-05-17 09:00:31,272 - test_moteur_thermique - INFO - RESULT - test_calcul_couple_instantane: SUCCESS 
+2026-05-17 09:00:31,276 - test_moteur_thermique - INFO - Starting test_calcul_cylindree_unitaire
+2026-05-17 09:00:31,277 - test_moteur_thermique - INFO - RESULT - test_calcul_cylindree_unitaire: SUCCESS 
+2026-05-17 09:00:31,280 - test_moteur_thermique - INFO - Starting test_calcul_cylindree_totale
+2026-05-17 09:00:31,280 - test_moteur_thermique - INFO - RESULT - test_calcul_cylindree_totale: SUCCESS 
+2026-05-17 09:00:31,284 - test_moteur_thermique - INFO - Starting test_calcul_volume_mort
+2026-05-17 09:00:31,285 - test_moteur_thermique - INFO - RESULT - test_calcul_volume_mort: SUCCESS 
+2026-05-17 09:00:31,288 - test_moteur_thermique - INFO - Starting test_calcul_epaisseur_cylindre_mince
+2026-05-17 09:00:31,289 - test_moteur_thermique - INFO - RESULT - test_calcul_epaisseur_cylindre_mince: SUCCESS 
+2026-05-17 09:00:31,292 - test_moteur_thermique - INFO - Starting test_calculer_cylindre_complet
+2026-05-17 09:00:31,293 - test_moteur_thermique - INFO - RESULTATS DETAILLES CYLINDREE:
+2026-05-17 09:00:31,294 - test_moteur_thermique - INFO - {
+  "alesage_m": 0.08,
+  "rayon_interne_m": 0.04,
+  "course_m": 0.08,
+  "nombre_cylindres": 4.0,
+  "aire_section_m2": 0.005026548245743669,
+  "aire_piston_m2": 0.005026548245743669,
+  "cylindree_unitaire_m3": 0.00040212385965949355,
+  "cylindree_unitaire_l": 0.40212385965949354,
+  "cylindree_unitaire_cm3": 402.1238596594935,
+  "cylindree_totale_m3": 0.0016084954386379742,
+  "cylindree_totale_l": 1.6084954386379742,
+  "cylindree_totale_cm3": 1608.495438637974,
+  "ratio_alesage_course": 1.0,
+  "architecture_code": 0.0,
+  "taux_compression": 11.0,
+  "volume_mort_m3": 4.021238596594935e-05,
+  "volume_mort_cm3": 40.21238596594935,
+  "inconnues": "pression_pa / force_gaz_n; contrainte_admissible_pa / epaisseur_paroi"
+}
+2026-05-17 09:00:31,294 - test_moteur_thermique - INFO - RESULT - test_calculer_cylindre_complet: SUCCESS 
+2026-05-17 09:00:31,298 - test_moteur_thermique - INFO - Starting test_calcul_force_inertie_alternative
+2026-05-17 09:00:31,299 - test_moteur_thermique - INFO - RESULT - test_calcul_force_inertie_alternative: SUCCESS 
+2026-05-17 09:00:31,303 - test_moteur_thermique - INFO - Starting test_calcul_pression_gaz_parfait
+2026-05-17 09:00:31,304 - test_moteur_thermique - INFO - RESULT - test_calcul_pression_gaz_parfait: SUCCESS 
+2026-05-17 09:00:31,307 - test_moteur_thermique - INFO - Starting test_calcul_temperature_compression_adiabatique
+2026-05-17 09:00:31,308 - test_moteur_thermique - INFO - RESULT - test_calcul_temperature_compression_adiabatique: SUCCESS 
+2026-05-17 09:00:31,312 - test_moteur_thermique - INFO - Starting test_calcul_debit_fuite_annulaire
+2026-05-17 09:00:31,314 - test_moteur_thermique - INFO - RESULT - test_calcul_debit_fuite_annulaire: SUCCESS 
+2026-05-17 09:00:31,316 - test_moteur_thermique - INFO - Starting test_calculer_gaz_complet
+2026-05-17 09:00:31,317 - test_moteur_thermique - INFO - RESULTATS DETAILLES GAZ:
+2026-05-17 09:00:31,318 - test_moteur_thermique - INFO - {
+  "constante_gaz_r": 287.05,
+  "pression_pa": 100000.0,
+  "masse_kg": 0.0011612378795796319,
+  "volume_m3": 0.001,
+  "temperature_k": 300.0,
+  "densite_kg_m3": 1.1612378795796319,
+  "volume_specifique_m3_kg": 0.8611500000000001,
+  "gamma": 1.4,
+  "inconnues": ""
+}
+2026-05-17 09:00:31,318 - test_moteur_thermique - INFO - RESULT - test_calculer_gaz_complet: SUCCESS 
+2026-05-17 09:00:31,322 - test_moteur_thermique - INFO - Starting test_calcul_puissance_frottement_segment
+2026-05-17 09:00:31,323 - test_moteur_thermique - INFO - RESULT - test_calcul_puissance_frottement_segment: SUCCESS 
+2026-05-17 09:00:31,327 - test_moteur_thermique - INFO - Starting test_calcul_puissance_frottement_palier
+2026-05-17 09:00:31,328 - test_moteur_thermique - INFO - RESULT - test_calcul_puissance_frottement_palier: SUCCESS 
+2026-05-17 09:00:31,331 - test_moteur_thermique - INFO - Starting test_calcul_force_separation
+2026-05-17 09:00:31,332 - test_moteur_thermique - INFO - RESULT - test_calcul_force_separation: SUCCESS 
+2026-05-17 09:00:31,335 - test_moteur_thermique - INFO - Starting test_calcul_precharge_vis_totale
+2026-05-17 09:00:31,337 - test_moteur_thermique - INFO - RESULT - test_calcul_precharge_vis_totale: SUCCESS 
+2026-05-17 09:00:31,340 - test_moteur_thermique - INFO - Starting test_calcul_couple_serrage
+2026-05-17 09:00:31,341 - test_moteur_thermique - INFO - RESULT - test_calcul_couple_serrage: SUCCESS 
+2026-05-17 09:00:31,345 - test_moteur_thermique - INFO - Starting test_calcul_travail_indique_pme
+2026-05-17 09:00:31,345 - test_moteur_thermique - INFO - RESULT - test_calcul_travail_indique_pme: SUCCESS 
+2026-05-17 09:00:31,349 - test_moteur_thermique - INFO - Starting test_calcul_puissance_indiquee
+2026-05-17 09:00:31,350 - test_moteur_thermique - INFO - RESULT - test_calcul_puissance_indiquee: SUCCESS 
+2026-05-17 09:00:31,353 - test_moteur_thermique - INFO - Starting test_calcul_volume_usure_archard
+2026-05-17 09:00:31,354 - test_moteur_thermique - INFO - RESULT - test_calcul_volume_usure_archard: SUCCESS 
+2026-05-17 09:00:31,356 - test_moteur_thermique - INFO - Starting test_calcul_perte_epaisseur
+2026-05-17 09:00:31,357 - test_moteur_thermique - INFO - RESULT - test_calcul_perte_epaisseur: SUCCESS 
+2026-05-17 09:00:31,360 - test_moteur_thermique - INFO - Starting test_calcul_vitesse_moyenne_piston
+2026-05-17 09:00:31,360 - test_moteur_thermique - INFO - RESULT - test_calcul_vitesse_moyenne_piston: SUCCESS 

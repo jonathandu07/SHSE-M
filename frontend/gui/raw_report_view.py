@@ -494,6 +494,7 @@ class RawJsonScreen(Screen):
 
         buttons = (
             ("RAFRAÎCHIR", self.refresh_data, 110),
+            ("ANALYSER JSON", self.open_diagnostic, 145),
             ("COPIER", self.copy_json, 100),
             ("SAUVER", self.save_json, 100),
             ("SAUVER TOUT", self.save_all_json, 125),
@@ -709,6 +710,15 @@ class RawJsonScreen(Screen):
     def go_dashboard(self, *_: Any) -> None:
         if self.manager is not None:
             self.manager.current = "dashboard"
+
+    def open_diagnostic(self, *_: Any) -> None:
+        app = App.get_running_app()
+        try:
+            app.json_diagnostic_source = _jsonable(self.current_data)
+        except Exception:
+            pass
+        if self.manager is not None:
+            self.manager.current = "json_diagnostic"
 
     # -------------------------------------------------------------------------
     # Paths

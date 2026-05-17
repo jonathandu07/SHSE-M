@@ -38,6 +38,7 @@ from frontend.gui.loading import LoadingScreen
 from frontend.gui.missing_requirements import MissingRequirementsScreen
 from frontend.gui.pieces_view import PieceDetailScreen, PieceLibraryScreen
 from frontend.gui.raw_report_view import RawJsonScreen
+from frontend.gui.json_diagnostic_view import JsonDiagnosticScreen
 from frontend.gui.sketches_view import SketchesScreen
 from frontend.gui.three_d_view import ThreeDScreen
 
@@ -149,6 +150,7 @@ class STHOMEApp(App):
         self.manager.add_widget(ThreeDScreen(name="three_d"))
         manager_raw_json = RawJsonScreen(name="raw_json")
         self.manager.add_widget(manager_raw_json)
+        self.manager.add_widget(JsonDiagnosticScreen(name="json_diagnostic"))
         self.manager.add_widget(ExportsScreen(name="exports"))
         self.manager.add_widget(EditParametersScreen(name="edit_parameters"))
         self.manager.add_widget(MissingRequirementsScreen(name="missing_requirements"))

@@ -789,6 +789,7 @@ def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]
         "actions": [
             {"label": "Architecture", "target": "architecture_choice"},
             {"label": "Manques", "target": "missing_requirements"},
+            {"label": "Diagnostic JSON", "target": "json_diagnostic"},
             {"label": "Paramètres", "target": "edit_parameters"},
             {"label": "Rapport brut", "target": "raw_report"},
             {"label": "CAO", "target": "cao"},
@@ -1013,6 +1014,7 @@ class DashboardScreen(Screen):
         buttons = (
             ("SYNC", lambda *_: self.sync_backend(force_backend_call=False), 90),
             ("RECALCULER", lambda *_: self.sync_backend(force_backend_call=True), 120),
+            ("DIAG JSON", lambda *_: self._go("json_diagnostic"), 115),
             ("ÉDITER", lambda *_: self._go("edit_parameters"), 100),
             ("JSON", lambda *_: self._go("raw_report"), 80),
             ("ACCUEIL", lambda *_: self._go("home"), 100),

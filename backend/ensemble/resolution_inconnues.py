@@ -134,6 +134,15 @@ ALIASES_CHAMPS: Dict[str, Tuple[str, ...]] = {
         "synthese.bus_dc.puissance_design_w",
         "liaisons.bus_dc.P_bus_dc_design_w",
     ),
+    "puissance_moteur_thermique_arbre_w": (
+        "puissance_moteur_thermique_arbre_w",
+        "puissance_moteur_requise_W",
+        "puissance_moteur_w",
+        "analyses.moteur_thermique_definition.puissance_visee_w",
+        "analyses.moteur_thermique_definition.puissance_requise_W",
+        "moteur_thermique_definition.puissance_visee_w",
+        "moteur_thermique_definition.puissance_requise_W",
+    ),
     "tension_bus_dc_v": (
         "tension_bus_dc_v",
         "V_bus_dc_v",
@@ -148,6 +157,8 @@ ALIASES_CHAMPS: Dict[str, Tuple[str, ...]] = {
         "regime_moteur_rpm",
         "moteur_thermique_definition.rpm_nominal",
         "moteur_thermique_definition.rpm",
+        "analyses.moteur_thermique_definition.rpm_nominal",
+        "analyses.moteur_thermique_definition.rpm",
         "synthese.moteur_thermique.rpm_nominal",
         "liaisons.rpm_moteur_thermique",
         "analyses.stho_me.vitesse_moteur_thermique_rpm",
@@ -182,6 +193,8 @@ ALIASES_CHAMPS: Dict[str, Tuple[str, ...]] = {
         "pression_moyenne_effective_pa",
         "moteur_thermique_definition.pme_nominale_pa",
         "moteur_thermique_definition.pression_moyenne_effective_pa",
+        "analyses.moteur_thermique_definition.pme_nominale_pa",
+        "analyses.moteur_thermique_definition.pression_moyenne_effective_pa",
         "synthese.moteur_thermique.pme_pa",
         "liaisons.pme.pme_pa_utilisee_ou_requise",
     ),
@@ -955,7 +968,7 @@ def verifier_coherence_resolution(
     }
     score_global = sum(scores.values()) / max(1, len(scores))
     if blockers:
-        statut = "bloque"
+        statut = "invalide"
     elif score_global >= 0.88:
         statut = "exploitable"
     elif score_global >= 0.68:
@@ -1431,7 +1444,7 @@ def _resoudre_carburant(state: _ResolutionState) -> None:
 
 def _resoudre_rotation_couple(state: _ResolutionState) -> None:
     rpm = state.number("rpm_moteur")
-    p_mt = state.number("puissance_moteur_thermique_arbre_w", "puissance_moteur_w")
+    p_mt = state.number("puissance_moteur_thermique_arbre_w", "puissance_moteur_w", "puissance_moteur_requise_W")
     if rpm is not None and rpm > 0:
         omega = _phys_pulsation(rpm)
         state.add(
@@ -1481,7 +1494,7 @@ def _resoudre_rotation_couple(state: _ResolutionState) -> None:
 
 
 def _resoudre_geometrie_moteur(state: _ResolutionState) -> None:
-    p_mt = state.number("puissance_moteur_thermique_arbre_w", "puissance_moteur_w")
+    p_mt = state.number("puissance_moteur_thermique_arbre_w", "puissance_moteur_w", "puissance_moteur_requise_W")
     rpm = state.number("rpm_moteur")
     pme = state.number("pme_pa")
     bore = state.number("alesage_m")
@@ -1516,7 +1529,7 @@ def _resoudre_geometrie_moteur(state: _ResolutionState) -> None:
                     dependances=best.dependances,
                     justification="Nombre de cylindres candidat issu du meilleur candidat géométrique.",
                     niveau_confiance="candidat",
-                    validation={"doit_etre_valide_par_optimisation": True, "score_local": best.score_local},
+                    validation={"doit_etre_valide_par_optimisation": True, "score_local": best.score_local, "domaine": best.domaine},
                     aliases=("moteur_thermique_definition.nombre_cylindres",),
                 )
             if bore is None:
@@ -1530,7 +1543,7 @@ def _resoudre_geometrie_moteur(state: _ResolutionState) -> None:
                     dependances=best.dependances,
                     justification="Alésage candidat issu du meilleur candidat géométrique.",
                     niveau_confiance="candidat",
-                    validation={"doit_etre_valide_par_optimisation": True, "score_local": best.score_local},
+                    validation={"doit_etre_valide_par_optimisation": True, "score_local": best.score_local, "domaine": best.domaine},
                     aliases=("moteur_thermique_definition.alesage_m",),
                 )
             if stroke is None:
@@ -1544,7 +1557,7 @@ def _resoudre_geometrie_moteur(state: _ResolutionState) -> None:
                     dependances=best.dependances,
                     justification="Course candidate issue du meilleur candidat géométrique.",
                     niveau_confiance="candidat",
-                    validation={"doit_etre_valide_par_optimisation": True, "score_local": best.score_local},
+                    validation={"doit_etre_valide_par_optimisation": True, "score_local": best.score_local, "domaine": best.domaine},
                     aliases=("moteur_thermique_definition.course_m",),
                 )
 

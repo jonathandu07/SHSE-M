@@ -124,6 +124,18 @@ ALIASES_CHAMPS: dict[str, list[str]] = {
     ],
 }
 
+
+def _normalize_token(value: Any) -> str:
+    raw = str(value or "").lower()
+    out = []
+    for char in raw:
+        if char.isalnum():
+            out.append(char)
+        else:
+            out.append("_")
+    return "_".join(part for part in "".join(out).split("_") if part)
+
+
 _REVERSE: dict[str, str] = {}
 for canonical, paths in ALIASES_CHAMPS.items():
     _REVERSE[_normalize_token(canonical)] = canonical
@@ -174,13 +186,3 @@ def get_path(data: Mapping[str, Any], path: str) -> Any:
             return None
     return cur
 
-
-def _normalize_token(value: Any) -> str:
-    raw = str(value or "").lower()
-    out = []
-    for char in raw:
-        if char.isalnum():
-            out.append(char)
-        else:
-            out.append("_")
-    return "_".join(part for part in "".join(out).split("_") if part)

@@ -2169,9 +2169,17 @@ def dimensionner_systeme_shsem(
             elif isinstance(rapport_resolution_inconnues, dict):
                 rapport_resolution_inconnues_dict = rapport_resolution_inconnues
             payload_resolu = _safe_dict(rapport_resolution_inconnues_dict.get("payload_resolu"))
+            trace_values = _safe_dict(_safe_dict(rapport_resolution_inconnues_dict.get("tracabilite")).get("valeurs"))
 
             def _apply_resolved_scalar(name: str, current: Any) -> Any:
+                if name == "puissance_moteur_requise_W":
+                    return current
                 value = payload_resolu.get(name)
+                trace = _safe_dict(trace_values.get(name))
+                status = str(trace.get("status") or trace.get("type_resolution") or "")
+                source = str(trace.get("source") or "")
+                if status.startswith("candidate_from_") or source.startswith("PROFILS_PUISSANCE"):
+                    return current
                 return value if current is None and value is not None else current
 
             puissance_moteur_requise_W = _apply_resolved_scalar("puissance_moteur_requise_W", puissance_moteur_requise_W)
@@ -2188,8 +2196,16 @@ def dimensionner_systeme_shsem(
             energie_utile_imposee_kwh = _apply_resolved_scalar("energie_utile_imposee_kwh", energie_utile_imposee_kwh)
             densite_materiau_kg_m3 = _apply_resolved_scalar("densite_materiau_kg_m3", densite_materiau_kg_m3)
             if isinstance(payload_resolu.get("moteur_thermique_definition"), dict):
+                resolved_definition = {}
+                for key, value in _safe_dict(payload_resolu.get("moteur_thermique_definition")).items():
+                    trace = _safe_dict(trace_values.get(f"moteur_thermique_definition.{key}")) or _safe_dict(trace_values.get(str(key)))
+                    status = str(trace.get("status") or trace.get("type_resolution") or "")
+                    source = str(trace.get("source") or "")
+                    if status.startswith("candidate_from_") or source.startswith("PROFILS_PUISSANCE"):
+                        continue
+                    resolved_definition[str(key)] = value
                 moteur_thermique_definition = _merge_dict_non_none(
-                    _safe_dict(payload_resolu.get("moteur_thermique_definition")),
+                    resolved_definition,
                     moteur_thermique_definition,
                 )
             _append_note(rapport_global, "Resolution centrale des inconnues appliquee avant orchestration backend.")
