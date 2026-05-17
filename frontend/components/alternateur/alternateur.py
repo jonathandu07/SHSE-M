@@ -1,119 +1,61 @@
 """
 Chemin : frontend/components/alternateur/alternateur.py
-But : Orchestrateur front-end servant de page d'affichage et permettant de consulter les données sur les pièces.
+But :
+    Orchestrer la visualisation frontend du composant alternateur.
+Pourquoi ce fichier existe :
+    Il transforme les donnees alternateur deja calculees par le backend en
+    contrat de rendu. Il ne construit pas un alternateur et ne trace pas une
+    coupe fictive si les dimensions backend sont absentes.
+Donnees consommees :
+    sous_systemes.alternateur, rapports.composants.alternateur,
+    cao_dossier et mechanical_graphs.
+Livrables produits :
+    Contrat JSON de composant, dimensions a copier, graphes backend disponibles.
+Limites :
+    - ne calcule pas rendement, couple ou pertes ;
+    - ne dessine pas de geometrie inventee ;
+    - ne remplace pas SolidWorks ;
+    - ne produit pas de STEP.
 """
 
-# frontend/pieces/sketches_2d/alternateur_complet.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
-import math
+import json
+from typing import Any, Dict, Mapping
 
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle, Circle, Wedge
-from matplotlib.lines import Line2D
+from frontend.ensemble.piece_data_adapter import collect_dimensions, get_backend_graphs, get_component_report, safe_dict
+from frontend.ensemble.render_contract import empty_render_contract, normalize_chart
 
-from backend.components.alternateur.alternateur import Alternateur
 
-def _safe_float(x: Any, default: float = 0.0) -> float:
-    try:
-        return float(x)
-    except Exception:
-        return float(default)
+COMPONENT_NAME = "alternateur"
 
-@dataclass
-class DonneesCroquisAlternateur:
-    rpm: float = 0.0
-    puissance_w: float = 0.0
-    rendement: float = 0.0
-    
-    # Géométrie
-    diametre_rotor_mm: float = 0.0
-    diametre_stator_mm: float = 0.0
-    longueur_mm: float = 0.0
-    
-    # Pertes
-    pertes_cuivre_w: float = 0.0
-    pertes_fer_w: float = 0.0
-    
-    # Ventilation
-    debit_air_m3_s: float = 0.0
 
-def extraire_donnees_croquis(alternateur: Alternateur) -> DonneesCroquisAlternateur:
-    rap = alternateur.analyser_point_de_fonctionnement()
-    
-    pieces = rap.get("pieces", {})
-    rotor = pieces.get("rotor", {})
-    stator = pieces.get("stator", {})
-    ventilateur = pieces.get("ventilateur", {})
-    
-    return DonneesCroquisAlternateur(
-        rpm=_safe_float(rap.get("entrees", {}).get("regime_tr_min"), 0.0),
-        puissance_w=_safe_float(rap.get("bus_dc", {}).get("puissance_bus_dc_W"), 0.0),
-        rendement=_safe_float(rap.get("rendement", {}).get("rendement_global"), 0.0),
-        diametre_rotor_mm=_safe_float(rotor.get("geometrie", {}).get("diametre_m"), 0.0) * 1000,
-        diametre_stator_mm=_safe_float(stator.get("geometrie", {}).get("diametre_exterieur_m"), 0.0) * 1000,
-        pertes_cuivre_w=_safe_float(stator.get("pertes", {}).get("pertes_cuivre_total_W"), 0.0),
-        pertes_fer_w=_safe_float(stator.get("pertes", {}).get("pertes_fer_total_W"), 0.0),
-        debit_air_m3_s=_safe_float(ventilateur.get("resultats", {}).get("debit_volumique_m3_s"), 0.0)
+def visualiser_composant(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    report = safe_dict(global_report)
+    component = safe_dict(data) or get_component_report(report, COMPONENT_NAME)
+    contract = empty_render_contract(
+        item_id=COMPONENT_NAME,
+        kind="component",
+        title="Alternateur",
+        status="partial" if component else "missing_required",
+        reason=None if component else "Rapport backend alternateur absent.",
     )
+    contract["solidworks_data"]["dimensions_to_copy"] = collect_dimensions(component)
+    contract["charts"] = [normalize_chart(item) for item in get_backend_graphs(report, COMPONENT_NAME)]
+    if not component:
+        contract["actions"].append("Charger ou calculer sous_systemes.alternateur cote backend.")
+    if component and not contract["charts"]:
+        contract["actions"].append("Generer les graphes alternateur cote backend.")
+    contract["step_export"] = False
+    contract["solidworks_ready"] = False
+    return contract
 
-def tracer_croquis_alternateur_2d(alternateur: Alternateur, titre: str = "Vue en Coupe Alternateur - STHOME"):
-    d = extraire_donnees_croquis(alternateur)
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 7))
-    
-    # --- VUE DE FACE (TRANSVERSALE) ---
-    ax1.set_title("Vue Transversale")
-    ax1.set_aspect('equal')
-    ax1.axis('off')
-    
-    # Stator (Extérieur)
-    r_stator = d.diametre_stator_mm / 2 if d.diametre_stator_mm > 0 else 100
-    ax1.add_patch(Circle((0, 0), r_stator, fill=False, edgecolor="black", linewidth=2, linestyle='--'))
-    ax1.text(0, r_stator+5, "STATOR", ha="center")
-    
-    # Bobinages (Petits cercles)
-    for i in range(12):
-        angle = i * 30
-        x = (r_stator-10) * math.cos(math.radians(angle))
-        y = (r_stator-10) * math.sin(math.radians(angle))
-        ax1.add_patch(Circle((x, y), 5, color="#b87333", alpha=0.7))
-    
-    # Rotor (Intérieur)
-    r_rotor = d.diametre_rotor_mm / 2 if d.diametre_rotor_mm > 0 else 70
-    ax1.add_patch(Circle((0, 0), r_rotor, facecolor="#e0e0e0", edgecolor="blue"))
-    ax1.text(0, 0, "ROTOR", ha="center", va="center", color="blue", weight="bold")
-    
-    # Pôles (Flèches N/S)
-    for i in range(4):
-        angle = i * 90
-        ax1.text(r_rotor*0.7 * math.cos(math.radians(angle)), 
-                 r_rotor*0.7 * math.sin(math.radians(angle)), 
-                 "N" if i%2==0 else "S", ha="center", va="center", weight="bold")
 
-    # --- VUE LONGITUDINALE (FLUX) ---
-    ax2.set_title("Flux et Pertes")
-    ax2.axis('off')
-    
-    labels = ['Pertes Cuivre', 'Pertes Fer', 'Puissance Utile']
-    values = [d.pertes_cuivre_w, d.pertes_fer_w, d.puissance_w]
-    colors = ['#ff9999', '#66b3ff', '#99ff99']
-    
-    if sum(values) > 0:
-        ax2.pie(values, labels=labels, autopct='%1.1f%%', colors=colors, startangle=140)
-    else:
-        ax2.text(0.5, 0.5, "Données de puissance\nindisponibles", ha="center")
+def tracer_croquis_alternateur_2d(*, data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None, titre: str = "Alternateur") -> Dict[str, Any]:
+    contract = visualiser_composant(data=data, global_report=global_report)
+    contract["warnings"].append("Aucun croquis alternateur n'est trace sans donnees CAO backend.")
+    return contract
 
-    # Infos Ventilation
-    ax2.text(0.5, -0.1, f"Flux d'air : {d.debit_air_m3_s*3600:.1f} m³/h", 
-             transform=ax2.transAxes, ha="center", bbox=dict(boxstyle="round", facecolor="cyan", alpha=0.1))
-
-    plt.suptitle(titre, fontsize=16)
-    return fig
 
 if __name__ == "__main__":
-    alt = Alternateur()
-    tracer_croquis_alternateur_2d(alt)
-    plt.show()
+    print(json.dumps(visualiser_composant(), ensure_ascii=False, indent=2))

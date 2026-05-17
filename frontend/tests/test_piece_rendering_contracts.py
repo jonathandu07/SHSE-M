@@ -13,6 +13,8 @@ def test_render_contract_generique_ne_declare_pas_step():
     contract = build_piece_render_contract("piston", report)
 
     json.dumps(contract, ensure_ascii=False)
+    assert contract["step_export"] is False
+    assert contract["solidworks_ready"] is False
     assert contract["solidworks_data"]["step_export"] is False
     assert contract["solidworks_data"]["solidworks_ready"] is False
     assert contract["solidworks_data"]["dimensions_to_copy"][0]["source"] == "backend"
@@ -32,4 +34,3 @@ def test_gui_payload_visualisation_technique_robuste_sections_absentes():
     assert payload["solidworks"]["step_export"] is False
     assert "components" in payload
     assert "pieces_by_family" in payload
-

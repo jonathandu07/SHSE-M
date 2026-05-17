@@ -1,51 +1,37 @@
 """
 Chemin : frontend/ensemble/resolution_inconnues.py
-But : Résolution des équations et calcul des variables inconnues du système.
+But :
+    Presenter les inconnues et hypotheses resolues par le backend.
+Pourquoi ce fichier existe :
+    Le cockpit doit afficher ce qui est calcule, candidat, rejete ou restant,
+    sans completer une inconnue cote frontend.
+Donnees consommees :
+    Sections resolution_inconnues, inconnues, hypotheses et tracabilite.
+Livrables produits :
+    Contrat de section JSON-serializable.
+Limites :
+    - ne resout aucune inconnue ;
+    - n'applique aucun patch ;
+    - ne valide aucun candidat ;
+    - run_demo est seulement explicite.
 """
 
-# frontend/ensemble/resolution_inconnues.py
 from __future__ import annotations
-import json
 
-from frontend.main import get_backend_bridge
-from frontend.ensemble.viz_radar_template import plot_data
+from typing import Any, Dict, Mapping
 
-def afficher_resultats_resolution_inconnues():
-    """
-    Récupère le rapport complet depuis frontend.main et 
-    affiche uniquement la section concernant resolution_inconnues.
-    """
-    print("=== Lancement de l'analyse backend (100 kW par défaut) ===")
-    bridge = get_backend_bridge()
-    state = bridge.run_100kw()
-    
-    if not state.get("ok"):
-        print("Erreur lors de l'exécution du backend.")
-        print(state.get("status"))
-        return
+from frontend.ensemble.backend_bridge import build_module_section_contract, print_module_section_contract
 
-    ui_report = bridge.ui_report
-    raw_report = bridge.raw_report
-    
-    print(f"\n--- Résultats pour le module resolution_inconnues ---")
-    
-    # Extraire la partie spécifique. 
-    # TODO: Ajuster le chemin (ex: 'entrees', 'calculs', 'synthese') selon la logique métier de resolution_inconnues
-    
-    # Par exemple, chercher dans raw_sections si un mot clé correspond
-    sections = ui_report.get("raw_sections", [])
-    trouve = False
-    for sec in sections:
-        if "resolution_inconnues".lower() in str(sec.get("key")).lower():
-            print(json.dumps(sec.get("data"), indent=2, ensure_ascii=False))
-            trouve = True
-            
-    if not trouve:
-        print("Aucune section spécifique pré-identifiée pour ce module dans le rapport brut.")
-        print("Veuillez adapter le chemin d'extraction JSON dans ce script.")
 
-    # Exemple d'intégration graphique si applicable
-    # plot_data({ "Performance": 10 }, title="Radar resolution_inconnues")
+def construire_contrat_resolution_inconnues(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    return build_module_section_contract("resolution_inconnues", report, run_demo=run_demo)
+
+
+def afficher_resultats_resolution_inconnues(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    contract = construire_contrat_resolution_inconnues(report, run_demo=run_demo)
+    print_module_section_contract(contract)
+    return contract
+
 
 if __name__ == "__main__":
-    afficher_resultats_resolution_inconnues()
+    afficher_resultats_resolution_inconnues(run_demo=True)

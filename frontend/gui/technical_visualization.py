@@ -1,3 +1,24 @@
+"""
+Chemin : frontend/gui/technical_visualization.py
+But :
+    Afficher le cockpit de visualisation technique construit par frontend/ensemble.
+Pourquoi ce fichier existe :
+    La GUI est une couche de pages. Elle ne parcourt pas le JSON backend en
+    profondeur et n'appelle pas les calculateurs : elle affiche le tableau de
+    visualisations, les statuts CAO, les graphes et les actions disponibles.
+Donnees consommees :
+    Rapport backend brut charge par l'application et payload de
+    frontend.ensemble.visualisation_orchestrator.
+Livrables produits :
+    Page Kivy listant systeme, composants, pieces, couverture et dossier
+    SolidWorks de preconception.
+Limites :
+    - ne calcule aucune valeur metier ;
+    - ne produit pas de STEP ;
+    - ne valide aucun candidat ;
+    - la 3D affichee est indicative.
+"""
+
 from __future__ import annotations
 
 import json
@@ -55,6 +76,8 @@ def build_technical_visualization_payload(report: Mapping[str, Any]) -> Dict[str
         "components": table.get("components", []),
         "pieces_by_family": table.get("pieces_by_family", {}),
         "solidworks": table.get("solidworks", {}),
+        "coverage": table.get("coverage", {}),
+        "actions": table.get("actions", []),
     }
 
 
@@ -86,6 +109,7 @@ class TechnicalVisualizationScreen(Screen):
         content = BoxLayout(orientation="vertical", spacing=dp(12), size_hint_y=None)
         content.bind(minimum_height=content.setter("height"))
         content.add_widget(self._system_panel())
+        content.add_widget(self._coverage_panel())
         content.add_widget(self._components_panel())
         content.add_widget(self._pieces_panel())
         content.add_widget(self._solidworks_panel())
@@ -126,6 +150,17 @@ class TechnicalVisualizationScreen(Screen):
         panel.add_widget(Label(text="Les vues sont indicatives : aucun STEP final n'est produit.", color=COLORS["MUTED"], size_hint_y=None, height=dp(32)))
         return panel
 
+    def _coverage_panel(self) -> PremiumCard:
+        coverage = _safe_dict(self.payload.get("coverage"))
+        summary = _safe_dict(coverage.get("summary"))
+        panel = PremiumCard(title="Couverture frontend", size_hint_y=None, height=dp(180))
+        panel.add_widget(MetricRow("Pieces backend", summary.get("backend_pieces"), "", "partiel"))
+        panel.add_widget(MetricRow("Pieces frontend", summary.get("frontend_pieces"), "", "partiel"))
+        panel.add_widget(MetricRow("Contrats passifs", summary.get("render_contract_supported"), "", "ok" if summary.get("render_contract_supported") else "missing"))
+        panel.add_widget(MetricRow("Modules legacy demo", summary.get("legacy_hidden_demo"), "", "alerte" if summary.get("legacy_hidden_demo") else "ok"))
+        panel.add_widget(MetricRow("Defaults a auditer", summary.get("dangerous_defaults_files"), "", "alerte" if summary.get("dangerous_defaults_files") else "ok"))
+        return panel
+
     def _components_panel(self) -> PremiumCard:
         rows = [dict(r) for r in _safe_list(self.payload.get("components")) if isinstance(r, Mapping)]
         panel = PremiumCard(title=f"Composants ({len(rows)})", size_hint_y=None, height=dp(80 + max(1, len(rows)) * 38))
@@ -147,7 +182,8 @@ class TechnicalVisualizationScreen(Screen):
             panel.add_widget(SectionTitle(text=str(family).upper()))
             for piece in _safe_list(pieces)[:18]:
                 if isinstance(piece, Mapping):
-                    label = f"{piece.get('piece')} | croquis={piece.get('has_sketches')} | 3D={piece.get('has_mesh_3d')} | graphes={piece.get('backend_graphs')}"
+                    legacy = " | legacy" if piece.get("legacy_hidden_demo") else ""
+                    label = f"{piece.get('piece')} | croquis={piece.get('backend_sketches') or piece.get('has_sketches')} | 3D={piece.get('backend_views_3d') or piece.get('has_mesh_3d')} | graphes={piece.get('backend_graphs')}{legacy}"
                     panel.add_widget(MetricRow(_short(label, 70), piece.get("status"), "", _status(piece.get("status"))))
         return panel
 
@@ -170,4 +206,3 @@ class TechnicalVisualizationScreen(Screen):
 
 
 __all__ = ["TechnicalVisualizationScreen", "build_technical_visualization_payload"]
-

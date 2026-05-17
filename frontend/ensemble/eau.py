@@ -1,51 +1,37 @@
 """
 Chemin : frontend/ensemble/eau.py
-But : Définition des propriétés thermodynamiques et calculs liés à l'eau de refroidissement.
+But :
+    Presenter la section backend liee a l'eau et au refroidissement.
+Pourquoi ce fichier existe :
+    Le frontend peut afficher les proprietes de refroidissement deja calculees,
+    mais il ne doit pas calculer les proprietes d'eau ni choisir de conditions.
+Donnees consommees :
+    Sections eau/refroidissement deja presentes dans le rapport backend.
+Livrables produits :
+    Contrat de section JSON-serializable pour GUI ou console.
+Limites :
+    - ne calcule pas les proprietes de l'eau ;
+    - ne choisit pas temperature/pression ;
+    - ne remplace aucune inconnue ;
+    - run_demo est uniquement explicite.
 """
 
-# frontend/ensemble/eau.py
 from __future__ import annotations
-import json
 
-from frontend.main import get_backend_bridge
-from frontend.ensemble.viz_radar_template import plot_data
+from typing import Any, Dict, Mapping
 
-def afficher_resultats_eau():
-    """
-    Récupère le rapport complet depuis frontend.main et 
-    affiche uniquement la section concernant eau.
-    """
-    print("=== Lancement de l'analyse backend (100 kW par défaut) ===")
-    bridge = get_backend_bridge()
-    state = bridge.run_100kw()
-    
-    if not state.get("ok"):
-        print("Erreur lors de l'exécution du backend.")
-        print(state.get("status"))
-        return
+from frontend.ensemble.backend_bridge import build_module_section_contract, print_module_section_contract
 
-    ui_report = bridge.ui_report
-    raw_report = bridge.raw_report
-    
-    print(f"\n--- Résultats pour le module eau ---")
-    
-    # Extraire la partie spécifique. 
-    # TODO: Ajuster le chemin (ex: 'entrees', 'calculs', 'synthese') selon la logique métier de eau
-    
-    # Par exemple, chercher dans raw_sections si un mot clé correspond
-    sections = ui_report.get("raw_sections", [])
-    trouve = False
-    for sec in sections:
-        if "eau".lower() in str(sec.get("key")).lower():
-            print(json.dumps(sec.get("data"), indent=2, ensure_ascii=False))
-            trouve = True
-            
-    if not trouve:
-        print("Aucune section spécifique pré-identifiée pour ce module dans le rapport brut.")
-        print("Veuillez adapter le chemin d'extraction JSON dans ce script.")
 
-    # Exemple d'intégration graphique si applicable
-    # plot_data({ "Performance": 10 }, title="Radar eau")
+def construire_contrat_eau(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    return build_module_section_contract("eau", report, run_demo=run_demo)
+
+
+def afficher_resultats_eau(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    contract = construire_contrat_eau(report, run_demo=run_demo)
+    print_module_section_contract(contract)
+    return contract
+
 
 if __name__ == "__main__":
-    afficher_resultats_eau()
+    afficher_resultats_eau(run_demo=True)

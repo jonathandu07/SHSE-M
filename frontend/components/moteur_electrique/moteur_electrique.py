@@ -1,33 +1,60 @@
 """
 Chemin : frontend/components/moteur_electrique/moteur_electrique.py
-But : Orchestrateur front-end servant de page d'affichage et permettant de consulter les données sur les pièces.
+But :
+    Orchestrer la visualisation frontend du moteur electrique.
+Pourquoi ce fichier existe :
+    Le frontend affiche le rapport moteur electrique backend et ses livrables de
+    preconception sans dessiner un rotor/stator fictif.
+Donnees consommees :
+    sous_systemes.moteur_electrique, rapports.composants.moteur_electrique,
+    cao_dossier et mechanical_graphs.
+Livrables produits :
+    Contrat JSON de composant.
+Limites :
+    - ne calcule pas puissance, couple ou rendement ;
+    - ne cree pas de geometrie moteur ;
+    - ne remplace pas SolidWorks ;
+    - ne produit pas de STEP.
 """
 
 from __future__ import annotations
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle, Circle
 
-def tracer_croquis_moteur_electrique_2d(titre: str = "Moteur Électrique - Vue d'Ensemble"):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_xlim(0, 100)
-    ax.set_ylim(0, 100)
-    ax.axis("off")
-    
-    # Représentation schématique
-    ax.add_patch(Rectangle((25, 25), 50, 50, fill=False, edgecolor="black", linewidth=2))
-    ax.text(50, 85, "MOTEUR ÉLECTRIQUE", ha="center", va="center", weight="bold", fontsize=14)
-    
-    # Éléments internes : Stator et Rotor
-    ax.add_patch(Circle((50, 50), 20, fill=False, edgecolor="orange", linewidth=4))
-    ax.text(50, 65, "Stator", ha="center", color="orange")
-    
-    ax.add_patch(Circle((50, 50), 12, facecolor="#e0e0e0", edgecolor="red"))
-    ax.text(50, 50, "Rotor", ha="center", va="center", color="red", weight="bold")
-    
-    plt.suptitle(titre)
-    plt.tight_layout()
-    return fig
+import json
+from typing import Any, Dict, Mapping
+
+from frontend.ensemble.piece_data_adapter import collect_dimensions, get_backend_graphs, get_component_report, safe_dict
+from frontend.ensemble.render_contract import empty_render_contract, normalize_chart
+
+
+COMPONENT_NAME = "moteur_electrique"
+
+
+def visualiser_composant(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    report = safe_dict(global_report)
+    component = safe_dict(data) or get_component_report(report, COMPONENT_NAME)
+    contract = empty_render_contract(
+        item_id=COMPONENT_NAME,
+        kind="component",
+        title="Moteur electrique",
+        status="partial" if component else "missing_required",
+        reason=None if component else "Rapport backend moteur electrique absent.",
+    )
+    contract["solidworks_data"]["dimensions_to_copy"] = collect_dimensions(component)
+    contract["charts"] = [normalize_chart(item) for item in get_backend_graphs(report, COMPONENT_NAME)]
+    if not component:
+        contract["actions"].append("Charger ou calculer sous_systemes.moteur_electrique cote backend.")
+    if component and not contract["charts"]:
+        contract["actions"].append("Generer les graphes moteur electrique cote backend.")
+    contract["step_export"] = False
+    contract["solidworks_ready"] = False
+    return contract
+
+
+def tracer_croquis_moteur_electrique_2d(*, data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None, titre: str = "Moteur electrique") -> Dict[str, Any]:
+    contract = visualiser_composant(data=data, global_report=global_report)
+    contract["warnings"].append("Aucun croquis moteur electrique n'est trace sans donnees backend.")
+    return contract
+
 
 if __name__ == "__main__":
-    tracer_croquis_moteur_electrique_2d()
-    plt.show()
+    print(json.dumps(visualiser_composant(), ensure_ascii=False, indent=2))

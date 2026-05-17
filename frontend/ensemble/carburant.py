@@ -1,51 +1,37 @@
 """
 Chemin : frontend/ensemble/carburant.py
-But : Définition des propriétés physico-chimiques et calculs liés aux carburants.
+But :
+    Presenter le bilan carburant calcule par le backend.
+Pourquoi ce fichier existe :
+    Le cockpit doit afficher le carburant impose ou evalue par le backend sans
+    selectionner lui-meme une valeur typique.
+Donnees consommees :
+    Sections carburant et bilan moteur thermique du rapport backend.
+Livrables produits :
+    Contrat de section JSON-serializable.
+Limites :
+    - ne choisit aucun carburant ;
+    - ne calcule pas PCI/AFR ;
+    - ne remplace aucune inconnue ;
+    - run_demo est seulement un mode console explicite.
 """
 
-# frontend/ensemble/carburant.py
 from __future__ import annotations
-import json
 
-from frontend.main import get_backend_bridge
-from frontend.ensemble.viz_radar_template import plot_data
+from typing import Any, Dict, Mapping
 
-def afficher_resultats_carburant():
-    """
-    Récupère le rapport complet depuis frontend.main et 
-    affiche uniquement la section concernant carburant.
-    """
-    print("=== Lancement de l'analyse backend (100 kW par défaut) ===")
-    bridge = get_backend_bridge()
-    state = bridge.run_100kw()
-    
-    if not state.get("ok"):
-        print("Erreur lors de l'exécution du backend.")
-        print(state.get("status"))
-        return
+from frontend.ensemble.backend_bridge import build_module_section_contract, print_module_section_contract
 
-    ui_report = bridge.ui_report
-    raw_report = bridge.raw_report
-    
-    print(f"\n--- Résultats pour le module carburant ---")
-    
-    # Extraire la partie spécifique. 
-    # TODO: Ajuster le chemin (ex: 'entrees', 'calculs', 'synthese') selon la logique métier de carburant
-    
-    # Par exemple, chercher dans raw_sections si un mot clé correspond
-    sections = ui_report.get("raw_sections", [])
-    trouve = False
-    for sec in sections:
-        if "carburant".lower() in str(sec.get("key")).lower():
-            print(json.dumps(sec.get("data"), indent=2, ensure_ascii=False))
-            trouve = True
-            
-    if not trouve:
-        print("Aucune section spécifique pré-identifiée pour ce module dans le rapport brut.")
-        print("Veuillez adapter le chemin d'extraction JSON dans ce script.")
 
-    # Exemple d'intégration graphique si applicable
-    # plot_data({ "Performance": 10 }, title="Radar carburant")
+def construire_contrat_carburant(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    return build_module_section_contract("carburant", report, run_demo=run_demo)
+
+
+def afficher_resultats_carburant(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    contract = construire_contrat_carburant(report, run_demo=run_demo)
+    print_module_section_contract(contract)
+    return contract
+
 
 if __name__ == "__main__":
-    afficher_resultats_carburant()
+    afficher_resultats_carburant(run_demo=True)

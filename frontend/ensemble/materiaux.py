@@ -1,51 +1,37 @@
 """
 Chemin : frontend/ensemble/materiaux.py
-But : Définition des propriétés mécaniques et thermiques des matériaux.
+But :
+    Presenter les materiaux fournis ou selectionnes par le backend.
+Pourquoi ce fichier existe :
+    Les vues frontend doivent indiquer les proprietes materiaux disponibles sans
+    choisir un materiau ni inventer de contrainte admissible.
+Donnees consommees :
+    Sections materiaux, cao_dossier et synthese du rapport backend.
+Livrables produits :
+    Contrat de section JSON-serializable.
+Limites :
+    - ne choisit aucun materiau ;
+    - ne calcule aucune propriete RDM ;
+    - ne valide pas de candidat ;
+    - run_demo est explicite.
 """
 
-# frontend/ensemble/materiaux.py
 from __future__ import annotations
-import json
 
-from frontend.main import get_backend_bridge
-from frontend.ensemble.viz_radar_template import plot_data
+from typing import Any, Dict, Mapping
 
-def afficher_resultats_materiaux():
-    """
-    Récupère le rapport complet depuis frontend.main et 
-    affiche uniquement la section concernant materiaux.
-    """
-    print("=== Lancement de l'analyse backend (100 kW par défaut) ===")
-    bridge = get_backend_bridge()
-    state = bridge.run_100kw()
-    
-    if not state.get("ok"):
-        print("Erreur lors de l'exécution du backend.")
-        print(state.get("status"))
-        return
+from frontend.ensemble.backend_bridge import build_module_section_contract, print_module_section_contract
 
-    ui_report = bridge.ui_report
-    raw_report = bridge.raw_report
-    
-    print(f"\n--- Résultats pour le module materiaux ---")
-    
-    # Extraire la partie spécifique. 
-    # TODO: Ajuster le chemin (ex: 'entrees', 'calculs', 'synthese') selon la logique métier de materiaux
-    
-    # Par exemple, chercher dans raw_sections si un mot clé correspond
-    sections = ui_report.get("raw_sections", [])
-    trouve = False
-    for sec in sections:
-        if "materiaux".lower() in str(sec.get("key")).lower():
-            print(json.dumps(sec.get("data"), indent=2, ensure_ascii=False))
-            trouve = True
-            
-    if not trouve:
-        print("Aucune section spécifique pré-identifiée pour ce module dans le rapport brut.")
-        print("Veuillez adapter le chemin d'extraction JSON dans ce script.")
 
-    # Exemple d'intégration graphique si applicable
-    # plot_data({ "Performance": 10 }, title="Radar materiaux")
+def construire_contrat_materiaux(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    return build_module_section_contract("materiaux", report, run_demo=run_demo)
+
+
+def afficher_resultats_materiaux(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    contract = construire_contrat_materiaux(report, run_demo=run_demo)
+    print_module_section_contract(contract)
+    return contract
+
 
 if __name__ == "__main__":
-    afficher_resultats_materiaux()
+    afficher_resultats_materiaux(run_demo=True)

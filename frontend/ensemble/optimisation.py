@@ -1,51 +1,37 @@
 """
 Chemin : frontend/ensemble/optimisation.py
-But : Logique d'optimisation des performances et des paramètres du système.
+But :
+    Presenter les resultats d'optimisation produits par le backend.
+Pourquoi ce fichier existe :
+    L'optimisation est le juge final cote backend. Le frontend affiche ses
+    scores, traces et rejets sans valider lui-meme un candidat.
+Donnees consommees :
+    Sections optimisation, synthese_optimisation et tracabilite.optimisations.
+Livrables produits :
+    Contrat de section JSON-serializable.
+Limites :
+    - ne lance aucune optimisation cachee ;
+    - ne choisit aucune cote ;
+    - ne valide aucun candidat ;
+    - run_demo est explicite.
 """
 
-# frontend/ensemble/optimisation.py
 from __future__ import annotations
-import json
 
-from frontend.main import get_backend_bridge
-from frontend.ensemble.viz_radar_template import plot_data
+from typing import Any, Dict, Mapping
 
-def afficher_resultats_optimisation():
-    """
-    Récupère le rapport complet depuis frontend.main et 
-    affiche uniquement la section concernant optimisation.
-    """
-    print("=== Lancement de l'analyse backend (100 kW par défaut) ===")
-    bridge = get_backend_bridge()
-    state = bridge.run_100kw()
-    
-    if not state.get("ok"):
-        print("Erreur lors de l'exécution du backend.")
-        print(state.get("status"))
-        return
+from frontend.ensemble.backend_bridge import build_module_section_contract, print_module_section_contract
 
-    ui_report = bridge.ui_report
-    raw_report = bridge.raw_report
-    
-    print(f"\n--- Résultats pour le module optimisation ---")
-    
-    # Extraire la partie spécifique. 
-    # TODO: Ajuster le chemin (ex: 'entrees', 'calculs', 'synthese') selon la logique métier de optimisation
-    
-    # Par exemple, chercher dans raw_sections si un mot clé correspond
-    sections = ui_report.get("raw_sections", [])
-    trouve = False
-    for sec in sections:
-        if "optimisation".lower() in str(sec.get("key")).lower():
-            print(json.dumps(sec.get("data"), indent=2, ensure_ascii=False))
-            trouve = True
-            
-    if not trouve:
-        print("Aucune section spécifique pré-identifiée pour ce module dans le rapport brut.")
-        print("Veuillez adapter le chemin d'extraction JSON dans ce script.")
 
-    # Exemple d'intégration graphique si applicable
-    # plot_data({ "Performance": 10 }, title="Radar optimisation")
+def construire_contrat_optimisation(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    return build_module_section_contract("optimisation", report, run_demo=run_demo)
+
+
+def afficher_resultats_optimisation(report: Mapping[str, Any] | None = None, *, run_demo: bool = False) -> Dict[str, Any]:
+    contract = construire_contrat_optimisation(report, run_demo=run_demo)
+    print_module_section_contract(contract)
+    return contract
+
 
 if __name__ == "__main__":
-    afficher_resultats_optimisation()
+    afficher_resultats_optimisation(run_demo=True)

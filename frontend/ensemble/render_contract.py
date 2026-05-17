@@ -59,6 +59,8 @@ def empty_render_contract(
             "step_export": False,
             "solidworks_ready": False,
         },
+        "step_export": False,
+        "solidworks_ready": False,
         "missing_fields": [],
         "warnings": [],
         "actions": [],
@@ -164,6 +166,8 @@ def build_piece_render_contract(piece_name: str, global_report: Mapping[str, Any
 
     contract["solidworks_data"]["step_export"] = False
     contract["solidworks_data"]["solidworks_ready"] = False
+    contract["step_export"] = False
+    contract["solidworks_ready"] = False
     return contract
 
 
@@ -179,4 +183,3 @@ def summarize_contract(contract: Mapping[str, Any]) -> Dict[str, Any]:
         "dimensions": len(safe_dict(contract.get("solidworks_data")).get("dimensions_to_copy") or []),
         "missing_fields": len(contract.get("missing_fields") or []),
     }
-
