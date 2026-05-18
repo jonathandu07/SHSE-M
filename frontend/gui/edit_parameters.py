@@ -510,22 +510,19 @@ class BackendMainParameterBridge:
 
     def backend_signature(self) -> Tuple[List[str], Dict[str, Any], set[str]]:
         """
-        Récupère les vrais paramètres de backend.main.dimensionner_systeme_shsem.
+        Récupère les paramètres exposés par frontend.main.
         Si l'import échoue, fallback sur la liste connue.
         """
         try:
-            from backend.main import dimensionner_systeme_shsem  # type: ignore
-        except Exception:
-            try:
-                from main import dimensionner_systeme_shsem  # type: ignore
-            except Exception as exc:
-                self.errors.append(
-                    {
-                        "source": "backend.main.dimensionner_systeme_shsem",
-                        "erreur": f"Import impossible, fallback utilisé : {exc}",
-                    }
-                )
-                return list(FALLBACK_BACKEND_KEYS), {}, {"puissance_traction_kw"}
+            from frontend.main import dimensionner_systeme_shsem  # type: ignore
+        except Exception as exc:
+            self.errors.append(
+                {
+                    "source": "frontend.main.dimensionner_systeme_shsem",
+                    "erreur": f"Import impossible, fallback utilisé : {exc}",
+                }
+            )
+            return list(FALLBACK_BACKEND_KEYS), {}, {"puissance_traction_kw"}
 
         try:
             sig = inspect.signature(dimensionner_systeme_shsem)

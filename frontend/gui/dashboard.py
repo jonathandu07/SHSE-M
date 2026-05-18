@@ -75,20 +75,6 @@ def _safe_list(value: Any) -> List[Any]:
     return []
 
 
-def _deep_get(data: Any, *path: str) -> Any:
-    cur = data
-    for key in path:
-        if isinstance(cur, Mapping):
-            cur = cur.get(key)
-        else:
-            return None
-
-        if cur is None:
-            return None
-
-    return cur
-
-
 def _first_non_none(*values: Any) -> Any:
     for value in values:
         if value is not None:
@@ -536,63 +522,38 @@ class BackendMainBridge:
 
         return reports
 
-    def _call_dimensionner_systeme_shsem(self, params: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    def _call_frontend_main_refresh(self, params: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
         if not params:
             self._push_error(
-                "backend.main.dimensionner_systeme_shsem",
-                "app.engine_params vide : impossible d'appeler l'orchestrateur strict.",
+                "frontend.main.refresh_backend_data",
+                "app.engine_params vide : impossible de rafraîchir un rapport backend strict.",
             )
             return None
 
         try:
-            from backend.main import dimensionner_systeme_shsem  # type: ignore
+            from frontend.main import refresh_backend_data  # type: ignore
         except Exception as exc:
-            try:
-                from main import dimensionner_systeme_shsem  # type: ignore
-            except Exception as exc2:
-                self._push_error(
-                    "backend.main.dimensionner_systeme_shsem",
-                    f"import impossible : {exc} / {exc2}",
-                )
-                return None
+            self._push_error("frontend.main.refresh_backend_data", f"import impossible : {exc}")
+            return None
 
         try:
-            kwargs = _filter_kwargs(dimensionner_systeme_shsem, params)
-
-            # Garde-fou : backend/main.py exige au moins une cible de puissance.
-            has_power_target = any(
-                kwargs.get(k) is not None
-                for k in (
-                    "puissance_traction_kw",
-                    "production_electrique_sortie_w",
-                    "puissance_bus_dc_w",
-                    "puissance_moteur_requise_W",
-                )
-            )
-
-            if not has_power_target:
-                self._push_error(
-                    "backend.main.dimensionner_systeme_shsem",
-                    "cible de puissance absente : fournir puissance_traction_kw, production_electrique_sortie_w, puissance_bus_dc_w ou puissance_moteur_requise_W.",
-                )
-                return None
-
-            report = dimensionner_systeme_shsem(**kwargs)
+            state = refresh_backend_data(params)
+            report = _safe_dict(state.get("raw_report")) if isinstance(state, Mapping) else {}
 
             if not isinstance(report, Mapping):
                 self._push_error(
-                    "backend.main.dimensionner_systeme_shsem",
+                    "frontend.main.refresh_backend_data",
                     f"retour non dict : {type(report).__name__}",
                 )
                 return None
 
             out = dict(report)
-            out.setdefault("_source_hook", "backend.main.dimensionner_systeme_shsem")
-            self.sources.append("backend.main.dimensionner_systeme_shsem")
+            out.setdefault("_source_hook", "frontend.main.refresh_backend_data")
+            self.sources.append("frontend.main.refresh_backend_data")
             return out
 
         except Exception as exc:
-            self._push_error("backend.main.dimensionner_systeme_shsem", exc)
+            self._push_error("frontend.main.refresh_backend_data", exc)
             return None
 
 
@@ -686,236 +647,6 @@ def _make_resume_candidate(report: Mapping[str, Any]) -> Optional[Dict[str, Any]
 
 def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]:
     return build_dashboard_model({"raw_report": dict(report) if isinstance(report, Mapping) else {}})
-
-    if not isinstance(report, Mapping) or not report:
-        return {"is_empty": True}
-
-    gui = _safe_dict(report.get("resume_gui"))
-    systeme_complet = _safe_dict(report.get("systeme_complet"))
-    synth = _safe_dict(report.get("synthese"))
-    synth_systeme = _safe_dict(synth.get("systeme"))
-    synth_mt = _safe_dict(synth.get("moteur_thermique"))
-    synth_opt = _safe_dict(synth.get("optimisation"))
-
-    sc_synth = _safe_dict(systeme_complet.get("synthese"))
-    sc_veh = _safe_dict(sc_synth.get("vehicule"))
-    sc_batt = _safe_dict(sc_synth.get("batterie"))
-    sc_alt = _safe_dict(sc_synth.get("alternateur"))
-    sc_mt = _safe_dict(sc_synth.get("moteur_thermique"))
-
-    frontend_contract = _safe_dict(report.get("frontend"))
-    contract_cao = _safe_dict(frontend_contract.get("cao"))
-    cao_dossier = _safe_dict(report.get("cao_dossier")) or _safe_dict(frontend_contract.get("cao_dossier"))
-    cao_resume = _safe_dict(cao_dossier.get("resume"))
-    mechanical_graphs = _safe_dict(report.get("mechanical_graphs")) or _safe_dict(frontend_contract.get("mechanical_graphs"))
-    cao = _merge_dict_non_none(_safe_dict(report.get("cao")), contract_cao)
-    cao = _merge_dict_non_none(cao, cao_resume)
-    chain_validation = _safe_dict(report.get("validation_chaine_100kw")) or _safe_dict(_deep_get(report, "frontend", "chain_validation"))
-    chain_values = _safe_dict(chain_validation.get("valeurs"))
-    chain_livrables = _safe_dict(chain_validation.get("livrables"))
-    diagnostic = _safe_dict(report.get("diagnostic")) or _safe_dict(frontend_contract.get("diagnostic"))
-    diagnostic_resume = _safe_dict(diagnostic.get("resume"))
-    root_causes = [dict(c) for c in _safe_list(diagnostic.get("causes_racines")) if isinstance(c, Mapping)]
-    analyses = _safe_dict(report.get("analyses_composants"))
-    construction = _safe_dict(report.get("construction_pieces"))
-    pieces = _safe_dict(report.get("rapports_pieces"))
-    optimisation = _safe_dict(report.get("optimisation"))
-    legacy = _safe_dict(report.get("legacy"))
-
-    unknowns = _flatten_unknowns(report)
-    alerts = _flatten_alerts(report)
-
-    score_coherence = _first_non_none(
-        gui.get("score_coherence_100"),
-        synth_opt.get("score_coherence_100"),
-        _deep_get(optimisation, "synthese_optimisation", "score_coherence_100"),
-    )
-    score_global = _first_non_none(
-        gui.get("score_global_100"),
-        synth_opt.get("score_global_100"),
-        _deep_get(optimisation, "synthese_optimisation", "score_global_100"),
-    )
-
-    puissance_demandee_kw = None
-    p_bus = _first_finite(
-        gui.get("P_bus_dc_design_w"),
-        sc_veh.get("puissance_bus_dc_design_w"),
-        synth_systeme.get("P_bus_dc_design_w"),
-    )
-    if p_bus is not None:
-        puissance_demandee_kw = p_bus / 1000.0
-
-    power_chain = [
-        _contract_metric(frontend_contract, "synthese.moteur_electrique.puissance_sortie_w", "Sortie moteur electrique", "W"),
-        _contract_metric(frontend_contract, "synthese.systeme.P_bus_dc_design_w", "Bus DC design", "W"),
-        _metric("Alternateur electrique", chain_values.get("puissance_alternateur_electrique_w"), "W", _status_for_value(chain_values.get("puissance_alternateur_electrique_w"))),
-        _metric("Moteur thermique arbre", chain_values.get("puissance_moteur_thermique_arbre_w"), "W", _status_for_value(chain_values.get("puissance_moteur_thermique_arbre_w"))),
-        _metric("Regime thermique", chain_values.get("rpm_moteur_thermique"), "rpm", _status_for_value(chain_values.get("rpm_moteur_thermique"))),
-        _metric("Couple thermique", chain_values.get("couple_moteur_thermique_nm"), "Nm", _status_for_value(chain_values.get("couple_moteur_thermique_nm"))),
-        _metric("Score chaine", chain_validation.get("score_chaine_100"), "/100", "ok" if chain_validation.get("ok") else ("alerte" if chain_validation else "missing")),
-    ]
-
-    boite_check = _chain_check(chain_validation, "boite_reliable")
-    couple_check = _chain_check(chain_validation, "couple_moteur_thermique_calculable")
-    materials = _safe_list(_deep_get(mechanical_graphs, "context", "materiaux_autorises"))
-    mechanical_presizing = bool(chain_livrables.get("mechanical_presizing_ok") or cao.get("drawing_data_available"))
-    mechanical_closure = [
-        _metric("Couple connu", _fmt_bool(couple_check.get("ok")) if couple_check else _fmt_bool(chain_values.get("couple_moteur_thermique_nm") is not None), "", "ok" if (couple_check.get("ok") if couple_check else chain_values.get("couple_moteur_thermique_nm") is not None) else "alerte"),
-        _metric("Arbre dimensionnable", _fmt_bool(mechanical_presizing), "", "ok" if mechanical_presizing else "alerte"),
-        _metric("Boite/crabots", _fmt_bool(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
-        _metric("Alternateur relie", _fmt_bool(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
-        _metric("Materiaux candidats", ", ".join(str(x) for x in materials[:3]) or None, "", "ok" if materials else "missing"),
-        _metric("Graphes mecaniques", mechanical_graphs.get("graphs_available"), "", "ok" if mechanical_graphs.get("graphs_available") else "alerte"),
-    ]
-
-    cao_preconception = [
-        _metric("Mode", cao.get("mode"), "", "ok" if cao.get("mode") not in (None, "indisponible") else "missing"),
-        _metric("Croquis cotes", _fmt_bool(cao.get("sketches_available")), "", "ok" if cao.get("sketches_available") else "alerte"),
-        _metric("3D indicative", _fmt_bool(cao.get("views_3d_available")), "", "ok" if cao.get("views_3d_available") else "alerte"),
-        _metric("Graphiques contraintes", _fmt_bool(cao.get("stress_graphs_available")), "", "ok" if cao.get("stress_graphs_available") else "alerte"),
-        _metric("Donnees SolidWorks", _fmt_bool(cao.get("drawing_data_available")), "", "ok" if cao.get("drawing_data_available") else "alerte"),
-        _metric("SolidWorks ready", _fmt_bool(cao.get("solidworks_ready")), "", "ok" if cao.get("solidworks_ready") else "alerte"),
-        _metric("STEP export", _fmt_bool(cao.get("step_export")), "", "ok" if cao.get("step_export") else "alerte"),
-    ]
-
-    diagnostic_causal = {
-        "status": diagnostic_resume.get("statut") or ("bloque" if root_causes else "indisponible"),
-        "score": diagnostic_resume.get("score_diagnostic_100"),
-        "root_causes_count": diagnostic_resume.get("nb_causes_racines", len(root_causes)),
-        "symptoms_count": diagnostic_resume.get("nb_symptomes"),
-        "duplicates_count": diagnostic_resume.get("nb_doublons_probables"),
-        "root_causes": root_causes[:4],
-    }
-
-    energy_chain = [
-        _metric("Puissance totale demandée", puissance_demandee_kw, "kW"),
-        _metric("Puissance bus DC", p_bus, "W"),
-        _metric("Batterie utile", _first_non_none(gui.get("energie_batterie_kwh"), sc_batt.get("energie_utile_kwh")), "kWh"),
-        _metric("Architecture", gui.get("Architecture"), ""),
-        _metric("Nombre cylindres", gui.get("N_cyl"), ""),
-        _metric("Alésage", gui.get("Bore_mm"), "mm"),
-        _metric("Course", gui.get("Stroke_mm"), "mm"),
-        _metric("Régime moteur", gui.get("RPM"), "rpm"),
-        _metric("PME", _first_non_none(gui.get("PME_Pa"), gui.get("PME")), "Pa"),
-        _metric("Pmax", gui.get("Pmax_Pa"), "Pa"),
-        _metric("Couple max", gui.get("Couple_max_Nm"), "Nm"),
-        _metric("Couple moyen", gui.get("couple_moyen_Nm"), "Nm"),
-        _metric("Force bielle", gui.get("Force_bielle_N"), "N"),
-        _metric("Validation chaine 100 kW", chain_validation.get("score_chaine_100"), "%", "ok" if chain_validation.get("ok") else "alerte"),
-        _metric("Cylindrée totale", gui.get("vd_tot_cc"), "cc"),
-        _metric("Score cohérence", score_coherence, "%"),
-        _metric("Score global", score_global, "%"),
-    ]
-
-    # Nettoyage : conserver les lignes utiles, mais ne pas masquer les valeurs None critiques.
-    priority_labels = {
-        "Puissance totale demandée",
-        "Puissance bus DC",
-        "Batterie utile",
-        "Architecture",
-        "Nombre cylindres",
-        "Score cohérence",
-        "Score global",
-    }
-    energy_chain = [
-        item for item in energy_chain
-        if item["value"] is not None or item["label"] in priority_labels
-    ]
-
-    subsystems = [
-        _subsystem("Système complet", systeme_complet, required=True),
-        _subsystem("Moteur thermique", sc_mt or synth_mt, required=True),
-        _subsystem("Moteur électrique", _deep_get(systeme_complet, "sous_systemes", "moteur_electrique")),
-        _subsystem("Batterie", sc_batt),
-        _subsystem("Alternateur", sc_alt),
-        _subsystem("Architecture", _deep_get(analyses, "architecture") or gui),
-        _subsystem("Boîte à crabots", _deep_get(analyses, "boite_crabots")),
-        _subsystem("Construction pièces", construction),
-        _subsystem("Rapports pièces", pieces),
-        _subsystem("Optimisation", optimisation),
-        _subsystem("CAO", cao),
-        _subsystem("Legacy", legacy),
-    ]
-
-    alert_rows: List[Dict[str, Any]] = []
-    for item in alerts[:10]:
-        label = _first_non_empty(item.get("nom"), item.get("categorie"), "Alerte")
-        value = _first_non_empty(item.get("detail"), item.get("raison"), item.get("source"), "")
-        alert_rows.append(_metric(str(label), _short_text(value, 90), "", "alerte"))
-
-    unknown_rows: List[Dict[str, Any]] = []
-    for item in unknowns[:12]:
-        label = _first_non_empty(item.get("nom"), item.get("piece"), item.get("champ"), item.get("categorie"), "Inconnue")
-        value = _first_non_empty(item.get("raison"), item.get("source"), "")
-        unknown_rows.append(_metric(str(label), _short_text(value, 100), "", "missing"))
-
-    candidate = _make_resume_candidate(report)
-    architecture_candidates = [candidate] if candidate else []
-
-    dashboard = {
-        "title": "STHOME COCKPIT — BACKEND MAIN",
-        "summary": {
-            "missing_count": len(unknowns),
-            "alert_count": len(alerts),
-            "backend_sources_count": len(_safe_list(report.get("_dashboard_backend_sources"))),
-            "pieces_count": len(pieces),
-            "components_count": len(_safe_dict(report.get("toutes_les_donnees_composants"))),
-            "solidworks_ready": _first_non_none(
-                cao.get("solidworks_ready"),
-                cao.get("solidworks_ready_detaille"),
-            ),
-            "chain_validation": {
-                "available": bool(chain_validation),
-                "ok": bool(chain_validation.get("ok")),
-                "score_chaine_100": chain_validation.get("score_chaine_100"),
-                "main_blocking_point": _safe_list(chain_validation.get("points_bloquants"))[0] if _safe_list(chain_validation.get("points_bloquants")) else None,
-            },
-            "cao_preconception": {
-                "mode": cao.get("mode"),
-                "sketches_available": bool(cao.get("sketches_available")),
-                "views_3d_available": bool(cao.get("views_3d_available")),
-                "stress_graphs_available": bool(cao.get("stress_graphs_available")),
-                "drawing_data_available": bool(cao.get("drawing_data_available")),
-                "solidworks_ready": bool(cao.get("solidworks_ready")),
-                "step_export": bool(cao.get("step_export")),
-            },
-        },
-        "power_chain": power_chain,
-        "mechanical_closure": mechanical_closure,
-        "cao_preconception": cao_preconception,
-        "diagnostic_causal": diagnostic_causal,
-        "energy_chain": energy_chain,
-        "subsystems": subsystems,
-        "alerts": alert_rows,
-        "unknowns": unknown_rows,
-        "actions": [
-            {"label": "Architecture", "target": "architecture_choice"},
-            {"label": "Manques", "target": "missing_requirements"},
-            {"label": "Diagnostic JSON", "target": "json_diagnostic"},
-            {"label": "Visualisation technique", "target": "technical_visualization"},
-            {"label": "Paramètres", "target": "edit_parameters"},
-            {"label": "Rapport brut", "target": "raw_json"},
-            {"label": "Dossier CAO", "target": "cao_dossier"},
-            {"label": "Dashboard", "target": "dashboard"},
-        ],
-    }
-
-    return {
-        "is_empty": False,
-        "dashboard": dashboard,
-        "resume_gui": gui,
-        "cao": cao,
-        "architecture_candidates": architecture_candidates,
-        "backend_report_present": True,
-        "backend_sources": _safe_list(report.get("_dashboard_backend_sources")),
-        "backend_errors": _safe_list(report.get("_dashboard_backend_errors")),
-        "inconnues": report.get("inconnues"),
-        "alertes": report.get("alertes"),
-        "frontend_contract": frontend_contract,
-        "cao_dossier": cao_dossier,
-        "mechanical_graphs": mechanical_graphs,
-    }
-
 
 # =============================================================================
 # Dashboard musclé
@@ -1154,7 +885,7 @@ class DashboardScreen(Screen):
             Label(
                 text=(
                     "Le dashboard n’a trouvé ni rapport en mémoire, ni JSON exporté, "
-                    "ni résultat exploitable depuis backend.main.dimensionner_systeme_shsem."
+                    "ni résultat exploitable depuis frontend.main."
                 ),
                 color=COLORS["RS"],
                 bold=True,
@@ -1555,7 +1286,8 @@ class DashboardScreen(Screen):
     # -------------------------------------------------------------------------
 
     def _find_value(self, ui: Mapping[str, Any], label: str) -> Any:
-        for item in _safe_list(_deep_get(ui, "dashboard", "energy_chain")):
+        dashboard = _safe_dict(ui.get("dashboard"))
+        for item in _safe_list(dashboard.get("energy_chain")):
             if isinstance(item, Mapping) and item.get("label") == label:
                 return item.get("value")
         return None

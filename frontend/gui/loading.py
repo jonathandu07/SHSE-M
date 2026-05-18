@@ -36,14 +36,12 @@ except Exception:  # pragma: no cover
     extract_architecture_candidates = None  # type: ignore
 
 try:
-    from backend.main import dimensionner_systeme_shsem
+    from frontend.main import dimensionner_systeme_shsem, refresh_backend_data
 except Exception:  # pragma: no cover
     dimensionner_systeme_shsem = None  # type: ignore
+    refresh_backend_data = None  # type: ignore
 
-try:
-    from backend.modules.systeme.analyse_puissance_sortie import normaliser_puissance
-except Exception:  # pragma: no cover
-    normaliser_puissance = None  # type: ignore
+normaliser_puissance = None  # le GUI ne dépend pas directement d'un module backend
 
 
 # =============================================================================
@@ -879,9 +877,9 @@ class LoadingScreen(Screen):
         app = App.get_running_app()
 
         try:
-            if dimensionner_systeme_shsem is None:
+            if refresh_backend_data is None:
                 raise RuntimeError(
-                    "Backend indisponible : impossible d'importer backend.main.dimensionner_systeme_shsem."
+                    "Backend indisponible : impossible d'importer frontend.main.refresh_backend_data."
                 )
 
             self._set_step(0, "calculée", "Lecture de app.engine_params.")
@@ -915,10 +913,11 @@ class LoadingScreen(Screen):
             if self._cancel_requested or run_id != self._run_id:
                 return
 
-            self._set_step(3, "calculée", "Appel dimensionner_systeme_shsem.")
-            self._set_status("Appel du backend strict.", badge="calculée")
+            self._set_step(3, "calculée", "Appel frontend.main.refresh_backend_data.")
+            self._set_status("Appel du frontend orchestrateur.", badge="calculée")
 
-            report = dimensionner_systeme_shsem(**backend_args)
+            state = refresh_backend_data(backend_args)
+            report = state.get("raw_report") if isinstance(state, Mapping) else None
 
             if not isinstance(report, dict):
                 raise RuntimeError(f"Le backend a retourné {type(report).__name__}, attendu dict.")

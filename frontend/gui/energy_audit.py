@@ -238,7 +238,7 @@ class BackendAuditCollector:
     - rapports déjà présents dans App ;
     - hooks éventuels de l'App ;
     - exports JSON ;
-    - appel direct backend.main.dimensionner_systeme_shsem si demandé.
+    - rafraîchissement via frontend.main si demandé.
     """
 
     REPORT_ATTRS: Tuple[str, ...] = (
@@ -443,50 +443,44 @@ class BackendAuditCollector:
 
         if not params:
             self._push_error(
-                "backend.main.dimensionner_systeme_shsem",
+                "frontend.main.refresh_backend_data",
                 "app.engine_params vide : recalcul impossible.",
             )
             return None
 
         if not _has_power_target(params):
             self._push_error(
-                "backend.main.dimensionner_systeme_shsem",
+                "frontend.main.refresh_backend_data",
                 "cible de puissance absente : renseigner puissance_traction_kw, "
                 "production_electrique_sortie_w, puissance_bus_dc_w ou puissance_moteur_requise_W.",
             )
             return None
 
         try:
-            from backend.main import dimensionner_systeme_shsem  # type: ignore
+            from frontend.main import refresh_backend_data  # type: ignore
         except Exception as exc:
-            try:
-                from main import dimensionner_systeme_shsem  # type: ignore
-            except Exception as exc2:
-                self._push_error(
-                    "backend.main.dimensionner_systeme_shsem",
-                    f"import impossible : {exc} / {exc2}",
-                )
-                return None
+            self._push_error("frontend.main.refresh_backend_data", f"import impossible : {exc}")
+            return None
 
         try:
-            kwargs = _filter_kwargs(dimensionner_systeme_shsem, params)
-            report = dimensionner_systeme_shsem(**kwargs)
+            state = refresh_backend_data(params)
+            report = _safe_dict(state.get("raw_report")) if isinstance(state, Mapping) else {}
 
             if not isinstance(report, Mapping):
                 self._push_error(
-                    "backend.main.dimensionner_systeme_shsem",
+                    "frontend.main.refresh_backend_data",
                     f"retour non dict : {type(report).__name__}",
                 )
                 return None
 
             out = dict(report)
-            out.setdefault("_source_hook", "backend.main.dimensionner_systeme_shsem")
-            self.sources.append("backend.main.dimensionner_systeme_shsem")
+            out.setdefault("_source_hook", "frontend.main.refresh_backend_data")
+            self.sources.append("frontend.main.refresh_backend_data")
             return out
 
         except Exception as exc:
             self._push_error(
-                "backend.main.dimensionner_systeme_shsem",
+                "frontend.main.refresh_backend_data",
                 f"{exc}\n{traceback.format_exc()}",
             )
             return None
@@ -683,7 +677,7 @@ class EnergyAuditScreen(Screen):
                     title="SYNCHRONISATION BACKEND",
                     text=(
                         "Récupération de l'audit technique depuis les rapports backend, "
-                        "les hooks App, les exports JSON et, si demandé, backend.main.dimensionner_systeme_shsem."
+                        "les hooks App, les exports JSON et, si demandé, frontend.main."
                     ),
                     status="calculée",
                 )
