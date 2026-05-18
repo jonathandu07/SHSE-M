@@ -102,7 +102,9 @@ def normalize_view_3d(view: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def normalize_chart(chart: Mapping[str, Any]) -> Dict[str, Any]:
-    status = chart.get("status") or STATUS_PARTIAL
+    series = list(chart.get("series") or [])
+    has_points = any(isinstance(item, Mapping) and item.get("points") for item in series)
+    status = chart.get("status") or (STATUS_AVAILABLE if has_points else STATUS_PARTIAL)
     return {
         "id": chart.get("id") or chart.get("name") or "chart_backend",
         "type": "chart",
@@ -110,7 +112,7 @@ def normalize_chart(chart: Mapping[str, Any]) -> Dict[str, Any]:
         "title": chart.get("title") or chart.get("titre") or chart.get("id") or "Graphique backend",
         "x_label": chart.get("x_label") or "",
         "y_label": chart.get("y_label") or "",
-        "series": list(chart.get("series") or []),
+        "series": series,
         "markers": list(chart.get("markers") or []),
         "formula": chart.get("formula") or chart.get("formule"),
         "source": chart.get("source") or "backend.mechanical_graphs",
