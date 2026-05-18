@@ -81,9 +81,10 @@ def _piece_module_flags(path: Path) -> Dict[str, Any]:
     main_text = _read_text(main_file) if main_file.exists() else ""
     all_text = "\n".join(_read_text(item) for item in path.glob("*.py"))
     dangerous_count = sum(all_text.count(token) for token in _DANGEROUS_DEFAULT_TOKENS)
+    supports_contract = "def visualiser_piece" in main_text
     return {
-        "supports_render_contract": "def visualiser_piece" in main_text,
-        "legacy_hidden_demo": ("bridge." + "run_100kw()") in main_text or "get_backend_bridge()" in main_text,
+        "supports_render_contract": supports_contract,
+        "legacy_hidden_demo": (not supports_contract) and (("bridge." + "run_100kw()") in main_text or "get_backend_bridge()" in main_text),
         "imports_backend_class": "from backend." in main_text,
         "dangerous_defaults_count": dangerous_count,
         "docstring_present": main_text.lstrip().startswith('"""'),
@@ -127,6 +128,26 @@ def _discover_backend_pieces() -> Dict[str, Dict[str, Any]]:
                 "path": str(file),
             }
     return out
+
+
+def _component_module_name(component_name: str) -> str | None:
+    path = _COMPONENTS_ROOT / component_name / f"{component_name}.py"
+    if path.exists():
+        return f"frontend.components.{component_name}.{component_name}"
+    return None
+
+
+def _component_frontend_flags(component_name: str) -> Dict[str, Any]:
+    module_path = _COMPONENTS_ROOT / component_name / f"{component_name}.py"
+    text = _read_text(module_path) if module_path.exists() else ""
+    return {
+        "frontend_present": module_path.exists(),
+        "supports_render_contract": "def visualiser_composant" in text,
+        "legacy_hidden_demo": ("bridge." + "run_100kw()") in text or "get_backend_bridge()" in text,
+        "imports_backend_class": "from backend." in text,
+        "dangerous_defaults_count": sum(text.count(token) for token in _DANGEROUS_DEFAULT_TOKENS),
+        "module": _component_module_name(component_name),
+    }
 
 
 def _report_piece_names(report: Mapping[str, Any]) -> set[str]:
@@ -176,11 +197,18 @@ def lister_visualisations_disponibles(report: dict) -> dict:
     components = []
     for name in ("moteur_thermique", "moteur_electrique", "batterie", "alternateur", "boite_crabots", "architecture"):
         comp = get_component_report(data, name)
+        flags = _component_frontend_flags("architechture" if name == "architecture" else name)
         components.append(
             {
                 "component": name,
                 "status": "available" if comp else "missing_required",
                 "backend_report": bool(comp),
+                "frontend_present": bool(flags.get("frontend_present")),
+                "supports_render_contract": bool(flags.get("supports_render_contract")),
+                "legacy_hidden_demo": bool(flags.get("legacy_hidden_demo")),
+                "imports_backend_class": bool(flags.get("imports_backend_class")),
+                "dangerous_defaults_count": int(flags.get("dangerous_defaults_count") or 0),
+                "module": flags.get("module"),
                 "sketches": False,
                 "views_3d": False,
                 "charts": bool(get_backend_graphs(data, name)),
@@ -254,6 +282,16 @@ def construire_visualisations_composants(report: dict) -> dict:
             continue
         name = str(row.get("component") or "")
         comp = get_component_report(data, name)
+        module_name = row.get("module")
+        if module_name and row.get("supports_render_contract"):
+            try:
+                module = importlib.import_module(str(module_name))
+                visualiser = getattr(module, "visualiser_composant", None)
+                if callable(visualiser):
+                    out[name] = visualiser(data=comp, global_report=data)
+                    continue
+            except Exception as exc:
+                pass
         contract = empty_render_contract(
             item_id=name,
             kind="component",
@@ -266,6 +304,8 @@ def construire_visualisations_composants(report: dict) -> dict:
         contract["solidworks_data"]["solidworks_ready"] = False
         contract["step_export"] = False
         contract["solidworks_ready"] = False
+        if row.get("legacy_hidden_demo"):
+            contract["warnings"].append("Module composant legacy detecte : demo implicite ignoree.")
         out[name] = contract
     return {"components": out, "cards": [summarize_contract(c) for c in out.values()]}
 
