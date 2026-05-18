@@ -35,3 +35,12 @@ def tracer_graphique(chart: Mapping[str, Any] | None = None, global_report: Mapp
     if not charts:
         raise ValueError("Aucun graphique backend disponible.")
     return build_chart_figure(charts[0])
+
+
+
+def plot(chart: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
+    return tracer_graphique(chart=chart, global_report=global_report)
+
+
+def make_figure(chart: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
+    return tracer_graphique(chart=chart, global_report=global_report)

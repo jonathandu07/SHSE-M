@@ -39,3 +39,16 @@ def tracer_croquis(data: Mapping[str, Any] | None = None, global_report: Mapping
 
 def afficher_2d(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
     return tracer_croquis(data=data, global_report=global_report)
+
+
+
+def draw(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
+    return tracer_croquis(data=data, global_report=global_report)
+
+
+def make_figure(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
+    return tracer_croquis(data=data, global_report=global_report)
+
+
+def tracer_croquis_piston_2d(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
+    return tracer_croquis(data=data, global_report=global_report)

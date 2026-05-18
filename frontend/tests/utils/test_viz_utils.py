@@ -8,9 +8,9 @@ def test_resolve_viz_module_pieces():
     assert mod is not None
     assert hasattr(mod, "draw") or hasattr(mod, "tracer_croquis_piston_2d")
     
-    # Test bielle (3D)
     mod = resolve_viz_module("bielle", "views_3d")
-    assert mod is None
+    assert mod is not None
+    assert hasattr(mod, "build_view_3d_contract")
 
 def test_resolve_viz_module_subsystems():
     """Vérifie que les sous-systèmes racines sont correctement résolus."""
@@ -23,18 +23,17 @@ def test_resolve_viz_module_subsystems():
     assert mod is None
 
 def test_resolve_viz_module_spelling():
-    """Vérifie la robustesse aux fautes de frappe et variations de casse."""
-    # Test avec espaces et majuscules
+    """Vérifie que les nouveaux wrappers passifs couvrent les variantes connues."""
     mod = resolve_viz_module("Arbre Vilebrequin", "charts")
-    assert mod is None
+    assert mod is not None
+    assert hasattr(mod, "build_chart_contracts")
     
-    # Test typo 'architecture'
     mod = resolve_viz_module("architecture", "sketches_2d")
     assert mod is None
     
-    # Test typo 'vilbrequin'
     mod = resolve_viz_module("arbre_vilbrequin", "charts")
-    assert mod is None
+    assert mod is not None
+    assert hasattr(mod, "build_chart_contracts")
 
 def test_get_draw_3d_func():
     """Vérifie la fonction de récupération des fonctions de dessin 3D."""

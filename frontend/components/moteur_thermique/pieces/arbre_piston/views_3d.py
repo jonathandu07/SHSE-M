@@ -35,3 +35,12 @@ def build_view_3d_contract(data: Mapping[str, Any] | None = None, global_report:
 
 def afficher_3d(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     return build_view_3d_contract(data=data, global_report=global_report)
+
+
+
+def draw_3d(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    return build_view_3d_contract(data=data, global_report=global_report)
+
+
+def render(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    return build_view_3d_contract(data=data, global_report=global_report)
