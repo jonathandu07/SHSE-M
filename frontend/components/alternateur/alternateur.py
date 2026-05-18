@@ -51,7 +51,15 @@ def visualiser_composant(data: Mapping[str, Any] | None = None, global_report: M
     return contract
 
 
-def tracer_croquis_alternateur_2d(*, data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None, titre: str = "Alternateur") -> Dict[str, Any]:
+def tracer_croquis_alternateur_2d(
+    alternateur: Any = None,
+    *,
+    data: Mapping[str, Any] | None = None,
+    global_report: Mapping[str, Any] | None = None,
+    titre: str = "Alternateur",
+) -> Dict[str, Any]:
+    if data is None and isinstance(alternateur, Mapping):
+        data = alternateur
     contract = visualiser_composant(data=data, global_report=global_report)
     contract["warnings"].append("Aucun croquis alternateur n'est trace sans donnees CAO backend.")
     return contract

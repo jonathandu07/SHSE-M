@@ -50,7 +50,15 @@ def visualiser_composant(data: Mapping[str, Any] | None = None, global_report: M
     return contract
 
 
-def tracer_croquis_batterie_2d(*, data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None, titre: str = "Batterie") -> Dict[str, Any]:
+def tracer_croquis_batterie_2d(
+    batterie: Any = None,
+    *,
+    data: Mapping[str, Any] | None = None,
+    global_report: Mapping[str, Any] | None = None,
+    titre: str = "Batterie",
+) -> Dict[str, Any]:
+    if data is None and isinstance(batterie, Mapping):
+        data = batterie
     contract = visualiser_composant(data=data, global_report=global_report)
     contract["warnings"].append("Aucun croquis batterie n'est trace sans topologie pack backend.")
     return contract

@@ -50,7 +50,15 @@ def visualiser_composant(data: Mapping[str, Any] | None = None, global_report: M
     return contract
 
 
-def tracer_croquis_moteur_electrique_2d(*, data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None, titre: str = "Moteur electrique") -> Dict[str, Any]:
+def tracer_croquis_moteur_electrique_2d(
+    moteur: Any = None,
+    *,
+    data: Mapping[str, Any] | None = None,
+    global_report: Mapping[str, Any] | None = None,
+    titre: str = "Moteur electrique",
+) -> Dict[str, Any]:
+    if data is None and isinstance(moteur, Mapping):
+        data = moteur
     contract = visualiser_composant(data=data, global_report=global_report)
     contract["warnings"].append("Aucun croquis moteur electrique n'est trace sans donnees backend.")
     return contract

@@ -50,7 +50,15 @@ def visualiser_composant(data: Mapping[str, Any] | None = None, global_report: M
     return contract
 
 
-def tracer_croquis_architecture_2d(*, data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None, titre: str = "Architecture moteur") -> Dict[str, Any]:
+def tracer_croquis_architecture_2d(
+    architecture: Any = None,
+    *,
+    data: Mapping[str, Any] | None = None,
+    global_report: Mapping[str, Any] | None = None,
+    titre: str = "Architecture moteur",
+) -> Dict[str, Any]:
+    if data is None and isinstance(architecture, Mapping):
+        data = architecture
     contract = visualiser_composant(data=data, global_report=global_report)
     contract["warnings"].append("Aucun croquis architecture n'est trace sans architecture backend validee.")
     return contract

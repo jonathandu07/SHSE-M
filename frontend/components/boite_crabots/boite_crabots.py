@@ -50,7 +50,15 @@ def visualiser_composant(data: Mapping[str, Any] | None = None, global_report: M
     return contract
 
 
-def tracer_croquis_boite_crabots_2d(*, data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None, titre: str = "Boite a crabots") -> Dict[str, Any]:
+def tracer_croquis_boite_crabots_2d(
+    boite: Any = None,
+    *,
+    data: Mapping[str, Any] | None = None,
+    global_report: Mapping[str, Any] | None = None,
+    titre: str = "Boite a crabots",
+) -> Dict[str, Any]:
+    if data is None and isinstance(boite, Mapping):
+        data = boite
     contract = visualiser_composant(data=data, global_report=global_report)
     contract["warnings"].append("Aucun croquis boite n'est trace sans rapports/dimensions backend.")
     return contract
