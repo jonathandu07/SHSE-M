@@ -134,7 +134,14 @@ def get_component_report(global_report: Mapping[str, Any], component_name: str) 
     return {}
 
 
-def extract_field(report: Mapping[str, Any], path: str, *, unit: str | None = None, label: str | None = None) -> Dict[str, Any]:
+def extract_field(
+    report: Mapping[str, Any],
+    path: str,
+    *,
+    unit: str | None = None,
+    label: str | None = None,
+    required: bool = False,
+) -> Dict[str, Any]:
     value = get_path(report, path)
     return {
         "path": path,
@@ -143,6 +150,7 @@ def extract_field(report: Mapping[str, Any], path: str, *, unit: str | None = No
         "unit": unit,
         "status": STATUS_AVAILABLE if value is not None else STATUS_MISSING_REQUIRED,
         "source": "backend",
+        "required": bool(required),
     }
 
 
@@ -159,6 +167,7 @@ def require_fields(report: Mapping[str, Any], fields: Sequence[Mapping[str, Any]
                 str(spec.get("path") or ""),
                 unit=spec.get("unit"),
                 label=spec.get("label"),
+                required=bool(spec.get("required")),
             )
         extracted.append(row)
         if row["status"] == STATUS_AVAILABLE:
@@ -276,4 +285,3 @@ def component_piece_directories(root: str | Path = "frontend/components") -> lis
         if path.is_dir() and path.name != "__pycache__":
             dirs.append(path)
     return sorted(dirs)
-

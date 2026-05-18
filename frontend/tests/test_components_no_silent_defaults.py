@@ -38,6 +38,25 @@ def test_orchestrateurs_frontend_ne_contiennent_pas_fallbacks_metier_dangereux()
             assert token not in text, f"{token!r} dans {path}"
 
 
+def test_components_ne_contiennent_plus_import_backend_ou_defaults_metier():
+    forbidden = (
+        "bridge.run_100kw(",
+        "get_backend_bridge(",
+        "from backend.",
+        "default=0.0",
+        " or 0.0",
+        " or 3000",
+        " or 400",
+        " or 0.9",
+        " or 0.08",
+        "ArbrePiston(",
+    )
+    for path in Path("frontend/components").rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for token in forbidden:
+            assert token not in text, f"{token!r} dans {path}"
+
+
 def test_ensemble_ne_lance_pas_run_100kw_sauf_bridge_demo_explicite():
     files = [p for p in Path("frontend/ensemble").glob("*.py") if p.name != "backend_bridge.py"]
     for path in files:
