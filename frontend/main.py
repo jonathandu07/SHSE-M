@@ -1388,7 +1388,7 @@ def charger_etat_frontend_complet(
 
 
 # =============================================================================
-# GUI Kivy minimale
+# GUI Kivy principale
 # =============================================================================
 
 def _try_import_kivy() -> Dict[str, Any]:
@@ -1398,6 +1398,7 @@ def _try_import_kivy() -> Dict[str, Any]:
         from kivy.uix.button import Button
         from kivy.uix.label import Label
         from kivy.uix.scrollview import ScrollView
+        from kivy.uix.screenmanager import Screen, ScreenManager
 
         return {
             "ok": True,
@@ -1406,6 +1407,8 @@ def _try_import_kivy() -> Dict[str, Any]:
             "Button": Button,
             "Label": Label,
             "ScrollView": ScrollView,
+            "Screen": Screen,
+            "ScreenManager": ScreenManager,
         }
     except BaseException as exc:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -1414,9 +1417,11 @@ def _try_import_kivy() -> Dict[str, Any]:
 def _make_kivy_app_class(kivy: Mapping[str, Any]) -> Any:
     App = kivy["App"]
     BoxLayout = kivy["BoxLayout"]
-    Button = kivy["Button"]
     Label = kivy["Label"]
-    ScrollView = kivy["ScrollView"]
+    Screen = kivy["Screen"]
+    ScreenManager = kivy["ScreenManager"]
+
+    from frontend.gui.components import COLORS, GhostButton, ModernButton, PremiumCard, SectionTitle
 
     class STHOMEFrontendApp(App):  # type: ignore[misc, valid-type]
         title = "STHO-ME / SHSE-M"
