@@ -1257,6 +1257,92 @@ def get_technical_visualization_report(report: Mapping[str, Any] | None = None) 
     }
 
 
+def charger_rapport_backend(*, scenario: str | None = None) -> Dict[str, Any]:
+    """
+    Charge ou retourne le rapport backend courant.
+
+    Aucun scenario n'est lance implicitement : le scenario 100 kW n'est execute
+    que si scenario vaut explicitement "100kw" ou "100_kW".
+    """
+    bridge = get_backend_bridge()
+    key = str(scenario or "").strip().lower()
+    if key in {"100kw", "100_kw", "100-kW".lower()}:
+        bridge.run_100kw()
+    elif key in {"run", "default", "backend"}:
+        bridge.run()
+    return _safe_dict(bridge.raw_report)
+
+
+def charger_frontend_contract(report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    source = _safe_dict(report) if report is not None else charger_rapport_backend()
+    try:
+        from frontend.ensemble.contract_adapter import get_frontend_contract
+
+        return get_frontend_contract(source)
+    except BaseException as exc:
+        _record_import_error("frontend.ensemble.contract_adapter", exc)
+        return _safe_dict(source.get("frontend_contract")) or _safe_dict(source.get("frontend"))
+
+
+def charger_diagnostic(report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    source = _safe_dict(report) if report is not None else charger_rapport_backend()
+    return _safe_dict(source.get("diagnostic")) or _safe_dict(_get_path(source, "frontend.diagnostic"))
+
+
+def charger_cao_dossier(report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    source = _safe_dict(report) if report is not None else charger_rapport_backend()
+    contract = charger_frontend_contract(source)
+    return _safe_dict(contract.get("cao_dossier")) or _safe_dict(source.get("cao_dossier"))
+
+
+def charger_mechanical_graphs(report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    source = _safe_dict(report) if report is not None else charger_rapport_backend()
+    contract = charger_frontend_contract(source)
+    return _safe_dict(contract.get("mechanical_graphs")) or _safe_dict(source.get("mechanical_graphs"))
+
+
+def charger_visualisations(report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    source = _safe_dict(report) if report is not None else charger_rapport_backend()
+    try:
+        from frontend.ensemble.screen_models import build_visualisation_model
+
+        return build_visualisation_model({"raw_report": source})
+    except BaseException as exc:
+        _record_import_error("frontend.ensemble.screen_models.visualisations", exc)
+        return get_technical_visualization_report(source)
+
+
+def charger_etat_frontend_complet(*, scenario: str | None = None) -> Dict[str, Any]:
+    """Retourne l'etat frontend complet consomme par frontend/ensemble et GUI."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    try:
+        raw_report = charger_rapport_backend(scenario=scenario)
+    except BaseException as exc:
+        raw_report = {}
+        errors.append(f"rapport_backend: {type(exc).__name__}: {exc}")
+
+    frontend_contract = charger_frontend_contract(raw_report)
+    diagnostic = charger_diagnostic(raw_report)
+    cao_dossier = charger_cao_dossier(raw_report)
+    mechanical_graphs = charger_mechanical_graphs(raw_report)
+    visualisations = charger_visualisations(raw_report)
+
+    if not raw_report:
+        warnings.append("Aucun rapport backend courant. Fournir un rapport ou demander un scenario explicite.")
+
+    return {
+        "raw_report": raw_report,
+        "frontend_contract": frontend_contract,
+        "diagnostic": diagnostic,
+        "cao_dossier": cao_dossier,
+        "mechanical_graphs": mechanical_graphs,
+        "visualisations": visualisations,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
 # =============================================================================
 # GUI Kivy minimale
 # =============================================================================
@@ -1628,6 +1714,13 @@ __all__ = [
     "FrontendRunState",
     "FrontendBackendBridge",
     "build_frontend_ui_report",
+    "charger_cao_dossier",
+    "charger_diagnostic",
+    "charger_etat_frontend_complet",
+    "charger_frontend_contract",
+    "charger_mechanical_graphs",
+    "charger_rapport_backend",
+    "charger_visualisations",
     "get_backend_bridge",
     "get_technical_visualization_report",
     "refresh_backend_data",

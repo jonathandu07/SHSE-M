@@ -33,7 +33,7 @@ from kivy.uix.label import Label
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 
-from frontend.ensemble.visualisation_orchestrator import construire_tableau_pages_visualisation
+from frontend.ensemble.screen_models import build_visualisation_model
 from frontend.gui.components import COLORS, EmptyState, MetricRow, ModernButton, PremiumCard, SectionTitle, StatusBadge
 
 
@@ -67,18 +67,7 @@ def _status(value: Any) -> str:
 
 def build_technical_visualization_payload(report: Mapping[str, Any]) -> Dict[str, Any]:
     """Construit le payload GUI depuis le rapport backend, sans calcul metier."""
-    table = construire_tableau_pages_visualisation(dict(report or {}))
-    return {
-        "title": "VISUALISATION TECHNIQUE",
-        "table": table,
-        "summary": table.get("summary", {}),
-        "system": table.get("system", {}),
-        "components": table.get("components", []),
-        "pieces_by_family": table.get("pieces_by_family", {}),
-        "solidworks": table.get("solidworks", {}),
-        "coverage": table.get("coverage", {}),
-        "actions": table.get("actions", []),
-    }
+    return build_visualisation_model({"raw_report": dict(report or {})})
 
 
 class TechnicalVisualizationScreen(Screen):
