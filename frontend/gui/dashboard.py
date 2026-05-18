@@ -337,18 +337,18 @@ def _safe_call_app_hook(fn: Callable[..., Any], params: Mapping[str, Any]) -> An
 
 
 # =============================================================================
-# Pont direct vers backend/main.py
+# Pont GUI vers frontend/main.py
 # =============================================================================
 
 class BackendMainBridge:
     """
-    Source de vérité : backend/main.py.
+    Source de vérité : frontend/main.py.
 
     Ordre :
     1. récupérer les rapports déjà stockés dans App ;
     2. appeler les hooks App si présents ;
-    3. appeler directement backend.main.dimensionner_systeme_shsem(**app.engine_params) ;
-    4. reconstruire app.ui_report depuis le rapport backend complet.
+    3. demander à frontend/main.py de rafraîchir le rapport si nécessaire ;
+    4. reconstruire app.ui_report depuis le modèle frontend/ensemble.
     """
 
     REPORT_ATTRS: Tuple[str, ...] = (
@@ -413,7 +413,7 @@ class BackendMainBridge:
             reports.extend(self._call_app_hooks(params))
 
         if force_backend_call or not reports:
-            direct = self._call_dimensionner_systeme_shsem(params)
+            direct = self._call_frontend_main_refresh(params)
             if direct is not None:
                 reports.append(direct)
 
