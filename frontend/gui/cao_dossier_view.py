@@ -14,6 +14,7 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 
 from frontend.gui.components import COLORS, MetricRow, ModernButton, NeoCard, PremiumCard, SectionTitle, StatusBadge
+from frontend.ensemble.screen_models import build_cao_model
 
 
 class CaoDossierScreen(Screen):
@@ -166,13 +167,7 @@ class CaoDossierScreen(Screen):
 
 def _build_payload(app: Any) -> Dict[str, Any]:
     report = _first_report(app)
-    frontend = _safe_dict(report.get("frontend"))
-    contract = frontend if frontend else report
-    return {
-        "cao": _safe_dict(contract.get("cao")) or _safe_dict(report.get("cao")),
-        "cao_dossier": _safe_dict(contract.get("cao_dossier")) or _safe_dict(report.get("cao_dossier")),
-        "mechanical_graphs": _safe_dict(contract.get("mechanical_graphs")) or _safe_dict(report.get("mechanical_graphs")),
-    }
+    return build_cao_model({"raw_report": report})
 
 
 def _first_report(app: Any) -> Dict[str, Any]:
