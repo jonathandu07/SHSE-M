@@ -68,7 +68,12 @@ def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str,
     diagnostic = safe_dict(report.get("diagnostic")) or safe_dict(contract.get("diagnostic"))
     diagnostic_resume = safe_dict(diagnostic.get("resume"))
     root_causes = [dict(c) for c in safe_list(diagnostic.get("causes_racines")) if isinstance(c, Mapping)]
-    cao_summary = build_cao_frontend_summary(report)
+    cao_source = dict(report)
+    if safe_dict(contract.get("cao")):
+        cao_source["cao"] = safe_dict(contract.get("cao"))
+    if safe_dict(contract.get("cao_dossier")):
+        cao_source["cao_dossier"] = safe_dict(contract.get("cao_dossier"))
+    cao_summary = build_cao_frontend_summary(cao_source)
     graphs = safe_dict(report.get("mechanical_graphs")) or safe_dict(contract.get("mechanical_graphs"))
     materials = safe_list(get_path(graphs, "context.materiaux_autorises"))
 
@@ -165,11 +170,16 @@ def build_diagnostic_model(frontend_state: Mapping[str, Any] | None) -> Dict[str
 def build_cao_model(frontend_state: Mapping[str, Any] | None) -> Dict[str, Any]:
     report = _report_from_state(frontend_state)
     contract = get_frontend_contract(report)
+    cao_source = dict(report)
+    if safe_dict(contract.get("cao")):
+        cao_source["cao"] = safe_dict(contract.get("cao"))
+    if safe_dict(contract.get("cao_dossier")):
+        cao_source["cao_dossier"] = safe_dict(contract.get("cao_dossier"))
     return {
         "cao": safe_dict(contract.get("cao")) or safe_dict(report.get("cao")),
         "cao_dossier": safe_dict(contract.get("cao_dossier")) or safe_dict(report.get("cao_dossier")),
         "mechanical_graphs": safe_dict(contract.get("mechanical_graphs")) or safe_dict(report.get("mechanical_graphs")),
-        "summary": build_cao_frontend_summary(report),
+        "summary": build_cao_frontend_summary(cao_source),
         "graphs_summary": collect_backend_charts(report),
     }
 
