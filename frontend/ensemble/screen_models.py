@@ -23,6 +23,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping
 
+from frontend.components.design_blocks import (
+    cao_summary_card,
+    diagnostic_summary_card,
+    mechanical_closure_card,
+    power_chain_card,
+    power_input_card,
+)
 from frontend.ensemble.actions import lister_actions_frontend
 from frontend.ensemble.cao_adapter import build_cao_frontend_summary
 from frontend.ensemble.contract_adapter import build_contract_model, get_contract_field, get_frontend_contract
@@ -171,6 +178,13 @@ def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str,
         "mechanical_closure": mechanical_closure,
         "cao_preconception": cao_preconception,
         "diagnostic_causal": diagnostic_causal,
+        "cards": {
+            "design_input": power_input_card(design_input),
+            "power_chain": power_chain_card(power_chain),
+            "mechanical_closure": mechanical_closure_card(mechanical_closure),
+            "cao": cao_summary_card(cao_preconception),
+            "diagnostic": diagnostic_summary_card(diagnostic_causal),
+        },
         "energy_chain": power_chain,
         "subsystems": [],
         "alerts": [],

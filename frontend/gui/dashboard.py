@@ -26,6 +26,7 @@ from frontend.gui.components import (
     KpiCard,
     MetricRow,
     ModernButton,
+    NeumorphicInput,
     NeoCard,
     PremiumCard,
     SectionTitle,
@@ -410,6 +411,13 @@ class BackendMainBridge:
         for report in reports:
             backend_report = _merge_dict_non_none(backend_report, report)
 
+        try:
+            frontend_input = getattr(self.app, "frontend_design_input", None)
+        except Exception:
+            frontend_input = None
+        if isinstance(frontend_input, Mapping):
+            backend_report.setdefault("frontend_inputs", dict(frontend_input))
+
         backend_report["_dashboard_backend_sources"] = list(dict.fromkeys(self.sources))
         if self.errors:
             backend_report["_dashboard_backend_errors"] = self.errors
@@ -660,6 +668,8 @@ class DashboardScreen(Screen):
         self._last_ui_report: Dict[str, Any] = {}
         self._last_errors: List[Dict[str, Any]] = []
         self._last_sources: List[str] = []
+        self._power_input: Optional[NeumorphicInput] = None
+        self._selected_power_unit = "kW"
 
     def on_enter(self, *_: Any) -> None:
         # Affiche immédiatement ce qui existe, puis synchronise backend/main.py.
@@ -780,6 +790,7 @@ class DashboardScreen(Screen):
         if not ui or ui.get("is_empty"):
             root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(10))
             root.add_widget(self._top_bar("STHOME COCKPIT", backend_status="missing"))
+            root.add_widget(self._design_input_panel({}))
             root.add_widget(self._empty_backend_panel(backend_errors))
             self.add_widget(root)
             return
@@ -804,6 +815,7 @@ class DashboardScreen(Screen):
         summary = _safe_dict(dash.get("summary"))
 
         content.add_widget(self._backend_state_panel(summary, backend_sources, backend_errors))
+        content.add_widget(self._design_input_panel(_safe_dict(dash.get("design_input"))))
         content.add_widget(self._kpi_row(ui))
 
         tier1 = BoxLayout(size_hint_y=None, height=dp(260), spacing=dp(12))
@@ -988,6 +1000,88 @@ class DashboardScreen(Screen):
         )
 
         return panel
+
+    def _design_input_panel(self, design_input: Mapping[str, Any]) -> PremiumCard:
+        panel = PremiumCard(title="Entrée de conception", bg=COLORS["BFW_12"], size_hint_y=None, height=dp(170))
+        panel.spacing = dp(10)
+
+        subtitle = Label(
+            text="Puissance demandée en sortie du moteur électrique. Le backend dimensionne ensuite bus DC, batterie, alternateur, thermique et boîte.",
+            color=COLORS["MUTED"],
+            font_size="11sp",
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(30),
+        )
+        subtitle.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+        panel.add_widget(subtitle)
+
+        row = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(44), spacing=dp(8))
+        value = design_input.get("value")
+        if value is not None and self._power_input is None:
+            text_value = str(value)
+        else:
+            text_value = "" if self._power_input is None else self._power_input.text
+
+        self._power_input = NeumorphicInput(
+            text=text_value,
+            hint_text="ex. 100",
+            input_filter="float",
+            size_hint_x=0.34,
+            height=dp(42),
+        )
+        row.add_widget(self._power_input)
+
+        unit = str(design_input.get("unit") or self._selected_power_unit or "kW")
+        self._selected_power_unit = "ch" if unit.lower() in {"ch", "cv"} else "kW"
+
+        btn_kw = GhostButton(text="kW", size_hint_x=None, width=dp(64), height=dp(42))
+        btn_ch = GhostButton(text="ch", size_hint_x=None, width=dp(64), height=dp(42))
+        btn_kw.background_color = COLORS["NG"] if self._selected_power_unit == "kW" else COLORS["BFW_12"]
+        btn_ch.background_color = COLORS["NG"] if self._selected_power_unit == "ch" else COLORS["BFW_12"]
+        btn_kw.bind(on_release=lambda *_: self._set_power_unit("kW"))
+        btn_ch.bind(on_release=lambda *_: self._set_power_unit("ch"))
+        row.add_widget(btn_kw)
+        row.add_widget(btn_ch)
+
+        run_btn = ModernButton(text="LANCER LE CALCUL", size_hint_x=None, width=dp(170), height=dp(42))
+        run_btn.bind(on_release=lambda *_: self._run_power_input())
+        row.add_widget(run_btn)
+        panel.add_widget(row)
+
+        info = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(34), spacing=dp(8))
+        info.add_widget(MetricRow("Valeur source", design_input.get("value"), design_input.get("unit") or "", str(design_input.get("status") or "missing")))
+        info.add_widget(MetricRow("Convertie", design_input.get("kw"), "kW", "ok" if design_input.get("kw") is not None else "missing"))
+        info.add_widget(MetricRow("Statut", design_input.get("status") or "missing_required", "", str(design_input.get("status") or "missing")))
+        panel.add_widget(info)
+        return panel
+
+    def _set_power_unit(self, unit: str) -> None:
+        self._selected_power_unit = "ch" if str(unit).lower() in {"ch", "cv"} else "kW"
+        self.refresh(force_backend=False)
+
+    def _run_power_input(self) -> None:
+        app = App.get_running_app()
+        value = self._power_input.text if self._power_input is not None else ""
+        try:
+            from frontend.ensemble.power_input import build_design_input_payload
+
+            payload = build_design_input_payload(value, self._selected_power_unit)
+        except Exception as exc:
+            self._last_errors = [{"source": "frontend.ensemble.power_input", "erreur": str(exc)}]
+            self._render(
+                {"is_empty": True, "backend_errors": self._last_errors},
+                self._last_backend_report,
+            )
+            return
+
+        try:
+            app.engine_params = dict(payload["backend_config"])
+            app.frontend_design_input = dict(payload["inputs"])
+        except Exception:
+            pass
+        self.sync_backend(force_backend_call=True)
 
     def _kpi_row(self, ui: Mapping[str, Any]) -> BoxLayout:
         dash = _safe_dict(ui.get("dashboard"))
