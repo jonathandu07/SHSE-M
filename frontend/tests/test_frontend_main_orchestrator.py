@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 
 import frontend.main as fm
 
@@ -79,3 +80,12 @@ def test_lancer_calcul_puissance_sortie_ne_lance_pas_100kw(monkeypatch):
     assert calls[0]["config"]["puissance_sortie_moteur_electrique_kw"] > 0
     assert state["inputs"]["unite"] == "ch"
     assert state["raw_report"]["frontend_inputs"]["status"] == "input"
+
+
+def test_frontend_main_monte_un_shell_de_pages():
+    source = inspect.getsource(fm._make_kivy_app_class)
+
+    assert "ScreenManager" in source
+    for screen_name in ("home", "dashboard", "edit_parameters", "json_diagnostic", "technical_visualization", "cao_dossier", "raw_json"):
+        assert f'"{screen_name}"' in source
+    assert "_make_summary_text()" not in source.split("def build(self) -> Any:", 1)[1].split("def on_start", 1)[0]

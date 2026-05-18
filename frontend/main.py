@@ -1443,62 +1443,125 @@ def _make_kivy_app_class(kivy: Mapping[str, Any]) -> Any:
 
             self.status_label: Any = None
             self.summary_label: Any = None
+            self.screen_manager: Any = None
 
         def build(self) -> Any:
-            root = BoxLayout(orientation="vertical", padding=12, spacing=10)
+            try:
+                from kivy.core.window import Window
+
+                Window.clearcolor = COLORS["BL"]
+            except Exception:
+                pass
+
+            root = BoxLayout(orientation="vertical", padding=10, spacing=8)
+            root.add_widget(self._top_shell_bar())
+            self.screen_manager = ScreenManager()
+            self._register_screens()
+            self.screen_manager.current = "home" if self.screen_manager.has_screen("home") else "dashboard"
+            root.add_widget(self.screen_manager)
+            return root
+
+        def _top_shell_bar(self) -> Any:
+            shell = BoxLayout(orientation="vertical", size_hint_y=None, height=108, spacing=8)
+            header = BoxLayout(orientation="horizontal", size_hint_y=None, height=40, spacing=8)
 
             title = Label(
-                text="STHO-ME / SHSE-M — Frontend",
-                size_hint_y=None,
-                height=42,
+                text="STHO-ME / SHSE-M",
+                color=COLORS["BFW"],
                 bold=True,
+                font_size="18sp",
+                halign="left",
+                valign="middle",
             )
-            root.add_widget(title)
-
-            bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=48, spacing=8)
-
-            btn_refresh = Button(text="Recalculer")
-            btn_refresh.bind(on_release=lambda *_: self.refresh_backend())
-
-            btn_100kw = Button(text="Scénario 100 kW")
-            btn_100kw.bind(on_release=lambda *_: self.run_100kw())
-
-            btn_logs = Button(text="Logs")
-            btn_logs.bind(on_release=lambda *_: self.run_logs())
-
-            btn_save = Button(text="Sauvegarder JSON")
-            btn_save.bind(on_release=lambda *_: self.save_reports())
-
-            for btn in (btn_refresh, btn_100kw, btn_logs, btn_save):
-                bar.add_widget(btn)
-
-            root.add_widget(bar)
+            title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+            header.add_widget(title)
 
             self.status_label = Label(
-                text="Initialisation...",
-                size_hint_y=None,
-                height=36,
+                text="Prêt",
+                color=COLORS["MUTED"],
+                font_size="12sp",
+                halign="right",
+                valign="middle",
+                size_hint_x=0.45,
             )
-            root.add_widget(self.status_label)
+            self.status_label.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+            header.add_widget(self.status_label)
+            shell.add_widget(header)
 
-            scroll = ScrollView(do_scroll_x=False)
-            self.summary_label = Label(
-                text="Aucune donnée chargée.",
-                size_hint_y=None,
+            nav = BoxLayout(orientation="horizontal", size_hint_y=None, height=44, spacing=8)
+            for label, target in (
+                ("Accueil", "home"),
+                ("Dashboard", "dashboard"),
+                ("Paramètres", "edit_parameters"),
+                ("Diagnostic", "json_diagnostic"),
+                ("Visualisation", "technical_visualization"),
+                ("CAO", "cao_dossier"),
+                ("JSON", "raw_json"),
+            ):
+                btn = GhostButton(text=label.upper(), font_size="10sp")
+                btn.bind(on_release=lambda _btn, screen=target: self.go(screen))
+                nav.add_widget(btn)
+
+            run_btn = ModernButton(text="RECALCULER", size_hint_x=None, width=150, font_size="10sp")
+            run_btn.bind(on_release=lambda *_: self.refresh_backend())
+            nav.add_widget(run_btn)
+
+            scenario_btn = ModernButton(text="100 kW", size_hint_x=None, width=100, font_size="10sp")
+            scenario_btn.bind(on_release=lambda *_: self.run_100kw())
+            nav.add_widget(scenario_btn)
+
+            shell.add_widget(nav)
+            return shell
+
+        def _register_screens(self) -> None:
+            assert self.screen_manager is not None
+            specs = [
+                ("home", "frontend.gui.home", "HomeScreen"),
+                ("loading", "frontend.gui.loading", "LoadingScreen"),
+                ("dashboard", "frontend.gui.dashboard", "DashboardScreen"),
+                ("edit_parameters", "frontend.gui.edit_parameters", "EditParametersScreen"),
+                ("architecture_choice", "frontend.gui.architecture_choice", "ArchitectureChoiceScreen"),
+                ("missing_requirements", "frontend.gui.missing_requirements", "MissingRequirementsScreen"),
+                ("json_diagnostic", "frontend.gui.json_diagnostic_view", "JsonDiagnosticScreen"),
+                ("technical_visualization", "frontend.gui.technical_visualization", "TechnicalVisualizationScreen"),
+                ("cao_dossier", "frontend.gui.cao_dossier_view", "CaoDossierScreen"),
+                ("raw_json", "frontend.gui.raw_report_view", "RawJsonScreen"),
+                ("energy_audit", "frontend.gui.energy_audit", "EnergyAuditScreen"),
+                ("system_data", "frontend.gui.system_data", "SystemDataScreen"),
+                ("pieces", "frontend.gui.pieces_view", "PieceLibraryScreen"),
+                ("resources", "frontend.gui.resource_views", "ResourceListScreen"),
+                ("exports", "frontend.gui.exports_view", "ExportsScreen"),
+                ("error", "frontend.gui.error_view", "ErrorScreen"),
+            ]
+            for name, module_name, class_name in specs:
+                try:
+                    module = importlib.import_module(module_name)
+                    screen_cls = getattr(module, class_name)
+                    self.screen_manager.add_widget(screen_cls(name=name))
+                except Exception as exc:
+                    self.screen_manager.add_widget(self._fallback_screen(name, f"{module_name}.{class_name}", exc))
+
+        def _fallback_screen(self, name: str, source: str, exc: BaseException) -> Any:
+            screen = Screen(name=name)
+            card = PremiumCard(title=f"{name} indisponible", padding=22, spacing=12)
+            card.add_widget(SectionTitle(text=str(source)))
+            label = Label(
+                text=f"{type(exc).__name__}: {exc}",
+                color=COLORS["RS"],
                 halign="left",
                 valign="top",
-                markup=False,
             )
-            self.summary_label.bind(
-                texture_size=lambda instance, value: setattr(instance, "height", value[1])
-            )
-            self.summary_label.bind(
-                width=lambda instance, value: setattr(instance, "text_size", (value, None))
-            )
-            scroll.add_widget(self.summary_label)
-            root.add_widget(scroll)
+            label.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
+            card.add_widget(label)
+            screen.add_widget(card)
+            return screen
 
-            return root
+        def go(self, screen_name: str) -> None:
+            if self.screen_manager is not None and self.screen_manager.has_screen(screen_name):
+                self.screen_manager.current = screen_name
+                return
+            if self.status_label is not None:
+                self.status_label.text = f"Page indisponible : {screen_name}"
 
         def on_start(self) -> None:
             if self.auto_run:
@@ -1508,12 +1571,17 @@ def _make_kivy_app_class(kivy: Mapping[str, Any]) -> Any:
             self.backend_state = _jsonable(state)
             self.raw_report = _safe_dict(self.bridge.raw_report)
             self.ui_report = _safe_dict(self.bridge.ui_report)
+            self.backend_report = self.raw_report
+            self.raw_backend_report = self.raw_report
+            self.full_report = self.raw_report
 
             status = _get_path(self.ui_report, "meta.status", "inconnu")
             action = _get_path(self.ui_report, "meta.action", "run")
-            self.status_label.text = f"Action : {action} | Statut : {status}"
+            if self.status_label is not None:
+                self.status_label.text = f"Action : {action} | Statut : {status}"
 
-            self.summary_label.text = self._make_summary_text()
+            if self.summary_label is not None:
+                self.summary_label.text = self._make_summary_text()
 
         def refresh_backend(self) -> None:
             state = self.bridge.run()
@@ -1530,7 +1598,8 @@ def _make_kivy_app_class(kivy: Mapping[str, Any]) -> Any:
         def save_reports(self) -> None:
             paths = self.bridge.save_reports()
             self.backend_state.setdefault("output_paths", {}).update(paths)
-            self.status_label.text = f"Rapports sauvegardés : {paths.get('ui_report')}"
+            if self.status_label is not None:
+                self.status_label.text = f"Rapports sauvegardés : {paths.get('ui_report')}"
 
         def _make_summary_text(self) -> str:
             ui = _safe_dict(self.ui_report)
