@@ -41,4 +41,34 @@ def build_diagnostic_summary(report: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
-__all__ = ["build_diagnostic_summary"]
+def diagnostiquer_frontend_data(data: Mapping[str, Any], *, source_name: str = "frontend.app", strict: bool = True) -> Dict[str, Any]:
+    """Appelle le service backend de diagnostic depuis la couche ensemble."""
+    if not isinstance(data, Mapping) or not data:
+        return {
+            "diagnostic": {
+                "meta": {"type_detecte": "inconnu"},
+                "resume": {"statut": "bloque", "score_diagnostic_100": 0, "nb_causes_racines": 0, "nb_symptomes": 0},
+                "causes_racines": [],
+                "symptomes": [],
+                "patchs_proposes": [],
+                "notes": ["Aucun JSON backend disponible en memoire."],
+            }
+        }
+    try:
+        from backend.modules.systeme.system_services import diagnostiquer_json_data
+
+        return diagnostiquer_json_data(dict(data), source_name=source_name, strict=strict)
+    except Exception as exc:
+        return {
+            "diagnostic": {
+                "meta": {"type_detecte": "inconnu"},
+                "resume": {"statut": "bloque", "score_diagnostic_100": 0, "nb_causes_racines": 0, "nb_symptomes": 0},
+                "causes_racines": [],
+                "symptomes": [],
+                "patchs_proposes": [],
+                "notes": [f"Diagnostic indisponible: {exc}"],
+            }
+        }
+
+
+__all__ = ["build_diagnostic_summary", "diagnostiquer_frontend_data"]
