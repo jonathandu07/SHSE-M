@@ -1257,7 +1257,26 @@ def get_technical_visualization_report(report: Mapping[str, Any] | None = None) 
     }
 
 
-def charger_rapport_backend(*, scenario: str | None = None) -> Dict[str, Any]:
+def lancer_calcul_puissance_sortie(*, valeur: float, unite: str = "kW") -> Dict[str, Any]:
+    """Lance le backend depuis une puissance de sortie moteur electrique explicite."""
+    from frontend.ensemble.power_input import build_design_input_payload
+
+    payload = build_design_input_payload(valeur, unite)
+    bridge = get_backend_bridge()
+    state = bridge.run(payload["backend_config"], action="power_input")
+    if isinstance(state, dict):
+        state["inputs"] = payload["inputs"]
+        state.setdefault("warnings", []).extend(payload.get("warnings", []))
+        state.setdefault("errors", []).extend(payload.get("errors", []))
+    return state
+
+
+def charger_rapport_backend(
+    *,
+    puissance: float | None = None,
+    unite: str = "kW",
+    scenario: str | None = None,
+) -> Dict[str, Any]:
     """
     Charge ou retourne le rapport backend courant.
 
@@ -1265,6 +1284,10 @@ def charger_rapport_backend(*, scenario: str | None = None) -> Dict[str, Any]:
     que si scenario vaut explicitement "100kw" ou "100_kW".
     """
     bridge = get_backend_bridge()
+    if puissance is not None:
+        lancer_calcul_puissance_sortie(valeur=puissance, unite=unite)
+        return _safe_dict(bridge.raw_report)
+
     key = str(scenario or "").strip().lower()
     if key in {"100kw", "100_kw", "100-kW".lower()}:
         bridge.run_100kw()
@@ -1312,12 +1335,25 @@ def charger_visualisations(report: Mapping[str, Any] | None = None) -> Dict[str,
         return get_technical_visualization_report(source)
 
 
-def charger_etat_frontend_complet(*, scenario: str | None = None) -> Dict[str, Any]:
+def charger_etat_frontend_complet(
+    *,
+    puissance: float | None = None,
+    unite: str = "kW",
+    scenario: str | None = None,
+) -> Dict[str, Any]:
     """Retourne l'etat frontend complet consomme par frontend/ensemble et GUI."""
     errors: list[str] = []
     warnings: list[str] = []
+    inputs: Dict[str, Any] = {}
     try:
-        raw_report = charger_rapport_backend(scenario=scenario)
+        if puissance is not None:
+            state = lancer_calcul_puissance_sortie(valeur=puissance, unite=unite)
+            raw_report = _safe_dict(state.get("raw_report"))
+            inputs = _safe_dict(state.get("inputs"))
+            errors.extend(str(err) for err in (state.get("errors") or []) if err)
+            warnings.extend(str(warn) for warn in (state.get("warnings") or []) if warn)
+        else:
+            raw_report = charger_rapport_backend(scenario=scenario)
     except BaseException as exc:
         raw_report = {}
         errors.append(f"rapport_backend: {type(exc).__name__}: {exc}")
@@ -1332,6 +1368,11 @@ def charger_etat_frontend_complet(*, scenario: str | None = None) -> Dict[str, A
         warnings.append("Aucun rapport backend courant. Fournir un rapport ou demander un scenario explicite.")
 
     return {
+        "inputs": {
+            "puissance_sortie": inputs.get("puissance_sortie"),
+            "unite": inputs.get("unite", unite),
+            **inputs,
+        },
         "raw_report": raw_report,
         "frontend_contract": frontend_contract,
         "diagnostic": diagnostic,
