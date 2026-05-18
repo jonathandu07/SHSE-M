@@ -56,6 +56,64 @@ def _chain_check(chain_validation: Mapping[str, Any], name: str) -> Dict[str, An
     return {}
 
 
+def build_design_input_model(frontend_state: Mapping[str, Any] | None) -> Dict[str, Any]:
+    """Expose la puissance utilisateur sans inventer de cible."""
+    state = safe_dict(frontend_state)
+    report = _report_from_state(frontend_state)
+    inputs = safe_dict(state.get("inputs")) or safe_dict(report.get("frontend_inputs"))
+    value = inputs.get("puissance_sortie")
+    unit = inputs.get("unite")
+    return {
+        "title": "Entrée de conception",
+        "label": "Puissance demandée en sortie moteur électrique",
+        "value": value,
+        "unit": unit or "kW",
+        "kw": inputs.get("puissance_sortie_kw"),
+        "watts": inputs.get("puissance_sortie_w"),
+        "status": inputs.get("status") or ("input" if value is not None else "missing_required"),
+        "source": inputs.get("source") or "user_input",
+        "trace": safe_dict(inputs.get("trace")),
+        "reason": None if value is not None else "Saisir une puissance de sortie en kW ou ch.",
+    }
+
+
+def build_power_chain_model(frontend_state: Mapping[str, Any] | None) -> list[Dict[str, Any]]:
+    report = _report_from_state(frontend_state)
+    contract = get_frontend_contract(report)
+    chain = safe_dict(report.get("validation_chaine_100kw")) or safe_dict(get_path(report, "frontend.chain_validation"))
+    chain_values = safe_dict(chain.get("valeurs"))
+    return [
+        _metric("Sortie moteur electrique", get_contract_field(contract, "synthese.moteur_electrique.puissance_sortie_w").get("value"), "W"),
+        _metric("Bus DC design", get_contract_field(contract, "synthese.systeme.P_bus_dc_design_w").get("value"), "W"),
+        _metric("Alternateur electrique", chain_values.get("puissance_alternateur_electrique_w"), "W"),
+        _metric("Moteur thermique arbre", chain_values.get("puissance_moteur_thermique_arbre_w"), "W"),
+        _metric("Regime thermique", chain_values.get("rpm_moteur_thermique"), "rpm"),
+        _metric("Couple thermique", chain_values.get("couple_moteur_thermique_nm"), "Nm"),
+        _metric("Score chaine", chain.get("score_chaine_100"), "/100", "ok" if chain.get("ok") else ("alerte" if chain else "missing")),
+    ]
+
+
+def build_mechanical_model(frontend_state: Mapping[str, Any] | None) -> list[Dict[str, Any]]:
+    report = _report_from_state(frontend_state)
+    chain = safe_dict(report.get("validation_chaine_100kw")) or safe_dict(get_path(report, "frontend.chain_validation"))
+    chain_values = safe_dict(chain.get("valeurs"))
+    chain_livrables = safe_dict(chain.get("livrables"))
+    cao_summary = build_cao_frontend_summary(report)
+    graphs = safe_dict(report.get("mechanical_graphs")) or safe_dict(get_frontend_contract(report).get("mechanical_graphs"))
+    materials = safe_list(get_path(graphs, "context.materiaux_autorises"))
+    boite_check = _chain_check(chain, "boite_reliable")
+    couple_check = _chain_check(chain, "couple_moteur_thermique_calculable")
+    mechanical_presizing = bool(chain_livrables.get("mechanical_presizing_ok") or cao_summary.get("drawing_data_available"))
+    return [
+        _metric("Couple connu", _bool_text(couple_check.get("ok") if couple_check else chain_values.get("couple_moteur_thermique_nm") is not None), "", "ok" if (couple_check.get("ok") if couple_check else chain_values.get("couple_moteur_thermique_nm") is not None) else "alerte"),
+        _metric("Arbre dimensionnable", _bool_text(mechanical_presizing), "", "ok" if mechanical_presizing else "alerte"),
+        _metric("Boite/crabots", _bool_text(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
+        _metric("Alternateur relie", _bool_text(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
+        _metric("Materiaux candidats", ", ".join(str(x) for x in materials[:3]) or None, "", "ok" if materials else "missing"),
+        _metric("Graphes mecaniques", graphs.get("graphs_available") or len(safe_list(graphs.get("graphiques"))), "", "ok" if graphs else "alerte"),
+    ]
+
+
 def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str, Any]:
     report = _report_from_state(frontend_state)
     if not report:
@@ -63,8 +121,6 @@ def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str,
 
     contract = get_frontend_contract(report)
     chain = safe_dict(report.get("validation_chaine_100kw")) or safe_dict(get_path(report, "frontend.chain_validation"))
-    chain_values = safe_dict(chain.get("valeurs"))
-    chain_livrables = safe_dict(chain.get("livrables"))
     diagnostic = safe_dict(report.get("diagnostic")) or safe_dict(contract.get("diagnostic"))
     diagnostic_resume = safe_dict(diagnostic.get("resume"))
     root_causes = [dict(c) for c in safe_list(diagnostic.get("causes_racines")) if isinstance(c, Mapping)]
@@ -75,29 +131,9 @@ def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str,
         cao_source["cao_dossier"] = safe_dict(contract.get("cao_dossier"))
     cao_summary = build_cao_frontend_summary(cao_source)
     graphs = safe_dict(report.get("mechanical_graphs")) or safe_dict(contract.get("mechanical_graphs"))
-    materials = safe_list(get_path(graphs, "context.materiaux_autorises"))
-
-    power_chain = [
-        _metric("Sortie moteur electrique", get_contract_field(contract, "synthese.moteur_electrique.puissance_sortie_w").get("value"), "W"),
-        _metric("Bus DC design", get_contract_field(contract, "synthese.systeme.P_bus_dc_design_w").get("value"), "W"),
-        _metric("Alternateur electrique", chain_values.get("puissance_alternateur_electrique_w"), "W"),
-        _metric("Moteur thermique arbre", chain_values.get("puissance_moteur_thermique_arbre_w"), "W"),
-        _metric("Regime thermique", chain_values.get("rpm_moteur_thermique"), "rpm"),
-        _metric("Couple thermique", chain_values.get("couple_moteur_thermique_nm"), "Nm"),
-        _metric("Score chaine", chain.get("score_chaine_100"), "/100", "ok" if chain.get("ok") else ("alerte" if chain else "missing")),
-    ]
-
-    boite_check = _chain_check(chain, "boite_reliable")
-    couple_check = _chain_check(chain, "couple_moteur_thermique_calculable")
-    mechanical_presizing = bool(chain_livrables.get("mechanical_presizing_ok") or cao_summary.get("drawing_data_available"))
-    mechanical_closure = [
-        _metric("Couple connu", _bool_text(couple_check.get("ok") if couple_check else chain_values.get("couple_moteur_thermique_nm") is not None), "", "ok" if (couple_check.get("ok") if couple_check else chain_values.get("couple_moteur_thermique_nm") is not None) else "alerte"),
-        _metric("Arbre dimensionnable", _bool_text(mechanical_presizing), "", "ok" if mechanical_presizing else "alerte"),
-        _metric("Boite/crabots", _bool_text(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
-        _metric("Alternateur relie", _bool_text(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
-        _metric("Materiaux candidats", ", ".join(str(x) for x in materials[:3]) or None, "", "ok" if materials else "missing"),
-        _metric("Graphes mecaniques", graphs.get("graphs_available") or len(safe_list(graphs.get("graphiques"))), "", "ok" if graphs else "alerte"),
-    ]
+    design_input = build_design_input_model(frontend_state)
+    power_chain = build_power_chain_model(frontend_state)
+    mechanical_closure = build_mechanical_model(frontend_state)
 
     cao_preconception = [
         _metric("Mode", cao_summary.get("mode"), "", "ok" if cao_summary.get("mode") != "indisponible" else "missing"),
@@ -121,6 +157,7 @@ def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str,
     dashboard = {
         "title": "STHOME COCKPIT - BACKEND MAIN",
         "summary": {
+            "design_input": design_input,
             "chain_validation": {
                 "available": bool(chain),
                 "ok": bool(chain.get("ok")),
@@ -129,6 +166,7 @@ def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str,
             },
             "cao_preconception": cao_summary,
         },
+        "design_input": design_input,
         "power_chain": power_chain,
         "mechanical_closure": mechanical_closure,
         "cao_preconception": cao_preconception,
@@ -208,7 +246,10 @@ def build_piece_render_model(piece_name: str, frontend_state: Mapping[str, Any] 
 __all__ = [
     "build_cao_model",
     "build_dashboard_model",
+    "build_design_input_model",
     "build_diagnostic_model",
+    "build_mechanical_model",
     "build_piece_render_model",
+    "build_power_chain_model",
     "build_visualisation_model",
 ]
