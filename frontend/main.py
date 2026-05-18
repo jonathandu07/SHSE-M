@@ -58,6 +58,10 @@ _DATA_DIR = _PROJECT_ROOT / "data"
 _REPORTS_DIR = _DATA_DIR / "frontend_reports"
 PROJECT_NAME = "STHOME"
 
+# Kivy ecrit ses logs au demarrage. Dans l'app Codex/Windows, le dossier
+# utilisateur peut etre verrouille ; on route donc les logs dans le workspace.
+os.environ.setdefault("KIVY_HOME", str(_PROJECT_ROOT / ".kivy"))
+
 for _candidate in (
     _PROJECT_ROOT,
     _FRONTEND_ROOT,
