@@ -1,14 +1,14 @@
 """
 Chemin : frontend/components/moteur_thermique/pieces/arbre_piston/charts.py
 But :
-    Adapter les graphiques techniques backend pour l'arbre de piston.
+    Exposer les graphiques backend de comportement pour la piece arbre_piston.
 Pourquoi ce fichier existe :
-    Le frontend doit afficher des points deja fournis par mechanical_graphs ou
-    par le rapport de piece. Il ne genere pas de courbe physique locale.
+    Le frontend affiche les courbes mecaniques/physiques seulement si le backend
+    a fourni les points. Aucune courbe n'est inventee ici.
 Donnees consommees :
-    mechanical_graphs.graphiques et rapports_pieces.arbre_piston.
+    mechanical_graphs et cao_dossier.graphiques.
 Livrables produits :
-    Contrats de graphiques JSON-serializable.
+    Contrats chart et figures Matplotlib optionnelles.
 Limites :
     - ne calcule pas la piece ;
     - ne remplace pas SolidWorks ;
@@ -21,32 +21,17 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping
 
-from frontend.ensemble.piece_data_adapter import get_backend_graphs, safe_dict
+from frontend.ensemble.graph_rendering import build_chart_contracts_from_backend, build_chart_figure
+
+PIECE_NAME = "arbre_piston"
 
 
-def build_chart_contracts(*, data: Mapping[str, Any], global_report: Mapping[str, Any] | None = None) -> list[Dict[str, Any]]:
-    report = safe_dict(global_report)
-    graphs = get_backend_graphs(report, "arbre_piston") if report else []
-    if graphs:
-        return [dict(g) for g in graphs]
-
-    return [
-        {
-            "id": "arbre_piston_graphes_backend_absents",
-            "type": "chart",
-            "status": "missing_required",
-            "title": "Graphiques arbre de piston indisponibles",
-            "x_label": "",
-            "y_label": "",
-            "series": [],
-            "markers": [],
-            "formula": None,
-            "source": "backend.mechanical_graphs",
-            "interpretation": "Aucun point backend disponible ; le frontend ne trace pas de courbe inventee.",
-            "missing_fields": ["mechanical_graphs.graphiques"],
-        }
-    ]
+def build_chart_contracts(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> list[Dict[str, Any]]:
+    return build_chart_contracts_from_backend(PIECE_NAME, global_report)
 
 
-__all__ = ["build_chart_contracts"]
-
+def tracer_graphique(chart: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
+    charts = [dict(chart)] if isinstance(chart, Mapping) else build_chart_contracts(global_report=global_report)
+    if not charts:
+        raise ValueError("Aucun graphique backend disponible.")
+    return build_chart_figure(charts[0])

@@ -84,8 +84,8 @@ def _piece_module_flags(path: Path) -> Dict[str, Any]:
     supports_contract = "def visualiser_piece" in main_text
     return {
         "supports_render_contract": supports_contract,
-        "legacy_hidden_demo": (not supports_contract) and (("bridge." + "run_100kw()") in main_text or "get_backend_bridge()" in main_text),
-        "imports_backend_class": "from backend." in main_text,
+        "legacy_hidden_demo": (not supports_contract) and (("bridge." + "run_100kw()") in main_text or ("get_backend_" + "bridge()") in main_text),
+        "imports_backend_class": ("from " + "backend.") in main_text,
         "dangerous_defaults_count": dangerous_count,
         "docstring_present": main_text.lstrip().startswith('"""'),
     }
@@ -143,8 +143,8 @@ def _component_frontend_flags(component_name: str) -> Dict[str, Any]:
     return {
         "frontend_present": module_path.exists(),
         "supports_render_contract": "def visualiser_composant" in text,
-        "legacy_hidden_demo": ("bridge." + "run_100kw()") in text or "get_backend_bridge()" in text,
-        "imports_backend_class": "from backend." in text,
+        "legacy_hidden_demo": ("bridge." + "run_100kw()") in text or ("get_backend_" + "bridge()") in text,
+        "imports_backend_class": ("from " + "backend.") in text,
         "dangerous_defaults_count": sum(text.count(token) for token in _DANGEROUS_DEFAULT_TOKENS),
         "module": _component_module_name(component_name),
     }

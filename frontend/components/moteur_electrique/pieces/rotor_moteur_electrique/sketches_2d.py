@@ -1,30 +1,41 @@
 """
 Chemin : frontend/components/moteur_electrique/pieces/rotor_moteur_electrique/sketches_2d.py
-But : Définition des esquisses géométriques 2D de la pièce.
+But :
+    Produire le contrat de croquis 2D cote de la piece rotor_moteur_electrique.
+Pourquoi ce fichier existe :
+    Le croquis aide au redessin SolidWorks, mais uniquement si les cotes backend
+    minimales existent.
+Donnees consommees :
+    Rapport de piece prepare par frontend/ensemble.
+Livrables produits :
+    Contrat sketch_2d et figure Matplotlib optionnelle.
+Limites :
+    - ne calcule pas la piece ;
+    - ne remplace pas SolidWorks ;
+    - ne produit pas de STEP ;
+    - n'invente aucune cote ;
+    - la 3D est indicative.
 """
 
-# frontend/components/moteur_electrique/pieces/rotor_moteur_electrique/sketches_2d.py
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
-from backend.components.moteur_electrique.pieces.rotor_moteur_electrique import RotorMoteurElectrique
+from typing import Any, Dict, Mapping
 
-def tracer_vue_cote(ax, piece: RotorMoteurElectrique):
-    """Trace la vue de côté de la pièce."""
-    ax.text(0.5, 0.5, f"Vue de côté : {piece.__class__.__name__}", ha="center", va="center")
-    ax.set_title("Vue de côté")
-    ax.set_axis_off()
+from frontend.ensemble.cao_rendering import build_generic_sketch_contract, build_sketch_figure
+from frontend.ensemble.piece_data_adapter import get_piece_report, safe_dict
 
-def tracer_vue_face(ax, piece: RotorMoteurElectrique):
-    """Trace la vue de face de la pièce."""
-    ax.text(0.5, 0.5, f"Vue de face : {piece.__class__.__name__}", ha="center", va="center")
-    ax.set_title("Vue de face")
-    ax.set_axis_off()
+PIECE_NAME = "rotor_moteur_electrique"
 
-def afficher_2d(piece: RotorMoteurElectrique):
-    """Affiche la figure 2D complète."""
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    tracer_vue_cote(axes[0], piece)
-    tracer_vue_face(axes[1], piece)
-    plt.tight_layout()
-    plt.show()
+
+def build_sketch_contract(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    report = safe_dict(global_report)
+    piece_report = safe_dict(data) or get_piece_report(report, PIECE_NAME)
+    return build_generic_sketch_contract(PIECE_NAME, piece_report)
+
+
+def tracer_croquis(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
+    return build_sketch_figure(build_sketch_contract(data=data, global_report=global_report))
+
+
+def afficher_2d(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Any:
+    return tracer_croquis(data=data, global_report=global_report)

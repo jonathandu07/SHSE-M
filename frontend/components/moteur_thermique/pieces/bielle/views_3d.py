@@ -1,56 +1,37 @@
 """
 Chemin : frontend/components/moteur_thermique/pieces/bielle/views_3d.py
-But : Définition et rendu des vues 3D de la pièce.
+But :
+    Produire la vue 3D indicative de la piece bielle.
+Pourquoi ce fichier existe :
+    La 3D Python sert a comprendre la forme depuis les cotes backend. Elle ne
+    remplace jamais le modele SolidWorks final.
+Donnees consommees :
+    Rapport de piece prepare par frontend/ensemble.
+Livrables produits :
+    Contrat view_3d_indicative avec geometrie JSON.
+Limites :
+    - ne calcule pas la piece ;
+    - ne remplace pas SolidWorks ;
+    - ne produit pas de STEP ;
+    - n'invente aucune cote ;
+    - la 3D est indicative.
 """
 
 from __future__ import annotations
-import numpy as np
-from frontend.ensemble.viz_3d_template import _safe, cylinder_surface, disk_surface, apply_style
+
+from typing import Any, Dict, Mapping
+
+from frontend.ensemble.cao_rendering import build_generic_view_3d_contract
+from frontend.ensemble.piece_data_adapter import get_piece_report, safe_dict
+
+PIECE_NAME = "bielle"
 
 
-def draw_3d(ax, piece) -> None:
-    # Dimensions
-    L_mm = _safe(piece, "longueur_bielle_mm", "longueur_bielle_m", default=255.0)
-    L_mm = L_mm if L_mm > 10 else L_mm * 1000
+def build_view_3d_contract(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    report = safe_dict(global_report)
+    piece_report = safe_dict(data) or get_piece_report(report, PIECE_NAME)
+    return build_generic_view_3d_contract(PIECE_NAME, piece_report)
 
-    D_pe_mm = _safe(piece, "diametre_petite_tete_mm", "diametre_axe_mm", default=L_mm * 0.12)
-    D_gt_mm = _safe(piece, "diametre_grande_tete_mm", "diametre_maneton_mm", default=L_mm * 0.22)
-    w_fut_mm = _safe(piece, "largeur_fut_mm", default=L_mm * 0.08)
 
-    R_pe = D_pe_mm / 2
-    R_gt = D_gt_mm / 2
-    h_fut = w_fut_mm
-
-    # Petite tête (haute)
-    X, Y, Z = cylinder_surface(R_pe, h_fut, n=50)
-    Z += L_mm - h_fut / 2
-    ax.plot_surface(X, Y, Z, color="#81A1B8", alpha=0.85, linewidth=0)
-    Xd, Yd, Zd = disk_surface(0, R_pe, L_mm)
-    ax.plot_surface(Xd, Yd, Zd, color="#03224C", alpha=0.88, linewidth=0)
-
-    # Grande tête (basse)
-    X2, Y2, Z2 = cylinder_surface(R_gt, h_fut, n=50)
-    ax.plot_surface(X2, Y2, Z2, color="#81A1B8", alpha=0.85, linewidth=0)
-    Xd2, Yd2, Zd2 = disk_surface(0, R_gt, 0)
-    ax.plot_surface(Xd2, Yd2, Zd2, color="#03224C", alpha=0.88, linewidth=0)
-
-    # Fût (corps — approximation par un prisme elliptique)
-    t = np.linspace(0, 1, 30)
-    z_vals = t * L_mm
-    w_half = np.linspace(R_pe, R_gt, 30)
-    t_half = w_fut_mm / 2
-
-    for i, (z_v, w_h) in enumerate(zip(z_vals, w_half)):
-        if i % 3 == 0:
-            ax.plot([-t_half, t_half], [0, 0], [z_v, z_v],
-                    color="#81A1B8", alpha=0.3, linewidth=2)
-    # Contour fuselé (lignes de bord)
-    ax.plot([-t_half]*30, [0]*30, list(z_vals), color="#03224C", alpha=0.7, linewidth=1.5)
-    ax.plot([t_half]*30, [0]*30, list(z_vals), color="#03224C", alpha=0.7, linewidth=1.5)
-
-    apply_style(ax, title=f"Bielle — L={L_mm:.0f} mm")
-    lim = max(R_gt, t_half) * 2.2
-    ax.set_xlim(-lim, lim)
-    ax.set_ylim(-lim, lim)
-    ax.set_zlim(-L_mm * 0.05, L_mm * 1.1)
-    ax.view_init(elev=15, azim=25)
+def afficher_3d(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    return build_view_3d_contract(data=data, global_report=global_report)

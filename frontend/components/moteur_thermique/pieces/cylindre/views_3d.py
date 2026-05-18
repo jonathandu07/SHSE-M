@@ -1,46 +1,37 @@
 """
 Chemin : frontend/components/moteur_thermique/pieces/cylindre/views_3d.py
-But : Définition et rendu des vues 3D de la pièce.
+But :
+    Produire la vue 3D indicative de la piece cylindre.
+Pourquoi ce fichier existe :
+    La 3D Python sert a comprendre la forme depuis les cotes backend. Elle ne
+    remplace jamais le modele SolidWorks final.
+Donnees consommees :
+    Rapport de piece prepare par frontend/ensemble.
+Livrables produits :
+    Contrat view_3d_indicative avec geometrie JSON.
+Limites :
+    - ne calcule pas la piece ;
+    - ne remplace pas SolidWorks ;
+    - ne produit pas de STEP ;
+    - n'invente aucune cote ;
+    - la 3D est indicative.
 """
 
 from __future__ import annotations
-import numpy as np
-from frontend.ensemble.viz_3d_template import _safe, cylinder_surface, disk_surface, apply_style
+
+from typing import Any, Dict, Mapping
+
+from frontend.ensemble.cao_rendering import build_generic_view_3d_contract
+from frontend.ensemble.piece_data_adapter import get_piece_report, safe_dict
+
+PIECE_NAME = "cylindre"
 
 
-def draw_3d(ax, piece) -> None:
-    D_mm = _safe(piece, "alesage_nominal_mm", "alesage_m", default=0.13) * (
-        1 if _safe(piece, "alesage_nominal_mm", default=0.0) < 1 else 0.001
-    )
-    # Simpler: try mm first, then m
-    d_raw = _safe(piece, "alesage_nominal_mm", "alesage_nominal_m",
-                   "alesage_m", default=130.0)
-    D_mm = d_raw if d_raw > 10 else d_raw * 1000
+def build_view_3d_contract(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    report = safe_dict(global_report)
+    piece_report = safe_dict(data) or get_piece_report(report, PIECE_NAME)
+    return build_generic_view_3d_contract(PIECE_NAME, piece_report)
 
-    H_mm = _safe(piece, "course_mm", "course_m", default=150.0)
-    H_mm = H_mm if H_mm > 10 else H_mm * 1000
 
-    ep_mm = _safe(piece, "epaisseur_retenue_mm", "epaisseur_paroi_mm", default=D_mm * 0.12)
-    R_in = D_mm / 2
-    R_out = R_in + ep_mm
-
-    color_body = "#81A1B8"
-
-    # Corps du cylindre (paroi)
-    X_out, Y_out, Z_out = cylinder_surface(R_out, H_mm)
-    ax.plot_surface(X_out, Y_out, Z_out, color=color_body, alpha=0.65, linewidth=0)
-
-    X_in, Y_in, Z_in = cylinder_surface(R_in, H_mm)
-    ax.plot_surface(X_in, Y_in, Z_in, color="#C8D8E8", alpha=0.45, linewidth=0)
-
-    # Flasques haut et bas
-    for z_fl in [0, H_mm]:
-        Xf, Yf, Zf = disk_surface(R_in, R_out, z_fl)
-        ax.plot_surface(Xf, Yf, Zf, color="#03224C", alpha=0.88, linewidth=0)
-
-    apply_style(ax, title=f"Cylindre — Ø{D_mm:.0f}×{H_mm:.0f} mm")
-    lim = R_out * 1.3
-    ax.set_xlim(-lim, lim)
-    ax.set_ylim(-lim, lim)
-    ax.set_zlim(-H_mm * 0.05, H_mm * 1.1)
-    ax.view_init(elev=20, azim=35)
+def afficher_3d(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    return build_view_3d_contract(data=data, global_report=global_report)

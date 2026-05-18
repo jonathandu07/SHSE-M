@@ -1,30 +1,37 @@
 """
 Chemin : frontend/components/alternateur/pieces/rotor/mesh_3d.py
-But : Définition et génération du maillage 3D pour la modélisation de la pièce.
+But :
+    Produire la vue 3D indicative de la piece rotor.
+Pourquoi ce fichier existe :
+    La 3D Python sert a comprendre la forme depuis les cotes backend. Elle ne
+    remplace jamais le modele SolidWorks final.
+Donnees consommees :
+    Rapport de piece prepare par frontend/ensemble.
+Livrables produits :
+    Contrat view_3d_indicative avec geometrie JSON.
+Limites :
+    - ne calcule pas la piece ;
+    - ne remplace pas SolidWorks ;
+    - ne produit pas de STEP ;
+    - n'invente aucune cote ;
+    - la 3D est indicative.
 """
 
-# frontend/components/alternateur/pieces/rotor/mesh_3d.py
 from __future__ import annotations
 
-import pyvista as pv
-from backend.components.alternateur.pieces.rotor import Rotor
+from typing import Any, Dict, Mapping
 
-def construire_mesh(piece: Rotor) -> pv.PolyData:
-    """Construit le maillage 3D de la pièce."""
-    # TODO: Remplacer par la géométrie exacte
-    mesh = pv.Cube() 
-    return mesh
+from frontend.ensemble.cao_rendering import build_generic_view_3d_contract
+from frontend.ensemble.piece_data_adapter import get_piece_report, safe_dict
 
-def afficher_3d(piece: Rotor, afficher_axes: bool = True):
-    """Affiche la pièce en 3D."""
-    mesh = construire_mesh(piece)
-    
-    plotter = pv.Plotter()
-    plotter.add_mesh(mesh, color="lightblue", show_edges=True)
-    
-    if afficher_axes:
-        plotter.add_axes()
-        
-    plotter.add_text(f"Vue 3D : {piece.__class__.__name__}", font_size=12)
-    plotter.view_isometric()
-    plotter.show()
+PIECE_NAME = "rotor"
+
+
+def build_view_3d_contract(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    report = safe_dict(global_report)
+    piece_report = safe_dict(data) or get_piece_report(report, PIECE_NAME)
+    return build_generic_view_3d_contract(PIECE_NAME, piece_report)
+
+
+def afficher_3d(data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    return build_view_3d_contract(data=data, global_report=global_report)

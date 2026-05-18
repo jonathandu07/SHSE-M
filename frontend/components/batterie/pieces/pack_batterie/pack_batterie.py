@@ -1,118 +1,59 @@
 """
 Chemin : frontend/components/batterie/pieces/pack_batterie/pack_batterie.py
-But : Page d'affichage (orchestrateur) pour la pièce pack_batterie.
+But :
+    Orchestrer la visualisation frontend de la piece pack_batterie.
+Pourquoi ce fichier existe :
+    Ce fichier est la page technique de piece. Il recoit un rapport backend deja
+    calcule via frontend/main.py et assemble croquis, vue 3D indicative,
+    graphiques et cotes SolidWorks sans lancer de calcul cache.
+Donnees consommees :
+    Rapport global, rapport de piece, cao_dossier et mechanical_graphs.
+Livrables produits :
+    Contrat de rendu JSON-serializable pour le GUI et les exports.
+Limites :
+    - ne calcule pas la piece ;
+    - ne remplace pas SolidWorks ;
+    - ne produit pas de STEP ;
+    - n'invente aucune cote ;
+    - la 3D est indicative.
 """
 
 from __future__ import annotations
-import sys
-from pathlib import Path
 
-# Configuration du sys.path pour accéder à frontend.main et backend
-_THIS_FILE = Path(__file__).resolve()
-_PROJECT_ROOT = _THIS_FILE.parents[4]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
+import json
+from typing import Any, Dict, Mapping
 
-from frontend.main import get_backend_bridge
+from frontend.ensemble.backend_bridge import run_demo_100kw
+from frontend.ensemble.piece_data_adapter import get_piece_report, safe_dict
+from frontend.ensemble.piece_rendering import build_piece_visualization_contract
 
-# Import de la classe métier du backend
-try:
-    from backend.components.batterie.pieces.pack_batterie import PackBatterie
-    HAS_BACKEND_CLASS = True
-except ImportError:
-    HAS_BACKEND_CLASS = False
-    print("Avertissement : Impossible d'importer la classe PackBatterie du backend.")
+PIECE_NAME = "pack_batterie"
+TITLE = "Pack Batterie"
 
-# Importations conditionnelles des modules graphiques
-try:
-    from . import sketches_2d
-    HAS_SKETCHES = True
-except ImportError:
-    HAS_SKETCHES = False
 
-try:
-    from . import charts
-    HAS_CHARTS = True
-except ImportError:
-    HAS_CHARTS = False
+def visualiser_piece(
+    *,
+    data: Mapping[str, Any] | None = None,
+    global_report: Mapping[str, Any] | None = None,
+    run_demo: bool = False,
+) -> Dict[str, Any]:
+    """Construit le contrat de rendu depuis les donnees backend fournies."""
+    report = safe_dict(global_report)
+    piece_report = safe_dict(data)
+    if not piece_report and report:
+        piece_report = get_piece_report(report, PIECE_NAME)
+    if not piece_report and run_demo:
+        demo = run_demo_100kw()
+        report = safe_dict(demo.get("raw_report"))
+        piece_report = get_piece_report(report, PIECE_NAME)
+    return build_piece_visualization_contract(PIECE_NAME, data=piece_report, global_report=report, title=TITLE)
 
-try:
-    from . import mesh_3d
-    HAS_MESH = True
-except ImportError:
-    HAS_MESH = False
 
-try:
-    from . import views_3d
-    HAS_VIEWS = True
-except ImportError:
-    HAS_VIEWS = False
+def afficher_vues_pack_batterie(*, data: Mapping[str, Any] | None = None, global_report: Mapping[str, Any] | None = None, run_demo: bool = False) -> Dict[str, Any]:
+    contract = visualiser_piece(data=data, global_report=global_report, run_demo=run_demo)
+    print(json.dumps(contract, ensure_ascii=False, indent=2))
+    return contract
 
-def afficher_vues_pack_batterie():
-    print("=======================================================")
-    print("  Affichage des vues pour : pack_batterie")
-    print("=======================================================")
-    
-    print("1. Initialisation du pont frontend-backend via frontend.main...")
-    bridge = get_backend_bridge()
-    state = bridge.run_100kw()
-    report = state.get("raw_report", {})
-    
-    if not HAS_BACKEND_CLASS:
-        print("Erreur : Classe métier introuvable. Affichage impossible.")
-        return
-
-    print("2. Instanciation de la pièce métier...")
-    try:
-        piece = PackBatterie()
-    except Exception as e:
-        print(f"Erreur lors de l'instanciation de PackBatterie : {e}")
-        return
-
-    print("3. Lancement des modules graphiques...")
-    modules_trouves = 0
-
-    if HAS_SKETCHES:
-        # Recherche des fonctions d'affichage
-        for func_name in ["afficher_2d", "afficher_croquis", "tracer_croquis"]:
-            if hasattr(sketches_2d, func_name):
-                print(f" -> Lancement de sketches_2d.{func_name}...")
-                getattr(sketches_2d, func_name)(piece)
-                modules_trouves += 1
-                break
-
-    if HAS_CHARTS:
-        for func_name in ["afficher_radar", "afficher_graphique", "tracer_graphique"]:
-            if hasattr(charts, func_name):
-                print(f" -> Lancement de charts.{func_name}...")
-                getattr(charts, func_name)(piece)
-                modules_trouves += 1
-                break
-
-    if HAS_MESH:
-        for func_name in dir(mesh_3d):
-            if func_name.startswith("afficher_") and func_name.endswith("3d"):
-                print(f" -> Lancement de mesh_3d.{func_name}...")
-                func = getattr(mesh_3d, func_name)
-                try:
-                    func(piece)
-                except Exception as e:
-                    print(f"Erreur d'exécution de {func_name} : {e}")
-                modules_trouves += 1
-                break
-        
-    if HAS_VIEWS:
-        for func_name in ["afficher_3d", "afficher_vues", "tracer_vues"]:
-            if hasattr(views_3d, func_name):
-                print(f" -> Lancement de views_3d.{func_name}...")
-                getattr(views_3d, func_name)(piece)
-                modules_trouves += 1
-                break
-
-    if modules_trouves == 0:
-        print(" -> Aucun module graphique exécutable n'a été trouvé pour cette pièce.")
-    else:
-        print("Terminé.")
 
 if __name__ == "__main__":
-    afficher_vues_pack_batterie()
+    afficher_vues_pack_batterie(run_demo=True)
