@@ -1041,6 +1041,9 @@ class FrontendBackendBridge:
                 raw = {"resultat": _jsonable(raw)}
 
             self.raw_report = _jsonable(raw)
+            frontend_inputs = _safe_dict(cfg.get("frontend_inputs"))
+            if frontend_inputs:
+                self.raw_report.setdefault("frontend_inputs", frontend_inputs)
 
         except BaseException as exc:
             self.raw_report = _make_error_report(action, exc)
@@ -1764,6 +1767,7 @@ __all__ = [
     "charger_visualisations",
     "get_backend_bridge",
     "get_technical_visualization_report",
+    "lancer_calcul_puissance_sortie",
     "refresh_backend_data",
     "get_ui_report",
     "get_raw_report",
