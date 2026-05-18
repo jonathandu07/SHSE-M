@@ -12,37 +12,13 @@ from kivy.uix.label import Label
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 
+from frontend.ensemble.diagnostic_adapter import diagnostiquer_frontend_data
 from frontend.gui.components import COLORS, MetricRow, ModernButton, NeoCard, PremiumCard, SectionTitle, StatusBadge
 
 
 def build_json_diagnostic_for_app(app: Any) -> dict[str, Any]:
     data = _first_report(app)
-    if not data:
-        return {
-            "diagnostic": {
-                "meta": {"type_detecte": "inconnu"},
-                "resume": {"statut": "bloque", "score_diagnostic_100": 0, "nb_causes_racines": 0, "nb_symptomes": 0},
-                "causes_racines": [],
-                "symptomes": [],
-                "patchs_proposes": [],
-                "notes": ["Aucun JSON backend disponible en memoire."],
-            }
-        }
-    try:
-        from backend.modules.systeme.system_services import diagnostiquer_json_data
-
-        return diagnostiquer_json_data(data, source_name="frontend.app", strict=True)
-    except Exception as exc:
-        return {
-            "diagnostic": {
-                "meta": {"type_detecte": "inconnu"},
-                "resume": {"statut": "bloque", "score_diagnostic_100": 0, "nb_causes_racines": 0, "nb_symptomes": 0},
-                "causes_racines": [],
-                "symptomes": [],
-                "patchs_proposes": [],
-                "notes": [f"Diagnostic indisponible: {exc}"],
-            }
-        }
+    return diagnostiquer_frontend_data(data, source_name="frontend.app", strict=True)
 
 
 class JsonDiagnosticScreen(Screen):

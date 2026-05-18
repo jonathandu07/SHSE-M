@@ -32,6 +32,7 @@ from frontend.gui.components import (
     StatusBadge,
 )
 from frontend.gui.frontend_contract import get_field, field_badge_label
+from frontend.ensemble.screen_models import build_dashboard_model
 
 
 # =============================================================================
@@ -684,6 +685,8 @@ def _make_resume_candidate(report: Mapping[str, Any]) -> Optional[Dict[str, Any]
 
 
 def build_dashboard_ui_from_backend(report: Mapping[str, Any]) -> Dict[str, Any]:
+    return build_dashboard_model({"raw_report": dict(report) if isinstance(report, Mapping) else {}})
+
     if not isinstance(report, Mapping) or not report:
         return {"is_empty": True}
 
