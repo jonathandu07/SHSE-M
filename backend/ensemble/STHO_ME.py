@@ -520,6 +520,16 @@ def _merge_inconnues(dst: Dict[str, Any], src: Any, *, prefix: str) -> None:
         for item in list(inc.get(cat, []) or []):
             if isinstance(item, Mapping):
                 _push(dst, cat, f"{prefix}::{item.get('nom', '')}", str(item.get("raison", "")))
+    for item in list(inc.get("bloquantes", []) or []) + list(inc.get("restantes_physiques", []) or []):
+        if isinstance(item, Mapping):
+            _push(dst, "impossibles", f"{prefix}::{item.get('nom') or item.get('champ', '')}", str(item.get("raison", "")))
+    for item in list(inc.get("non_bloquantes", []) or []) + list(inc.get("restantes_catalogue", []) or []):
+        if isinstance(item, Mapping):
+            _push(dst, "partielles", f"{prefix}::{item.get('nom') or item.get('champ', '')}", str(item.get("raison", "")))
+    for item in list(inc.get("conflits", []) or []):
+        if isinstance(item, Mapping):
+            _push(dst, "impossibles", f"{prefix}::{item.get('nom') or item.get('champ', '')}", str(item.get("raison", "")))
+            dst.setdefault("alertes", {}).setdefault("conflits", []).append(_to_jsonable(item, max_depth=5))
 
 
 def _to_jsonable(value: Any, *, depth: int = 0, max_depth: int = 10) -> Any:
@@ -918,6 +928,7 @@ class STHO_ME:
             _push(rapport, "partielles", "resolution_inconnues", "Module resolution_inconnues indisponible ; seules les valeurs fournies seront utilisées.")
             return {}
         payload = _flatten_for_resolution(self.meta, self.composants, self.pieces, self.analyses)
+        cdc = _safe_dict(self.meta.get("cahier_des_charges")) or _safe_dict(self.analyses.get("cahier_des_charges"))
         try:
             try:
                 out = _call_supported(
@@ -926,6 +937,7 @@ class STHO_ME:
                     donnees=payload,
                     payload=payload,
                     config=payload,
+                    cahier_des_charges=cdc,
                     strict=strict,
                     mode="strict" if strict else "projet",
                     optimize=optimize,
@@ -943,6 +955,8 @@ class STHO_ME:
                     _push(rapport, "partielles", "resolution_inconnues", f"Retour non dictionnaire : {type(out).__name__}.")
                     return {}
             rapport["resolution_inconnues"] = _to_jsonable(out, max_depth=8)
+            rapport["hypotheses_resolues"] = _to_jsonable(out.get("hypotheses", []), max_depth=8)
+            rapport["coherence_systeme"] = _to_jsonable(out.get("coherence_systeme", {}), max_depth=6)
             _merge_inconnues(rapport, out, prefix="resolution_inconnues")
             resolved = _extract_resolved_payload(out)
             if resolved:
@@ -1336,10 +1350,16 @@ class STHO_ME:
         except Exception as exc:
             _push(rapport, "partielles", "strategie_energie", str(exc))
 
-    def _run_optimisation(self, rapport: Dict[str, Any]) -> None:
+    def _run_optimisation(self, rapport: Dict[str, Any], *, strict: bool) -> None:
         if callable(optimiser_rapport_sthome):
             try:
-                out = _call_supported(optimiser_rapport_sthome, rapport=rapport, config={"composants": self.composants, "analyses": self.analyses})
+                out = _call_supported(
+                    optimiser_rapport_sthome,
+                    rapport_backend=rapport,
+                    rapports_pieces=_safe_dict(_dig(rapport, "rapports", "pieces")),
+                    cahier_des_charges=_safe_dict(self.meta.get("cahier_des_charges")) or _safe_dict(self.analyses.get("cahier_des_charges")),
+                    strict=strict,
+                )
                 if isinstance(out, Mapping):
                     rapport["rapports"]["optimisation"] = _to_jsonable(out, max_depth=8)
                     _merge_inconnues(rapport, out, prefix="optimisation")
@@ -1501,9 +1521,11 @@ class STHO_ME:
         systeme_final = self._run_aboutissement_systeme(rapport, resolved)
         self._run_component_analyses(rapport, resolved, systeme_final, strict=strict)
         self._run_pieces(rapport, strict=strict)
+        _dedup(rapport)
+        self._build_synthese(rapport, resolved, systeme_final)
         self._run_strategie_energie(rapport)
         if optimize:
-            self._run_optimisation(rapport)
+            self._run_optimisation(rapport, strict=strict)
         else:
             rapport["rapports"]["optimisation"] = {"mode": "desactive", "note": "Optimisation désactivée par appelant."}
 

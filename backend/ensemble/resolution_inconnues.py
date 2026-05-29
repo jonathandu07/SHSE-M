@@ -42,7 +42,7 @@ La sortie contient :
 - frontend_contract : contrat directement lisible côté UI.
 """
 
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from typing import Any, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
 import copy
 import importlib
@@ -272,6 +272,160 @@ ALIASES_CHAMPS: Dict[str, Tuple[str, ...]] = {
 
 def get_alias_paths(field_name: str) -> Tuple[str, ...]:
     return ALIASES_CHAMPS.get(field_name, (field_name,))
+
+
+ALIASES_CHAMPS.update(
+    {
+        "puissance_sortie_w": (
+            "puissance_sortie_w",
+            "puissance_sortie_moteur_electrique_w",
+            "puissance_demandee_w",
+            "puissance_moteur_electrique_sortie_w",
+            "sortie.puissance_sortie_max_w",
+            "sortie.puissance_sortie_w",
+            "sortie.puissance_w",
+            "entrees.puissance_sortie_w",
+            "entrees.sortie.puissance_sortie_max_w",
+            "analyses.sortie.puissance_sortie_max_w",
+            "analyses.stho_me.puissance_sortie_moteur_electrique_w",
+            "analyses.systeme_complet.puissance_sortie_moteur_electrique_w",
+            "synthese.moteur_electrique.puissance_sortie_w",
+            "synthese.vehicule.puissance_traction_w",
+            "resolution_inconnues.payload_resolu.puissance_sortie_moteur_electrique_w",
+        ),
+        "puissance_sortie_moteur_electrique_w": (
+            *ALIASES_CHAMPS["puissance_sortie_moteur_electrique_w"],
+            "sortie.puissance_sortie_max_w",
+            "sortie.puissance_sortie_w",
+            "sortie.puissance_w",
+            "entrees.puissance_sortie_w",
+            "entrees.sortie.puissance_sortie_max_w",
+            "analyses.sortie.puissance_sortie_max_w",
+            "analyses.stho_me.puissance_sortie_moteur_electrique_w",
+            "analyses.systeme_complet.puissance_sortie_moteur_electrique_w",
+            "resolution_inconnues.payload_resolu.puissance_sortie_moteur_electrique_w",
+        ),
+        "puissance_sortie_kw": (
+            *ALIASES_CHAMPS["puissance_sortie_kw"],
+            "sortie.puissance_sortie_kw",
+            "sortie.puissance_kw",
+            "analyses.sortie.puissance_sortie_kw",
+            "analyses.stho_me.puissance_sortie_kw",
+        ),
+        "puissance_bus_dc_w": (
+            *ALIASES_CHAMPS["puissance_bus_dc_w"],
+            "synthese.systeme.P_bus_dc_design_w",
+            "sous_systemes.sortie_et_bus_dc.puissances.P_bus_dc_sortie_max_total_w",
+            "resolution_inconnues.payload_resolu.puissance_bus_dc_w",
+        ),
+        "puissance_moteur_thermique_arbre_w": (
+            *ALIASES_CHAMPS["puissance_moteur_thermique_arbre_w"],
+            "synthese.moteur_thermique.puissance_requise_W",
+            "synthese.systeme.puissance_moteur_thermique_arbre_w",
+            "resolution_inconnues.payload_resolu.puissance_moteur_thermique_arbre_w",
+        ),
+        "tension_bus_dc_v": (
+            *ALIASES_CHAMPS["tension_bus_dc_v"],
+            "batterie.tension_nominale_v",
+            "batterie.tension_bus_dc_v",
+            "composants.batterie.tension_nominale_v",
+            "analyses.batterie.tension_nominale_v",
+            "synthese.systeme.V_bus_dc_v",
+            "resolution_inconnues.payload_resolu.tension_bus_dc_v",
+        ),
+        "courant_bus_dc_a": (
+            "courant_bus_dc_a",
+            "I_bus_dc_a",
+            "bus_dc.courant_bus_dc_a",
+            "synthese.bus_dc.courant_a",
+            "synthese.systeme.courant_bus_dc_a",
+            "liaisons.bus_dc.I_bus_dc_a",
+            "resolution_inconnues.payload_resolu.courant_bus_dc_a",
+        ),
+        "rpm_alternateur": (
+            *ALIASES_CHAMPS["rpm_alternateur"],
+            "transmission_generation.rpm_alternateur_cible",
+            "generation.rpm_alternateur_cible",
+            "composants.boite_crabots.rpm_alternateur_cible",
+            "composants.alternateur.plage_regime.rpm_cible",
+            "resolution_inconnues.payload_resolu.rpm_alternateur",
+        ),
+        "couple_alternateur_nm": (
+            *ALIASES_CHAMPS["couple_alternateur_nm"],
+            "alternateur.couple_alternateur_nm",
+            "synthese.alternateur.couple_nm",
+            "resolution_inconnues.payload_resolu.couple_alternateur_nm",
+        ),
+        "rendement_moteur_electrique": (
+            "rendement_moteur_electrique",
+            "rendement_moteur",
+            "moteur_electrique.rendement_moteur",
+            "moteurs_sortie.0.rendement_moteur",
+            "composants.moteur_electrique.rendement_moteur",
+            "analyses.moteurs_sortie.0.rendement_moteur",
+            "resolution_inconnues.payload_resolu.rendement_moteur_electrique",
+        ),
+        "rendement_alternateur": (
+            "rendement_alternateur",
+            "alternateur.rendement_alternateur",
+            "alternateur.rendement_alternateur_impose",
+            "transmission_generation.rendement_alternateur",
+            "generation.rendement_alternateur",
+            "composants.alternateur.rendement_alternateur",
+            "composants.alternateur.rendement_alternateur_impose",
+            "resolution_inconnues.payload_resolu.rendement_alternateur",
+        ),
+        "rendement_boite": (
+            "rendement_boite",
+            "rendement_boite_defaut",
+            "boite_crabots.rendement_boite",
+            "boite_crabots.rendement_boite_defaut",
+            "transmission_generation.rendement_boite",
+            "generation.rendement_boite",
+            "composants.boite_crabots.rendement_boite",
+            "composants.boite_crabots.rendement_boite_defaut",
+            "resolution_inconnues.payload_resolu.rendement_boite",
+        ),
+        "cylindree_unitaire_m3": (
+            "cylindree_unitaire_m3",
+            "moteur_thermique_definition.cylindree_unitaire_m3",
+            "synthese.moteur_thermique.cylindree_unitaire_m3",
+            "resolution_inconnues.payload_resolu.cylindree_unitaire_m3",
+        ),
+        "cylindree_totale_m3": (
+            "cylindree_totale_m3",
+            "moteur_thermique_definition.cylindree_totale_m3",
+            "synthese.moteur_thermique.cylindree_totale_m3",
+            "resolution_inconnues.payload_resolu.cylindree_totale_m3",
+        ),
+        "nombre_cylindres": (
+            *ALIASES_CHAMPS["nombre_cylindres"],
+            "n_cyl",
+            "nb_cylindres",
+            "resolution_inconnues.payload_resolu.nombre_cylindres",
+        ),
+        "nb_cellules_serie": (
+            *ALIASES_CHAMPS["nb_cellules_serie"],
+            "nombre_cellules_serie",
+            "ns_batterie",
+            "batterie.Ns",
+            "resolution_inconnues.payload_resolu.nb_cellules_serie",
+        ),
+        "nb_cellules_parallele": (
+            *ALIASES_CHAMPS["nb_cellules_parallele"],
+            "nombre_cellules_parallele",
+            "np_batterie",
+            "batterie.Np",
+            "resolution_inconnues.payload_resolu.nb_cellules_parallele",
+        ),
+        "rapport_vitesse_alt_sur_moteur": (
+            *ALIASES_CHAMPS["rapport_vitesse_alt_sur_moteur"],
+            "rapport_alternateur_moteur",
+            "composants.boite_crabots.rapport_vitesse_alt_sur_moteur",
+            "resolution_inconnues.payload_resolu.rapport_vitesse_alt_sur_moteur",
+        ),
+    }
+)
 
 
 # =============================================================================
@@ -612,6 +766,8 @@ class HypotheseResolue:
     validation: Dict[str, Any] = field(default_factory=dict)
     status: str = STATUS_DERIVED
     locked: bool = False
+    composant_producteur: Optional[str] = None
+    composants_consommateurs: Tuple[str, ...] = tuple()
 
 
 @dataclass(frozen=True)
@@ -739,6 +895,8 @@ class _ResolutionState:
         aliases: Sequence[str] = (),
         overwrite: bool = False,
         locked: bool = False,
+        composant_producteur: Optional[str] = None,
+        composants_consommateurs: Sequence[str] = (),
     ) -> bool:
         if _is_missing_value(valeur):
             return False
@@ -746,32 +904,38 @@ class _ResolutionState:
         added = False
         for path in (champ, *aliases):
             current = _get_path(self.payload, path)
+            hyp = HypotheseResolue(
+                champ=path,
+                valeur=valeur,
+                unite=unite,
+                type_resolution=type_resolution,
+                source=source,
+                formule=formule,
+                dependances=dict(dependances),
+                justification=justification,
+                niveau_confiance=niveau_confiance,
+                validation=dict(validation or {}),
+                status=public_status,
+                locked=locked,
+                composant_producteur=composant_producteur or _infer_component_from_path_or_source(path, source),
+                composants_consommateurs=tuple(composants_consommateurs or _infer_consumers_for_path(path)),
+            )
             if _is_missing_value(current) or overwrite:
                 if not _is_missing_value(current) and overwrite:
                     self.notes.append(f"{path} écrasé explicitement par {source}.")
                 _set_path(self.payload, path, valeur)
                 self.completed[path] = valeur
-                hyp = HypotheseResolue(
-                    champ=path,
-                    valeur=valeur,
-                    unite=unite,
-                    type_resolution=type_resolution,
-                    source=source,
-                    formule=formule,
-                    dependances=dict(dependances),
-                    justification=justification,
-                    niveau_confiance=niveau_confiance,
-                    validation=dict(validation or {}),
-                    status=public_status,
-                    locked=locked,
-                )
                 self.hypotheses.append(hyp)
                 self.inconnues["resolues_automatiquement"].append(_jsonable(hyp))
                 self.tracabilite["valeurs"][path] = _jsonable(hyp)
                 _append_unique_source(self, source)
                 added = True
             else:
-                _record_conflict_if_needed(self, path, current, valeur, source)
+                if _values_equivalent(current, valeur):
+                    self.tracabilite["valeurs"].setdefault(path, _jsonable(hyp))
+                    _append_unique_source(self, source)
+                else:
+                    _record_conflict_if_needed(self, path, current, valeur, source)
         return added
 
     def add_candidate(self, candidate: DonneeCandidate) -> None:
@@ -785,7 +949,19 @@ class _ResolutionState:
         self.tracabilite["candidats_rejetes"].append(item)
 
     def unresolved(self, bucket: str, champ: str, raison: str, *, bloquant: bool = False, metadata: Optional[Mapping[str, Any]] = None) -> None:
-        item = {"champ": champ, "raison": raison, "metadata": _jsonable(dict(metadata or {}))}
+        meta = dict(metadata or {})
+        item = {
+            "champ": champ,
+            "nom": champ,
+            "categorie": _unknown_category(bucket, champ),
+            "raison": raison,
+            "donnee_necessaire": meta.get("donnees_manquantes") or champ,
+            "composant_bloque": meta.get("composant_bloque") or _infer_component_from_path_or_source(champ, ""),
+            "calcul_possible": meta.get("calcul_possible") or _calculation_unlocked_by(champ),
+            "gravite": "bloquante" if bloquant else "partielle",
+            "resolution_proposee": meta.get("resolution_proposee") or _suggest_resolution_for_unknown(champ, bucket),
+            "metadata": _jsonable(meta),
+        }
         self.inconnues.setdefault(bucket, []).append(item)
         self.inconnues["bloquantes" if bloquant else "non_bloquantes"].append(item)
 
@@ -805,6 +981,7 @@ def resoudre_inconnues_systeme(
     recalculer: Callable[[Dict[str, Any]], Dict[str, Any]] | None = None,
     optimiser: Callable[[Dict[str, Any]], Dict[str, Any]] | None = None,
     strict: bool = True,
+    mode: ModeResolution | str | None = None,
     max_iterations: Optional[int] = None,
 ) -> ResolutionInconnuesReport:
     """Résout les inconnues STHO-ME sans masquer les hypothèses.
@@ -815,15 +992,21 @@ def resoudre_inconnues_systeme(
     à `pre_dimensionnement`.
     """
 
-    cdc = _coerce_cdc(cahier_des_charges)
     payload = _deepcopy_dict(entrees)
     rapports = _deepcopy_dict(rapports_existants)
+    cdc_source = cahier_des_charges
+    if cdc_source is None:
+        cdc_source = _extract_embedded_cdc(payload, rapports)
+    cdc = _coerce_cdc(cdc_source)
+    if mode in {"strict", "pre_dimensionnement", "projet"}:
+        cdc = replace(cdc, mode_resolution=mode)  # type: ignore[arg-type]
+    strict_effectif = bool(strict or cdc.mode_resolution == "strict")
 
     state = _ResolutionState(
         payload=payload,
         rapports=rapports,
         cdc=cdc,
-        strict=bool(strict and cdc.mode_resolution == "strict"),
+        strict=strict_effectif,
         repository=repository,
         project_id=project_id,
     )
@@ -1043,17 +1226,17 @@ def _normaliser_entrees_puissance(state: _ResolutionState) -> None:
             "puissance_sortie_moteur_electrique_w",
             p_kw * 1000.0,
             unite="W",
-            type_resolution=STATUS_COMPUTED,
-            source="resolution_inconnues.normalisation_puissance",
+            type_resolution=STATUS_INPUT,
+            source="entree_utilisateur",
             formule="puissance_sortie_kw * 1000",
             dependances={"puissance_sortie_kw": p_kw},
             justification="Conversion exacte de la puissance sortie moteur électrique demandée.",
             niveau_confiance="exact",
-            aliases=("puissance_traction_w", "synthese.moteur_electrique.puissance_sortie_w"),
+            aliases=("puissance_sortie_w", "puissance_traction_w", "synthese.moteur_electrique.puissance_sortie_w"),
         )
     elif p_w is not None:
         state.add(
-            "synthese.moteur_electrique.puissance_sortie_w",
+            "puissance_sortie_moteur_electrique_w",
             p_w,
             unite="W",
             type_resolution=STATUS_INPUT,
@@ -1062,6 +1245,7 @@ def _normaliser_entrees_puissance(state: _ResolutionState) -> None:
             dependances={"puissance_sortie_moteur_electrique_w": p_w},
             justification="Puissance de sortie mécanique demandée au moteur électrique.",
             niveau_confiance="input",
+            aliases=("puissance_sortie_w", "puissance_traction_w", "synthese.moteur_electrique.puissance_sortie_w"),
         )
 
 
@@ -1149,7 +1333,19 @@ def _resoudre_depuis_profil_puissance(state: _ResolutionState) -> None:
         "carburants_autorises": state.cdc.carburants_autorises or profil.carburants_autorises,
         "cellule_reference": state.cdc.cellule_reference or profil.cellule_reference,
     }
-    _set_path(state.payload, "contraintes_resolution", domain_payload)
+    if inject_allowed:
+        state.add(
+            "contraintes_resolution",
+            domain_payload,
+            unite="",
+            type_resolution=STATUS_CANDIDATE_FROM_POWER_PROFILE,
+            source=f"PROFILS_PUISSANCE.{profil.nom}",
+            formule="domaine de pre-dimensionnement par plage de puissance",
+            dependances={"puissance_sortie_kw": p_kw, "profil": profil.nom},
+            justification="Domaine de recherche issu du profil puissance, exploitable uniquement comme candidat trace.",
+            niveau_confiance="candidat",
+            validation={"profil": profil.nom, "doit_etre_valide_par_optimisation": True},
+        )
 
 
 # =============================================================================
@@ -2354,6 +2550,25 @@ def normalize_status(value: str) -> str:
     return INTERNAL_TO_PUBLIC_STATUS.get(str(value), STATUS_DERIVED)
 
 
+def _extract_embedded_cdc(*roots: Mapping[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for root in roots:
+        if not isinstance(root, Mapping):
+            continue
+        for path in (
+            "cahier_des_charges",
+            "cdc",
+            "meta.cahier_des_charges",
+            "meta.meta_utilisateur.cahier_des_charges",
+            "analyses.cahier_des_charges",
+            "rapport_backend.entrees.analyses.cahier_des_charges",
+        ):
+            value = _get_path(root, path)
+            if isinstance(value, Mapping):
+                out = _deep_merge(out, dict(value))
+    return out
+
+
 def _coerce_cdc(value: CahierDesChargesSTHOME | Mapping[str, Any] | None) -> CahierDesChargesSTHOME:
     if isinstance(value, CahierDesChargesSTHOME):
         return value
@@ -2536,6 +2751,12 @@ def _relative_error(a: float, b: float) -> float:
     return abs(a - b) / max(abs(a), abs(b), 1e-12)
 
 
+def _values_equivalent(left: Any, right: Any, *, rel_tol: float = 0.05) -> bool:
+    if _is_number(left) and _is_number(right):
+        return _relative_error(float(left), float(right)) <= rel_tol
+    return left == right
+
+
 def _clamp01(x: float) -> float:
     return max(0.0, min(1.0, float(x)))
 
@@ -2567,20 +2788,120 @@ def _dedup_state(state: _ResolutionState) -> None:
 
 
 def _record_conflict_if_needed(state: _ResolutionState, path: str, current: Any, proposed: Any, source: str) -> None:
-    if _is_number(current) and _is_number(proposed):
-        if _relative_error(float(current), float(proposed)) <= 0.05:
-            return
-    elif current == proposed:
+    if _values_equivalent(current, proposed):
         return
+    ecart = _relative_error(float(current), float(proposed)) if _is_number(current) and _is_number(proposed) else None
+    trace_existante = _safe_dict(state.tracabilite.get("valeurs", {}).get(path))
     item = {
         "champ": path,
+        "nom": path,
+        "categorie": "conflit",
         "type_inconnue": "inconnue_conflit",
         "valeur_existante": _jsonable(current),
         "valeur_calculee": _jsonable(proposed),
+        "ecart_relatif": ecart,
+        "source_existante": trace_existante.get("source") or "entree_ou_rapport_existant",
         "source_calculee": source,
+        "gravite": "bloquante",
+        "resolution_proposee": "Fournir une hierarchie de source explicite ou corriger l'une des deux valeurs.",
         "raison": "Valeur existante incompatible avec la valeur résolue/proposée.",
     }
     state.conflits.append(item)
+
+
+def _infer_component_from_path_or_source(path: str, source: str) -> str:
+    text = f"{path}.{source}".lower()
+    for token, component in (
+        ("batterie", "batterie"),
+        ("cellule", "batterie"),
+        ("alternateur", "alternateur"),
+        ("boite", "boite_crabots"),
+        ("crabot", "boite_crabots"),
+        ("moteur_electrique", "moteur_electrique"),
+        ("traction", "moteur_electrique"),
+        ("moteur_thermique", "moteur_thermique"),
+        ("carburant", "moteur_thermique"),
+        ("piston", "pieces_moteur_thermique"),
+        ("cylindre", "pieces_moteur_thermique"),
+        ("cao", "cao"),
+        ("bus", "bus_dc"),
+    ):
+        if token in text:
+            return component
+    if "resolution_inconnues" in source:
+        return "resolution_inconnues"
+    if "profil" in source.lower():
+        return "profil_pre_dimensionnement"
+    if "materiaux" in source.lower():
+        return "materiaux"
+    return "systeme"
+
+
+def _infer_consumers_for_path(path: str) -> Tuple[str, ...]:
+    text = path.lower()
+    consumers: List[str] = []
+    if any(token in text for token in ("puissance_sortie", "rendement_moteur_electrique")):
+        consumers.extend(["moteur_electrique", "bus_dc", "strategie_energie"])
+    if any(token in text for token in ("puissance_bus", "tension_bus", "courant_bus")):
+        consumers.extend(["batterie", "alternateur", "strategie_energie", "frontend"])
+    if any(token in text for token in ("alternateur", "rpm_alternateur")):
+        consumers.extend(["alternateur", "boite_crabots", "strategie_energie"])
+    if any(token in text for token in ("moteur_thermique", "rpm_moteur", "pme", "pression_max", "carburant")):
+        consumers.extend(["moteur_thermique", "pieces_moteur_thermique", "optimisation"])
+    if any(token in text for token in ("alesage", "course", "cylindree", "nombre_cylindres", "materiau")):
+        consumers.extend(["architecture", "moteur_thermique", "pieces_moteur_thermique", "cao", "frontend"])
+    if any(token in text for token in ("cellule", "batterie", "energie_batterie")):
+        consumers.extend(["batterie", "strategie_energie", "frontend"])
+    if "solidworks" in text or "cao" in text:
+        consumers.extend(["cao", "frontend"])
+    return tuple(dict.fromkeys(consumers))
+
+
+def _unknown_category(bucket: str, champ: str) -> str:
+    text = f"{bucket}.{champ}".lower()
+    if "conflit" in text:
+        return "conflit"
+    if "catalogue" in text or "cellule" in text:
+        return "catalogue"
+    if "materiau" in text:
+        return "materiau"
+    if any(k in text for k in ("alesage", "course", "cylindree", "diametre", "solidworks", "cao")):
+        return "geometrie"
+    if any(k in text for k in ("temperature", "therm", "soh")):
+        return "thermique"
+    if any(k in text for k in ("bus", "tension", "courant", "batterie", "alternateur")):
+        return "electrique"
+    if any(k in text for k in ("couple", "rpm", "omega", "boite", "arbre")):
+        return "mecanique"
+    if any(k in text for k in ("puissance_sortie", "usage", "mission")):
+        return "usage"
+    return "bloquante" if "restantes_physiques" in bucket else "partielle"
+
+
+def _calculation_unlocked_by(champ: str) -> str:
+    table = {
+        "puissance_bus_dc_w": "bilan bus DC, courant bus, alternateur, batterie",
+        "tension_bus_dc_v": "courant bus, topologie batterie, enveloppe de charge",
+        "courant_bus_dc_a": "dimensionnement bus/BMS et pertes Joule",
+        "puissance_moteur_thermique_arbre_w": "couple thermique, cylindree, carburant",
+        "rpm_moteur": "omega, couple moteur, rapport boite, vitesse piston",
+        "couple_moteur_nm": "contraintes arbre, bielle, vilebrequin",
+        "couple_alternateur_nm": "contraintes alternateur et boite",
+        "cylindree_totale_m3": "fermeture moteur thermique, CAO et pieces",
+        "materiau_cle": "contraintes admissibles et masses",
+        "carburant_cle": "debit carburant et bilan thermique",
+    }
+    return table.get(champ, f"calculs consommateurs de {champ}")
+
+
+def _suggest_resolution_for_unknown(champ: str, bucket: str) -> str:
+    if "catalogue" in bucket:
+        return "Fournir une reference catalogue ou autoriser explicitement une base interne sourcee."
+    if "conflit" in bucket:
+        return "Arbitrer explicitement la source prioritaire ou corriger la donnee incoherente."
+    if any(token in champ for token in ("rendement", "tension", "rpm", "pme", "pression")):
+        return "Fournir la valeur utilisateur, un CDC explicite ou autoriser le mode pre-dimensionnement tracable."
+    return "Fournir la donnee requise ou les dependances physiques permettant de la calculer."
 
 
 def _append_unique_source(state: _ResolutionState, source: str) -> None:

@@ -1204,12 +1204,141 @@ def analyser_strategie_energie(
     return rapport
 
 
+def _first_path_number(root: Mapping[str, Any], *paths: str) -> Optional[float]:
+    for path in paths:
+        value = _safe_float(_deep_get(root, *path.split(".")))
+        if value is not None:
+            return value
+    return None
+
+
+def _derivees_depuis_rapport_systeme(rapport_systeme: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+    rep = _safe_dict(rapport_systeme)
+    resolution = _safe_dict(_deep_get(rep, "resolution_inconnues", "payload_resolu"))
+    synthese = _safe_dict(rep.get("synthese"))
+    aboutissement = _safe_dict(rep.get("aboutissement_systeme"))
+    out: Dict[str, Any] = {}
+
+    p_sortie_w = _first_finite(
+        resolution.get("puissance_sortie_moteur_electrique_w"),
+        resolution.get("puissance_sortie_w"),
+        (float(synthese.get("puissance_sortie_max_demandee_kw")) * 1000.0)
+        if _is_finite(synthese.get("puissance_sortie_max_demandee_kw"))
+        else None,
+    )
+    if p_sortie_w is not None:
+        out["sortie_utilisateur_w"] = p_sortie_w
+
+    p_usage_w = _first_finite(
+        resolution.get("puissance_moteur_electrique_entree_dc_w"),
+        _first_path_number(rep, "sous_systemes.sortie_et_bus_dc.puissances.P_bus_dc_sortie_max_total_w"),
+    )
+    if p_usage_w is not None:
+        out["puissance_elec_usage_w"] = p_usage_w
+
+    p_bus_w = _first_finite(
+        resolution.get("puissance_bus_dc_w"),
+        _first_path_number(rep, "sous_systemes.sortie_et_bus_dc.puissances.P_bus_dc_sortie_max_total_w"),
+        (float(synthese.get("P_bus_dc_pleine_sortie_kw")) * 1000.0)
+        if _is_finite(synthese.get("P_bus_dc_pleine_sortie_kw"))
+        else None,
+    )
+    if p_bus_w is not None:
+        out["puissance_bus_dc_totale_w"] = p_bus_w
+
+    p_alt_elec_w = _first_finite(resolution.get("puissance_alternateur_electrique_w"))
+    if p_alt_elec_w is not None:
+        out["puissance_bus_dc_instantanee_w"] = p_alt_elec_w
+
+    tension = _first_finite(
+        resolution.get("tension_bus_dc_v"),
+        resolution.get("V_bus_dc_v"),
+        _first_path_number(rep, "sous_systemes.sortie_et_bus_dc.tension_bus_dc_v"),
+        _first_path_number(rep, "sous_systemes.batterie.electrique.tension_pack_nominale_v"),
+    )
+    if tension is not None:
+        out["tension_bus_dc_v"] = tension
+
+    p_aux_w = _first_finite(
+        resolution.get("puissance_auxiliaire_w"),
+        _first_path_number(aboutissement, "entrees_normalisees.puissance_auxiliaire_w"),
+        _first_path_number(rep, "entrees.analyses.puissance_auxiliaire_w"),
+        _first_path_number(rep, "entrees.analyses.stho_me.puissance_auxiliaire_w"),
+    )
+    if p_aux_w is not None:
+        out["puissance_auxiliaire_w"] = p_aux_w
+
+    for key in (
+        "puissance_recharge_batterie_w",
+        "fraction_temps_generation_beta",
+        "puissance_mecanique_alternateur_requise_w",
+        "puissance_moteur_thermique_requise_w",
+    ):
+        value = _safe_float(resolution.get(key))
+        if value is not None:
+            out[key] = value
+
+    return out
+
+
+def _merge_if_missing(primary: Mapping[str, Any], fallback: Mapping[str, Any]) -> Dict[str, Any]:
+    out = dict(primary or {})
+    for key, value in dict(fallback or {}).items():
+        if key not in out or out.get(key) is None:
+            out[key] = value
+    return out
+
+
 def calculer_strategie_couplage(
     etat_systeme: Optional[Mapping[str, Any]] = None,
     composants: Optional[Mapping[str, Any]] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    return analyser_strategie_energie(etat_systeme=etat_systeme, composants=composants, **kwargs)
+    rapport_systeme = kwargs.pop("rapport_systeme", None) or kwargs.pop("rapport", None)
+    derivees = _merge_if_missing(
+        _safe_dict(kwargs.pop("derivees_chaine_energie", None)),
+        _derivees_depuis_rapport_systeme(rapport_systeme),
+    )
+
+    composants_loc = _safe_dict(composants)
+    for src_key, dst_key in (
+        ("batterie", "batterie"),
+        ("alternateur", "alternateur"),
+        ("boite", "boite_crabots"),
+        ("boite_crabots", "boite_crabots"),
+        ("moteur_thermique", "moteur_thermique"),
+    ):
+        value = kwargs.pop(src_key, None)
+        if value is not None and dst_key not in composants_loc:
+            composants_loc[dst_key] = value
+
+    rapport_batterie = kwargs.pop("rapport_batterie", None)
+    if rapport_batterie is None and isinstance(composants_loc.get("batterie"), Mapping):
+        rapport_batterie = composants_loc.get("batterie")
+    rapport_alternateur = kwargs.pop("rapport_alternateur", None)
+    if rapport_alternateur is None and isinstance(composants_loc.get("alternateur"), Mapping):
+        rapport_alternateur = composants_loc.get("alternateur")
+    rapport_boite = kwargs.pop("rapport_boite", None)
+    if rapport_boite is None and isinstance(composants_loc.get("boite_crabots"), Mapping):
+        rapport_boite = composants_loc.get("boite_crabots")
+
+    allowed = {
+        "rapport_recharge_batterie",
+        "point_actuel",
+        "mode_force",
+        "autoriser_soutien_traction_si_recharge_interdite",
+        "poids_cout",
+    }
+    filtered = {k: v for k, v in kwargs.items() if k in allowed}
+    return analyser_strategie_energie(
+        etat_systeme=etat_systeme,
+        composants=composants_loc,
+        derivees_chaine_energie=derivees,
+        rapport_batterie=rapport_batterie,
+        rapport_alternateur=rapport_alternateur,
+        rapport_boite=rapport_boite,
+        **filtered,
+    )
 
 
 __all__ = [

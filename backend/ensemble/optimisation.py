@@ -2989,6 +2989,7 @@ def optimiser_rapport_sthome(
     objets: dict | None = None,
     cahier_des_charges: dict | None = None,
     strict: bool = True,
+    max_iterations: int = 2,
 ) -> dict:
     """API stable d'optimisation utilisee par STHO_ME et le resolveur."""
     rapport = _safe_dict(rapport_backend)
@@ -3005,6 +3006,9 @@ def optimiser_rapport_sthome(
         )
         analyse = opt.analyser()
         score = _safe_report_score(analyse)
+        iteratif = opt.optimiser_composants(max_iterations=max(1, int(max_iterations)))
+        historique = list(_safe_dict(iteratif).get("historique") or [])
+        synthese_iterative = _safe_dict(_safe_dict(iteratif).get("synthese"))
         return _to_jsonable(
             {
                 "status": "ok",
@@ -3012,12 +3016,18 @@ def optimiser_rapport_sthome(
                 "cahier_des_charges_present": bool(cahier_des_charges),
                 "synthese_optimisation": _safe_dict(analyse.get("synthese_optimisation")),
                 "score_global": score / 100.0 if score > 1.0 else score,
+                "score_initial_100": score,
+                "score_final_100": synthese_iterative.get("score_final_100", score),
                 "actions": list(analyse.get("actions") or []),
+                "patch_configuration": _safe_dict(_dig(iteratif, "meilleur_resultat", "configs_patch_cumule")),
+                "historique_iterations": historique,
+                "optimisation_iterative": iteratif,
                 "inconnues": _safe_dict(analyse.get("inconnues")),
                 "alertes": _safe_dict(analyse.get("alertes")),
                 "trace": {
                     "fonction": "optimiser_rapport_sthome",
                     "source": "backend.ensemble.optimisation.OptimisationSysteme.analyser",
+                    "regle_validation": "aucune hypothese n'est marquee validated_by_optimization sans recalcul et validation explicite",
                 },
             }
         )

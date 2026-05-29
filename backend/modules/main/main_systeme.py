@@ -144,7 +144,13 @@ build_diagnostic_contract = _import_attr_optional(
 )
 
 resoudre_inconnues_systeme = _import_attr_optional(
-    ("backend.modules.systeme.resolution_inconnues", "modules.systeme.resolution_inconnues", "resolution_inconnues"),
+    (
+        "backend.ensemble.resolution_inconnues",
+        "ensemble.resolution_inconnues",
+        "backend.modules.systeme.resolution_inconnues",
+        "modules.systeme.resolution_inconnues",
+        "resolution_inconnues",
+    ),
     "resoudre_inconnues_systeme",
 )
 
@@ -586,12 +592,14 @@ class MainSysteme:
         report = self._compose_report(report, rapport_sthome, rapport_puissance)
 
         # 4) Résolution d'inconnues avec candidats / repository / CDC.
-        if opts.resolve_unknowns:
+        if opts.resolve_unknowns and not isinstance(report.get("resolution_inconnues"), Mapping):
             resolution = self._run_step(report, "resolution_inconnues", lambda: self._resolve_unknowns(config, report, opts))
             if resolution is not None:
                 resolution_dict = _jsonable(resolution)
                 report["resolution_inconnues"] = resolution_dict
                 config_completee = _get_path(resolution_dict, "config_completee")
+                if not isinstance(config_completee, Mapping):
+                    config_completee = _get_path(resolution_dict, "payload_resolu")
                 if isinstance(config_completee, Mapping):
                     config = _merge_dicts(config, config_completee)
                 rapport_apres = _get_path(resolution_dict, "rapport_apres")
@@ -763,7 +771,7 @@ class MainSysteme:
         try:
             return analyser(
                 repository=self.repository,
-                resolve_unknowns=False,
+                resolve_unknowns=opts.resolve_unknowns,
                 optimize=False,
                 frontend_contract=False,
                 strict=opts.strict,
@@ -778,7 +786,7 @@ class MainSysteme:
         base = report
         if isinstance(rapport_sthome, Mapping):
             base["rapports"]["stho_me"] = _jsonable(rapport_sthome)
-            for key in ("sous_systemes", "synthese", "liaisons", "cao", "inventaire", "construction_pieces", "rapports_pieces", "objets_serialises"):
+            for key in ("sous_systemes", "synthese", "liaisons", "cao", "inventaire", "construction_pieces", "rapports_pieces", "objets_serialises", "resolution_inconnues", "donnees_auto_completees", "tracabilite"):
                 value = rapport_sthome.get(key)
                 if isinstance(value, Mapping):
                     base[key] = _merge_dicts(_safe_dict(base.get(key)), value)
@@ -821,26 +829,40 @@ class MainSysteme:
 
         def optimiser(rep: Dict[str, Any]) -> Dict[str, Any]:
             if optimiser_rapport_sthome is not None:
-                out = optimiser_rapport_sthome(rep)
+                out = optimiser_rapport_sthome(rapport_backend=rep)
                 return out if isinstance(out, dict) else {"resultat": _jsonable(out)}
             return {"synthese_optimisation": {"score_global": _score_report(rep)}}
 
-        result = resoudre_inconnues_systeme(
-            config=dict(config),
-            rapport=dict(report),
-            cahier_des_charges=cdc,
-            repository=self.repository,
-            project_id=opts.project_id,
-            recalculer=recalculer,
-            optimiser=optimiser if opts.optimize else None,
-            strict=opts.strict,
-            max_iterations=opts.max_resolution_iterations,
-        )
+        try:
+            result = resoudre_inconnues_systeme(
+                dict(config),
+                dict(report),
+                cdc,
+                repository=self.repository,
+                project_id=opts.project_id,
+                recalculer=recalculer,
+                optimiser=optimiser if opts.optimize else None,
+                strict=opts.strict,
+                mode="strict" if opts.strict else "projet",
+                max_iterations=opts.max_resolution_iterations,
+            )
+        except TypeError:
+            result = resoudre_inconnues_systeme(
+                config=dict(config),
+                rapport=dict(report),
+                cahier_des_charges=cdc,
+                repository=self.repository,
+                project_id=opts.project_id,
+                recalculer=recalculer,
+                optimiser=optimiser if opts.optimize else None,
+                strict=opts.strict,
+                max_iterations=opts.max_resolution_iterations,
+            )
         return result.en_dict() if hasattr(result, "en_dict") else result
 
     def _optimize(self, report: Mapping[str, Any], opts: MainSystemeOptions) -> Dict[str, Any] | None:
         if optimiser_rapport_sthome is not None:
-            out = optimiser_rapport_sthome(dict(report))
+            out = optimiser_rapport_sthome(rapport_backend=dict(report), strict=opts.strict)
             return out if isinstance(out, dict) else {"resultat": _jsonable(out)}
         if OptimisationSysteme is not None:
             obj = OptimisationSysteme()
