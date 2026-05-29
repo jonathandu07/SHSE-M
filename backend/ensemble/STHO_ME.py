@@ -885,7 +885,8 @@ class STHO_ME:
     def _new_report(self) -> Dict[str, Any]:
         return {
             "meta": {
-                "orchestrateur": "backend/ensemble/STHO_ME.py",
+                "orchestrateur": "STHO_ME.py",
+                "chemin_orchestrateur": "backend/ensemble/STHO_ME.py",
                 "version": "3.0.0-systeme-complet",
                 "nom_projet": self.meta.get("nom_projet", "STHO-ME"),
                 "meta_utilisateur": _to_jsonable(self.meta, max_depth=5),
@@ -1321,9 +1322,29 @@ class STHO_ME:
                 _push(rapport, "partielles", f"piece.{name}", "Classe pièce non importable automatiquement.")
                 continue
             try:
-                obj = _construct_dataclass_or_class(cls, _safe_dict(payload))
-                rep = _safe_call_report(obj, strict=strict) or {"definition": _to_jsonable(obj)}
+                contexte_piece = _deep_merge(
+                    {
+                        "rapport_systeme": rapport,
+                        "systeme_complet": rapport,
+                        "synthese_systeme": rapport.get("synthese"),
+                        "sous_systemes": rapport.get("sous_systemes"),
+                        "rapports_pieces": rapport.get("rapports", {}).get("pieces"),
+                        "moteur_thermique": rapport.get("sous_systemes", {}).get("moteur_thermique"),
+                    },
+                    _safe_dict(payload),
+                )
+                for dep_name, dep_obj in self.pieces_obj.items():
+                    contexte_piece.setdefault(dep_name, dep_obj)
+                obj = _construct_dataclass_or_class(cls, contexte_piece)
+                rep = _safe_call_report(obj, strict=strict, **contexte_piece) or {"definition": _to_jsonable(obj)}
+                self.pieces_obj[name] = obj
                 rapport["rapports"]["pieces"][name] = _to_jsonable(rep, max_depth=7)
+                rapport["construction"]["pieces"][name] = {
+                    "classe": getattr(cls, "__name__", str(cls)),
+                    "contexte_recu": sorted(k for k in contexte_piece if k not in {"rapport_systeme", "systeme_complet"}),
+                    "dependances_pieces_disponibles": sorted(self.pieces_obj.keys()),
+                    "cao_present": bool(_dig(rep, "cao") or _dig(rep, "bloc_cao") or _dig(rep, "solidworks")),
+                }
                 _merge_inconnues(rapport, rep, prefix=f"piece.{name}")
             except Exception as exc:
                 _push(rapport, "partielles", f"piece.{name}", str(exc))
@@ -1443,13 +1464,23 @@ class STHO_ME:
     def _build_cao_frontend(self, rapport: Dict[str, Any]) -> None:
         synth = _safe_dict(rapport.get("synthese"))
         sketch_ready = all(_sf(synth.get(k)) is not None for k in ("alesage_m", "course_m")) and synth.get("nombre_cylindres") is not None
+        missing_geom = [k for k in ("alesage_m", "course_m", "nombre_cylindres") if synth.get(k) is None]
+        pieces_reports = _safe_dict(_dig(rapport, "rapports", "pieces"))
+        pieces_fermees: List[str] = []
+        pieces_non_fermees: List[str] = []
+        for pname, prep in pieces_reports.items():
+            prep_map = _safe_dict(prep)
+            cao_piece = _safe_dict(prep_map.get("cao") or prep_map.get("bloc_cao") or prep_map.get("solidworks"))
+            closed = bool(cao_piece.get("solidworks_ready") or cao_piece.get("complete") or cao_piece.get("fermee"))
+            (pieces_fermees if closed else pieces_non_fermees).append(str(pname))
         rapport["cao"] = {
             "solidworks_ready": False,
             "step_export": False,
             "sketches_available": bool(sketch_ready),
             "views_3d_available": bool(sketch_ready),
-            "stress_graphs_available": True,
+            "stress_graphs_available": bool(rapport.get("mechanical_graphs")),
             "drawing_data_available": bool(sketch_ready),
+            "missing_geometry": missing_geom,
             "raison": "Le but est de fournir croquis, vues 3D et graphes de contraintes ; l'export STEP reste bloqué tant que toutes les pièces ne sont pas fermées.",
             "cotes_moteur_thermique": {
                 "architecture": synth.get("architecture_moteur"),
@@ -1458,7 +1489,15 @@ class STHO_ME:
                 "course_m": synth.get("course_m"),
                 "rpm_nominal": synth.get("rpm_moteur_thermique"),
             },
+            "pieces_fermees": pieces_fermees,
+            "pieces_non_fermees": pieces_non_fermees,
         }
+        resolution_frontend = _safe_dict(_dig(rapport, "resolution_inconnues", "frontend_contract"))
+        graphes = _first_non_none(
+            rapport.get("mechanical_graphs"),
+            _dig(rapport, "rapports", "mechanical_graphs"),
+            {"available": False, "reason": "Aucune donnee de graphe mecanique calculee dans ce rapport."},
+        )
         rapport["frontend"] = {
             "status": "ok" if not rapport.get("inconnues", {}).get("impossibles") else "partial",
             "resume_cards": [
@@ -1472,6 +1511,34 @@ class STHO_ME:
             "inconnues": rapport.get("inconnues", {}),
             "cao": rapport.get("cao", {}),
         }
+        for card in rapport["frontend"].get("resume_cards", []):
+            if card.get("value") is not None:
+                card["missing_reason"] = None
+            elif card.get("id") == "sortie":
+                card["missing_reason"] = "Puissance utile non fournie."
+            elif card.get("id") == "bus_dc":
+                card["missing_reason"] = "Rendements, auxiliaires ou tension bus incomplets."
+            elif card.get("id") == "thermique":
+                card["missing_reason"] = "Chaine alternateur/boite non fermee."
+            elif card.get("id") == "croisiere":
+                card["missing_reason"] = "Profil de croisiere absent ou non valide."
+            elif card.get("id") == "batterie":
+                card["missing_reason"] = "Enveloppe batterie non fermee."
+        rapport["frontend"].update(
+            {
+                "alertes": rapport.get("alertes", {}),
+                "resolution": resolution_frontend,
+                "strategie_energie": _safe_dict(_dig(rapport, "rapports", "strategie_energie")),
+                "optimisation": _safe_dict(_dig(rapport, "rapports", "optimisation")),
+                "graphes": graphes,
+                "statuts": {
+                    "definition_complete": bool(rapport.get("definition_complete")),
+                    "pieces_fermees": pieces_fermees,
+                    "pieces_non_fermees": pieces_non_fermees,
+                },
+                "traces": rapport.get("tracabilite", {}),
+            }
+        )
 
     # ------------------------------------------------------------------
     # API publique

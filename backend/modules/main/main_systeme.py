@@ -1194,6 +1194,7 @@ def optimiser_project(project_id: str, repository: Any | None = None) -> Dict[st
 # Alias métier attendus possibles.
 dimensionner_systeme_sthome = analyser_systeme_sthome
 calculer_systeme_sthome = analyser_systeme_sthome
+main_systeme = analyser_systeme_sthome
 run_main_systeme = analyser_systeme_sthome
 
 
@@ -1260,6 +1261,7 @@ __all__ = [
     "optimiser_project",
     "dimensionner_systeme_sthome",
     "calculer_systeme_sthome",
+    "main_systeme",
     "run_main_systeme",
     "main",
 ]

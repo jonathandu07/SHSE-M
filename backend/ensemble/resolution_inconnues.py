@@ -980,7 +980,7 @@ def resoudre_inconnues_systeme(
     project_id: str | None = None,
     recalculer: Callable[[Dict[str, Any]], Dict[str, Any]] | None = None,
     optimiser: Callable[[Dict[str, Any]], Dict[str, Any]] | None = None,
-    strict: bool = True,
+    strict: bool = False,
     mode: ModeResolution | str | None = None,
     max_iterations: Optional[int] = None,
 ) -> ResolutionInconnuesReport:

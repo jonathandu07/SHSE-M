@@ -577,6 +577,44 @@ def analyser_100kw(
     )
 
 
+def optimiser_depuis_puissance(
+    puissance: float,
+    unite: str = "kw",
+    *,
+    donnees_connues: Mapping[str, Any] | None = None,
+    cahier_des_charges: Mapping[str, Any] | None = None,
+    espace_recherche: Mapping[str, Any] | None = None,
+    contraintes: Mapping[str, Any] | None = None,
+    options: BackendMainOptions | Mapping[str, Any] | None = None,
+    **overrides: Any,
+) -> Dict[str, Any]:
+    """Raccourci stable : analyse depuis puissance avec optimisation activee."""
+    merged_overrides = dict(overrides)
+    merged_overrides["optimize"] = True
+    return analyser_depuis_puissance(
+        puissance,
+        unite,
+        donnees_connues=donnees_connues,
+        cahier_des_charges=cahier_des_charges,
+        espace_recherche=espace_recherche,
+        contraintes=contraintes,
+        options=options,
+        **merged_overrides,
+    )
+
+
+def generer_rapport_json(
+    config: Mapping[str, Any] | None = None,
+    path: str | os.PathLike[str] | None = None,
+    *,
+    options: BackendMainOptions | Mapping[str, Any] | None = None,
+    **overrides: Any,
+) -> Dict[str, Any]:
+    """Execute le backend et sauvegarde le JSON si un chemin est fourni."""
+    rapport = executer_backend(config or {}, options=options, output_path=path, **overrides)
+    return _jsonable(rapport)
+
+
 def dimensionner_systeme_shsem(
     config: Mapping[str, Any] | None = None,
     *,
@@ -848,6 +886,8 @@ __all__ = [
     "preflight_backend",
     "executer_backend",
     "analyser_depuis_puissance",
+    "optimiser_depuis_puissance",
+    "generer_rapport_json",
     "analyser_100kw",
     "dimensionner_systeme_shsem",
     "dimensionner_systeme_shse_m",
