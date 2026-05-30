@@ -47,9 +47,10 @@ def test_frontend_contract_ne_valide_pas_une_valeur_sans_trace():
 
 
 def test_libelles_legacy_optimisation_ne_valident_pas_sans_trace():
+    for legacy in ("optimisee", "optimisé", "optimized", "candidate_optimized", "validated"):
+        assert normalize_status(legacy) != STATUS_VALIDATED_BY_OPTIMIZATION
     assert normalize_status("optimisee") == STATUS_CANDIDATE_FROM_CDC
     assert normalize_status("candidate_optimized") == STATUS_CANDIDATE_FROM_CDC
-    assert normalize_status("optimisee") != STATUS_VALIDATED_BY_OPTIMIZATION
 
 
 def test_inconnue_en_bdd_est_recuperee_source_database(tmp_path):

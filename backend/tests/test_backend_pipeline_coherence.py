@@ -1,5 +1,6 @@
 import sys
 import types
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import pytest
@@ -7,11 +8,19 @@ import pytest
 from backend.ensemble.STHO_ME import concevoir_systeme_stho_me
 from backend.ensemble.optimisation import optimiser_rapport_sthome
 from backend.ensemble.resolution_inconnues import (
+    STATUS_CANDIDATE_FROM_CDC,
     STATUS_CANDIDATE_FROM_POWER_PROFILE,
+    STATUS_REJECTED_BY_OPTIMIZATION,
+    STATUS_VALIDATED_BY_OPTIMIZATION,
     get_alias_paths,
     resoudre_inconnues_systeme,
 )
 from backend.ensemble.strategie_energie import analyser_strategie_energie
+from backend.modules.systeme.frontend_contract import build_frontend_contract
+from backend.modules.systeme.status import (
+    STATUS_COMPUTED as FRONTEND_STATUS_COMPUTED,
+    STATUS_PARTIAL as FRONTEND_STATUS_PARTIAL,
+)
 
 
 def test_resolution_stricte_puissance_seule_ne_injecte_pas_profil():
@@ -38,6 +47,10 @@ def test_resolution_pre_dimensionnement_trace_les_candidats_profil():
     assert report.payload_resolu["puissance_bus_dc_w"] > 100_000.0
     assert any(h.status == STATUS_CANDIDATE_FROM_POWER_PROFILE for h in report.hypotheses)
     assert any(c["statut"] == STATUS_CANDIDATE_FROM_POWER_PROFILE for c in report.tracabilite["candidats"])
+    candidate_statuses = {c.statut for c in report.candidates}
+    assert candidate_statuses <= {STATUS_CANDIDATE_FROM_CDC, STATUS_CANDIDATE_FROM_POWER_PROFILE}
+    assert STATUS_VALIDATED_BY_OPTIMIZATION not in candidate_statuses
+    assert all(h.status != STATUS_VALIDATED_BY_OPTIMIZATION for h in report.hypotheses)
 
 
 def test_orchestrateur_strict_expose_sections_sans_moteur_fictif():
@@ -52,7 +65,51 @@ def test_orchestrateur_strict_expose_sections_sans_moteur_fictif():
     assert rapport["synthese"]["alesage_m"] is None
     assert rapport["synthese"]["P_arbre_thermique_requise_pleine_sortie_kw"] is None
     assert rapport["cao"]["sketches_available"] is False
+    assert not rapport["cao"].get("solidworks_ready")
+    assert rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]
     assert "missing_reason" in rapport["frontend"]["resume_cards"][1]
+
+    contract = build_frontend_contract(rapport)
+    for field in contract["fields"]:
+        if not field["trace"]:
+            assert field["status"] == FRONTEND_STATUS_PARTIAL
+            assert field["confidence"] == "untraced_report_value"
+        if field["status"] == FRONTEND_STATUS_COMPUTED:
+            assert field["trace"], field
+
+
+def test_orchestrateur_optimise_trace_scores_et_ne_valide_pas_sans_preuve():
+    rapport = concevoir_systeme_stho_me({"puissance_sortie_kw": 100}, strict=False, optimize=True)
+    optimisation = rapport["rapports"]["optimisation"]
+
+    assert isinstance(optimisation.get("historique_iterations"), list)
+    assert optimisation["historique_iterations"]
+    assert isinstance(optimisation.get("actions"), list)
+    assert optimisation.get("score_global") is not None
+    assert "regle_validation" in optimisation.get("trace", {})
+    assert rapport.get("tracabilite", {}).get("optimization_runs")
+
+    resolution = rapport.get("resolution_inconnues", {})
+    candidate_statuses = {
+        item.get("statut") or item.get("status")
+        for item in resolution.get("candidates", [])
+        if isinstance(item, Mapping)
+    }
+    assert STATUS_VALIDATED_BY_OPTIMIZATION not in candidate_statuses
+    assert candidate_statuses <= {STATUS_CANDIDATE_FROM_CDC, STATUS_CANDIDATE_FROM_POWER_PROFILE}
+
+    rejected_statuses = {
+        item.get("statut") or item.get("status")
+        for item in resolution.get("candidates_rejetes", [])
+        if isinstance(item, Mapping)
+    }
+    assert rejected_statuses <= {STATUS_REJECTED_BY_OPTIMIZATION, STATUS_CANDIDATE_FROM_CDC, STATUS_CANDIDATE_FROM_POWER_PROFILE}
+
+    for item in _iter_mappings(resolution):
+        status = item.get("statut") or item.get("status") or item.get("niveau_confiance")
+        if status == STATUS_VALIDATED_BY_OPTIMIZATION:
+            assert item.get("validation") or item.get("metadata", {}).get("validation")
+            assert rapport.get("tracabilite", {}).get("optimization_runs") or resolution.get("tracabilite", {}).get("optimisations")
 
 
 def test_alias_puissance_sortie_depuis_plusieurs_chemins():
@@ -136,3 +193,13 @@ def test_anciennes_fonctions_backend_restent_importables():
     assert callable(main.generer_rapport_json)
     assert callable(main.dimensionner_systeme_shsem)
     assert callable(main_systeme.main_systeme)
+
+
+def _iter_mappings(value):
+    if isinstance(value, Mapping):
+        yield value
+        for child in value.values():
+            yield from _iter_mappings(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from _iter_mappings(child)
