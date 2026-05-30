@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, List, Literal
+
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
 import math
 
 
@@ -1308,6 +1310,7 @@ class RoulementAiguilleArbre:
             if self.mode_support == "roulement_aiguille" and self.reference is None:
                 rapport["notes_modele"].append("strict=True sans référence : la géométrie requise est validée mais la vérification catalogue reste incomplète.")
 
+        ajouter_dossier_definition_solidworks(rapport, "roulement_aiguille_arbre")
         return rapport
 
 

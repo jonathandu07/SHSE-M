@@ -56,6 +56,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple, List, Literal
+
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
 import math
 
 
@@ -1346,6 +1348,7 @@ class CorpsBielle:
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
 
+        ajouter_dossier_definition_solidworks(rapport, "bielle")
         return rapport
 
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple, List
+
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
 import math
 
 
@@ -1029,6 +1031,7 @@ class ArbreMoteur:
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
 
+        ajouter_dossier_definition_solidworks(rapport, "arbre")
         return rapport
 
 

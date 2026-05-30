@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple, List, Literal
+
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
 import math
 
 
@@ -1209,6 +1211,7 @@ class ArbreVilbrequin:
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
 
+        ajouter_dossier_definition_solidworks(rapport, "arbre_vilbrequin")
         return rapport
 
 
@@ -1427,6 +1430,7 @@ class ArbreVilbrequinFine(ArbreVilbrequin):
                 f"Impossibles: {rapport['inconnues']['impossibles']}\n"
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
+        ajouter_dossier_definition_solidworks(rapport, "arbre_vilbrequin")
         return rapport
 
 

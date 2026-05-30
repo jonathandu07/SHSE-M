@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple, Literal, List
+
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
 import math
 
 # ============================================================
@@ -2078,4 +2080,5 @@ class CouvercleCylindre:
                 f"Impossibles: {rapport['inconnues']['impossibles']}\n"
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
+        ajouter_dossier_definition_solidworks(rapport, "couvercle_cylindre")
         return rapport

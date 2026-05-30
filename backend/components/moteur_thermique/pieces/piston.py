@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Literal, Tuple, List
+
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
 import math
 
 # =============================================================================
@@ -1822,6 +1824,7 @@ class Piston:
                 f"Impossibles: {rap['inconnues']['impossibles']}\n"
                 f"Partielles: {rap['inconnues']['partielles']}"
             )
+        ajouter_dossier_definition_solidworks(rap, "piston")
         return rap
 
 

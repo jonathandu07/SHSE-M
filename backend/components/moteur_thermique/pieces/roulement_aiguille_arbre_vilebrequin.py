@@ -35,6 +35,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple, List, Literal, Sequence
+
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
 import math
 
 
@@ -1057,6 +1059,7 @@ class RoulementAiguilleArbreVilebrequin:
                 f"Impossibles: {rapport['inconnues']['impossibles']}\n"
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
+        ajouter_dossier_definition_solidworks(rapport, "roulement_aiguille_arbre_vilebrequin")
         return rapport
 
 

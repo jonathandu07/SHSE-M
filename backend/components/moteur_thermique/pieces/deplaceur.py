@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple, Literal, List
+
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
 import math
 
 # ============================================================
@@ -943,4 +945,5 @@ class Deplaceur:
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
             raise ValueError(f"Inconnues restantes: {rapport['inconnues']}")
 
+        ajouter_dossier_definition_solidworks(rapport, "deplaceur")
         return rapport
