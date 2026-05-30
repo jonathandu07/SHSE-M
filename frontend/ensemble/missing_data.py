@@ -137,6 +137,12 @@ def classify_dimension_fields(fields: Iterable[Mapping[str, Any]]) -> dict[str, 
 
 def _piece_requirements(piece_name: str) -> tuple[str, ...]:
     low = piece_name.lower()
+    if "joint" in low:
+        return ("diameter", "thickness_or_section")
+    if "couvercle" in low:
+        return ("diameter", "thickness_or_section")
+    if "deplaceur" in low:
+        return ("length", "diameter")
     if any(token in low for token in ("arbre", "vilebrequin", "vilbrequin", "shaft")):
         return ("length_or_positions", "diameter")
     if "cylindre" in low:
@@ -145,8 +151,6 @@ def _piece_requirements(piece_name: str) -> tuple[str, ...]:
         return ("length", "diameter")
     if "bielle" in low:
         return ("length", "diameter")
-    if "joint" in low:
-        return ("diameter", "thickness_or_section")
     if any(token in low for token in ("batterie", "pack", "boitier")):
         return ("any_dimension",)
     return ("any_dimension",)

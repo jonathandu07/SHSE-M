@@ -67,3 +67,36 @@ def test_toutes_les_pieces_frontend_exposent_modules_de_rendu_standards():
         expected = required | {f"{piece_dir.name}.py"}
         missing = [name for name in expected if not (piece_dir / name).is_file()]
         assert not missing, f"{piece_dir}: modules manquants {missing}"
+
+
+def test_pieces_moteur_thermique_prioritaires_construisent_contrat_passif():
+    from frontend.ensemble.visualisation_orchestrator import construire_visualisation_piece
+
+    priority = [
+        "piston",
+        "cylindre",
+        "bielle",
+        "arbre_piston",
+        "arbre_vilbrequin",
+        "arbre_vilebrequin",
+        "vilbrequin",
+        "joint_piston",
+        "deplaceur",
+        "couvercle_cylindre",
+    ]
+    report = {
+        "rapports_pieces": {
+            name: {"piece": name, "inconnues_cao": [{"nom": "cotes", "raison": "donnees backend absentes"}]}
+            for name in priority
+        }
+    }
+
+    for name in priority:
+        contract = construire_visualisation_piece(name, report)
+        json.dumps(contract, ensure_ascii=False)
+        assert contract["id"] == name
+        assert contract["step_export"] is False
+        assert contract["solidworks_ready"] is False
+        assert contract["sketches_2d"][0]["status"] == "missing_required"
+        assert contract["views_3d"][0]["final_geometry"] is False
+        assert contract["missing_fields"]

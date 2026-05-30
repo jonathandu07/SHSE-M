@@ -26,9 +26,64 @@ from frontend.ensemble.piece_data_adapter import STATUS_AVAILABLE, STATUS_MISSIN
 from frontend.ensemble.render_contract import normalize_chart
 
 
+_EXPECTED_QUANTITIES: dict[str, tuple[str, ...]] = {
+    "piston": ("jeu_radial", "effort_gaz", "force_inertielle", "frottement", "fuite", "contrainte"),
+    "cylindre": ("pression", "contrainte_circonferentielle", "von_mises", "ovalisation", "temperature_convection"),
+    "bielle": ("effort_axial", "flambage", "contrainte", "pression_petite_grande_tete", "facteur_securite"),
+    "arbre_piston": ("flexion", "torsion", "cisaillement", "flambage", "von_mises"),
+    "vilebrequin": ("torsion", "flexion", "von_mises", "maneton", "tourillon"),
+    "joint_piston": ("squeeze", "pression_contact", "frottement", "fuite"),
+    "deplaceur": ("flambage", "perte_charge", "effort_pression", "contrainte"),
+    "couvercle_cylindre": ("force_separation", "precharge", "contrainte", "couple_serrage", "convection"),
+}
+
+
+def _profile_for_piece(piece_name: str) -> str:
+    low = str(piece_name or "").lower()
+    if "joint" in low and "piston" in low:
+        return "joint_piston"
+    if any(token in low for token in ("vilebrequin", "vilbrequin")):
+        return "vilebrequin"
+    if "arbre_piston" in low:
+        return "arbre_piston"
+    if "deplaceur" in low:
+        return "deplaceur"
+    if "couvercle_cylindre" in low:
+        return "couvercle_cylindre"
+    if "cylindre" in low:
+        return "cylindre"
+    if "piston" in low:
+        return "piston"
+    if "bielle" in low:
+        return "bielle"
+    return ""
+
+
+def expected_quantities_for_piece(piece_name: str) -> list[str]:
+    return list(_EXPECTED_QUANTITIES.get(_profile_for_piece(piece_name), ()))
+
+
+def _infer_quantity_family(chart: Mapping[str, Any], expected: list[str]) -> str | None:
+    text = " ".join(str(chart.get(key) or "") for key in ("id", "title", "y_label", "x_label")).lower()
+    for quantity in expected:
+        tokens = [part for part in quantity.split("_") if part]
+        if quantity in text or all(token in text for token in tokens[:2]):
+            return quantity
+    return None
+
+
 def build_chart_contracts_from_backend(piece_name: str, global_report: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     report = safe_dict(global_report)
-    charts = [normalize_chart(item) for item in get_backend_graphs(report, piece_name)]
+    expected = expected_quantities_for_piece(piece_name)
+    charts = []
+    for item in get_backend_graphs(report, piece_name):
+        normalized = normalize_chart(item)
+        normalized["render_profile"] = _profile_for_piece(piece_name) or "generic"
+        normalized["expected_quantities"] = expected
+        family = _infer_quantity_family(normalized, expected)
+        if family:
+            normalized["quantity_family"] = family
+        charts.append(normalized)
     if charts:
         return charts
     return [
@@ -37,6 +92,8 @@ def build_chart_contracts_from_backend(piece_name: str, global_report: Mapping[s
             "type": "chart",
             "status": STATUS_MISSING_REQUIRED,
             "title": f"Graphiques backend indisponibles - {piece_name}",
+            "render_profile": _profile_for_piece(piece_name) or "generic",
+            "expected_quantities": expected,
             "x_label": "",
             "y_label": "",
             "series": [],
@@ -44,8 +101,14 @@ def build_chart_contracts_from_backend(piece_name: str, global_report: Mapping[s
             "formula": None,
             "source": "backend.mechanical_graphs",
             "interpretation": "Aucune serie de points backend n'est disponible pour cette piece.",
-            "missing_fields": [{"path": "mechanical_graphs.graphiques", "reason": "Graphes non generes cote backend."}],
-            "actions": ["Generer mechanical_graphs cote backend."],
+            "missing_fields": [
+                {
+                    "path": f"mechanical_graphs.graphiques.{quantity}" if quantity else "mechanical_graphs.graphiques",
+                    "reason": "Serie de points backend absente pour cette grandeur.",
+                }
+                for quantity in (expected or [""])
+            ],
+            "actions": ["Generer les series backend pertinentes pour cette piece."],
         }
     ]
 
@@ -93,5 +156,6 @@ def build_chart_figure(chart: Mapping[str, Any]) -> Any:
 __all__ = [
     "build_chart_contracts_from_backend",
     "build_chart_figure",
+    "expected_quantities_for_piece",
     "validate_chart_contracts",
 ]
