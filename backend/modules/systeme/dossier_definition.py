@@ -259,11 +259,12 @@ def ajouter_dossier_definition_solidworks(
     rapport.setdefault("interfaces_assemblage", interfaces)
     rapport["solidworks_ready"] = False
     rapport["step_export"] = False
+    rapport["final_geometry"] = False
     cao = rapport.get("cao")
     if isinstance(cao, dict):
         cao["solidworks_ready"] = False
         cao["step_export"] = False
-        cao.setdefault("final_geometry", False)
+        cao["final_geometry"] = False
     return rapport
 
 
