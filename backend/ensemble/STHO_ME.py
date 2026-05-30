@@ -1061,7 +1061,8 @@ class STHO_ME:
     def _new_report(self) -> Dict[str, Any]:
         return {
             "meta": {
-                "orchestrateur": "backend/ensemble/STHO_ME.py",
+                "orchestrateur": "STHO_ME.py",
+                "orchestrateur_path": "backend/ensemble/STHO_ME.py",
                 "version": "3.0.0-systeme-complet",
                 "nom_projet": self.meta.get("nom_projet", "STHO-ME"),
                 "meta_utilisateur": _to_jsonable(self.meta, max_depth=5),
@@ -1080,6 +1081,7 @@ class STHO_ME:
                 "analyses": _to_jsonable(self.analyses, max_depth=5),
             },
             "resolution_inconnues": {},
+            "hypotheses_resolues": [],
             "aboutissement_systeme": {},
             "construction": {"composants": {}, "pieces": {}},
             "rapports": {"composants": {}, "pieces": {}, "optimisation": {}, "strategie_energie": {}},
@@ -1129,6 +1131,9 @@ class STHO_ME:
                     _push(rapport, "partielles", "resolution_inconnues", f"Retour non dictionnaire : {type(out).__name__}.")
                     return {}
             rapport["resolution_inconnues"] = _to_jsonable(out, max_depth=8)
+            rapport["hypotheses_resolues"] = _to_jsonable(_safe_list(out.get("hypotheses")), max_depth=7)
+            if isinstance(out.get("coherence_systeme"), Mapping):
+                rapport["coherence_systeme"] = _to_jsonable(out.get("coherence_systeme"), max_depth=7)
             _merge_inconnues(rapport, out, prefix="resolution_inconnues")
             resolved = _extract_resolved_payload(out)
             if resolved:
@@ -1163,6 +1168,10 @@ class STHO_ME:
         return fallback
 
     def _fallback_aboutissement_systeme(self, cfg: Mapping[str, Any], rapport: Dict[str, Any]) -> Dict[str, Any]:
+        rapport["construction"]["composants"]["systeme_complet"] = {
+            "statut": "remplace_par_fallback_STHO_ME",
+            "raison": "aboutissement_systeme indisponible ou incomplet ; fallback de propagation sans hypothese technique finale",
+        }
         p_out = _extract_p_sortie_w(cfg)
         moteurs = _safe_list(cfg.get("moteurs_sortie"))
         p_inst = 0.0
@@ -1357,10 +1366,14 @@ class STHO_ME:
         else:
             _push(rapport, "partielles", "moteur_thermique", "Aucune définition moteur thermique fournie.")
 
-        rapport["construction"]["composants"] = {
+        composants_construction = {
             name: {"cfg": _to_jsonable(self._build_component_cfg(name, resolved, systeme_final), max_depth=6), "rapport_present": name in comps_report}
             for name in ("moteur_electrique", "batterie", "alternateur", "boite_crabots", "architecture", "moteur_thermique")
         }
+        rapport["construction"]["composants"] = _deep_merge(
+            _safe_dict(rapport.get("construction", {}).get("composants")),
+            composants_construction,
+        )
 
     def _run_moteur_electrique(self, cfg: Mapping[str, Any], *, strict: bool) -> Dict[str, Any]:
         if callable(concevoir_moteur_electrique):
@@ -1539,9 +1552,17 @@ class STHO_ME:
                 _push(rapport, "partielles", f"piece.{name}", "Classe pièce non importable automatiquement.")
                 continue
             try:
-                obj = _construct_dataclass_or_class(cls, _safe_dict(payload))
+                contexte = {k: v for k, v in self.pieces_obj.items()}
+                payload_piece = _deep_merge(contexte, _safe_dict(payload))
+                obj = _construct_dataclass_or_class(cls, payload_piece)
+                self.pieces_obj[name] = obj
                 rep = _safe_call_report(obj, strict=strict) or {"definition": _to_jsonable(obj)}
                 rapport["rapports"]["pieces"][name] = _to_jsonable(rep, max_depth=7)
+                rapport["construction"]["pieces"][name] = {
+                    "classe": getattr(cls, "__name__", str(cls)),
+                    "contexte_recu": sorted(contexte.keys()),
+                    "config": _to_jsonable(payload, max_depth=5),
+                }
                 _merge_inconnues(rapport, rep, prefix=f"piece.{name}")
             except Exception as exc:
                 _push(rapport, "partielles", f"piece.{name}", str(exc))
@@ -1571,9 +1592,23 @@ class STHO_ME:
     def _run_optimisation(self, rapport: Dict[str, Any]) -> None:
         if callable(optimiser_rapport_sthome):
             try:
-                out = _call_supported(optimiser_rapport_sthome, rapport=rapport, config={"composants": self.composants, "analyses": self.analyses})
+                out = _call_supported(
+                    optimiser_rapport_sthome,
+                    rapport_backend=rapport,
+                    rapports_pieces=rapport.get("rapports", {}).get("pieces"),
+                    objets=self.pieces_obj,
+                    cahier_des_charges=_safe_dict(self.meta.get("cahier_des_charges")),
+                    strict=False,
+                )
                 if isinstance(out, Mapping):
                     rapport["rapports"]["optimisation"] = _to_jsonable(out, max_depth=8)
+                    rapport["tracabilite"].setdefault("optimization_runs", []).append(
+                        {
+                            "fonction": _dig(out, "trace", "fonction") or "optimiser_rapport_sthome",
+                            "status": out.get("status"),
+                            "historique_iterations": len(_safe_list(out.get("historique_iterations"))),
+                        }
+                    )
                     _merge_inconnues(rapport, out, prefix="optimisation")
                     return
             except Exception as exc:
@@ -1640,10 +1675,31 @@ class STHO_ME:
             "generation_pleine_sortie": "OK" if synth.get("ok_thermique_pleine_puissance") is True else "NON_VERIFIE_OU_INSUFFISANT",
             "cycle_croisiere": "OK" if synth.get("puissance_croisiere_selectionnee_kw") is not None else "NON_SELECTIONNE",
         }
+        puissance_sortie_w = _first_finite(
+            resolved.get("puissance_sortie_moteur_electrique_w"),
+            resolved.get("puissance_sortie_w"),
+            synth.get("puissance_sortie_max_demandee_kw") * 1000.0 if _is_finite(synth.get("puissance_sortie_max_demandee_kw")) else None,
+        )
+        p_bus_design_w = _first_finite(
+            _dig(final_syn, "systeme", "P_bus_dc_design_w"),
+            synth.get("P_bus_dc_pleine_sortie_kw") * 1000.0 if _is_finite(synth.get("P_bus_dc_pleine_sortie_kw")) else None,
+            resolved.get("puissance_bus_dc_w"),
+        )
+        synth["moteur_electrique"] = {
+            "puissance_sortie_w": puissance_sortie_w,
+        }
+        synth["systeme"] = {
+            "P_bus_dc_design_w": p_bus_design_w,
+        }
+        synth["etat"] = {
+            "optimisation_lancee": bool(rapport.get("rapports", {}).get("optimisation"))
+            and _safe_dict(rapport.get("rapports", {}).get("optimisation")).get("mode") != "desactive",
+        }
         rapport["synthese"] = _to_jsonable(synth, max_depth=6)
 
         rapport["sous_systemes"] = {
             "sortie_et_bus_dc": _dig(systeme_final, "sous_systemes", "sortie_et_bus_dc"),
+            "moteur_electrique": comp.get("moteur_electrique") or _dig(systeme_final, "sous_systemes", "moteur_electrique"),
             "batterie": batt_rep or _dig(systeme_final, "sous_systemes", "batterie_tampon"),
             "alternateur": alt_rep or _dig(systeme_final, "sous_systemes", "alternateur_boite_modules"),
             "boite_crabots": boite_rep or _dig(systeme_final, "sous_systemes", "alternateur_boite_modules"),
@@ -1700,6 +1756,10 @@ class STHO_ME:
             "inconnues": rapport.get("inconnues", {}),
             "cao": rapport.get("cao", {}),
         }
+        for card in rapport["frontend"]["resume_cards"]:
+            if card.get("value") is None:
+                card["missing_reason"] = "donnee absente ou non calculee dans le rapport backend"
+                card["status"] = "partial"
 
     # ------------------------------------------------------------------
     # API publique
@@ -1750,10 +1810,13 @@ class STHO_ME:
         self._run_component_analyses(rapport, resolved, systeme_final, strict=strict)
         self._run_pieces(rapport, strict=strict)
         self._run_strategie_energie(rapport)
+        rapport["strategie_energie"] = rapport["rapports"].get("strategie_energie")
         if optimize:
             self._run_optimisation(rapport)
         else:
             rapport["rapports"]["optimisation"] = {"mode": "desactive", "note": "Optimisation désactivée par appelant."}
+
+        rapport["optimisation"] = rapport["rapports"].get("optimisation")
 
         _dedup(rapport)
         self._build_synthese(rapport, resolved, systeme_final)
