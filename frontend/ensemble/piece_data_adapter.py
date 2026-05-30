@@ -148,8 +148,9 @@ def extract_field(
         "label": label or path.split(".")[-1],
         "value": value,
         "unit": unit,
-        "status": STATUS_AVAILABLE if value is not None else STATUS_MISSING_REQUIRED,
+        "status": STATUS_PARTIAL if value is not None else STATUS_MISSING_REQUIRED,
         "source": "backend",
+        "confidence": "untraced_report_value" if value is not None else None,
         "required": bool(required),
     }
 
@@ -170,13 +171,13 @@ def require_fields(report: Mapping[str, Any], fields: Sequence[Mapping[str, Any]
                 required=bool(spec.get("required")),
             )
         extracted.append(row)
-        if row["status"] == STATUS_AVAILABLE:
+        if row["value"] is not None:
             used.append(row)
         else:
             missing.append(row)
     return {
         "ok": not missing,
-        "status": STATUS_AVAILABLE if not missing else STATUS_MISSING_REQUIRED,
+        "status": STATUS_PARTIAL if not missing else STATUS_MISSING_REQUIRED,
         "fields": extracted,
         "used_fields": used,
         "missing_fields": missing,
@@ -228,7 +229,17 @@ def collect_dimensions(report: Mapping[str, Any]) -> list[dict[str, Any]]:
             continue
         if any(marker in low for marker in markers):
             unit = "m" if low.endswith("_m") else "mm" if low.endswith("_mm") else None
-            out.append({"path": path, "label": path.split(".")[-1], "value": value, "unit": unit, "source": "backend"})
+            out.append(
+                {
+                    "path": path,
+                    "label": path.split(".")[-1],
+                    "value": value,
+                    "unit": unit,
+                    "source": "backend",
+                    "status": STATUS_PARTIAL,
+                    "confidence": "untraced_report_value",
+                }
+            )
     return out
 
 

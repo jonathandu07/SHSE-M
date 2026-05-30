@@ -32,11 +32,14 @@ def collect_backend_charts(report: Mapping[str, Any]) -> Dict[str, Any]:
     raw.extend(safe_list(get_path(data, "cao_dossier.graphiques")))
     charts = [normalize_chart(item) for item in raw if isinstance(item, Mapping)]
     missing = not charts
+    usable = [chart for chart in charts if chart.get("status") == "available"]
+    partial = bool(charts) and not usable
     return {
-        "status": "missing_required" if missing else "available",
+        "status": "missing_required" if missing else "partial" if partial else "available",
         "charts": charts,
         "missing_fields": ["mechanical_graphs.graphiques"] if missing else [],
-        "actions": ["Generer mechanical_graphs cote backend."] if missing else [],
+        "actions": ["Generer mechanical_graphs cote backend."] if missing else ["Verifier les traces/statuts des graphes backend."] if partial else [],
+        "warnings": ["Graphiques presents mais partiels ou non traces."] if partial else [],
         "source": "backend",
     }
 

@@ -44,6 +44,16 @@ import os
 import sys
 import traceback
 
+from frontend.ensemble.contract_adapter import (
+    STATUS_COMPUTED,
+    STATUS_PARTIAL,
+    annotate_contract_field,
+    effective_field_status,
+    field_has_trace,
+    get_frontend_contract,
+    index_contract_fields,
+)
+
 
 # =============================================================================
 # Chemins projet
@@ -296,6 +306,14 @@ def _safe_dict(value: Any) -> Dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
+def _safe_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    return []
+
+
 def _jsonable(value: Any, *, depth: int = 0, max_depth: int = 14) -> Any:
     if depth > max_depth:
         return {"type": type(value).__name__, "truncated": True}
@@ -546,10 +564,12 @@ def _extract_kpis(report: Mapping[str, Any]) -> list[dict[str, Any]]:
     - les unités sont uniquement déclaratives selon le champ trouvé.
     """
     specs: list[tuple[str, str, str, str]] = [
+        ("Puissance utile sortie", "synthese.moteur_electrique.puissance_sortie_w", "W", "sortie"),
         ("Puissance utile sortie", "calculs.puissance_sortie.kw", "kW", "sortie"),
         ("Puissance utile sortie", "entrees.puissance.kw", "kW", "sortie"),
         ("Puissance utile sortie", "puissance_sortie_kw", "kW", "sortie"),
 
+        ("Bus DC design", "synthese.systeme.P_bus_dc_design_w", "W", "bus_dc"),
         ("Bus DC design", "synthese.vehicule.puissance_bus_dc_design_w", "W", "bus_dc"),
         ("Bus DC design", "liaisons.bus_dc.P_bus_dc_design_w", "W", "bus_dc"),
         ("Tension bus DC", "synthese.vehicule.tension_bus_dc_v", "V", "bus_dc"),
@@ -577,6 +597,7 @@ def _extract_kpis(report: Mapping[str, Any]) -> list[dict[str, Any]]:
 
     found: list[dict[str, Any]] = []
     used_names: set[str] = set()
+    contract_fields = _contract_fields_by_path(report)
 
     for label, path, unit, group in specs:
         raw = _get_path(report, path)
@@ -607,7 +628,8 @@ def _extract_kpis(report: Mapping[str, Any]) -> list[dict[str, Any]]:
         used_names.add(sig)
 
         found.append(
-            {
+            _display_value_metadata(report, path, contract_fields)
+            | {
                 "label": label,
                 "value": value,
                 "display": display,
@@ -651,7 +673,8 @@ def _extract_kpis(report: Mapping[str, Any]) -> list[dict[str, Any]]:
                 display = round(n, 6)
 
         found.append(
-            {
+            _display_value_metadata(report, path, contract_fields)
+            | {
                 "label": label,
                 "value": value,
                 "display": display,
@@ -663,6 +686,54 @@ def _extract_kpis(report: Mapping[str, Any]) -> list[dict[str, Any]]:
         existing_labels.add(label)
 
     return found
+
+
+def _contract_fields_by_path(report: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
+    contract = get_frontend_contract(report)
+    return index_contract_fields(contract) if contract else {}
+
+
+def _display_value_metadata(report: Mapping[str, Any], path: str, contract_fields: Mapping[str, Mapping[str, Any]] | None = None) -> Dict[str, Any]:
+    field = dict((contract_fields or {}).get(path) or {})
+    if not field:
+        field = _find_trace_for_path(report, path)
+    if field:
+        annotated = annotate_contract_field(field)
+        return {
+            "status": effective_field_status(annotated),
+            "raw_status": annotated.get("raw_status"),
+            "confidence": annotated.get("confidence") or ("traced" if field_has_trace(annotated) else "untraced_report_value"),
+            "trace_present": field_has_trace(annotated),
+            "trace": annotated.get("trace") if isinstance(annotated.get("trace"), Mapping) else {},
+            "display_warning": annotated.get("display_warning"),
+        }
+    return {
+        "status": STATUS_PARTIAL,
+        "raw_status": None,
+        "confidence": "untraced_report_value",
+        "trace_present": False,
+        "trace": {},
+        "display_warning": "Valeur brute sans trace backend : affichage partiel uniquement.",
+    }
+
+
+def _find_trace_for_path(report: Mapping[str, Any], path: str) -> Dict[str, Any]:
+    trace = _safe_dict(_get_path(report, "tracabilite.valeurs"))
+    item = trace.get(path)
+    if isinstance(item, Mapping):
+        return {"path": path, "status": item.get("status") or item.get("source") or STATUS_COMPUTED, "trace": dict(item), "confidence": item.get("confidence")}
+    for hyp in _safe_list(report.get("hypotheses_resolues")):
+        if not isinstance(hyp, Mapping):
+            continue
+        champ = hyp.get("champ")
+        if champ == path or str(champ or "").split(".")[-1] == path.split(".")[-1]:
+            return {
+                "path": path,
+                "status": hyp.get("status") or hyp.get("type_resolution"),
+                "trace": dict(hyp),
+                "confidence": hyp.get("niveau_confiance"),
+            }
+    return {}
 
 
 def _extract_raw_sections(report: Mapping[str, Any]) -> list[dict[str, Any]]:

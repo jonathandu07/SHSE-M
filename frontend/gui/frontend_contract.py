@@ -8,12 +8,30 @@ calculent aucune grandeur metier.
 
 from typing import Any, Dict, List, Mapping
 
+from frontend.ensemble.contract_adapter import (
+    STATUS_CANDIDATE_FROM_CDC,
+    STATUS_CANDIDATE_FROM_POWER_PROFILE,
+    STATUS_COMPUTED,
+    STATUS_MISSING_OPTIONAL,
+    STATUS_MISSING_REQUIRED,
+    STATUS_PARTIAL,
+    STATUS_REJECTED_BY_OPTIMIZATION,
+    STATUS_VALIDATED_BY_OPTIMIZATION,
+    annotate_contract_field,
+    effective_field_status,
+    field_has_trace,
+    normalize_contract_status,
+)
 
 CANONICAL_STATUS_ALIASES = {
     "candidate_generated": "candidate_from_cdc",
-    "candidate_optimized": "validated_by_optimization",
+    "candidate_optimized": "candidate_from_cdc",
     "candidate_rejected": "rejected_by_optimization",
     "generated_from_cahier_des_charges": "candidate_from_cdc",
+    "optimisee": "candidate_from_cdc",
+    "optimisé": "partial",
+    "optimized": "partial",
+    "validated": "partial",
 }
 
 STATUS_COLORS = {
@@ -23,10 +41,11 @@ STATUS_COLORS = {
     "derived": "success",
     "contrainte_cdc": "warning",
     "candidate_from_cdc": "warning",
+    "candidate_from_power_profile": "warning",
     "validated_by_optimization": "success",
     "rejected_by_optimization": "error",
     "candidate_generated": "warning",
-    "candidate_optimized": "success",
+    "candidate_optimized": "warning",
     "candidate_rejected": "error",
     "missing_required": "error",
     "missing_optional": "warning",
@@ -49,7 +68,7 @@ def get_field(contract: Mapping[str, Any], path: str) -> Dict[str, Any] | None:
         return None
     for field in fields:
         if isinstance(field, Mapping) and field.get("path") == path:
-            return dict(field)
+            return annotate_contract_field(field)
     return None
 
 
@@ -60,7 +79,7 @@ def get_field_value(contract: Mapping[str, Any], path: str) -> Any:
 
 def get_field_status(contract: Mapping[str, Any], path: str) -> str | None:
     field = get_field(contract, path)
-    return _normalize_status(field.get("status")) if field else None
+    return effective_field_status(field) if field else None
 
 
 def format_field_value(field: Mapping[str, Any]) -> str:
@@ -78,23 +97,23 @@ def field_color(field: Mapping[str, Any]) -> str:
 def is_field_blocking(field: Mapping[str, Any]) -> bool:
     if not isinstance(field, Mapping):
         return False
-    status = _normalize_status(field.get("status"))
+    status = effective_field_status(field)
     return bool(field.get("blocking")) or status in {"missing_required", "impossible", "error"}
 
 
 def is_field_editable(field: Mapping[str, Any]) -> bool:
     if not isinstance(field, Mapping):
         return False
-    status = _normalize_status(field.get("status"))
+    status = effective_field_status(field)
     trace = field.get("trace") if isinstance(field.get("trace"), Mapping) else {}
     locked = bool(field.get("locked") or trace.get("locked") or field.get("database_locked"))
     if locked:
         return False
-    return bool(field.get("editable")) or status == "candidate_from_cdc"
+    return bool(field.get("editable")) or status in {"candidate_from_cdc", "candidate_from_power_profile"}
 
 
 def field_badge_label(field: Mapping[str, Any]) -> str:
-    status = _normalize_status(field.get("status"))
+    status = effective_field_status(field)
     labels = {
         "computed": "calcule",
         "input": "saisi",
@@ -102,6 +121,7 @@ def field_badge_label(field: Mapping[str, Any]) -> str:
         "derived": "deduit",
         "contrainte_cdc": "contrainte cdc",
         "candidate_from_cdc": "candidat backend",
+        "candidate_from_power_profile": "hypothese predim",
         "validated_by_optimization": "valide optimisation",
         "rejected_by_optimization": "rejete optimisation",
         "missing_required": "bloquant",
@@ -114,7 +134,7 @@ def field_badge_label(field: Mapping[str, Any]) -> str:
 
 
 def field_badge_color(field: Mapping[str, Any]) -> str:
-    return STATUS_COLORS.get(_normalize_status(field.get("status")), "warning")
+    return STATUS_COLORS.get(effective_field_status(field), "warning")
 
 
 def is_cao_available(contract: Mapping[str, Any]) -> bool:
@@ -144,9 +164,11 @@ def get_missing_required_fields(contract: Mapping[str, Any]) -> List[str]:
 
 
 def candidate_label(field: Mapping[str, Any]) -> str | None:
-    status = _normalize_status(field.get("status"))
+    status = effective_field_status(field)
     if status == "candidate_from_cdc":
         return "proposee par le backend"
+    if status == "candidate_from_power_profile":
+        return "hypothese de pre-dimensionnement"
     if status == "validated_by_optimization":
         return "validee par optimisation"
     if status == "rejected_by_optimization":
@@ -158,9 +180,9 @@ def contract_fields_by_status(contract: Mapping[str, Any], status: str) -> List[
     normalized = _normalize_status(status)
     fields = contract.get("fields", []) if isinstance(contract, Mapping) else []
     return [
-        dict(field)
+        annotate_contract_field(field)
         for field in fields
-        if isinstance(field, Mapping) and _normalize_status(field.get("status")) == normalized
+        if isinstance(field, Mapping) and effective_field_status(field) == normalized
     ]
 
 
@@ -178,5 +200,4 @@ def diagnostic_patch_is_automatic(patch: Mapping[str, Any]) -> bool:
 
 
 def _normalize_status(value: Any) -> str:
-    raw = str(value or "")
-    return CANONICAL_STATUS_ALIASES.get(raw, raw)
+    return normalize_contract_status(CANONICAL_STATUS_ALIASES.get(str(value or "").strip().lower(), value))

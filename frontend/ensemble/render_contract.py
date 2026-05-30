@@ -32,6 +32,12 @@ from frontend.ensemble.piece_data_adapter import (
     get_piece_report,
     safe_dict,
 )
+from frontend.ensemble.contract_adapter import (
+    STATUS_COMPUTED,
+    STATUS_PARTIAL as CONTRACT_STATUS_PARTIAL,
+    field_has_trace,
+    normalize_contract_status,
+)
 
 
 def empty_render_contract(
@@ -104,11 +110,20 @@ def normalize_view_3d(view: Mapping[str, Any]) -> Dict[str, Any]:
 def normalize_chart(chart: Mapping[str, Any]) -> Dict[str, Any]:
     series = list(chart.get("series") or [])
     has_points = any(isinstance(item, Mapping) and item.get("points") for item in series)
-    status = chart.get("status") or (STATUS_AVAILABLE if has_points else STATUS_PARTIAL)
+    raw_status = chart.get("status") or chart.get("statut")
+    if raw_status is not None:
+        status = normalize_contract_status(raw_status)
+        if status == STATUS_COMPUTED and not field_has_trace(chart):
+            status = CONTRACT_STATUS_PARTIAL
+    else:
+        status = STATUS_AVAILABLE if has_points else STATUS_PARTIAL
+    if not has_points and status == STATUS_AVAILABLE:
+        status = STATUS_PARTIAL
     return {
         "id": chart.get("id") or chart.get("name") or "chart_backend",
         "type": "chart",
         "status": status,
+        "raw_status": raw_status,
         "title": chart.get("title") or chart.get("titre") or chart.get("id") or "Graphique backend",
         "x_label": chart.get("x_label") or "",
         "y_label": chart.get("y_label") or "",
@@ -118,6 +133,12 @@ def normalize_chart(chart: Mapping[str, Any]) -> Dict[str, Any]:
         "source": chart.get("source") or "backend.mechanical_graphs",
         "interpretation": chart.get("interpretation") or "",
         "missing_fields": list(chart.get("missing_fields") or chart.get("missing") or []),
+        "trace_present": field_has_trace(chart),
+        "warning": chart.get("warning") or chart.get("avertissement") or (
+            "Graphique partiel : donnees ou trace backend insuffisantes."
+            if status == STATUS_PARTIAL
+            else None
+        ),
     }
 
 

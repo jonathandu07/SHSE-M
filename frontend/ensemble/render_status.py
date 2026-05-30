@@ -30,9 +30,22 @@ STATUS_ERROR = "error"
 
 def normalize_render_status(value: Any) -> str:
     text = str(value or "").strip().lower()
-    if text in {"available", "ok", "computed", "validated_by_optimization", "exploitable_pour_redessin_solidworks"}:
+    if text in {"available", "ok", "input", "database", "exploitable_pour_redessin_solidworks"}:
         return STATUS_AVAILABLE
-    if text in {"partial", "partiel", "candidate_from_cdc", "pre_dimensionne_partiel", "conceptuel_non_cote"}:
+    if text in {
+        "partial",
+        "partiel",
+        "computed",
+        "derived",
+        "validated_by_optimization",
+        "candidate_from_cdc",
+        "candidate_from_power_profile",
+        "candidate_optimized",
+        "optimized",
+        "validated",
+        "pre_dimensionne_partiel",
+        "conceptuel_non_cote",
+    }:
         return STATUS_PARTIAL
     if text in {"error", "impossible"}:
         return STATUS_ERROR
