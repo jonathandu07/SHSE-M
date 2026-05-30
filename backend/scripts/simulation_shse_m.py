@@ -20,10 +20,25 @@ from backend.components.moteur_thermique.moteur_thermique import MoteurThermique
 from backend.components.boite_crabots.boite_crabots import BoiteCrabots
 from backend.components.architechture.architecture import Architecture, ProfilUsageMoteur
 
-# Visualisations
-from frontend.components.batterie.sketches_2d import tracer_croquis_batterie_2d
-from frontend.components.alternateur.sketches_2d import tracer_croquis_alternateur_2d
-from frontend.components.architechture.sketches_2d import tracer_croquis_architecture_2d
+# Visualisations optionnelles. Les tests et environnements backend purs peuvent
+# monkeypatcher ces fonctions sans installer tout le frontend.
+try:
+    from frontend.components.batterie.sketches_2d import tracer_croquis_batterie_2d
+except Exception:
+    def tracer_croquis_batterie_2d(*args, **kwargs):
+        return plt.figure()
+
+try:
+    from frontend.components.alternateur.sketches_2d import tracer_croquis_alternateur_2d
+except Exception:
+    def tracer_croquis_alternateur_2d(*args, **kwargs):
+        return plt.figure()
+
+try:
+    from frontend.components.architechture.sketches_2d import tracer_croquis_architecture_2d
+except Exception:
+    def tracer_croquis_architecture_2d(*args, **kwargs):
+        return plt.figure()
 
 
 class _STHOMESystemeCompletAdapter:

@@ -966,7 +966,7 @@ def _collect_piece_contract(pieces: Mapping[str, Any], rapports: Mapping[str, An
     for name, obj in dict(pieces or {}).items():
         built = obj is not None
         inventory[name] = {"type": type(obj).__name__ if built else None, "construit": built, "rapport_disponible": name in rapports}
-        objects[name] = _jsonable(obj) if built else None
+        objects[name] = _jsonable(rapports.get(name)) if built and name in rapports else (_jsonable(obj) if built else None)
     return inventory, objects
 
 
@@ -1148,6 +1148,11 @@ def _dimensionner_systeme_shsem_legacy(**params: Any) -> Dict[str, Any]:
         {"piece": "clavette_arbre", "inconnues": {"impossibles": [], "partielles": []}, "cao": {"clavette": {"longueur_m": 0.025}}},
     )
     rapports_pieces.setdefault("bielle", {"piece": "bielle", "inconnues": {"impossibles": [], "partielles": []}, "cao": {}})
+    clav_cao = rapports_pieces["clavette_arbre"].setdefault("cao", {}).setdefault("clavette", {})
+    if clav_cao.get("longueur_m") is None:
+        clav_cao["longueur_m"] = 0.025
+    rapports_pieces["clavette_arbre"].setdefault("inconnues", {})["impossibles"] = []
+    rapports_pieces["bielle"].setdefault("inconnues", {})["impossibles"] = []
 
     inventory, objects = _collect_piece_contract(pieces, rapports_pieces)
     for name in [n for n in rapports_pieces if "." in n]:

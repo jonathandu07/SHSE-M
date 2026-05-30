@@ -977,11 +977,14 @@ class STHO_ME:
             _push(rapport, "partielles", "systeme_hybride_final", "Module systeme_hybride_final indisponible ; calcul global fallback limité.")
             fallback = self._fallback_aboutissement_systeme(cfg_final, rapport)
             rapport["aboutissement_systeme"] = fallback
+            rapport["construction"]["composants"]["systeme_complet"] = {"statut": "remplace_par_fallback_STHO_ME"}
             return fallback
         try:
             out = concevoir_systeme_hybride_final(cfg_final)  # type: ignore[misc]
             if isinstance(out, Mapping):
                 rapport["aboutissement_systeme"] = _to_jsonable(out, max_depth=9)
+                statut_systeme = "remplace_par_fallback_STHO_ME" if out.get("composant") == "systeme_hybride_final_fallback" else "calcule_par_systeme_hybride_final"
+                rapport["construction"]["composants"]["systeme_complet"] = {"statut": statut_systeme}
                 _merge_inconnues(rapport, out, prefix="aboutissement_systeme")
                 return dict(out)
             _push(rapport, "partielles", "systeme_hybride_final", f"Retour non dictionnaire : {type(out).__name__}.")
@@ -989,6 +992,7 @@ class STHO_ME:
             _push(rapport, "partielles", "systeme_hybride_final", str(exc))
         fallback = self._fallback_aboutissement_systeme(cfg_final, rapport)
         rapport["aboutissement_systeme"] = fallback
+        rapport["construction"]["composants"]["systeme_complet"] = {"statut": "remplace_par_fallback_STHO_ME"}
         return fallback
 
     def _fallback_aboutissement_systeme(self, cfg: Mapping[str, Any], rapport: Dict[str, Any]) -> Dict[str, Any]:
@@ -1146,10 +1150,12 @@ class STHO_ME:
         else:
             _push(rapport, "partielles", "moteur_thermique", "Aucune définition moteur thermique fournie.")
 
-        rapport["construction"]["composants"] = {
+        construction_composants = {
             name: {"cfg": _to_jsonable(self._build_component_cfg(name, resolved, systeme_final), max_depth=6), "rapport_present": name in comps_report}
             for name in ("moteur_electrique", "batterie", "alternateur", "boite_crabots", "architecture", "moteur_thermique")
         }
+        construction_composants.update(_safe_dict(rapport.get("construction", {}).get("composants")))
+        rapport["construction"]["composants"] = construction_composants
 
     def _run_moteur_electrique(self, cfg: Mapping[str, Any], *, strict: bool) -> Dict[str, Any]:
         if callable(concevoir_moteur_electrique):
@@ -1440,9 +1446,30 @@ class STHO_ME:
             "generation_pleine_sortie": "OK" if synth.get("ok_thermique_pleine_puissance") is True else "NON_VERIFIE_OU_INSUFFISANT",
             "cycle_croisiere": "OK" if synth.get("puissance_croisiere_selectionnee_kw") is not None else "NON_SELECTIONNE",
         }
+        p_out_w = _first_finite(resolved.get("puissance_sortie_moteur_electrique_w"), resolved.get("puissance_sortie_w"))
+        p_bus_w = _first_finite(resolved.get("puissance_bus_dc_w"), (synth.get("P_bus_dc_pleine_sortie_kw") * 1000.0) if _is_finite(synth.get("P_bus_dc_pleine_sortie_kw")) else None)
+        synth["moteur_electrique"] = {
+            "puissance_sortie_w": p_out_w,
+            "puissance_sortie_kw": None if p_out_w is None else p_out_w / 1000.0,
+        }
+        synth["systeme"] = {
+            "P_bus_dc_design_w": p_bus_w,
+            "V_bus_dc_v": _first_finite(resolved.get("tension_bus_dc_v")),
+            "courant_bus_dc_a": _first_finite(resolved.get("courant_bus_dc_a")),
+        }
+        synth["moteur_thermique"] = {
+            "architecture": synth.get("architecture_moteur"),
+            "nombre_cylindres": synth.get("nombre_cylindres"),
+            "alesage_m": synth.get("alesage_m"),
+            "course_m": synth.get("course_m"),
+            "rpm_nominal": synth.get("rpm_moteur_thermique"),
+            "puissance_requise_W": _first_finite(resolved.get("puissance_moteur_thermique_arbre_w")),
+            "couple_requis_Nm": _first_finite(resolved.get("couple_moteur_nm")),
+        }
         rapport["synthese"] = _to_jsonable(synth, max_depth=6)
 
         rapport["sous_systemes"] = {
+            "moteur_electrique": comp.get("moteur_electrique") or _dig(systeme_final, "sous_systemes", "sortie_et_bus_dc"),
             "sortie_et_bus_dc": _dig(systeme_final, "sous_systemes", "sortie_et_bus_dc"),
             "batterie": batt_rep or _dig(systeme_final, "sous_systemes", "batterie_tampon"),
             "alternateur": alt_rep or _dig(systeme_final, "sous_systemes", "alternateur_boite_modules"),
@@ -1603,6 +1630,21 @@ class STHO_ME:
         # Mise à jour compteurs après toutes les fusions.
         rapport["synthese"]["nb_inconnues_impossibles"] = len(rapport.get("inconnues", {}).get("impossibles", []))
         rapport["synthese"]["nb_inconnues_partielles"] = len(rapport.get("inconnues", {}).get("partielles", []))
+        rapport["synthese"]["etat"] = {
+            "resolution_lancee": bool(resolve_unknowns),
+            "optimisation_lancee": bool(optimize),
+            "strategie_energie_lancee": bool(rapport.get("rapports", {}).get("strategie_energie")),
+        }
+        rapport["strategie_energie"] = _safe_dict(_dig(rapport, "rapports", "strategie_energie"))
+        rapport["optimisation"] = _safe_dict(_dig(rapport, "rapports", "optimisation"))
+        if rapport["optimisation"]:
+            rapport.setdefault("tracabilite", {}).setdefault("optimization_runs", []).append(
+                {
+                    "source": "backend.ensemble.optimisation",
+                    "status": rapport["optimisation"].get("status") or rapport["optimisation"].get("mode"),
+                    "score_global": rapport["optimisation"].get("score_global"),
+                }
+            )
         if not frontend_contract:
             rapport.pop("frontend", None)
         return _to_jsonable(rapport, max_depth=12)
