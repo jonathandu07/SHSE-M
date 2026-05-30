@@ -4,6 +4,12 @@ from backend.ensemble.STHO_ME import STHO_ME
 from backend.modules.systeme.data_repository import SystemDataRepository
 from backend.modules.systeme.frontend_contract import build_frontend_contract
 from backend.modules.systeme.resolution_inconnues import DonneeCandidate, resoudre_inconnues_systeme
+from backend.modules.systeme.status import (
+    STATUS_CANDIDATE_FROM_CDC,
+    STATUS_PARTIAL,
+    STATUS_VALIDATED_BY_OPTIMIZATION,
+    normalize_status,
+)
 from backend.modules.systeme.validation_candidates import valider_candidate
 
 
@@ -24,6 +30,26 @@ def test_frontend_contract_ne_contient_pas_de_valeur_inventee():
 
     assert contract["fields"][0]["value"] == rapport["synthese"]["moteur_thermique"]["alesage_m"]
     assert all(field["status"] in {"computed", "derived", "database", "partial"} for field in contract["fields"])
+
+
+def test_frontend_contract_ne_valide_pas_une_valeur_sans_trace():
+    rapport = {
+        "meta": {"project_id": "p1"},
+        "synthese": {"moteur_thermique": {"alesage_m": 0.08}},
+        "inconnues": {"impossibles": [], "partielles": []},
+        "cao": {"solidworks_ready_detaille": False},
+    }
+
+    contract = build_frontend_contract(rapport, project_id="p1")
+
+    assert contract["fields"][0]["status"] == STATUS_PARTIAL
+    assert contract["fields"][0]["confidence"] == "untraced_report_value"
+
+
+def test_libelles_legacy_optimisation_ne_valident_pas_sans_trace():
+    assert normalize_status("optimisee") == STATUS_CANDIDATE_FROM_CDC
+    assert normalize_status("candidate_optimized") == STATUS_CANDIDATE_FROM_CDC
+    assert normalize_status("optimisee") != STATUS_VALIDATED_BY_OPTIMIZATION
 
 
 def test_inconnue_en_bdd_est_recuperee_source_database(tmp_path):

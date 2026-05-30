@@ -47,9 +47,11 @@ LEGACY_STATUS_MAP = {
     "calcule": STATUS_COMPUTED,
     "deduite": STATUS_DERIVED,
     "deduit": STATUS_DERIVED,
-    "optimisee": STATUS_VALIDATED_BY_OPTIMIZATION,
+    # Libelles historiques ambigus : une optimisation proposee n'est pas une
+    # validation tant que le recalcul ne l'a pas marquee explicitement.
+    "optimisee": STATUS_CANDIDATE_FROM_CDC,
     "candidate_generated": STATUS_CANDIDATE_FROM_CDC,
-    "candidate_optimized": STATUS_VALIDATED_BY_OPTIMIZATION,
+    "candidate_optimized": STATUS_CANDIDATE_FROM_CDC,
     "candidate_rejected": STATUS_REJECTED_BY_OPTIMIZATION,
     "generated_from_cahier_des_charges": STATUS_CANDIDATE_FROM_CDC,
     "materiau": STATUS_DATABASE,

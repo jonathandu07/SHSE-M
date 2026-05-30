@@ -11,6 +11,7 @@ from backend.modules.systeme.status import (
     STATUS_DATABASE,
     STATUS_MISSING_REQUIRED,
     STATUS_VALIDATED_BY_OPTIMIZATION,
+    STATUS_PARTIAL,
     normalize_status,
 )
 
@@ -36,9 +37,20 @@ def build_frontend_contract(
         value = _get_path(rapport, path)
         if value is not None:
             trace = trace_by_path.get(path, {})
-            status = _normalize_status(trace.get("status") or trace.get("source") or "computed")
+            trace_status = trace.get("status") or trace.get("source")
+            status = _normalize_status(trace_status) if trace_status else STATUS_PARTIAL
             metadata = trace.get("metadata") if isinstance(trace.get("metadata"), Mapping) else {}
             locked = bool(trace.get("locked") or metadata.get("locked"))
+            confidence = trace.get("confidence")
+            if not confidence:
+                if status == STATUS_CANDIDATE_FROM_CDC:
+                    confidence = "candidate"
+                elif status == STATUS_VALIDATED_BY_OPTIMIZATION:
+                    confidence = STATUS_VALIDATED_BY_OPTIMIZATION
+                elif trace_status:
+                    confidence = status
+                else:
+                    confidence = "untraced_report_value"
             fields.append(
                 {
                     "path": path,
@@ -50,7 +62,7 @@ def build_frontend_contract(
                     "editable": status == STATUS_CANDIDATE_FROM_CDC and not locked,
                     "blocking": False,
                     "reason": trace.get("reason"),
-                    "confidence": trace.get("confidence") or ("candidate" if status == STATUS_CANDIDATE_FROM_CDC else "validated"),
+                    "confidence": confidence,
                     "trace": dict(trace),
                 }
             )
