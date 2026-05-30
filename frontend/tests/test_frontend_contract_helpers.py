@@ -59,3 +59,15 @@ def test_cao_non_ready_bloque_step_et_solidworks():
     assert is_cao_available(contract) is False
     assert is_real_solidworks_available(contract) is False
     assert is_step_export_available(contract) is False
+
+
+def test_statuts_frontend_respectent_trace_et_legacy():
+    assert get_field_status({"fields": [{"path": "x", "value": 1, "status": "computed"}]}, "x") == "partial"
+    assert get_field_status({"fields": [{"path": "x", "value": 1, "status": "computed", "trace": {"source": "formula"}}]}, "x") == "computed"
+    assert get_field_status({"fields": [{"path": "x", "value": 1, "status": "validated_by_optimization"}]}, "x") == "partial"
+    assert get_field_status({"fields": [{"path": "x", "value": 1, "status": "validated_by_optimization", "trace": {"validation": "ok"}}]}, "x") == "validated_by_optimization"
+
+    legacy = {"value": 2, "status": "candidate_optimized"}
+    assert field_badge_label(legacy) == "candidat backend"
+    assert field_color(legacy) == "warning"
+    assert candidate_label({"value": 2, "status": "candidate_from_power_profile"}) == "hypothese de pre-dimensionnement"

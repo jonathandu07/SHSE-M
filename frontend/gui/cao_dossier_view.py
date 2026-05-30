@@ -130,7 +130,7 @@ class CaoDossierScreen(Screen):
             panel.add_widget(_label("Aucune valeur de dessin exploitable.", COLORS["MUTED"]))
             return panel
         for key, value in list(values.items())[:7]:
-            panel.add_widget(MetricRow(str(key), value, "", "ok"))
+            panel.add_widget(MetricRow(str(key), value, "", "partiel"))
         return panel
 
     def _actions_panel(self, actions: list[Any]) -> PremiumCard:
@@ -203,9 +203,9 @@ def _bool_status(value: Any) -> str:
 
 def _status(value: Any) -> str:
     text = str(value or "").lower()
-    if text in {"3d_indicative", "croquis_cotes", "available", "exploitable_pour_redessin_solidworks", "partiel_exploitable", "pre_dimensionne"}:
+    if text in {"available", "exploitable_pour_redessin_solidworks"}:
         return "ok"
-    if text in {"partial", "pre_dimensionne_partiel", "conceptuel_non_cote"}:
+    if text in {"3d_indicative", "croquis_cotes", "partial", "partiel_exploitable", "pre_dimensionne", "pre_dimensionne_partiel", "conceptuel_non_cote", "candidate_from_cdc", "candidate_from_power_profile", "computed"}:
         return "partiel"
     return "missing"
 

@@ -59,6 +59,9 @@ def build_chart_figure(chart: Mapping[str, Any]) -> Any:
     import matplotlib.pyplot as plt
 
     chart_data = safe_dict(chart)
+    status = str(chart_data.get("status") or "").lower()
+    if status in {"partial", "missing_required", "missing", "impossible", "error", "rejected_by_optimization"}:
+        raise ValueError(f"Graphique indisponible : statut backend {status}.")
     series = chart_data.get("series") or []
     if not series:
         raise ValueError("Graphique indisponible : aucune serie backend.")

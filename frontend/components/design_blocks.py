@@ -61,7 +61,7 @@ def status_badge(status: Any) -> Dict[str, Any]:
     low = str(status or "missing_required").lower()
     if low in {"ok", "available", "computed", "database", "derived", "validated_by_optimization", "input"}:
         color = "NG"
-    elif low in {"candidate_from_cdc", "candidate", "partial"}:
+    elif low in {"candidate_from_cdc", "candidate_from_power_profile", "candidate", "candidate_optimized", "partial"}:
         color = "BFW_35"
     elif low in {"error", "impossible", "missing_required", "missing", "alerte", "unavailable"}:
         color = "RS"

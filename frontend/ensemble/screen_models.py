@@ -32,7 +32,14 @@ from frontend.components.design_blocks import (
 )
 from frontend.ensemble.actions import lister_actions_frontend
 from frontend.ensemble.cao_adapter import build_cao_frontend_summary
-from frontend.ensemble.contract_adapter import build_contract_model, get_contract_field, get_frontend_contract
+from frontend.ensemble.contract_adapter import (
+    STATUS_PARTIAL,
+    build_contract_model,
+    effective_field_status,
+    field_has_trace,
+    get_contract_field,
+    get_frontend_contract,
+)
 from frontend.ensemble.diagnostic_adapter import build_diagnostic_summary
 from frontend.ensemble.graphs_adapter import collect_backend_charts
 from frontend.ensemble.piece_data_adapter import get_path, safe_dict, safe_list
@@ -44,8 +51,27 @@ def _report_from_state(frontend_state: Mapping[str, Any] | None) -> Dict[str, An
     return safe_dict(state.get("raw_report")) or state
 
 
-def _metric(label: str, value: Any, unit: str = "", status: str | None = None) -> Dict[str, Any]:
-    return {"label": label, "value": value, "unit": unit, "status": status or ("missing" if value is None else "ok")}
+def _metric(label: str, value: Any, unit: str = "", status: str | None = None, **meta: Any) -> Dict[str, Any]:
+    row = {"label": label, "value": value, "unit": unit, "status": status or ("missing_required" if value is None else STATUS_PARTIAL)}
+    row.update({k: v for k, v in meta.items() if v is not None})
+    if value is not None and "confidence" not in row and row["status"] == STATUS_PARTIAL:
+        row["confidence"] = "untraced_report_value"
+    return row
+
+
+def _metric_from_field(label: str, field: Mapping[str, Any], unit: str = "") -> Dict[str, Any]:
+    if not field:
+        return _metric(label, None, unit, "missing_required", confidence=None)
+    return _metric(
+        label,
+        field.get("value"),
+        field.get("unit") or unit,
+        effective_field_status(field),
+        confidence=field.get("confidence") or ("traced" if field_has_trace(field) else "untraced_report_value"),
+        trace_present=field_has_trace(field),
+        source_path=field.get("path"),
+        warning=field.get("display_warning"),
+    )
 
 
 def _bool_text(value: Any) -> str:
@@ -90,13 +116,13 @@ def build_power_chain_model(frontend_state: Mapping[str, Any] | None) -> list[Di
     chain = safe_dict(report.get("validation_chaine_100kw")) or safe_dict(get_path(report, "frontend.chain_validation"))
     chain_values = safe_dict(chain.get("valeurs"))
     return [
-        _metric("Sortie moteur electrique", get_contract_field(contract, "synthese.moteur_electrique.puissance_sortie_w").get("value"), "W"),
-        _metric("Bus DC design", get_contract_field(contract, "synthese.systeme.P_bus_dc_design_w").get("value"), "W"),
+        _metric_from_field("Sortie moteur electrique", get_contract_field(contract, "synthese.moteur_electrique.puissance_sortie_w"), "W"),
+        _metric_from_field("Bus DC design", get_contract_field(contract, "synthese.systeme.P_bus_dc_design_w"), "W"),
         _metric("Alternateur electrique", chain_values.get("puissance_alternateur_electrique_w"), "W"),
         _metric("Moteur thermique arbre", chain_values.get("puissance_moteur_thermique_arbre_w"), "W"),
         _metric("Regime thermique", chain_values.get("rpm_moteur_thermique"), "rpm"),
         _metric("Couple thermique", chain_values.get("couple_moteur_thermique_nm"), "Nm"),
-        _metric("Score chaine", chain.get("score_chaine_100"), "/100", "ok" if chain.get("ok") else ("alerte" if chain else "missing")),
+        _metric("Score chaine", chain.get("score_chaine_100"), "/100", STATUS_PARTIAL if chain else "missing_required"),
     ]
 
 
@@ -107,6 +133,7 @@ def build_mechanical_model(frontend_state: Mapping[str, Any] | None) -> list[Dic
     chain_livrables = safe_dict(chain.get("livrables"))
     cao_summary = build_cao_frontend_summary(report)
     graphs = safe_dict(report.get("mechanical_graphs")) or safe_dict(get_frontend_contract(report).get("mechanical_graphs"))
+    graphs_summary = collect_backend_charts(report)
     materials = safe_list(get_path(graphs, "context.materiaux_autorises"))
     boite_check = _chain_check(chain, "boite_reliable")
     couple_check = _chain_check(chain, "couple_moteur_thermique_calculable")
@@ -117,7 +144,7 @@ def build_mechanical_model(frontend_state: Mapping[str, Any] | None) -> list[Dic
         _metric("Boite/crabots", _bool_text(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
         _metric("Alternateur relie", _bool_text(boite_check.get("ok")) if boite_check else "-", "", "ok" if boite_check.get("ok") else "alerte"),
         _metric("Materiaux candidats", ", ".join(str(x) for x in materials[:3]) or None, "", "ok" if materials else "missing"),
-        _metric("Graphes mecaniques", graphs.get("graphs_available") or len(safe_list(graphs.get("graphiques"))), "", "ok" if graphs else "alerte"),
+        _metric("Graphes mecaniques", graphs.get("graphs_available") or len(safe_list(graphs.get("graphiques"))), "", graphs_summary.get("status") or "missing_required", warnings=graphs_summary.get("warnings")),
     ]
 
 

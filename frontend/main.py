@@ -53,6 +53,7 @@ from frontend.ensemble.contract_adapter import (
     get_frontend_contract,
     index_contract_fields,
 )
+from frontend.ensemble.graphs_adapter import collect_backend_charts
 
 
 # =============================================================================
@@ -802,7 +803,14 @@ def _extract_graph_blocks(report: Mapping[str, Any]) -> Dict[str, Any]:
         if key in cao:
             candidates[f"cao.{key}"] = _jsonable(cao[key])
 
-    return candidates
+    summary = collect_backend_charts(report)
+    return {
+        "status": summary.get("status"),
+        "charts": summary.get("charts", []),
+        "missing_fields": summary.get("missing_fields", []),
+        "warnings": summary.get("warnings", []),
+        "raw_blocks": candidates,
+    }
 
 
 def _extract_cao_block(report: Mapping[str, Any]) -> Dict[str, Any]:

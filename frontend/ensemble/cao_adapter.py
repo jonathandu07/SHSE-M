@@ -30,7 +30,9 @@ def build_cao_frontend_summary(report: Mapping[str, Any]) -> Dict[str, Any]:
     croquis = safe_list(dossier.get("croquis_2d"))
     vues = safe_list(dossier.get("vues_3d"))
     graphs = safe_list(get_path(data, "mechanical_graphs.graphiques"))
-    solidworks_ready = bool(cao.get("solidworks_ready") or dossier.get("solidworks_ready"))
+    missing_for_solidworks = safe_list(cao.get("missing_for_solidworks") or dossier.get("missing_for_solidworks"))
+    raw_solidworks_ready = bool(cao.get("solidworks_ready") or dossier.get("solidworks_ready"))
+    solidworks_ready = raw_solidworks_ready and not missing_for_solidworks and str(cao.get("status") or "").lower() not in {"partial", "missing_required", "impossible", "error"}
 
     return {
         "mode": dossier.get("mode") or cao.get("mode") or ("croquis_cotes_et_3d_indicative" if dossier else "indisponible"),
@@ -40,10 +42,11 @@ def build_cao_frontend_summary(report: Mapping[str, Any]) -> Dict[str, Any]:
         "views_3d_available": bool(cao.get("views_3d_available")) or bool(vues),
         "stress_graphs_available": bool(cao.get("stress_graphs_available")) or bool(graphs),
         "drawing_data_available": bool(cao.get("drawing_data_available")) or bool(dossier.get("donnees_solidworks") or dossier.get("pieces")),
-        "missing_for_solidworks": safe_list(cao.get("missing_for_solidworks") or dossier.get("missing_for_solidworks")),
+        "missing_for_solidworks": missing_for_solidworks,
         "missing_for_sketches": safe_list(cao.get("missing_for_sketches") or dossier.get("missing_for_sketches")),
         "missing_for_stress_graphs": safe_list(cao.get("missing_for_stress_graphs") or dossier.get("missing_for_stress_graphs")),
         "source": "backend.cao_dossier" if dossier else "backend.cao",
+        "warning": None if solidworks_ready else "CAO non finale : SolidWorks non pret ou champs manquants.",
     }
 
 

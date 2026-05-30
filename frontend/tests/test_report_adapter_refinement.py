@@ -34,6 +34,32 @@ def test_resolve_metric_cherche_plusieurs_chemins_backend():
     assert res["source"] == "test_source"
     assert res["resolved"] is True
 
+
+def test_resolve_metric_valeur_brute_reste_partielle():
+    report = {"path": 42}
+
+    res = resolve_metric(report, [{"raw_path": "path", "label": "x"}])
+
+    assert res["value"] == 42
+    assert res["status"] == "partial"
+    assert res["confidence"] == "untraced_report_value"
+
+
+def test_resolve_metric_computed_exige_trace_contractuelle():
+    report = {
+        "path": 42,
+        "frontend": {"fields": [{"path": "path", "value": 42, "status": "computed"}]},
+    }
+
+    res = resolve_metric(report, [{"raw_path": "path", "label": "x"}])
+
+    assert res["status"] == "partial"
+
+    report["frontend"]["fields"][0]["trace"] = {"source": "formule"}
+    traced = resolve_metric(report, [{"raw_path": "path", "label": "x"}])
+    assert traced["status"] == "computed"
+    assert traced["trace_present"] is True
+
 def test_dashboard_metrics_exclut_les_valeurs_none():
     report = {
         "resume_gui": {

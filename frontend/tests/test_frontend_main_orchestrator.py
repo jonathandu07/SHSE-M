@@ -89,3 +89,36 @@ def test_frontend_main_monte_un_shell_de_pages():
     for screen_name in ("home", "dashboard", "edit_parameters", "json_diagnostic", "technical_visualization", "cao_dossier", "raw_json"):
         assert f'"{screen_name}"' in source
     assert "_make_summary_text()" not in source.split("def build(self) -> Any:", 1)[1].split("def on_start", 1)[0]
+
+
+def test_ui_report_ne_marque_pas_valeur_brute_comme_calculee():
+    report = {"synthese": {"systeme": {"P_bus_dc_design_w": 120000.0}}}
+
+    ui = fm.build_frontend_ui_report(report)
+    bus = next(item for item in ui["kpis"] if item["label"] == "Bus DC design")
+
+    assert bus["status"] == "partial"
+    assert bus["confidence"] == "untraced_report_value"
+
+
+def test_ui_report_accepte_computed_seulement_avec_trace():
+    report = {
+        "synthese": {"systeme": {"P_bus_dc_design_w": 120000.0}},
+        "frontend": {
+            "fields": [
+                {
+                    "path": "synthese.systeme.P_bus_dc_design_w",
+                    "value": 120000.0,
+                    "unit": "W",
+                    "status": "computed",
+                    "trace": {"source": "resolution_inconnues", "formule": "P/U"},
+                }
+            ]
+        },
+    }
+
+    ui = fm.build_frontend_ui_report(report)
+    bus = next(item for item in ui["kpis"] if item["label"] == "Bus DC design")
+
+    assert bus["status"] == "computed"
+    assert bus["trace_present"] is True

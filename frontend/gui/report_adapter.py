@@ -25,6 +25,14 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from frontend.gui.backend_resource_adapter import build_resource_catalog
+from frontend.ensemble.contract_adapter import (
+    STATUS_PARTIAL,
+    annotate_contract_field,
+    effective_field_status,
+    field_has_trace,
+    get_frontend_contract,
+    get_contract_field,
+)
 
 
 # =============================================================================
@@ -330,14 +338,35 @@ def resolve_metric(report: Mapping[str, Any], candidates: List[Dict[str, Any]]) 
             continue
 
         unit = str(candidate.get("unit", unit_from_detail or default_unit or ""))
-        status = str(candidate.get("status", status_from_detail or "ok"))
-        source = str(candidate.get("source_type", source_from_detail or "backend"))
+        contract_field = _contract_field_for_path(report, path)
+        if contract_field:
+            status = effective_field_status(contract_field)
+            confidence = contract_field.get("confidence") or ("traced" if field_has_trace(contract_field) else "untraced_report_value")
+            trace_present = field_has_trace(contract_field)
+            warning = contract_field.get("display_warning")
+            source = str(contract_field.get("source") or source_from_detail or "backend_contract")
+        elif status_from_detail:
+            detail_field = annotate_contract_field({"path": path, "value": value, "status": status_from_detail, "source": source_from_detail, "trace": raw.get("trace") if isinstance(raw, Mapping) else {}})
+            status = effective_field_status(detail_field)
+            confidence = detail_field.get("confidence") or ("traced" if field_has_trace(detail_field) else "untraced_report_value")
+            trace_present = field_has_trace(detail_field)
+            warning = detail_field.get("display_warning")
+            source = str(candidate.get("source_type", source_from_detail or "backend"))
+        else:
+            status = STATUS_PARTIAL
+            confidence = "untraced_report_value"
+            trace_present = False
+            warning = "Valeur brute sans trace backend : affichage partiel uniquement."
+            source = str(candidate.get("source_type", source_from_detail or "backend_untraced"))
 
         return {
             "label": label,
             "value": _to_jsonable(value),
             "unit": unit,
             "status": status,
+            "confidence": confidence,
+            "trace_present": trace_present,
+            "display_warning": warning,
             "source": source,
             "raw_path": path,
             "resolved": True,
@@ -355,6 +384,14 @@ def resolve_metric(report: Mapping[str, Any], candidates: List[Dict[str, Any]]) 
         "missing_reason": "Donnée non trouvée dans les chemins backend testés",
         "candidates": tried,
     }
+
+
+def _contract_field_for_path(report: Mapping[str, Any], path: str) -> Dict[str, Any]:
+    contract = get_frontend_contract(report)
+    if not contract:
+        return {}
+    field = get_contract_field(contract, path)
+    return field if isinstance(field, dict) else {}
 
 
 def metric_from_paths(

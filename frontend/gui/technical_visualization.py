@@ -56,9 +56,9 @@ def _short(value: Any, max_len: int = 84) -> str:
 
 def _status(value: Any) -> str:
     low = str(value or "").lower()
-    if low in {"available", "ok", "computed", "validated_by_optimization"}:
+    if low in {"available", "ok"}:
         return "ok"
-    if low in {"partial", "candidate_from_cdc"}:
+    if low in {"partial", "computed", "derived", "validated_by_optimization", "candidate_from_cdc", "candidate_from_power_profile", "candidate_optimized"}:
         return "partiel"
     if low in {"error", "impossible"}:
         return "error"
