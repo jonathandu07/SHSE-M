@@ -1,4 +1,3 @@
-
 # backend/ensemble/optimisation.py
 # =============================================================================
 # ORCHESTRATEUR D'OPTIMISATION INTER-PIECES — SHSE-M
@@ -208,6 +207,36 @@ concevoir_architecture = _import_optional_attr(
         "architecture",
     ),
     "concevoir_architecture",
+)
+
+# Registre central STHO-ME des architectures.
+# Il est volontairement optionnel : optimisation.py reste importable même si
+# le module n'est pas encore présent dans l'arborescence locale.
+_ARCHITECTURE_STHOME_MODULES = (
+    "backend.components.architechture.modules.architecture_sthome",
+    "backend.components.architecture.modules.architecture_sthome",
+    "backend.modules.architecture.architecture_sthome",
+    "components.architechture.modules.architecture_sthome",
+    "components.architecture.modules.architecture_sthome",
+    "architecture_sthome",
+    "architecture_sthome_complete",
+)
+
+normaliser_architecture_sthome = _import_optional_attr(
+    _ARCHITECTURE_STHOME_MODULES,
+    "normaliser_architecture",
+)
+architecture_possible_sthome = _import_optional_attr(
+    _ARCHITECTURE_STHOME_MODULES,
+    "architecture_possible",
+)
+explorer_architectures_sthome = _import_optional_attr(
+    _ARCHITECTURE_STHOME_MODULES,
+    "explorer_architectures",
+)
+ARCHITECTURES_STHOME = _import_optional_attr(
+    _ARCHITECTURE_STHOME_MODULES,
+    "ARCHITECTURES",
 )
 
 OrchestrateurMoteurThermique = _import_optional_attr(
@@ -535,6 +564,320 @@ def _safe_report_score(report: Optional[Dict[str, Any]]) -> float:
     nb_inc = len(inc.get("impossibles", []) or []) + len(inc.get("partielles", []) or [])
     return max(0.0, 100.0 - 8.0 * nb_alertes - 2.0 * nb_inc)
 
+
+
+
+# ============================================================
+# Classement architectures — compatibilité architecture.py / architecture_sthome.py
+# ============================================================
+
+def _normaliser_architecture_nom(value: Any) -> Optional[str]:
+    """Normalise les alias d'architecture sans rendre optimisation.py dépendant d'un module précis."""
+    if value is None:
+        return None
+    if callable(normaliser_architecture_sthome):
+        try:
+            return str(normaliser_architecture_sthome(value))
+        except Exception:
+            pass
+    raw = str(value).strip()
+    token = raw.lower()
+    token = token.translate(str.maketrans({
+        "à": "a", "â": "a", "ä": "a", "é": "e", "è": "e", "ê": "e", "ë": "e",
+        "î": "i", "ï": "i", "ô": "o", "ö": "o", "ù": "u", "û": "u", "ü": "u", "ç": "c",
+    }))
+    for ch in (" ", "-", "/", "\\"):
+        token = token.replace(ch, "_")
+    while "__" in token:
+        token = token.replace("__", "_")
+    aliases = {
+        "l": "L", "ligne": "L", "en_ligne": "L", "inline": "L", "mono": "L", "monocylindre": "L", "mono_cylindre": "L",
+        "v": "V", "v2": "V", "v4": "V", "v6": "V", "v8": "V", "w": "W", "w12": "W",
+        "etoile": "Etoile", "radial": "Etoile", "radiale": "Etoile", "etoile_radial": "Etoile",
+        "boxer": "Boxer", "flat": "Boxer", "a_plat": "Boxer", "opposes": "Boxer",
+        "multi": "MultiModulesDC", "multi_modules": "MultiModulesDC", "multi_modules_dc": "MultiModulesDC", "modules_dc": "MultiModulesDC",
+        "piston_libre": "PistonLibre", "free_piston": "PistonLibre",
+    }
+    return aliases.get(token, raw)
+
+
+def _get_nested(mapping: Mapping[str, Any], *path: str) -> Any:
+    cur: Any = mapping
+    for key in path:
+        if not isinstance(cur, Mapping):
+            return None
+        cur = cur.get(key)
+    return cur
+
+
+def _deep_find_first(mapping: Any, names: Sequence[str], *, max_depth: int = 5) -> Any:
+    """Recherche récursive prudente dans des configs hétérogènes."""
+    if max_depth < 0:
+        return None
+    if isinstance(mapping, Mapping):
+        for name in names:
+            if name in mapping and mapping.get(name) is not None:
+                return mapping.get(name)
+        for value in mapping.values():
+            found = _deep_find_first(value, names, max_depth=max_depth - 1)
+            if found is not None:
+                return found
+    elif isinstance(mapping, (list, tuple)):
+        for value in mapping:
+            found = _deep_find_first(value, names, max_depth=max_depth - 1)
+            if found is not None:
+                return found
+    return None
+
+
+def _architecture_priority(architecture: Any) -> float:
+    arch = _normaliser_architecture_nom(architecture)
+    if isinstance(ARCHITECTURES_STHOME, Mapping) and arch in ARCHITECTURES_STHOME:
+        try:
+            return float(getattr(ARCHITECTURES_STHOME[arch], "priorite_sthome"))
+        except Exception:
+            try:
+                return float(ARCHITECTURES_STHOME[arch].get("priorite_sthome"))
+            except Exception:
+                pass
+    fallback = {"L": 1.0, "MultiModulesDC": 3.0, "Boxer": 4.0, "V": 5.0, "Etoile": 6.0, "PistonLibre": 7.0, "W": 8.0}
+    return float(fallback.get(str(arch), 99.0))
+
+
+def _architecture_candidate_score(cand: Mapping[str, Any]) -> Optional[float]:
+    """Score bas = meilleur. Compatible anciens et nouveaux rapports architecture."""
+    indices = _safe_dict(cand.get("indices"))
+    perf = _safe_dict(cand.get("performance_moyenne"))
+    details_score = _safe_dict(cand.get("details_score"))
+    score = _first_finite(
+        cand.get("score_global"),
+        cand.get("score_final"),
+        cand.get("score_multi_criteres"),
+        cand.get("score"),
+        cand.get("Score"),
+        details_score.get("score"),
+    )
+    if score is not None:
+        return score
+
+    # Si seul un rendement existe, on le transforme en pénalité.
+    eta = _first_finite(
+        cand.get("eta_globale_proxy"),
+        perf.get("eta_globale_proxy_moyenne"),
+        cand.get("rendement_chaine_estime"),
+    )
+    if eta is not None:
+        return 1.0 - eta if eta <= 1.5 else 100.0 - eta
+
+    rendement_indice = _first_finite(cand.get("rendement_indice"), indices.get("rendement_indice"))
+    if rendement_indice is not None:
+        return rendement_indice
+    return None
+
+
+def _normaliser_candidat_architecture(cand: Mapping[str, Any], *, source: str) -> Optional[Dict[str, Any]]:
+    raw = _safe_dict(cand)
+    arch = _normaliser_architecture_nom(_first_non_none(raw.get("architecture"), raw.get("Architecture"), raw.get("id")))
+    if not arch:
+        return None
+    indices = _safe_dict(raw.get("indices"))
+    perf = _safe_dict(raw.get("performance_moyenne"))
+    gabarit = _safe_dict(raw.get("gabarit"))
+    score = _architecture_candidate_score(raw)
+    eta = _first_finite(raw.get("eta_globale_proxy"), perf.get("eta_globale_proxy_moyenne"), raw.get("rendement_chaine_estime"))
+    rendement_indice = _first_finite(raw.get("rendement_indice"), indices.get("rendement_indice"))
+    cout_maintenance = _first_finite(
+        raw.get("cout_maintenance_eur"),
+        raw.get("Cout_Maint_Estime"),
+        _get_nested(raw, "maintenance", "cout_max_estime_eur"),
+        indices.get("cout_maintenance_eur"),
+    )
+    masse = _first_finite(raw.get("masse_estimee_kg"), _get_nested(raw, "masse", "masse_totale_estimee_kg"), indices.get("masse_relative"), raw.get("masse_relative"))
+    compacite = _first_finite(raw.get("compacite_score"), indices.get("compacite_score"))
+    valid_raw = _first_non_none(raw.get("valide_packaging"), raw.get("valide"), True)
+    valide = bool(valid_raw)
+    return {
+        "architecture": str(arch),
+        "libelle": _first_non_none(raw.get("libelle"), raw.get("statut_recommande"), str(arch)),
+        "N_cyl": _safe_int(_first_non_none(raw.get("N_cyl"), raw.get("nb_cylindres"))),
+        "score": score,
+        "eta_globale_proxy": eta,
+        "rendement_indice": rendement_indice,
+        "cout_maintenance_eur": cout_maintenance,
+        "masse_estimee_kg_ou_relative": masse,
+        "compacite_score": compacite,
+        "valide": valide,
+        "alesage_mm": _first_finite(raw.get("alesage_mm"), raw.get("Bore_mm"), raw.get("bore_mm")),
+        "course_mm": _first_finite(raw.get("course_mm"), raw.get("Course_mm")),
+        "ratio_S_B": _first_finite(raw.get("ratio_S_B"), raw.get("Ratio_Sur_B"), raw.get("ratio_course_alesage")),
+        "longueur_m": _first_finite(raw.get("L_pkg_m_estimee"), gabarit.get("longueur_m")),
+        "largeur_m": _first_finite(raw.get("W_pkg_m_estimee"), gabarit.get("largeur_m")),
+        "hauteur_m": _first_finite(raw.get("H_pkg_m_estimee"), gabarit.get("hauteur_m")),
+        "priorite_sthome": _architecture_priority(arch),
+        "source": source,
+        "notes": list(raw.get("notes") or []) if isinstance(raw.get("notes"), list) else ([] if raw.get("notes") is None else [str(raw.get("notes"))]),
+        "details": raw,
+    }
+
+
+def _collect_architecture_candidates(rep_arch: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    r = _safe_dict(rep_arch)
+    if not r:
+        return []
+    candidates: List[Dict[str, Any]] = []
+
+    def append_any(obj: Any, source: str) -> None:
+        if isinstance(obj, Mapping):
+            # Dictionnaire de candidats par architecture.
+            if any(isinstance(v, Mapping) for v in obj.values()) and not ("architecture" in obj or "Architecture" in obj):
+                for k, v in obj.items():
+                    if isinstance(v, Mapping):
+                        vv = dict(v)
+                        vv.setdefault("architecture", k)
+                        item = _normaliser_candidat_architecture(vv, source=f"{source}.{k}")
+                        if item:
+                            candidates.append(item)
+                return
+            item = _normaliser_candidat_architecture(obj, source=source)
+            if item:
+                candidates.append(item)
+        elif isinstance(obj, (list, tuple)):
+            for i, row in enumerate(obj):
+                if isinstance(row, Mapping):
+                    item = _normaliser_candidat_architecture(row, source=f"{source}[{i}]")
+                    if item:
+                        candidates.append(item)
+
+    append_any(r.get("meilleur"), "meilleur")
+    append_any(r.get("meilleur_candidat"), "meilleur_candidat")
+    append_any(r.get("exploration"), "exploration")
+    append_any(r.get("candidats_tries"), "candidats_tries")
+    append_any(r.get("classement_architectures"), "classement_architectures")
+    append_any(r.get("meilleurs_par_architecture"), "meilleurs_par_architecture")
+    append_any(_get_nested(r, "rapport_complet", "meilleur"), "rapport_complet.meilleur")
+    append_any(_get_nested(r, "rapport_complet", "exploration"), "rapport_complet.exploration")
+    append_any(_get_nested(r, "solution_fine_multicas", "meilleur"), "solution_fine_multicas.meilleur")
+    append_any(_get_nested(r, "solution_fine_multicas", "meilleur_candidat"), "solution_fine_multicas.meilleur_candidat")
+    append_any(_get_nested(r, "solution_fine_multicas", "candidats_tries"), "solution_fine_multicas.candidats_tries")
+    append_any(_get_nested(r, "solution_module_globale", "rapport_complet", "meilleur"), "solution_module_globale.rapport_complet.meilleur")
+    append_any(_get_nested(r, "solution_module_globale", "rapport_complet", "exploration"), "solution_module_globale.rapport_complet.exploration")
+
+    # Déduplication : conserver le meilleur score par architecture/N/alésage/course.
+    best_by_sig: Dict[Tuple[str, Optional[int], Optional[float], Optional[float]], Dict[str, Any]] = {}
+    for c in candidates:
+        sig = (
+            str(c.get("architecture")),
+            _safe_int(c.get("N_cyl")),
+            round(float(c["alesage_mm"]), 3) if _is_finite(c.get("alesage_mm")) else None,
+            round(float(c["course_mm"]), 3) if _is_finite(c.get("course_mm")) else None,
+        )
+        old = best_by_sig.get(sig)
+        if old is None:
+            best_by_sig[sig] = c
+            continue
+        old_score = _first_finite(old.get("score"), float("inf"))
+        new_score = _first_finite(c.get("score"), float("inf"))
+        if new_score < old_score:
+            best_by_sig[sig] = c
+    return list(best_by_sig.values())
+
+
+def _classer_architectures(rep_arch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    candidats = _collect_architecture_candidates(rep_arch)
+    if not candidats:
+        return {"meilleur": None, "classement": [], "source": "aucun_candidat"}
+
+    def sort_key(c: Mapping[str, Any]) -> Tuple[int, int, float, float, float, str]:
+        score = _first_finite(c.get("score"), float("inf"))
+        eta = _first_finite(c.get("eta_globale_proxy"), -1.0)
+        rendement_indice = _first_finite(c.get("rendement_indice"), float("inf"))
+        return (
+            0 if c.get("valide") else 1,
+            0 if _is_finite(score) else 1,
+            float(score) if _is_finite(score) else float("inf"),
+            float(rendement_indice) if _is_finite(rendement_indice) else float("inf"),
+            -float(eta) if _is_finite(eta) else 1.0,
+            str(c.get("architecture")),
+        )
+
+    candidats.sort(key=sort_key)
+    scores = [float(c["score"]) for c in candidats if _is_finite(c.get("score"))]
+    smin = min(scores) if scores else None
+    smax = max(scores) if scores else None
+    classement: List[Dict[str, Any]] = []
+    for idx, c in enumerate(candidats, start=1):
+        row = dict(c)
+        row["rang_efficacite"] = idx
+        if smin is not None and smax is not None and _is_finite(c.get("score")):
+            if abs(smax - smin) <= 1e-15:
+                row["efficacite_relative_100"] = 100.0
+            else:
+                row["efficacite_relative_100"] = max(0.0, min(100.0, 100.0 * (1.0 - (float(c["score"]) - smin) / (smax - smin))))
+        elif _is_finite(c.get("eta_globale_proxy")):
+            eta = float(c["eta_globale_proxy"])
+            row["efficacite_relative_100"] = max(0.0, min(100.0, eta * 100.0 if eta <= 1.5 else eta))
+        else:
+            row["efficacite_relative_100"] = None
+        classement.append(row)
+
+    best_by_arch: Dict[str, Dict[str, Any]] = {}
+    for row in classement:
+        arch = str(row.get("architecture"))
+        if arch not in best_by_arch:
+            best_by_arch[arch] = row
+
+    return {
+        "meilleur": classement[0],
+        "classement": classement,
+        "meilleurs_par_architecture": best_by_arch,
+        "source": "architecture.py/architecture_sthome",
+    }
+
+
+def _build_architecture_inputs_from_context(
+    *,
+    ext_sys: Mapping[str, Any],
+    ext_mt: Mapping[str, Any],
+    rep_arch: Optional[Dict[str, Any]],
+    configs_composants: Optional[Mapping[str, Any]],
+    configs_analyses: Optional[Mapping[str, Any]],
+    rapport_backend: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    reservoirs = [
+        _safe_dict(rep_arch),
+        _safe_dict(_safe_dict(rep_arch).get("entrees")),
+        _safe_dict(_safe_dict(configs_composants).get("architecture")),
+        _safe_dict(_safe_dict(configs_analyses).get("architecture")),
+        _safe_dict(configs_composants),
+        _safe_dict(configs_analyses),
+        _safe_dict(_safe_dict(rapport_backend).get("entrees")),
+    ]
+
+    def find(*names: str) -> Any:
+        for src in reservoirs:
+            found = _deep_find_first(src, names)
+            if found is not None:
+                return found
+        return None
+
+    inputs = {
+        "puissance_cible_w": _first_finite(
+            ext_sys.get("P_moteur_thermique_W"),
+            ext_sys.get("P_alt_meca_W"),
+            ext_sys.get("P_bus_dc_design_w"),
+            find("puissance_cible_w", "puissance_thermique_mecanique_w", "puissance_mecanique_requise_w"),
+        ),
+        "regime_tr_min": _first_finite(ext_sys.get("rpm_moteur"), find("regime_tr_min", "rpm_moteur", "regime_nominal_tr_min")),
+        "pme_pa": _first_finite(ext_sys.get("pme_pa"), ext_mt.get("pme_pa"), find("pme_pa", "pme_nominale_pa")),
+        "vitesse_piston_max_ms": _first_finite(find("vitesse_piston_max_ms", "Up_max_ms", "vitesse_piston_admissible_ms")),
+        "longueur_dispo_m": _first_finite(find("longueur_dispo_m", "L_max_m", "longueur_max_m")),
+        "largeur_dispo_m": _first_finite(find("largeur_dispo_m", "W_max_m", "largeur_max_m")),
+        "hauteur_dispo_m": _first_finite(find("hauteur_dispo_m", "H_max_m", "hauteur_max_m")),
+        "architectures_autorisees": find("architectures_autorisees"),
+        "architecture_forcee": find("architecture_forcee"),
+        "inclure_systeme": bool(find("inclure_systeme", "inclure_architectures_systeme") or False),
+    }
+    return {k: v for k, v in inputs.items() if v is not None}
 
 def _count_alertes(report: Optional[Dict[str, Any]]) -> int:
     return sum(len(v or []) for v in _safe_dict(_safe_dict(report).get("alertes")).values())
@@ -1665,6 +2008,50 @@ class OptimisationSysteme:
             ),
         }
 
+        # ----------------------------------------------------
+        # 2.1) Architecture : meilleur choix + classement par efficacité
+        # ----------------------------------------------------
+        arch_inputs = _build_architecture_inputs_from_context(
+            ext_sys=ext_sys,
+            ext_mt=ext_mt,
+            rep_arch=rep_arch,
+            configs_composants=self.configs_composants,
+            configs_analyses=self.configs_analyses,
+            rapport_backend=self.rapport_backend,
+        )
+
+        architecture_auto_calculee = False
+        classement_architecture = _classer_architectures(rep_arch)
+        if not classement_architecture.get("classement") and callable(concevoir_architecture):
+            requis = {"puissance_cible_w", "regime_tr_min", "pme_pa", "vitesse_piston_max_ms", "longueur_dispo_m", "largeur_dispo_m"}
+            if requis.issubset(set(arch_inputs.keys())):
+                try:
+                    rep_arch = concevoir_architecture(arch_inputs)
+                    architecture_auto_calculee = True
+                    classement_architecture = _classer_architectures(rep_arch)
+                    _append_note(rapport, "Architecture recalculée automatiquement depuis les données système disponibles.")
+                except Exception as exc:
+                    _push_inconnue(
+                        rapport,
+                        "partielles",
+                        "architecture",
+                        f"Classement architecture non recalculable automatiquement : {exc}",
+                    )
+        elif not classement_architecture.get("classement"):
+            manquants = [k for k in ("puissance_cible_w", "regime_tr_min", "pme_pa", "vitesse_piston_max_ms", "longueur_dispo_m", "largeur_dispo_m") if k not in arch_inputs]
+            _push_inconnue(
+                rapport,
+                "partielles",
+                "classement_architectures",
+                "Aucun classement architecture exploitable ; données manquantes : " + ", ".join(manquants),
+            )
+
+        rapport["architecture_optimisation"] = {
+            **classement_architecture,
+            "auto_calculee": architecture_auto_calculee,
+            "entrees_utilisees": arch_inputs,
+        }
+
         rapport["extractions"] = {
             "systeme_complet": ext_sys,
             "moteur_thermique": ext_mt,
@@ -1692,6 +2079,41 @@ class OptimisationSysteme:
         }
 
         coh = rapport["coherences"]
+
+        # ----------------------------------------------------
+        # 2.2) Cohérence architecture choisie / architecture optimale
+        # ----------------------------------------------------
+        architecture_best = _safe_dict(_safe_dict(rapport.get("architecture_optimisation")).get("meilleur"))
+        arch_opt = _normaliser_architecture_nom(architecture_best.get("architecture"))
+        arch_actuelle = _normaliser_architecture_nom(_first_non_none(ext_sys.get("architecture"), ext_mt.get("architecture")))
+        if arch_opt is not None:
+            coh["architecture_optimale"] = {
+                "architecture_actuelle": arch_actuelle,
+                "architecture_optimale": arch_opt,
+                "N_cyl_optimaux": architecture_best.get("N_cyl"),
+                "score_architecture": architecture_best.get("score"),
+                "efficacite_relative_100": architecture_best.get("efficacite_relative_100"),
+                "coherent": None if arch_actuelle is None else (arch_actuelle == arch_opt),
+            }
+            if arch_actuelle is not None and arch_actuelle != arch_opt:
+                _push_warning(
+                    rapport,
+                    "architecture",
+                    "architecture_non_optimale",
+                    f"Architecture actuelle {arch_actuelle} différente du meilleur candidat {arch_opt}.",
+                )
+            rapport["actions"].append({
+                "cible": "moteur_thermique",
+                "champ": "architecture",
+                "valeur": arch_opt,
+                "strategie": "utiliser_l_architecture_classee_premiere_par_le_solveur",
+            })
+            rapport["actions"].append({
+                "cible": "architecture",
+                "champ": "architecture_forcee",
+                "valeur": arch_opt,
+                "strategie": "forcer_le_premier_choix_puis_conserver_le_classement_complet",
+            })
 
         # ----------------------------------------------------
         # 3) Cohérences moteur / cylindre / piston
@@ -2457,6 +2879,38 @@ class OptimisationSysteme:
             "c_rate_decharge_estime": c_rate_decharge,
             "fenetre_soc": fenetre_soc,
             "systeme_coherent": (score_coherence >= 70.0 and nb_alertes == 0),
+            "architecture_optimale_proposee": _dig(rapport, "architecture_optimisation", "meilleur", "architecture"),
+            "architecture_optimale_N_cyl": _dig(rapport, "architecture_optimisation", "meilleur", "N_cyl"),
+            "architecture_optimale_score": _dig(rapport, "architecture_optimisation", "meilleur", "score"),
+            "architecture_optimale_efficacite_relative_100": _dig(rapport, "architecture_optimisation", "meilleur", "efficacite_relative_100"),
+            "classement_architectures_par_efficacite": [
+                {
+                    "rang": c.get("rang_efficacite"),
+                    "architecture": c.get("architecture"),
+                    "N_cyl": c.get("N_cyl"),
+                    "score": c.get("score"),
+                    "efficacite_relative_100": c.get("efficacite_relative_100"),
+                    "valide": c.get("valide"),
+                    "alesage_mm": c.get("alesage_mm"),
+                    "course_mm": c.get("course_mm"),
+                    "source": c.get("source"),
+                }
+                for c in list(_dig(rapport, "architecture_optimisation", "classement") or [])[:20]
+            ],
+            "classement_meilleur_candidat_par_architecture": [
+                {
+                    "rang": idx + 1,
+                    "architecture": c.get("architecture"),
+                    "N_cyl": c.get("N_cyl"),
+                    "score": c.get("score"),
+                    "efficacite_relative_100": c.get("efficacite_relative_100"),
+                    "valide": c.get("valide"),
+                    "alesage_mm": c.get("alesage_mm"),
+                    "course_mm": c.get("course_mm"),
+                    "source": c.get("source"),
+                }
+                for idx, c in enumerate(list((_dig(rapport, "architecture_optimisation", "meilleurs_par_architecture") or {}).values())[:20])
+            ],
         }
 
         # ----------------------------------------------------
@@ -2530,6 +2984,10 @@ class OptimisationSysteme:
             rapport,
             "Le score global agrège cohérence géométrique et pénalité de pertes de frottement connues."
         )
+        _append_note(
+            rapport,
+            "Le classement architecture vient en priorité de architecture.py / architecture_sthome.py : le premier choix est proposé, mais les autres candidats restent classés par efficacité."
+        )
 
         _dedup_rapport(rapport)
         return rapport
@@ -2596,7 +3054,11 @@ class OptimisationSysteme:
         bore = _first_finite(ext_sys.get("alesage_m"), ext_mt.get("alesage_m"))
         course = _first_finite(ext_sys.get("course_m"), ext_mt.get("course_m"))
         nb_cyl = _safe_int(_first_non_none(ext_sys.get("nb_cyl"), ext_mt.get("nb_cyl")))
-        arch = _first_non_none(ext_sys.get("architecture"), ext_mt.get("architecture"))
+        arch = _first_non_none(
+            _dig(rapport, "architecture_optimisation", "meilleur", "architecture"),
+            ext_sys.get("architecture"),
+            ext_mt.get("architecture"),
+        )
         pmax = _first_finite(ext_sys.get("pression_max_pa"), ext_mt.get("pression_max_pa"))
 
         if self.moteur_thermique is not None:
@@ -2736,6 +3198,26 @@ class OptimisationSysteme:
                 merged_cfg["moteur_thermique"] = self.moteur_thermique
             if "alternateur" not in merged_cfg and self.alternateur is not None:
                 merged_cfg["alternateur"] = self.alternateur
+        elif name == "architecture":
+            analyse_opt = _safe_dict(contexte.get("analyse_optimisation"))
+            ext = _safe_dict(analyse_opt.get("extractions"))
+            ext_sys_ctx = _safe_dict(ext.get("systeme_complet"))
+            ext_mt_ctx = _safe_dict(ext.get("moteur_thermique"))
+            inputs_arch = _build_architecture_inputs_from_context(
+                ext_sys=ext_sys_ctx,
+                ext_mt=ext_mt_ctx,
+                rep_arch=_safe_dict(analyse_opt.get("architecture_optimisation")),
+                configs_composants={"architecture": comp_cfg},
+                configs_analyses={"architecture": analysis_cfg},
+                rapport_backend=self.rapport_backend,
+            )
+            for k, v in inputs_arch.items():
+                merged_cfg.setdefault(k, v)
+            best_arch = _dig(analyse_opt, "architecture_optimisation", "meilleur", "architecture")
+            if best_arch is not None and "architecture_forcee" not in merged_cfg:
+                # On propose d'abord le meilleur choix, mais le rapport architecture garde
+                # son classement complet si le module reçoit aussi les contraintes globales.
+                merged_cfg.setdefault("architecture_forcee", best_arch)
 
         if callable(concevoir_fn) and merged_cfg:
             try:
