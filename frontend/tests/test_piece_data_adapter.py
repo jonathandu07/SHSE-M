@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from frontend.ensemble.piece_data_adapter import extract_field, get_piece_report, require_fields
+from frontend.ensemble.piece_data_adapter import extract_field, get_backend_graphs, get_piece_report, require_fields
 
 
 def test_data_adapter_ne_remplace_pas_cote_manquante_par_zero():
@@ -54,3 +54,20 @@ def test_data_adapter_degrade_computed_sans_trace():
 
     assert field["status"] == "partial"
     assert field["confidence"] == "untraced_report_value"
+
+
+def test_data_adapter_ne_melange_pas_roulement_arbre_et_roulement_vilebrequin():
+    report = {
+        "mechanical_graphs": {
+            "graphiques": [
+                {
+                    "id": "roulement_aiguille_arbre_vilebrequin_l10",
+                    "piece": "roulement_aiguille_arbre_vilebrequin",
+                    "series": [{"points": [{"x": 1, "y": 2}]}],
+                }
+            ]
+        }
+    }
+
+    assert get_backend_graphs(report, "roulement_aiguille_arbre") == []
+    assert len(get_backend_graphs(report, "roulement_aiguille_arbre_vilebrequin")) == 1

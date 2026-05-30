@@ -80,6 +80,10 @@ _PIECE_ALIASES: dict[str, tuple[str, ...]] = {
     "joint_piston": ("joint_piston",),
     "joint_deplaceur": ("joint_deplaceur",),
     "deplaceur": ("deplaceur",),
+    "coussinet_arbre_piston": ("coussinet_arbre_piston",),
+    "roulement_aiguille_arbre": ("roulement_aiguille_arbre",),
+    "roulement_aiguille_arbre_vilebrequin": ("roulement_aiguille_arbre_vilebrequin",),
+    "vis_couvercle_cylindre": ("vis_couvercle_cylindre",),
     "clavette_arbre": ("clavette_arbre", "clavette"),
     "arbre": ("arbre", "arbre_moteur"),
 }
@@ -164,6 +168,35 @@ def _aliases(name: str) -> tuple[str, ...]:
     key = str(name or "").strip()
     low = key.lower()
     return tuple(dict.fromkeys((key, low, *(_PIECE_ALIASES.get(low) or ()))))
+
+
+def _all_known_aliases() -> tuple[str, ...]:
+    names: list[str] = []
+    for key, aliases in _PIECE_ALIASES.items():
+        names.append(key)
+        names.extend(aliases)
+    return tuple(dict.fromkeys(str(name).lower().replace(".", "_") for name in names if name))
+
+
+def _resource_matches_piece(row: Mapping[str, Any], piece_name: str) -> bool:
+    aliases = tuple(alias.lower().replace(".", "_") for alias in _aliases(piece_name))
+    piece_value = row.get("piece") or row.get("piece_name") or row.get("nom_piece")
+    if piece_value:
+        piece_key = str(piece_value).split(".")[-1].lower().replace(".", "_")
+        return piece_key in aliases
+
+    text = " ".join(str(row.get(k) or "") for k in ("id", "name", "title", "titre")).lower()
+    normalized = "_" + "".join(ch if ch.isalnum() else "_" for ch in text) + "_"
+    for alias in aliases:
+        if f"_{alias}_" not in normalized:
+            continue
+        for known in _all_known_aliases():
+            if known in aliases:
+                continue
+            if known.startswith(f"{alias}_") and f"_{known}_" in normalized:
+                return False
+        return True
+    return False
 
 
 def _candidate_sections(global_report: Mapping[str, Any], piece_name: str) -> list[tuple[str, Any]]:
@@ -342,11 +375,8 @@ def get_backend_graphs(global_report: Mapping[str, Any], piece_name: str | None 
             if not isinstance(item, Mapping):
                 continue
             row = dict(item)
-            if piece_name:
-                text = " ".join(str(row.get(k) or "") for k in ("id", "piece", "title")).lower()
-                aliases = _aliases(piece_name)
-                if not any(alias.lower() in text for alias in aliases):
-                    continue
+            if piece_name and not _resource_matches_piece(row, piece_name):
+                continue
             graphs.append(row)
     return graphs
 
@@ -358,8 +388,7 @@ def get_backend_sketches(global_report: Mapping[str, Any], piece_name: str | Non
             continue
         row = dict(item)
         if piece_name:
-            text = " ".join(str(row.get(k) or "") for k in ("id", "piece", "title")).lower()
-            if not any(alias.lower() in text for alias in _aliases(piece_name)):
+            if not _resource_matches_piece(row, piece_name):
                 continue
         sketches.append(row)
     return sketches
@@ -372,8 +401,7 @@ def get_backend_views_3d(global_report: Mapping[str, Any], piece_name: str | Non
             continue
         row = dict(item)
         if piece_name:
-            text = " ".join(str(row.get(k) or "") for k in ("id", "piece", "title")).lower()
-            if not any(alias.lower() in text for alias in _aliases(piece_name)):
+            if not _resource_matches_piece(row, piece_name):
                 continue
         views.append(row)
     return views

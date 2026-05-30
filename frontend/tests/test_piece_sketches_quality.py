@@ -7,10 +7,15 @@ import pytest
 from frontend.components.moteur_thermique.pieces.arbre_piston.sketches_2d import build_sketch_contract, tracer_croquis
 from frontend.components.moteur_thermique.pieces.bielle.sketches_2d import build_sketch_contract as build_bielle_sketch_contract
 from frontend.components.moteur_thermique.pieces.couvercle_cylindre.sketches_2d import build_sketch_contract as build_couvercle_sketch_contract
+from frontend.components.moteur_thermique.pieces.coussinet_arbre_piston.sketches_2d import build_sketch_contract as build_coussinet_sketch_contract
 from frontend.components.moteur_thermique.pieces.cylindre.sketches_2d import build_sketch_contract as build_cylindre_sketch_contract
 from frontend.components.moteur_thermique.pieces.deplaceur.sketches_2d import build_sketch_contract as build_deplaceur_sketch_contract
+from frontend.components.moteur_thermique.pieces.joint_deplaceur.sketches_2d import build_sketch_contract as build_joint_deplaceur_sketch_contract
 from frontend.components.moteur_thermique.pieces.joint_piston.sketches_2d import build_sketch_contract as build_joint_piston_sketch_contract
 from frontend.components.moteur_thermique.pieces.piston.sketches_2d import build_sketch_contract as build_piston_sketch_contract
+from frontend.components.moteur_thermique.pieces.roulement_aiguille_arbre.sketches_2d import build_sketch_contract as build_roulement_arbre_sketch_contract
+from frontend.components.moteur_thermique.pieces.roulement_aiguille_arbre_vilebrequin.sketches_2d import build_sketch_contract as build_roulement_vilebrequin_sketch_contract
+from frontend.components.moteur_thermique.pieces.vis_couvercle_cylindre.sketches_2d import build_sketch_contract as build_vis_couvercle_sketch_contract
 from frontend.components.batterie.pieces.pack_batterie.sketches_2d import build_sketch_contract as build_pack_sketch_contract
 from frontend.components.batterie.pieces.pack_batterie.sketches_2d import tracer_croquis as tracer_pack_croquis
 
@@ -154,3 +159,133 @@ def test_joint_deplaceur_couvercle_restant_partiels_si_cotes_manquantes():
     assert joint["missing_fields"]
     assert deplaceur["missing_fields"]
     assert couvercle["missing_fields"]
+
+
+def test_joint_deplaceur_specialise_sans_compression_ni_gorge_inventees():
+    partial = build_joint_deplaceur_sketch_contract(
+        data={"piece": "joint_deplaceur", "geometrie": {"diametre_interieur_joint_m": 0.072}}
+    )
+
+    assert partial["status"] == "partial"
+    assert partial["geometry_json"]["sketch_style"] == "displacer_seal_groove_cross_section"
+    assert "squeeze" not in _feature_types(partial)
+    assert "groove" not in _feature_types(partial)
+    assert partial["geometry_json"]["final_geometry"] is False
+
+    complete_fields = build_joint_deplaceur_sketch_contract(
+        data={
+            "piece": "joint_deplaceur",
+            "geometrie": {
+                "diametre_interieur_joint_m": 0.072,
+                "diametre_exterieur_joint_m": 0.078,
+                "section_joint_m": 0.003,
+                "largeur_gorge_m": 0.004,
+                "squeeze": 0.12,
+                "jeu_radial_m": 0.0008,
+            },
+        }
+    )
+
+    features = _feature_types(complete_fields)
+    assert complete_fields["status"] == "available"
+    assert {"displacer_seal_inner_diameter", "displacer_seal_outer_diameter", "seal_section", "groove", "squeeze", "radial_clearance"} <= features
+    assert complete_fields["geometry_json"]["schematic"] is True
+    assert complete_fields["geometry_json"]["final_geometry"] is False
+
+
+def test_coussinet_arbre_piston_croquis_palier_lisse_sans_materiau_invente():
+    partial = build_coussinet_sketch_contract(
+        data={"piece": "coussinet_arbre_piston", "geometrie": {"diametre_exterieur_m": 0.032}}
+    )
+
+    assert partial["status"] == "partial"
+    assert partial["missing_fields"]
+
+    sketch = build_coussinet_sketch_contract(
+        data={
+            "piece": "coussinet_arbre_piston",
+            "geometrie": {
+                "diametre_interieur_m": 0.022,
+                "diametre_exterieur_m": 0.032,
+                "longueur_m": 0.028,
+                "jeu_radial_m": 0.00005,
+                "pression_projetee_pa": 1.2e6,
+            },
+        }
+    )
+
+    features = _feature_types(sketch)
+    assert sketch["status"] == "available"
+    assert sketch["geometry_json"]["sketch_style"] == "plain_bearing_bushing_section"
+    assert {"plain_bearing_inner_diameter", "plain_bearing_outer_diameter", "plain_bearing_length", "radial_clearance", "contact_zone"} <= features
+    assert "material" not in features
+    assert "materiau" not in features
+
+
+def test_roulements_aiguilles_croquis_schematique_sans_reference_catalogue():
+    arbre = build_roulement_arbre_sketch_contract(
+        data={
+            "piece": "roulement_aiguille_arbre",
+            "dimensions": {
+                "diametre_interieur_m": 0.022,
+                "diametre_exterieur_m": 0.030,
+                "largeur_m": 0.018,
+                "nombre_aiguilles": 18,
+                "charge_radiale_n": 1200,
+            },
+        }
+    )
+    vilebrequin = build_roulement_vilebrequin_sketch_contract(
+        data={
+            "piece": "roulement_aiguille_arbre_vilebrequin",
+            "dimensions": {
+                "diametre_maneton_m": 0.042,
+                "diametre_exterieur_m": 0.055,
+                "largeur_m": 0.024,
+                "nombre_aiguilles": 22,
+                "charge_maneton_n": 2800,
+            },
+        }
+    )
+
+    assert arbre["status"] == "available"
+    assert vilebrequin["status"] == "available"
+    assert arbre["geometry_json"]["sketch_style"] == "needle_bearing_piston_pin_interface_schematic"
+    assert vilebrequin["geometry_json"]["sketch_style"] == "needle_bearing_crankpin_interface_schematic"
+    assert {"inner_ring", "outer_ring", "bearing_width", "needles", "radial_load"} <= _feature_types(arbre)
+    assert {"inner_ring", "outer_ring", "bearing_width", "needles", "crankpin_load"} <= _feature_types(vilebrequin)
+    assert "catalog_reference" not in _feature_types(arbre)
+    assert "catalog_reference" not in _feature_types(vilebrequin)
+
+
+def test_vis_couvercle_cylindre_croquis_ne_devine_pas_precharge_couple_ou_nombre():
+    base = {
+        "piece": "vis_couvercle_cylindre",
+        "geometrie": {"diametre_nominal_m": 0.010, "longueur_vis_min_m": 0.055},
+    }
+    sketch = build_vis_couvercle_sketch_contract(data=base)
+
+    assert sketch["status"] == "available"
+    assert sketch["geometry_json"]["sketch_style"] == "cylinder_head_bolt_thread_schematic"
+    assert "screw_shank" in _feature_types(sketch)
+    assert "bolt_count" not in _feature_types(sketch)
+    assert "preload" not in _feature_types(sketch)
+    assert "tightening_torque" not in _feature_types(sketch)
+
+    with_bolt_data = build_vis_couvercle_sketch_contract(
+        data={
+            "piece": "vis_couvercle_cylindre",
+            "geometrie": {
+                "diametre_nominal_m": 0.010,
+                "longueur_vis_min_m": 0.055,
+                "diametre_cercle_percage_m": 0.120,
+                "nombre_vis": 8,
+                "precharge_par_vis_n": 4500,
+                "couple_serrage_nm": 9.0,
+            },
+        }
+    )
+
+    features = _feature_types(with_bolt_data)
+    assert {"bolt_circle", "bolt_count", "preload", "tightening_torque"} <= features
+    assert with_bolt_data["geometry_json"]["final_geometry"] is False

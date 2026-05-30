@@ -83,6 +83,11 @@ def test_pieces_moteur_thermique_prioritaires_construisent_contrat_passif():
         "joint_piston",
         "deplaceur",
         "couvercle_cylindre",
+        "joint_deplaceur",
+        "coussinet_arbre_piston",
+        "roulement_aiguille_arbre",
+        "roulement_aiguille_arbre_vilebrequin",
+        "vis_couvercle_cylindre",
     ]
     report = {
         "rapports_pieces": {

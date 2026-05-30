@@ -5,7 +5,14 @@ import json
 import pytest
 
 from frontend.components.moteur_thermique.pieces.arbre_piston.charts import build_chart_contracts
+from frontend.components.moteur_thermique.pieces.arbre_vilebrequin.charts import build_chart_contracts as build_arbre_vilebrequin_chart_contracts
+from frontend.components.moteur_thermique.pieces.coussinet_arbre_piston.charts import build_chart_contracts as build_coussinet_chart_contracts
+from frontend.components.moteur_thermique.pieces.joint_deplaceur.charts import build_chart_contracts as build_joint_deplaceur_chart_contracts
 from frontend.components.moteur_thermique.pieces.piston.charts import build_chart_contracts as build_piston_chart_contracts
+from frontend.components.moteur_thermique.pieces.roulement_aiguille_arbre.charts import build_chart_contracts as build_roulement_arbre_chart_contracts
+from frontend.components.moteur_thermique.pieces.roulement_aiguille_arbre_vilebrequin.charts import build_chart_contracts as build_roulement_vilebrequin_chart_contracts
+from frontend.components.moteur_thermique.pieces.vilbrequin.charts import build_chart_contracts as build_vilbrequin_chart_contracts
+from frontend.components.moteur_thermique.pieces.vis_couvercle_cylindre.charts import build_chart_contracts as build_vis_chart_contracts
 from frontend.ensemble.graph_rendering import build_chart_figure, expected_quantities_for_piece, validate_chart_contracts
 
 
@@ -91,3 +98,59 @@ def test_chart_backend_trace_infer_quantity_family_sans_generer_points():
     assert charts[0]["quantity_family"] == "effort_gaz"
     assert charts[0]["series"][0]["points"] == [{"x": 0, "y": 10}, {"x": 1, "y": 11}]
     assert "frottement" in expected_quantities_for_piece("piston")
+
+
+def test_graphes_attendus_pieces_restantes_sans_series_backend():
+    cases = {
+        "joint_deplaceur": build_joint_deplaceur_chart_contracts,
+        "coussinet_arbre_piston": build_coussinet_chart_contracts,
+        "roulement_aiguille_arbre": build_roulement_arbre_chart_contracts,
+        "roulement_aiguille_arbre_vilebrequin": build_roulement_vilebrequin_chart_contracts,
+        "vis_couvercle_cylindre": build_vis_chart_contracts,
+    }
+
+    for piece, builder in cases.items():
+        charts = builder(global_report={"rapports_pieces": {piece: {"piece": piece}}})
+        assert charts[0]["status"] == "missing_required"
+        assert charts[0]["expected_quantities"]
+        assert charts[0]["series"] == []
+
+    assert "pv" in expected_quantities_for_piece("coussinet_arbre_piston")
+    assert "l10" in expected_quantities_for_piece("roulement_aiguille_arbre")
+    assert "charge_maneton" in expected_quantities_for_piece("roulement_aiguille_arbre_vilebrequin")
+    assert "couple_serrage" in expected_quantities_for_piece("vis_couvercle_cylindre")
+
+
+def test_roulement_arbre_ne_recupere_pas_graphes_roulement_vilebrequin():
+    report = {
+        "mechanical_graphs": {
+            "graphiques": [
+                {
+                    "id": "roulement_aiguille_arbre_vilebrequin_charge_maneton",
+                    "piece": "roulement_aiguille_arbre_vilebrequin",
+                    "status": "computed",
+                    "trace": {"producer": "backend"},
+                    "series": [{"name": "backend", "points": [{"x": 1, "y": 2}]}],
+                }
+            ]
+        }
+    }
+
+    arbre = build_roulement_arbre_chart_contracts(global_report=report)
+    vilebrequin = build_roulement_vilebrequin_chart_contracts(global_report=report)
+
+    assert arbre[0]["status"] == "missing_required"
+    assert arbre[0]["series"] == []
+    assert vilebrequin[0]["status"] == "computed"
+    assert vilebrequin[0]["quantity_family"] == "charge_maneton"
+
+
+def test_arbre_vilebrequin_et_vilbrequin_gardent_des_profils_graphiques_distincts():
+    assert "interface_tourillon" in expected_quantities_for_piece("arbre_vilebrequin")
+    assert "maneton" in expected_quantities_for_piece("vilbrequin")
+
+    arbre = build_arbre_vilebrequin_chart_contracts(global_report={"rapports_pieces": {"arbre_vilebrequin": {"piece": "arbre_vilebrequin"}}})
+    vilo = build_vilbrequin_chart_contracts(global_report={"rapports_pieces": {"vilbrequin": {"piece": "vilbrequin"}}})
+
+    assert arbre[0]["render_profile"] == "arbre_vilebrequin"
+    assert vilo[0]["render_profile"] == "vilebrequin"

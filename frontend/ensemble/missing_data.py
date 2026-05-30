@@ -42,6 +42,7 @@ DIMENSION_MARKERS = (
     "rayon",
     "radius",
     "entraxe",
+    "section",
     "axe_x",
     "x_",
     "y_",
@@ -128,7 +129,16 @@ def classify_dimension_fields(fields: Iterable[Mapping[str, Any]]) -> dict[str, 
             groups["thicknesses"].append(row)
         elif low.split(".")[-1].startswith(("x_", "y_", "z_")) or "axe_x" in low:
             groups["positions"].append(row)
-        elif "longueur" in low or "length" in low or "course" in low or "height" in low or "hauteur" in low or "entraxe" in low:
+        elif (
+            "longueur" in low
+            or "length" in low
+            or "largeur" in low
+            or "width" in low
+            or "course" in low
+            or "height" in low
+            or "hauteur" in low
+            or "entraxe" in low
+        ):
             groups["lengths"].append(row)
         else:
             groups["other"].append(row)
@@ -137,6 +147,12 @@ def classify_dimension_fields(fields: Iterable[Mapping[str, Any]]) -> dict[str, 
 
 def _piece_requirements(piece_name: str) -> tuple[str, ...]:
     low = piece_name.lower()
+    if "vis" in low:
+        return ("length", "diameter")
+    if "roulement" in low:
+        return ("length", "diameter")
+    if "coussinet" in low:
+        return ("length", "diameter")
     if "joint" in low:
         return ("diameter", "thickness_or_section")
     if "couvercle" in low:

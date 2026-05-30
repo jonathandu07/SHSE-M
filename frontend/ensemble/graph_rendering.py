@@ -31,17 +31,35 @@ _EXPECTED_QUANTITIES: dict[str, tuple[str, ...]] = {
     "cylindre": ("pression", "contrainte_circonferentielle", "von_mises", "ovalisation", "temperature_convection"),
     "bielle": ("effort_axial", "flambage", "contrainte", "pression_petite_grande_tete", "facteur_securite"),
     "arbre_piston": ("flexion", "torsion", "cisaillement", "flambage", "von_mises"),
+    "arbre_vilebrequin": ("torsion", "flexion", "von_mises", "interface_tourillon", "portee_roulement"),
     "vilebrequin": ("torsion", "flexion", "von_mises", "maneton", "tourillon"),
     "joint_piston": ("squeeze", "pression_contact", "frottement", "fuite"),
     "deplaceur": ("flambage", "perte_charge", "effort_pression", "contrainte"),
     "couvercle_cylindre": ("force_separation", "precharge", "contrainte", "couple_serrage", "convection"),
+    "joint_deplaceur": ("squeeze", "pression_contact", "frottement", "fuite", "usure", "temperature"),
+    "coussinet_arbre_piston": ("pression_projetee", "vitesse_glissement", "pv", "puissance_frottement", "temperature", "resistance_thermique", "facteur_securite_tribologique"),
+    "roulement_aiguille_arbre": ("charge_equivalente", "l10", "capacite_dynamique_c", "capacite_statique_c0", "pression_projetee", "vitesse_limite"),
+    "roulement_aiguille_arbre_vilebrequin": ("charge_maneton", "charge_equivalente", "l10", "c_requis", "c0_requis", "pression_projetee", "vitesse_rotation"),
+    "vis_couvercle_cylindre": ("precharge_par_vis", "precharge_totale", "effort_separation", "couple_serrage", "contrainte_traction", "marge_securite", "compression_joint"),
 }
 
 
 def _profile_for_piece(piece_name: str) -> str:
     low = str(piece_name or "").lower()
+    if "vis" in low:
+        return "vis_couvercle_cylindre"
+    if "roulement_aiguille" in low and any(token in low for token in ("vilebrequin", "vilbrequin")):
+        return "roulement_aiguille_arbre_vilebrequin"
+    if "roulement_aiguille" in low:
+        return "roulement_aiguille_arbre"
+    if "coussinet" in low:
+        return "coussinet_arbre_piston"
+    if "joint" in low and "deplaceur" in low:
+        return "joint_deplaceur"
     if "joint" in low and "piston" in low:
         return "joint_piston"
+    if any(token in low for token in ("arbre_vilebrequin", "arbre_vilbrequin")):
+        return "arbre_vilebrequin"
     if any(token in low for token in ("vilebrequin", "vilbrequin")):
         return "vilebrequin"
     if "arbre_piston" in low:

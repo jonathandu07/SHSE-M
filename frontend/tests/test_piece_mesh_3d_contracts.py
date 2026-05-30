@@ -4,8 +4,13 @@ import json
 
 from frontend.components.moteur_thermique.pieces.arbre_piston.mesh_3d import build_view_3d_contract
 from frontend.components.moteur_thermique.pieces.arbre_vilebrequin.mesh_3d import build_view_3d_contract as build_arbre_vilebrequin_view_3d_contract
+from frontend.components.moteur_thermique.pieces.coussinet_arbre_piston.mesh_3d import build_view_3d_contract as build_coussinet_view_3d_contract
+from frontend.components.moteur_thermique.pieces.joint_deplaceur.mesh_3d import build_view_3d_contract as build_joint_deplaceur_view_3d_contract
 from frontend.components.moteur_thermique.pieces.joint_piston.mesh_3d import build_view_3d_contract as build_joint_piston_view_3d_contract
 from frontend.components.moteur_thermique.pieces.piston.mesh_3d import build_view_3d_contract as build_piston_view_3d_contract
+from frontend.components.moteur_thermique.pieces.roulement_aiguille_arbre.mesh_3d import build_view_3d_contract as build_roulement_arbre_view_3d_contract
+from frontend.components.moteur_thermique.pieces.roulement_aiguille_arbre_vilebrequin.mesh_3d import build_view_3d_contract as build_roulement_vilebrequin_view_3d_contract
+from frontend.components.moteur_thermique.pieces.vis_couvercle_cylindre.mesh_3d import build_view_3d_contract as build_vis_view_3d_contract
 from frontend.components.batterie.pieces.pack_batterie.mesh_3d import build_view_3d_contract as build_pack_view_3d_contract
 
 
@@ -98,10 +103,11 @@ def test_mesh_vilebrequin_alias_maneton_tourillon_sans_renommage():
     )
 
     features = {item["type"] for item in view["json_geometry"]["features"]}
-    assert view["json_geometry"]["primitive"] == "crankshaft_schematic"
-    assert "crankpin" in features
-    assert "main_journal" in features
-    assert "crank_offset" in features
+    assert view["json_geometry"]["primitive"] == "crankshaft_interface_shaft_schematic"
+    assert view["json_geometry"]["render_profile"] == "arbre_vilebrequin"
+    assert "crankshaft_interface_journal" in features
+    assert "interface_shaft_diameter" in features
+    assert "crank_offset_reference" in features
     assert view["schematic"] is True
     assert view["final_geometry"] is False
 
@@ -124,3 +130,31 @@ def test_mesh_joint_piston_tore_schematique_si_section_presente():
     assert {"seal_inner_diameter", "seal_section", "squeeze"} <= features
     assert view["schematic"] is True
     assert view["final_geometry"] is False
+
+
+def test_mesh_joint_deplaceur_coussinet_roulements_vis_profils_dedies():
+    joint = build_joint_deplaceur_view_3d_contract(
+        data={"piece": "joint_deplaceur", "geometrie": {"diametre_interieur_joint_m": 0.072, "section_joint_m": 0.003}}
+    )
+    coussinet = build_coussinet_view_3d_contract(
+        data={"piece": "coussinet_arbre_piston", "geometrie": {"diametre_interieur_m": 0.022, "diametre_exterieur_m": 0.032, "longueur_m": 0.028}}
+    )
+    roulement_arbre = build_roulement_arbre_view_3d_contract(
+        data={"piece": "roulement_aiguille_arbre", "dimensions": {"diametre_interieur_m": 0.022, "diametre_exterieur_m": 0.030, "largeur_m": 0.018, "nombre_aiguilles": 18}}
+    )
+    roulement_vilebrequin = build_roulement_vilebrequin_view_3d_contract(
+        data={"piece": "roulement_aiguille_arbre_vilebrequin", "dimensions": {"diametre_maneton_m": 0.042, "diametre_exterieur_m": 0.055, "largeur_m": 0.024, "nombre_aiguilles": 22}}
+    )
+    vis = build_vis_view_3d_contract(
+        data={"piece": "vis_couvercle_cylindre", "geometrie": {"diametre_nominal_m": 0.010, "longueur_vis_min_m": 0.055, "pas_vis_m": 0.0015}}
+    )
+
+    assert joint["json_geometry"]["primitive"] == "displacer_seal_ring_envelope"
+    assert coussinet["json_geometry"]["primitive"] == "plain_bearing_bushing_envelope"
+    assert roulement_arbre["json_geometry"]["primitive"] == "needle_bearing_envelope"
+    assert roulement_vilebrequin["json_geometry"]["primitive"] == "needle_bearing_envelope"
+    assert vis["json_geometry"]["primitive"] == "screw_thread_schematic"
+    for view in (joint, coussinet, roulement_arbre, roulement_vilebrequin, vis):
+        assert view["schematic"] is True
+        assert view["final_geometry"] is False
+        assert view["solidworks_ready"] is False

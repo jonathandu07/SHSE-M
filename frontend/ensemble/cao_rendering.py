@@ -91,6 +91,38 @@ _FEATURE_MARKERS = (
     "bolt",
     "precharge",
     "preload",
+    "compression",
+    "contact",
+    "pression",
+    "force",
+    "effort",
+    "coussinet",
+    "palier_lisse",
+    "bague",
+    "cage",
+    "aiguille",
+    "needle",
+    "roulement",
+    "charge",
+    "radial",
+    "axial",
+    "l10",
+    "capacite",
+    "c0",
+    "pv",
+    "vitesse",
+    "temperature",
+    "resistance_thermique",
+    "materiau",
+    "arbre_traversant",
+    "nombre",
+    "nb_",
+    "cercle",
+    "tige",
+    "tete_vis",
+    "classe",
+    "norme",
+    "couple_serrage",
 )
 
 
@@ -230,8 +262,18 @@ def _make_sections(piece_name: str, groups: Mapping[str, list[dict[str, Any]]]) 
 
 def _primitive_for_piece(piece_name: str) -> str:
     low = piece_name.lower()
+    if "vis" in low:
+        return "screw_thread_schematic"
+    if "roulement_aiguille" in low:
+        return "needle_bearing_envelope"
+    if "coussinet" in low:
+        return "plain_bearing_bushing_envelope"
+    if "joint" in low and "deplaceur" in low:
+        return "displacer_seal_ring_envelope"
     if "joint" in low and "piston" in low:
         return "seal_ring_envelope"
+    if any(token in low for token in ("arbre_vilebrequin", "arbre_vilbrequin")):
+        return "crankshaft_interface_shaft_schematic"
     if any(token in low for token in ("vilebrequin", "vilbrequin")):
         return "crankshaft_schematic"
     if "arbre_piston" in low:
@@ -267,8 +309,20 @@ def _primitive_for_piece(piece_name: str) -> str:
 
 def _sketch_style_for_piece(piece_name: str) -> str:
     low = piece_name.lower()
+    if "vis" in low:
+        return "cylinder_head_bolt_thread_schematic"
+    if "roulement_aiguille" in low and any(token in low for token in ("vilebrequin", "vilbrequin")):
+        return "needle_bearing_crankpin_interface_schematic"
+    if "roulement_aiguille" in low:
+        return "needle_bearing_piston_pin_interface_schematic"
+    if "coussinet" in low:
+        return "plain_bearing_bushing_section"
+    if "joint" in low and "deplaceur" in low:
+        return "displacer_seal_groove_cross_section"
     if "joint" in low and "piston" in low:
         return "seal_groove_cross_section"
+    if any(token in low for token in ("arbre_vilebrequin", "arbre_vilbrequin")):
+        return "crankshaft_interface_shaft_schematic"
     if any(token in low for token in ("vilebrequin", "vilbrequin")):
         return "crankshaft_crankpin_journals_schematic"
     if "arbre_piston" in low:
@@ -288,8 +342,20 @@ def _sketch_style_for_piece(piece_name: str) -> str:
 
 def _render_profile_for_piece(piece_name: str) -> str:
     low = piece_name.lower()
+    if "vis" in low:
+        return "vis_couvercle_cylindre"
+    if "roulement_aiguille" in low and any(token in low for token in ("vilebrequin", "vilbrequin")):
+        return "roulement_aiguille_arbre_vilebrequin"
+    if "roulement_aiguille" in low:
+        return "roulement_aiguille_arbre"
+    if "coussinet" in low:
+        return "coussinet_arbre_piston"
+    if "joint" in low and "deplaceur" in low:
+        return "joint_deplaceur"
     if "joint" in low and "piston" in low:
         return "joint_piston"
+    if any(token in low for token in ("arbre_vilebrequin", "arbre_vilbrequin")):
+        return "arbre_vilebrequin"
     if any(token in low for token in ("vilebrequin", "vilbrequin")):
         return "vilebrequin"
     if "arbre_piston" in low:
@@ -344,6 +410,12 @@ def _specialized_features(piece_name: str, fields: Sequence[Mapping[str, Any]]) 
             ("counterweight", "Contrepoids", ("contrepoids", "counterweight")),
             ("crank_offset", "Excentration / rayon manivelle", ("excentration", "offset", "rayon_manivelle", "crank_radius", "course")),
         ],
+        "arbre_vilebrequin": [
+            ("interface_shaft_diameter", "Diametre arbre vilebrequin", ("diametre_arbre", "diametre_journal_principal", "diametre_nominal", "diametre_m")),
+            ("crankshaft_interface_journal", "Interface tourillon/maneton", ("tourillon", "journal", "maneton")),
+            ("bearing_seat", "Portee de roulement", ("portee", "palier", "roulement", "largeur_portee")),
+            ("crank_offset_reference", "Reference rayon manivelle/course", ("rayon_manivelle", "excentration", "course")),
+        ],
         "joint_piston": [
             ("seal_inner_diameter", "Diametre interieur joint", ("diametre_interieur_joint", "diametre_interieur", "inner_diameter")),
             ("seal_section", "Section joint", ("section", "epaisseur", "thickness", "corde", "cord")),
@@ -363,6 +435,53 @@ def _specialized_features(piece_name: str, fields: Sequence[Mapping[str, Any]]) 
             ("bolt_holes", "Vis / percages", ("vis", "screw", "bolt", "percage", "trou", "hole")),
             ("preload", "Precharge", ("precharge", "preload")),
             ("convection_area", "Convection", ("convection", "surface_echange", "surface_convective")),
+        ],
+        "joint_deplaceur": [
+            ("displacer_seal_inner_diameter", "Diametre interieur joint deplaceur", ("diametre_interieur_joint", "diametre_interieur", "inner_diameter")),
+            ("displacer_seal_outer_diameter", "Diametre exterieur joint deplaceur", ("diametre_exterieur_joint", "diametre_exterieur", "outer_diameter")),
+            ("seal_section", "Section joint", ("section_joint", "section", "epaisseur", "thickness", "corde", "cord")),
+            ("groove", "Gorge / rainure", ("gorge", "rainure", "groove")),
+            ("squeeze", "Squeeze / compression", ("squeeze", "compression", "ecrasement")),
+            ("radial_clearance", "Jeu radial", ("jeu_radial", "clearance", "jeu")),
+            ("displacer_position", "Position sur deplaceur", ("position", "x_", "zone", "deplaceur")),
+        ],
+        "coussinet_arbre_piston": [
+            ("plain_bearing_inner_diameter", "Diametre interieur coussinet", ("diametre_interieur", "diametre_arbre", "inner_diameter")),
+            ("plain_bearing_outer_diameter", "Diametre exterieur coussinet", ("diametre_exterieur", "outer_diameter")),
+            ("plain_bearing_length", "Longueur coussinet", ("longueur", "largeur", "length", "width")),
+            ("radial_clearance", "Jeu radial", ("jeu_radial", "clearance", "jeu")),
+            ("shaft_through", "Arbre traversant", ("arbre_traversant", "diametre_arbre", "axe_piston")),
+            ("contact_zone", "Zone de contact", ("zone_contact", "contact", "pression_projetee", "surface_contact")),
+        ],
+        "roulement_aiguille_arbre": [
+            ("inner_ring", "Bague interieure / arbre piston", ("bague_interieure", "diametre_interieur", "diametre_arbre", "axe_piston")),
+            ("outer_ring", "Bague exterieure", ("bague_exterieure", "diametre_exterieur")),
+            ("cage", "Cage", ("cage",)),
+            ("needles", "Aiguilles schematiques", ("aiguille", "needle", "nombre_aiguilles", "nb_aiguilles")),
+            ("bearing_width", "Largeur roulement", ("largeur", "width", "longueur")),
+            ("radial_load", "Charge radiale", ("charge_radiale", "effort_radial", "force_radiale")),
+            ("axial_load", "Charge axiale", ("charge_axiale", "effort_axial", "force_axiale")),
+            ("piston_pin_interface", "Interface arbre piston / bielle", ("arbre_piston", "axe_piston", "bielle")),
+        ],
+        "roulement_aiguille_arbre_vilebrequin": [
+            ("inner_ring", "Bague interieure / maneton", ("bague_interieure", "diametre_interieur", "diametre_maneton", "maneton")),
+            ("outer_ring", "Bague exterieure grande tete", ("bague_exterieure", "diametre_exterieur", "grande_tete")),
+            ("cage", "Cage", ("cage",)),
+            ("needles", "Aiguilles schematiques", ("aiguille", "needle", "nombre_aiguilles", "nb_aiguilles")),
+            ("bearing_width", "Largeur roulement", ("largeur", "width", "longueur")),
+            ("crankpin_load", "Charge maneton", ("charge_maneton", "effort_maneton", "force_maneton")),
+            ("equivalent_load", "Charge equivalente", ("charge_equivalente", "p_equivalent")),
+            ("crankpin_interface", "Interface vilebrequin / grande tete / maneton", ("vilebrequin", "vilbrequin", "maneton", "grande_tete")),
+        ],
+        "vis_couvercle_cylindre": [
+            ("screw_head", "Tete de vis", ("tete_vis", "diametre_tete", "hauteur_tete")),
+            ("screw_shank", "Tige de vis", ("tige", "diametre_nominal", "diametre_vis", "longueur_vis")),
+            ("thread", "Filetage schematique", ("filet", "taraud", "thread", "pas_vis")),
+            ("bolt_circle", "Cercle de percage", ("cercle_percage", "diametre_cercle_percage", "percage")),
+            ("bolt_count", "Nombre de vis", ("nombre_vis", "nb_vis")),
+            ("preload", "Precharge", ("precharge", "preload")),
+            ("tightening_torque", "Couple de serrage", ("couple_serrage", "torque")),
+            ("separation_force", "Effort de separation", ("force_separation", "effort_separation")),
         ],
     }
     features = []
