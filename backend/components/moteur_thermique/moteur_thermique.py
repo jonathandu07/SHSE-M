@@ -21,7 +21,7 @@ Principes
 
 Placement recommandé
 --------------------
-- backend/components/moteur_thermique/backend\components\moteur_thermique\moteur_thermique.py.py
+- backend/components/moteur_thermique/backend/components/moteur_thermique/moteur_thermique.py.py
 
 Il fonctionne aussi en fichier autonome si tes modules sont à côté du script
 (calcul_cylindree.py, calcul_gaz.py, cycle_mecanique.py, etc.).

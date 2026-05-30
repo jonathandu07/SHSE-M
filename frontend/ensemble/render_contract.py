@@ -34,6 +34,7 @@ from frontend.ensemble.piece_data_adapter import (
 )
 from frontend.ensemble.contract_adapter import (
     STATUS_COMPUTED,
+    STATUS_VALIDATED_BY_OPTIMIZATION,
     STATUS_PARTIAL as CONTRACT_STATUS_PARTIAL,
     field_has_trace,
     normalize_contract_status,
@@ -113,7 +114,7 @@ def normalize_chart(chart: Mapping[str, Any]) -> Dict[str, Any]:
     raw_status = chart.get("status") or chart.get("statut")
     if raw_status is not None:
         status = normalize_contract_status(raw_status)
-        if status == STATUS_COMPUTED and not field_has_trace(chart):
+        if status in {STATUS_COMPUTED, STATUS_VALIDATED_BY_OPTIMIZATION} and not field_has_trace(chart):
             status = CONTRACT_STATUS_PARTIAL
     else:
         status = STATUS_AVAILABLE if has_points else STATUS_PARTIAL

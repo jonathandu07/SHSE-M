@@ -67,11 +67,11 @@ def format_value(value: Any, max_len: int = 90) -> str:
 
 def _status_color(status: Any) -> tuple[float, float, float, float]:
     low = str(status or "").lower()
-    if low in {"ok", "available", "disponible", "calculee", "calculée", "saisie", "retenue"}:
+    if low in {"ok", "available", "disponible", "calculee", "calculée", "computed", "derived", "input", "database", "validated_by_optimization", "saisie", "retenue"}:
         return COLORS["NG"]
-    if low in {"partial", "partiel", "alerte", "warning", "missing", "indisponible", "unavailable"}:
+    if low in {"partial", "partiel", "candidate_from_cdc", "candidate_from_power_profile", "rejected_by_optimization", "alerte", "warning", "missing", "missing_optional", "indisponible", "unavailable"}:
         return COLORS["RS"]
-    if low in {"error", "erreur", "bloquant"}:
+    if low in {"error", "erreur", "bloquant", "missing_required", "impossible"}:
         return COLORS["RS"]
     return COLORS["BFW_35"]
 

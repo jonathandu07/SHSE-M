@@ -33,6 +33,7 @@ from frontend.gui.components import (
     StatusBadge,
 )
 from frontend.gui.frontend_contract import get_field, field_badge_label
+from frontend.ensemble.contract_adapter import field_has_trace
 from frontend.ensemble.screen_models import build_dashboard_model
 
 
@@ -582,13 +583,16 @@ def _contract_metric(contract: Mapping[str, Any], path: str, label: str, unit: s
     field = get_field(contract, path) if isinstance(contract, Mapping) else None
     if not field:
         return _metric(label, None, unit, "missing")
-    status = "ok" if str(field.get("status")) in {"computed", "database", "derived", "input", "validated_by_optimization"} else "alerte"
+    status = str(field.get("status") or "partial")
     return {
         "label": label,
         "value": field.get("value"),
         "unit": field.get("unit") or unit,
         "status": status,
         "source": field.get("source"),
+        "confidence": field.get("confidence") or ("traced" if field_has_trace(field) else "untraced_report_value"),
+        "trace_present": field_has_trace(field),
+        "display_warning": field.get("display_warning"),
         "badge": field_badge_label(field),
         "path": path,
     }
@@ -1089,19 +1093,26 @@ class DashboardScreen(Screen):
 
         kpi_row = BoxLayout(size_hint_y=None, height=dp(116), spacing=dp(12))
 
-        p_req = self._find_value(ui, "Puissance totale demandée")
-        score = _first_non_none(
-            self._find_value(ui, "Score global"),
-            self._find_value(ui, "Score cohérence"),
-            self._find_value(ui, "Score technique"),
-        )
-        arch = self._find_value(ui, "Architecture")
-        n_cyl = self._find_value(ui, "Nombre cylindres")
+        p_req_metric = _first_non_none(
+            self._find_metric(ui, "Puissance totale demandée"),
+            self._find_metric(ui, "Puissance demandée"),
+        ) or {}
+        score_metric = _first_non_none(
+            self._find_metric(ui, "Score global"),
+            self._find_metric(ui, "Score cohérence"),
+            self._find_metric(ui, "Score technique"),
+        ) or {}
+        arch_metric = self._find_metric(ui, "Architecture") or {}
+        n_cyl_metric = self._find_metric(ui, "Nombre cylindres") or {}
+        p_req = p_req_metric.get("value")
+        score = score_metric.get("value")
+        arch = arch_metric.get("value")
+        n_cyl = n_cyl_metric.get("value")
 
-        kpi_row.add_widget(KpiCard("Puissance demandée", p_req, "kW", _status_for_value(p_req)))
-        kpi_row.add_widget(KpiCard("Score", score, "%", _status_for_value(score)))
-        kpi_row.add_widget(KpiCard("Architecture", arch, "", _status_for_value(arch)))
-        kpi_row.add_widget(KpiCard("Cylindres", n_cyl, "", _status_for_value(n_cyl)))
+        kpi_row.add_widget(KpiCard("Puissance demandée", p_req, "kW", str(p_req_metric.get("status") or _status_for_value(p_req))))
+        kpi_row.add_widget(KpiCard("Score", score, "%", str(score_metric.get("status") or _status_for_value(score))))
+        kpi_row.add_widget(KpiCard("Architecture", arch, "", str(arch_metric.get("status") or _status_for_value(arch))))
+        kpi_row.add_widget(KpiCard("Cylindres", n_cyl, "", str(n_cyl_metric.get("status") or _status_for_value(n_cyl))))
         kpi_row.add_widget(
             KpiCard(
                 "Données à compléter",
@@ -1380,10 +1391,14 @@ class DashboardScreen(Screen):
     # -------------------------------------------------------------------------
 
     def _find_value(self, ui: Mapping[str, Any], label: str) -> Any:
+        metric = self._find_metric(ui, label)
+        return metric.get("value") if metric else None
+
+    def _find_metric(self, ui: Mapping[str, Any], label: str) -> Dict[str, Any] | None:
         dashboard = _safe_dict(ui.get("dashboard"))
         for item in _safe_list(dashboard.get("energy_chain")):
             if isinstance(item, Mapping) and item.get("label") == label:
-                return item.get("value")
+                return dict(item)
         return None
 
     def _go(self, screen_name: str) -> None:

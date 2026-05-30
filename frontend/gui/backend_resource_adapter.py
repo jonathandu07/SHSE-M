@@ -434,11 +434,11 @@ def build_resource_catalog(raw_backend_report: dict) -> dict:
             _resource_record(
                 name="Donnees cartographie backend",
                 resource_type="charts",
-                status="partial" if not chart_generators else "available",
+                status="partial",
                 source=f"rapport_backend.{chart_path}",
                 data=chart_data,
-                reason=None if chart_generators else "Donnees numeriques disponibles, generateur graphique backend absent.",
-                notes=["Aucune courbe n'est tracee cote frontend."],
+                reason="Donnees numeriques presentes ; rendu graphique soumis aux statuts et traces backend.",
+                notes=["Aucune courbe n'est tracee cote frontend sans contrat graphe valide."],
             )
         )
     elif not chart_generators:
