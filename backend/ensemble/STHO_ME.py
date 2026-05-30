@@ -303,6 +303,33 @@ concevoir_architecture = _import_attr_optional(
     "concevoir_architecture",
 )
 
+normaliser_architecture = _import_attr_optional(
+    (
+        "backend.components.architecture.architecture",
+        "backend.components.architechture.architecture",
+        "backend.components.architecture",
+        "backend.components.architechture",
+        "components.architecture.architecture",
+        "components.architechture.architecture",
+        "backend.components.architechture.modules.architecture_sthome",
+        "backend.components.architecture.modules.architecture_sthome",
+        "architecture_sthome",
+        "architecture",
+    ),
+    "normaliser_architecture",
+)
+architectures_moteur_classique = _import_attr_optional(
+    (
+        "backend.components.architechture.modules.architecture_sthome",
+        "backend.components.architecture.modules.architecture_sthome",
+        "backend.components.architecture.architecture",
+        "backend.components.architechture.architecture",
+        "architecture_sthome",
+        "architecture",
+    ),
+    "architectures_moteur_classique",
+)
+
 MoteurThermique = _import_attr_optional(
     (
         "backend.components.moteur_thermique.moteur_thermique",
@@ -520,16 +547,6 @@ def _merge_inconnues(dst: Dict[str, Any], src: Any, *, prefix: str) -> None:
         for item in list(inc.get(cat, []) or []):
             if isinstance(item, Mapping):
                 _push(dst, cat, f"{prefix}::{item.get('nom', '')}", str(item.get("raison", "")))
-    for item in list(inc.get("bloquantes", []) or []) + list(inc.get("restantes_physiques", []) or []):
-        if isinstance(item, Mapping):
-            _push(dst, "impossibles", f"{prefix}::{item.get('nom') or item.get('champ', '')}", str(item.get("raison", "")))
-    for item in list(inc.get("non_bloquantes", []) or []) + list(inc.get("restantes_catalogue", []) or []):
-        if isinstance(item, Mapping):
-            _push(dst, "partielles", f"{prefix}::{item.get('nom') or item.get('champ', '')}", str(item.get("raison", "")))
-    for item in list(inc.get("conflits", []) or []):
-        if isinstance(item, Mapping):
-            _push(dst, "impossibles", f"{prefix}::{item.get('nom') or item.get('champ', '')}", str(item.get("raison", "")))
-            dst.setdefault("alertes", {}).setdefault("conflits", []).append(_to_jsonable(item, max_depth=5))
 
 
 def _to_jsonable(value: Any, *, depth: int = 0, max_depth: int = 10) -> Any:
@@ -642,6 +659,161 @@ def _extract_resolved_payload(resolution_report: Optional[Mapping[str, Any]]) ->
         if isinstance(cur, Mapping):
             return dict(cur)
     return {}
+
+
+def _normaliser_architecture_safe(architecture: Any) -> Any:
+    """Normalise les alias sans rendre STHO_ME dépendant de architecture.py."""
+    if architecture is None:
+        return None
+    if callable(normaliser_architecture):
+        try:
+            return normaliser_architecture(architecture)
+        except Exception:
+            pass
+    raw = str(architecture).strip().lower()
+    table = str.maketrans({
+        "à": "a", "â": "a", "ä": "a",
+        "é": "e", "è": "e", "ê": "e", "ë": "e",
+        "î": "i", "ï": "i", "ô": "o", "ö": "o",
+        "ù": "u", "û": "u", "ü": "u", "ç": "c",
+    })
+    raw = raw.translate(table).replace("-", "_").replace(" ", "_")
+    aliases = {
+        "l": "L", "ligne": "L", "en_ligne": "L", "inline": "L",
+        "mono": "L", "monocylindre": "L", "mono_cylindre": "L",
+        "v": "V", "w": "W",
+        "etoile": "Etoile", "radial": "Etoile", "radiale": "Etoile", "star": "Etoile",
+        "boxer": "Boxer", "flat": "Boxer", "a_plat": "Boxer",
+        "multi_modules_dc": "MultiModulesDC", "multi_modules": "MultiModulesDC",
+        "piston_libre": "PistonLibre", "free_piston": "PistonLibre",
+    }
+    return aliases.get(raw, architecture)
+
+
+def _architectures_moteur_defaut() -> List[str]:
+    if callable(architectures_moteur_classique):
+        try:
+            vals = list(architectures_moteur_classique())
+            if vals:
+                return [str(_normaliser_architecture_safe(v)) for v in vals]
+        except Exception:
+            pass
+    return ["L", "V", "W", "Etoile", "Boxer"]
+
+
+def _score_candidat_architecture(candidat: Any) -> float:
+    if not isinstance(candidat, Mapping):
+        return float("inf")
+    for key in ("score_global", "score", "Score", "score_multi_criteres", "score_module_externe"):
+        val = _sf(candidat.get(key))
+        if val is not None:
+            return float(val)
+    return float("inf")
+
+
+def _normaliser_candidat_architecture(candidat: Any) -> Dict[str, Any]:
+    row = dict(candidat) if isinstance(candidat, Mapping) else {}
+    arch = _normaliser_architecture_safe(_first_non_none(row.get("architecture"), row.get("Architecture"), row.get("type_arch")))
+    if arch is not None:
+        row["architecture"] = arch
+    n_cyl = _si(_first_non_none(row.get("nombre_cylindres"), row.get("N_cyl"), row.get("nb_cylindres")))
+    if n_cyl is not None:
+        row["nombre_cylindres"] = n_cyl
+        row.setdefault("N_cyl", n_cyl)
+    score = _score_candidat_architecture(row)
+    row["score_global"] = score if math.isfinite(score) else row.get("score_global")
+    if row.get("alesage_m") is None:
+        bore_mm = _sf(_first_non_none(row.get("bore_mm"), row.get("alesage_mm")))
+        if bore_mm is not None:
+            row["alesage_m"] = bore_mm / 1000.0
+    if row.get("course_m") is None:
+        course_mm = _sf(_first_non_none(row.get("course_mm"), row.get("stroke_mm")))
+        if course_mm is not None:
+            row["course_m"] = course_mm / 1000.0
+    return row
+
+
+def _extraire_classement_architecture(rapport_architecture: Any) -> Dict[str, Any]:
+    rep = _safe_dict(rapport_architecture)
+    rows: List[Dict[str, Any]] = []
+    for item in list(rep.get("exploration") or []):
+        if isinstance(item, Mapping):
+            rows.append(_normaliser_candidat_architecture(item))
+    for item in _safe_dict(rep.get("meilleurs_par_architecture")).values():
+        if isinstance(item, Mapping):
+            rows.append(_normaliser_candidat_architecture(item))
+    for key in ("selection", "meilleur_choix", "meilleur", "meilleur_candidat", "solution_module_globale"):
+        item = rep.get(key)
+        if isinstance(item, Mapping):
+            rows.append(_normaliser_candidat_architecture(item))
+
+    dedup: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
+    for row in rows:
+        if not row:
+            continue
+        sig = (
+            str(row.get("architecture")),
+            str(row.get("nombre_cylindres") or row.get("N_cyl")),
+            str(row.get("alesage_m") or row.get("bore_mm")),
+            str(row.get("course_m") or row.get("course_mm")),
+        )
+        if sig not in dedup or _score_candidat_architecture(row) < _score_candidat_architecture(dedup[sig]):
+            dedup[sig] = row
+
+    classement = sorted(dedup.values(), key=_score_candidat_architecture)
+    best_score = _score_candidat_architecture(classement[0]) if classement else None
+    for idx, row in enumerate(classement, start=1):
+        score = _score_candidat_architecture(row)
+        row["rang_efficacite"] = idx
+        if best_score is not None and math.isfinite(best_score) and math.isfinite(score):
+            if abs(score) <= 1e-12 and abs(best_score) <= 1e-12:
+                row["efficacite_relative_100"] = 100.0
+            elif score > 0.0:
+                row["efficacite_relative_100"] = max(0.0, min(100.0, 100.0 * best_score / score))
+            else:
+                row["efficacite_relative_100"] = 100.0 if idx == 1 else 0.0
+        else:
+            row["efficacite_relative_100"] = 100.0 if idx == 1 else None
+
+    meilleurs_par_architecture: Dict[str, Dict[str, Any]] = {}
+    for row in classement:
+        arch = str(row.get("architecture", "Inconnue"))
+        if arch not in meilleurs_par_architecture:
+            meilleurs_par_architecture[arch] = row
+
+    meilleur = classement[0] if classement else _normaliser_candidat_architecture(rep.get("meilleur")) if isinstance(rep.get("meilleur"), Mapping) else None
+    return {
+        "meilleur": meilleur,
+        "classement": classement,
+        "meilleurs_par_architecture": meilleurs_par_architecture,
+    }
+
+
+def _enrichir_rapport_architecture(rapport_architecture: Any) -> Dict[str, Any]:
+    rep = _safe_dict(rapport_architecture)
+    classement = _extraire_classement_architecture(rep)
+    meilleur = classement.get("meilleur")
+    if meilleur:
+        rep["selection"] = meilleur
+        rep["meilleur"] = meilleur
+        rep["meilleur_choix"] = meilleur
+        rep["architecture_optimale"] = {
+            "architecture": meilleur.get("architecture"),
+            "nombre_cylindres": _first_non_none(meilleur.get("nombre_cylindres"), meilleur.get("N_cyl")),
+            "score_global": meilleur.get("score_global"),
+            "efficacite_relative_100": meilleur.get("efficacite_relative_100", 100.0),
+            "alesage_m": meilleur.get("alesage_m"),
+            "course_m": meilleur.get("course_m"),
+        }
+    rep["classement_par_efficacite"] = classement.get("classement", [])
+    rep["classement_architectures_par_efficacite"] = classement.get("classement", [])
+    rep["meilleurs_par_architecture"] = classement.get("meilleurs_par_architecture", {}) or _safe_dict(rep.get("meilleurs_par_architecture"))
+    return rep
+
+
+def _selection_architecture(rapport_architecture: Any) -> Dict[str, Any]:
+    rep = _enrichir_rapport_architecture(rapport_architecture)
+    return _safe_dict(_first_non_none(rep.get("selection"), rep.get("meilleur_choix"), rep.get("meilleur")))
 
 
 # =============================================================================
@@ -770,10 +942,14 @@ def _resolved_to_component_defaults(resolved: Mapping[str, Any]) -> Dict[str, An
             "pme_pa": pme,
             "pression_max_pa": pmax,
             "vitesse_piston_max_ms": cdc.get("vitesse_piston_max_ms"),
+            "ratio_course_alesage_max": cdc.get("ratio_course_alesage_max"),
             "longueur_dispo_m": cdc.get("longueur_dispo_m"),
             "largeur_dispo_m": cdc.get("largeur_dispo_m"),
             "hauteur_dispo_m": cdc.get("hauteur_dispo_m"),
-            "architecture_forcee": _first_non_none(resolved.get("architecture_moteur"), resolved.get("architecture")),
+            # Ne pas forcer l'architecture issue de la résolution : elle peut être
+            # une ancienne valeur ou une hypothèse utilisateur. Le choix optimal
+            # doit rester calculé par architecture.py, sauf architecture_forcee explicite.
+            "architecture_reference": _first_non_none(resolved.get("architecture_moteur"), resolved.get("architecture")),
         },
         "systeme": {
             "puissance_sortie_w": p_out,
@@ -885,8 +1061,7 @@ class STHO_ME:
     def _new_report(self) -> Dict[str, Any]:
         return {
             "meta": {
-                "orchestrateur": "STHO_ME.py",
-                "chemin_orchestrateur": "backend/ensemble/STHO_ME.py",
+                "orchestrateur": "backend/ensemble/STHO_ME.py",
                 "version": "3.0.0-systeme-complet",
                 "nom_projet": self.meta.get("nom_projet", "STHO-ME"),
                 "meta_utilisateur": _to_jsonable(self.meta, max_depth=5),
@@ -929,7 +1104,6 @@ class STHO_ME:
             _push(rapport, "partielles", "resolution_inconnues", "Module resolution_inconnues indisponible ; seules les valeurs fournies seront utilisées.")
             return {}
         payload = _flatten_for_resolution(self.meta, self.composants, self.pieces, self.analyses)
-        cdc = _safe_dict(self.meta.get("cahier_des_charges")) or _safe_dict(self.analyses.get("cahier_des_charges"))
         try:
             try:
                 out = _call_supported(
@@ -938,7 +1112,6 @@ class STHO_ME:
                     donnees=payload,
                     payload=payload,
                     config=payload,
-                    cahier_des_charges=cdc,
                     strict=strict,
                     mode="strict" if strict else "projet",
                     optimize=optimize,
@@ -956,8 +1129,6 @@ class STHO_ME:
                     _push(rapport, "partielles", "resolution_inconnues", f"Retour non dictionnaire : {type(out).__name__}.")
                     return {}
             rapport["resolution_inconnues"] = _to_jsonable(out, max_depth=8)
-            rapport["hypotheses_resolues"] = _to_jsonable(out.get("hypotheses", []), max_depth=8)
-            rapport["coherence_systeme"] = _to_jsonable(out.get("coherence_systeme", {}), max_depth=6)
             _merge_inconnues(rapport, out, prefix="resolution_inconnues")
             resolved = _extract_resolved_payload(out)
             if resolved:
@@ -977,14 +1148,11 @@ class STHO_ME:
             _push(rapport, "partielles", "systeme_hybride_final", "Module systeme_hybride_final indisponible ; calcul global fallback limité.")
             fallback = self._fallback_aboutissement_systeme(cfg_final, rapport)
             rapport["aboutissement_systeme"] = fallback
-            rapport["construction"]["composants"]["systeme_complet"] = {"statut": "remplace_par_fallback_STHO_ME"}
             return fallback
         try:
             out = concevoir_systeme_hybride_final(cfg_final)  # type: ignore[misc]
             if isinstance(out, Mapping):
                 rapport["aboutissement_systeme"] = _to_jsonable(out, max_depth=9)
-                statut_systeme = "remplace_par_fallback_STHO_ME" if out.get("composant") == "systeme_hybride_final_fallback" else "calcule_par_systeme_hybride_final"
-                rapport["construction"]["composants"]["systeme_complet"] = {"statut": statut_systeme}
                 _merge_inconnues(rapport, out, prefix="aboutissement_systeme")
                 return dict(out)
             _push(rapport, "partielles", "systeme_hybride_final", f"Retour non dictionnaire : {type(out).__name__}.")
@@ -992,7 +1160,6 @@ class STHO_ME:
             _push(rapport, "partielles", "systeme_hybride_final", str(exc))
         fallback = self._fallback_aboutissement_systeme(cfg_final, rapport)
         rapport["aboutissement_systeme"] = fallback
-        rapport["construction"]["composants"]["systeme_complet"] = {"statut": "remplace_par_fallback_STHO_ME"}
         return fallback
 
     def _fallback_aboutissement_systeme(self, cfg: Mapping[str, Any], rapport: Dict[str, Any]) -> Dict[str, Any]:
@@ -1065,17 +1232,57 @@ class STHO_ME:
         elif name == "boite_crabots":
             cfg = _deep_merge(cfg, _safe_dict(self.composants.get("boite_crabots")))
         elif name == "architecture":
-            cfg = _deep_merge(cfg, _safe_dict(_first_non_none(self.composants.get("architecture"), self.composants.get("architechture"))))
+            arch_user = _safe_dict(_first_non_none(self.composants.get("architecture"), self.composants.get("architechture")))
+            cfg = _deep_merge(cfg, arch_user)
             mt_user = _safe_dict(self.composants.get("moteur_thermique"))
-            ptherm = _first_finite(_dig(systeme_final, "synthese", "P_arbre_thermique_requise_pleine_sortie_kw"), _dig(systeme_final, "sous_systemes", "moteurs_thermiques_pleine_sortie", "checks", "puissance_arbre_requise_w"))
+            cdc = _safe_dict(self.meta.get("cahier_des_charges")) or _safe_dict(self.analyses.get("cahier_des_charges"))
+            sources_thermiques_cfg = _safe_list(_first_non_none(self.analyses.get("moteurs_thermiques"), self.composants.get("moteurs_thermiques")))
+            ptherm_sources_w: Optional[float] = None
+            if sources_thermiques_cfg:
+                total = 0.0
+                known = False
+                for src in sources_thermiques_cfg:
+                    if isinstance(src, Mapping):
+                        q = _si(src.get("quantite")) or 1
+                        p_src = _first_finite(src.get("puissance_arbre_max_w"), src.get("puissance_arbre_continue_w"), src.get("puissance_visee_w"))
+                        if p_src is not None:
+                            total += p_src * q
+                            known = True
+                ptherm_sources_w = total if known else None
+
+            ptherm = _first_finite(
+                _dig(systeme_final, "synthese", "P_arbre_thermique_requise_pleine_sortie_kw"),
+                _dig(systeme_final, "sous_systemes", "moteurs_thermiques_pleine_sortie", "checks", "puissance_arbre_requise_w"),
+                resolved.get("puissance_moteur_thermique_arbre_w"),
+                resolved.get("puissance_moteur_requise_W"),
+                ptherm_sources_w,
+            )
             if ptherm is not None:
-                # ptherm peut venir en kW depuis synthèse ou en W depuis checks ; seuil simple pour éviter double conversion.
                 cfg["puissance_cible_w"] = cfg.get("puissance_cible_w") if cfg.get("puissance_cible_w") is not None else (ptherm * 1000.0 if ptherm < 10_000 else ptherm)
             cfg["regime_tr_min"] = cfg.get("regime_tr_min") if cfg.get("regime_tr_min") is not None else _first_finite(mt_user.get("rpm"), mt_user.get("rpm_nominal"), mt_user.get("regime_tr_min"), resolved.get("rpm_moteur"), resolved.get("rpm_moteur_nominal"))
             cfg["pme_pa"] = cfg.get("pme_pa") if cfg.get("pme_pa") is not None else _first_finite(mt_user.get("pression_moyenne_effective_pa"), mt_user.get("pme_pa"), resolved.get("pme_pa"), resolved.get("pression_moyenne_effective_pa"))
             cfg["pression_max_pa"] = cfg.get("pression_max_pa") if cfg.get("pression_max_pa") is not None else _first_finite(mt_user.get("pression_max_pa"), resolved.get("pression_max_pa"))
-            cfg["vitesse_piston_max_ms"] = cfg.get("vitesse_piston_max_ms") if cfg.get("vitesse_piston_max_ms") is not None else _first_finite(mt_user.get("vitesse_piston_max_ms"), resolved.get("vitesse_piston_max_ms"))
-            cfg["ratio_course_alesage_max"] = cfg.get("ratio_course_alesage_max") if cfg.get("ratio_course_alesage_max") is not None else _first_finite(mt_user.get("ratio_course_alesage_max"), resolved.get("ratio_course_alesage_max"))
+            cfg["vitesse_piston_max_ms"] = cfg.get("vitesse_piston_max_ms") if cfg.get("vitesse_piston_max_ms") is not None else _first_finite(mt_user.get("vitesse_piston_max_ms"), cdc.get("vitesse_piston_max_ms"), resolved.get("vitesse_piston_max_ms"))
+            cfg["ratio_course_alesage_max"] = cfg.get("ratio_course_alesage_max") if cfg.get("ratio_course_alesage_max") is not None else _first_finite(mt_user.get("ratio_course_alesage_max"), cdc.get("ratio_course_alesage_max"), resolved.get("ratio_course_alesage_max"))
+            cfg["longueur_dispo_m"] = cfg.get("longueur_dispo_m") if cfg.get("longueur_dispo_m") is not None else _first_finite(cdc.get("longueur_dispo_m"), resolved.get("longueur_dispo_m"), cfg.get("longueur_dispo_m"))
+            cfg["largeur_dispo_m"] = cfg.get("largeur_dispo_m") if cfg.get("largeur_dispo_m") is not None else _first_finite(cdc.get("largeur_dispo_m"), resolved.get("largeur_dispo_m"), cfg.get("largeur_dispo_m"))
+            cfg["hauteur_dispo_m"] = cfg.get("hauteur_dispo_m") if cfg.get("hauteur_dispo_m") is not None else _first_finite(cdc.get("hauteur_dispo_m"), resolved.get("hauteur_dispo_m"), cfg.get("hauteur_dispo_m"))
+            if not cfg.get("architectures_autorisees"):
+                archs = _architectures_moteur_defaut()
+                if bool(cfg.get("inclure_architectures_systeme")):
+                    archs = archs + ["MultiModulesDC", "PistonLibre"]
+                cfg["architectures_autorisees"] = archs
+            else:
+                cfg["architectures_autorisees"] = [_normaliser_architecture_safe(a) for a in _safe_list(cfg.get("architectures_autorisees"))]
+            forced = _first_non_none(cfg.get("architecture_forcee"), cfg.get("architecture_imposee"))
+            if forced is not None:
+                cfg["architecture_forcee"] = _normaliser_architecture_safe(forced)
+            else:
+                cfg.pop("architecture_forcee", None)
+                ref_arch = _first_non_none(cfg.get("architecture_reference"), mt_user.get("architecture"), resolved.get("architecture_moteur"), resolved.get("architecture"), cfg.get("architecture"))
+                if ref_arch is not None:
+                    cfg["architecture_reference"] = _normaliser_architecture_safe(ref_arch)
+                cfg.pop("architecture", None)
         elif name == "moteur_thermique":
             cfg = _deep_merge(cfg, _safe_dict(self.composants.get("moteur_thermique")))
             ptherm = _first_finite(_dig(systeme_final, "synthese", "P_arbre_thermique_requise_pleine_sortie_kw"))
@@ -1133,7 +1340,7 @@ class STHO_ME:
         mt_cfg = self._build_component_cfg("moteur_thermique", resolved, systeme_final)
         # Réinjection architecture vers thermique.
         arch_rep = _safe_dict(comps_report.get("architecture"))
-        arch_res = _safe_dict(_dig(arch_rep, "selection") or _dig(arch_rep, "meilleur") or _dig(arch_rep, "meilleur_candidat") or _dig(arch_rep, "resultats") or _dig(arch_rep, "synthese"))
+        arch_res = _selection_architecture(arch_rep) or _safe_dict(_dig(arch_rep, "resultats") or _dig(arch_rep, "synthese"))
         # Réinjection architecture : accepter les clés SI et les clés mm/N_cyl renvoyées par architecture.py.
         arch_inject = {
             "alesage_m": _first_finite(_dig(arch_res, "alesage_m"), _dig(arch_res, "bore_m"), (_dig(arch_res, "bore_mm") / 1000.0) if _is_finite(_dig(arch_res, "bore_mm")) else None),
@@ -1150,12 +1357,10 @@ class STHO_ME:
         else:
             _push(rapport, "partielles", "moteur_thermique", "Aucune définition moteur thermique fournie.")
 
-        construction_composants = {
+        rapport["construction"]["composants"] = {
             name: {"cfg": _to_jsonable(self._build_component_cfg(name, resolved, systeme_final), max_depth=6), "rapport_present": name in comps_report}
             for name in ("moteur_electrique", "batterie", "alternateur", "boite_crabots", "architecture", "moteur_thermique")
         }
-        construction_composants.update(_safe_dict(rapport.get("construction", {}).get("composants")))
-        rapport["construction"]["composants"] = construction_composants
 
     def _run_moteur_electrique(self, cfg: Mapping[str, Any], *, strict: bool) -> Dict[str, Any]:
         if callable(concevoir_moteur_electrique):
@@ -1253,17 +1458,23 @@ class STHO_ME:
             return {"composant": "boite_crabots", "erreur": str(exc), "inconnues": {"impossibles": [{"nom": "construction_boite_crabots", "raison": str(exc)}], "partielles": []}}
 
     def _run_architecture(self, cfg: Mapping[str, Any], *, strict: bool) -> Dict[str, Any]:
+        cfg_norm = dict(cfg)
+        if cfg_norm.get("architecture_forcee") is not None:
+            cfg_norm["architecture_forcee"] = _normaliser_architecture_safe(cfg_norm.get("architecture_forcee"))
+        if cfg_norm.get("architectures_autorisees"):
+            cfg_norm["architectures_autorisees"] = [_normaliser_architecture_safe(a) for a in _safe_list(cfg_norm.get("architectures_autorisees"))]
         if callable(concevoir_architecture):
             try:
-                return _to_jsonable(concevoir_architecture(cfg), max_depth=8)
+                rep = concevoir_architecture(cfg_norm)
+                return _to_jsonable(_enrichir_rapport_architecture(rep), max_depth=9)
             except Exception as exc:
                 return {"composant": "architecture", "erreur": str(exc), "inconnues": {"impossibles": [{"nom": "concevoir_architecture", "raison": str(exc)}], "partielles": []}}
         if Architecture is None:
             return {"composant": "architecture", "inconnues": {"impossibles": [{"nom": "Architecture", "raison": "Classe indisponible."}], "partielles": []}}
         try:
-            obj = _construct_dataclass_or_class(Architecture, cfg)
-            rep = _safe_call_report(obj, strict=strict, **dict(cfg)) or {"definition": _to_jsonable(obj)}
-            return _to_jsonable(rep, max_depth=8)
+            obj = _construct_dataclass_or_class(Architecture, cfg_norm)
+            rep = _safe_call_report(obj, strict=strict, **cfg_norm) or {"definition": _to_jsonable(obj)}
+            return _to_jsonable(_enrichir_rapport_architecture(rep), max_depth=9)
         except Exception as exc:
             return {"composant": "architecture", "erreur": str(exc), "inconnues": {"impossibles": [{"nom": "construction_architecture", "raison": str(exc)}], "partielles": []}}
 
@@ -1328,29 +1539,9 @@ class STHO_ME:
                 _push(rapport, "partielles", f"piece.{name}", "Classe pièce non importable automatiquement.")
                 continue
             try:
-                contexte_piece = _deep_merge(
-                    {
-                        "rapport_systeme": rapport,
-                        "systeme_complet": rapport,
-                        "synthese_systeme": rapport.get("synthese"),
-                        "sous_systemes": rapport.get("sous_systemes"),
-                        "rapports_pieces": rapport.get("rapports", {}).get("pieces"),
-                        "moteur_thermique": rapport.get("sous_systemes", {}).get("moteur_thermique"),
-                    },
-                    _safe_dict(payload),
-                )
-                for dep_name, dep_obj in self.pieces_obj.items():
-                    contexte_piece.setdefault(dep_name, dep_obj)
-                obj = _construct_dataclass_or_class(cls, contexte_piece)
-                rep = _safe_call_report(obj, strict=strict, **contexte_piece) or {"definition": _to_jsonable(obj)}
-                self.pieces_obj[name] = obj
+                obj = _construct_dataclass_or_class(cls, _safe_dict(payload))
+                rep = _safe_call_report(obj, strict=strict) or {"definition": _to_jsonable(obj)}
                 rapport["rapports"]["pieces"][name] = _to_jsonable(rep, max_depth=7)
-                rapport["construction"]["pieces"][name] = {
-                    "classe": getattr(cls, "__name__", str(cls)),
-                    "contexte_recu": sorted(k for k in contexte_piece if k not in {"rapport_systeme", "systeme_complet"}),
-                    "dependances_pieces_disponibles": sorted(self.pieces_obj.keys()),
-                    "cao_present": bool(_dig(rep, "cao") or _dig(rep, "bloc_cao") or _dig(rep, "solidworks")),
-                }
                 _merge_inconnues(rapport, rep, prefix=f"piece.{name}")
             except Exception as exc:
                 _push(rapport, "partielles", f"piece.{name}", str(exc))
@@ -1377,16 +1568,10 @@ class STHO_ME:
         except Exception as exc:
             _push(rapport, "partielles", "strategie_energie", str(exc))
 
-    def _run_optimisation(self, rapport: Dict[str, Any], *, strict: bool) -> None:
+    def _run_optimisation(self, rapport: Dict[str, Any]) -> None:
         if callable(optimiser_rapport_sthome):
             try:
-                out = _call_supported(
-                    optimiser_rapport_sthome,
-                    rapport_backend=rapport,
-                    rapports_pieces=_safe_dict(_dig(rapport, "rapports", "pieces")),
-                    cahier_des_charges=_safe_dict(self.meta.get("cahier_des_charges")) or _safe_dict(self.analyses.get("cahier_des_charges")),
-                    strict=strict,
-                )
+                out = _call_supported(optimiser_rapport_sthome, rapport=rapport, config={"composants": self.composants, "analyses": self.analyses})
                 if isinstance(out, Mapping):
                     rapport["rapports"]["optimisation"] = _to_jsonable(out, max_depth=8)
                     _merge_inconnues(rapport, out, prefix="optimisation")
@@ -1413,6 +1598,9 @@ class STHO_ME:
         comp = _safe_dict(rapport.get("rapports", {}).get("composants"))
         mt_rep = _safe_dict(comp.get("moteur_thermique"))
         arch_rep = _safe_dict(comp.get("architecture"))
+        arch_select = _selection_architecture(arch_rep)
+        arch_classement = list(_safe_dict(arch_rep).get("classement_par_efficacite") or _safe_dict(arch_rep).get("classement_architectures_par_efficacite") or [])
+        arch_best_by_family = _safe_dict(arch_rep.get("meilleurs_par_architecture"))
         batt_rep = _safe_dict(comp.get("batterie"))
         alt_rep = _safe_dict(comp.get("alternateur"))
         boite_rep = _safe_dict(comp.get("boite_crabots"))
@@ -1430,10 +1618,16 @@ class STHO_ME:
             "batterie_energie_utile_kwh": _first_finite(final_syn.get("batterie_energie_utile_kwh"), _dig(batt_rep, "synthese", "energie_utile_recommandee_kwh"), _dig(batt_rep, "synthese", "capacite_nominale_recommandee_kwh")),
             "batterie_ok_c_rate_pic": final_syn.get("batterie_ok_c_rate_pic"),
             "batterie_ok_temps_recharge": final_syn.get("batterie_ok_temps_recharge"),
-            "architecture_moteur": _first_non_none(_dig(mt_rep, "synthese", "architecture"), _dig(arch_rep, "selection", "architecture"), _dig(arch_rep, "meilleur", "architecture"), _dig(arch_rep, "meilleur_candidat", "architecture"), resolved.get("architecture_moteur"), resolved.get("architecture")),
-            "nombre_cylindres": _si(_first_non_none(_dig(mt_rep, "synthese", "nombre_cylindres"), _dig(arch_rep, "selection", "nombre_cylindres"), _dig(arch_rep, "meilleur", "nombre_cylindres"), _dig(arch_rep, "meilleur", "N_cyl"), resolved.get("nombre_cylindres"))),
-            "alesage_m": _first_finite(_dig(mt_rep, "synthese", "alesage_m"), _dig(arch_rep, "selection", "alesage_m"), _dig(arch_rep, "meilleur", "alesage_m"), _dig(arch_rep, "meilleur", "bore_m"), (_dig(arch_rep, "meilleur", "bore_mm") / 1000.0) if _is_finite(_dig(arch_rep, "meilleur", "bore_mm")) else None, resolved.get("alesage_m")),
-            "course_m": _first_finite(_dig(mt_rep, "synthese", "course_m"), _dig(arch_rep, "selection", "course_m"), _dig(arch_rep, "meilleur", "course_m"), _dig(arch_rep, "meilleur", "stroke_m"), (_dig(arch_rep, "meilleur", "course_mm") / 1000.0) if _is_finite(_dig(arch_rep, "meilleur", "course_mm")) else None, resolved.get("course_m")),
+            "architecture_moteur": _first_non_none(arch_select.get("architecture"), _dig(mt_rep, "synthese", "architecture"), resolved.get("architecture_moteur"), resolved.get("architecture")),
+            "architecture_thermique_optimale": arch_select.get("architecture"),
+            "architecture_thermique_optimale_N_cyl": _si(_first_non_none(arch_select.get("nombre_cylindres"), arch_select.get("N_cyl"))),
+            "architecture_thermique_optimale_score": _sf(arch_select.get("score_global")),
+            "architecture_thermique_optimale_efficacite_relative_100": _sf(arch_select.get("efficacite_relative_100")),
+            "classement_architectures_par_efficacite": arch_classement,
+            "meilleurs_candidats_par_architecture": arch_best_by_family,
+            "nombre_cylindres": _si(_first_non_none(_dig(mt_rep, "synthese", "nombre_cylindres"), arch_select.get("nombre_cylindres"), arch_select.get("N_cyl"), resolved.get("nombre_cylindres"))),
+            "alesage_m": _first_finite(_dig(mt_rep, "synthese", "alesage_m"), arch_select.get("alesage_m"), arch_select.get("bore_m"), (arch_select.get("bore_mm") / 1000.0) if _is_finite(arch_select.get("bore_mm")) else None, resolved.get("alesage_m")),
+            "course_m": _first_finite(_dig(mt_rep, "synthese", "course_m"), arch_select.get("course_m"), arch_select.get("stroke_m"), (arch_select.get("course_mm") / 1000.0) if _is_finite(arch_select.get("course_mm")) else None, resolved.get("course_m")),
             "rpm_moteur_thermique": _first_finite(_dig(mt_rep, "synthese", "rpm_nominal"), resolved.get("rpm_moteur"), resolved.get("rpm_moteur_nominal")),
             "rpm_alternateur": _first_finite(_dig(alt_rep, "resultats", "vitesse_rotation_rpm"), resolved.get("rpm_alternateur"), resolved.get("vitesse_alternateur_rpm")),
             "rapport_boite_alt_sur_moteur": _first_finite(_dig(boite_rep, "selection", "rapport"), resolved.get("rapport_vitesse_alt_sur_moteur"), resolved.get("rapport_boite_alt")),
@@ -1446,36 +1640,21 @@ class STHO_ME:
             "generation_pleine_sortie": "OK" if synth.get("ok_thermique_pleine_puissance") is True else "NON_VERIFIE_OU_INSUFFISANT",
             "cycle_croisiere": "OK" if synth.get("puissance_croisiere_selectionnee_kw") is not None else "NON_SELECTIONNE",
         }
-        p_out_w = _first_finite(resolved.get("puissance_sortie_moteur_electrique_w"), resolved.get("puissance_sortie_w"))
-        p_bus_w = _first_finite(resolved.get("puissance_bus_dc_w"), (synth.get("P_bus_dc_pleine_sortie_kw") * 1000.0) if _is_finite(synth.get("P_bus_dc_pleine_sortie_kw")) else None)
-        synth["moteur_electrique"] = {
-            "puissance_sortie_w": p_out_w,
-            "puissance_sortie_kw": None if p_out_w is None else p_out_w / 1000.0,
-        }
-        synth["systeme"] = {
-            "P_bus_dc_design_w": p_bus_w,
-            "V_bus_dc_v": _first_finite(resolved.get("tension_bus_dc_v")),
-            "courant_bus_dc_a": _first_finite(resolved.get("courant_bus_dc_a")),
-        }
-        synth["moteur_thermique"] = {
-            "architecture": synth.get("architecture_moteur"),
-            "nombre_cylindres": synth.get("nombre_cylindres"),
-            "alesage_m": synth.get("alesage_m"),
-            "course_m": synth.get("course_m"),
-            "rpm_nominal": synth.get("rpm_moteur_thermique"),
-            "puissance_requise_W": _first_finite(resolved.get("puissance_moteur_thermique_arbre_w")),
-            "couple_requis_Nm": _first_finite(resolved.get("couple_moteur_nm")),
-        }
         rapport["synthese"] = _to_jsonable(synth, max_depth=6)
 
         rapport["sous_systemes"] = {
-            "moteur_electrique": comp.get("moteur_electrique") or _dig(systeme_final, "sous_systemes", "sortie_et_bus_dc"),
             "sortie_et_bus_dc": _dig(systeme_final, "sous_systemes", "sortie_et_bus_dc"),
             "batterie": batt_rep or _dig(systeme_final, "sous_systemes", "batterie_tampon"),
             "alternateur": alt_rep or _dig(systeme_final, "sous_systemes", "alternateur_boite_modules"),
             "boite_crabots": boite_rep or _dig(systeme_final, "sous_systemes", "alternateur_boite_modules"),
             "moteur_thermique": mt_rep or _dig(systeme_final, "sous_systemes", "moteurs_thermiques_pleine_sortie"),
             "architecture": arch_rep,
+            "architecture_moteur_thermique": {
+                "meilleur_choix": arch_select,
+                "classement_par_efficacite": arch_classement,
+                "meilleurs_par_architecture": arch_best_by_family,
+                "rapport_complet": arch_rep,
+            },
             "mobilite": _dig(systeme_final, "sous_systemes", "mobilite"),
         }
         rapport["liaisons"] = _safe_dict(_dig(systeme_final, "liaisons"))
@@ -1491,24 +1670,14 @@ class STHO_ME:
     def _build_cao_frontend(self, rapport: Dict[str, Any]) -> None:
         synth = _safe_dict(rapport.get("synthese"))
         sketch_ready = all(_sf(synth.get(k)) is not None for k in ("alesage_m", "course_m")) and synth.get("nombre_cylindres") is not None
-        missing_geom = [k for k in ("alesage_m", "course_m", "nombre_cylindres") if synth.get(k) is None]
-        pieces_reports = _safe_dict(_dig(rapport, "rapports", "pieces"))
-        pieces_fermees: List[str] = []
-        pieces_non_fermees: List[str] = []
-        for pname, prep in pieces_reports.items():
-            prep_map = _safe_dict(prep)
-            cao_piece = _safe_dict(prep_map.get("cao") or prep_map.get("bloc_cao") or prep_map.get("solidworks"))
-            closed = bool(cao_piece.get("solidworks_ready") or cao_piece.get("complete") or cao_piece.get("fermee"))
-            (pieces_fermees if closed else pieces_non_fermees).append(str(pname))
         rapport["cao"] = {
             "solidworks_ready": False,
             "step_export": False,
             "sketches_available": bool(sketch_ready),
             "views_3d_available": bool(sketch_ready),
-            "stress_graphs_available": bool(rapport.get("mechanical_graphs")),
+            "stress_graphs_available": True,
             "drawing_data_available": bool(sketch_ready),
-            "missing_geometry": missing_geom,
-            "raison": "Le but est de fournir croquis, vues 3D et graphes de contraintes pour modelisation manuelle ; le dossier reste partiel tant que toutes les pieces ne sont pas definies.",
+            "raison": "Le but est de fournir croquis, vues 3D et graphes de contraintes ; l'export STEP reste bloqué tant que toutes les pièces ne sont pas fermées.",
             "cotes_moteur_thermique": {
                 "architecture": synth.get("architecture_moteur"),
                 "nombre_cylindres": synth.get("nombre_cylindres"),
@@ -1516,21 +1685,14 @@ class STHO_ME:
                 "course_m": synth.get("course_m"),
                 "rpm_nominal": synth.get("rpm_moteur_thermique"),
             },
-            "pieces_fermees": pieces_fermees,
-            "pieces_non_fermees": pieces_non_fermees,
         }
-        resolution_frontend = _safe_dict(_dig(rapport, "resolution_inconnues", "frontend_contract"))
-        graphes = _first_non_none(
-            rapport.get("mechanical_graphs"),
-            _dig(rapport, "rapports", "mechanical_graphs"),
-            {"available": False, "reason": "Aucune donnee de graphe mecanique calculee dans ce rapport."},
-        )
         rapport["frontend"] = {
             "status": "ok" if not rapport.get("inconnues", {}).get("impossibles") else "partial",
             "resume_cards": [
                 {"id": "sortie", "label": "Sortie utile", "value": synth.get("puissance_sortie_max_demandee_kw"), "unit": "kW"},
                 {"id": "bus_dc", "label": "Bus DC pleine sortie", "value": synth.get("P_bus_dc_pleine_sortie_kw"), "unit": "kW"},
                 {"id": "thermique", "label": "Thermique arbre requis", "value": synth.get("P_arbre_thermique_requise_pleine_sortie_kw"), "unit": "kW"},
+                {"id": "architecture", "label": "Architecture optimale", "value": synth.get("architecture_thermique_optimale"), "unit": ""},
                 {"id": "croisiere", "label": "Croisière retenue", "value": synth.get("puissance_croisiere_selectionnee_kw"), "unit": "kW"},
                 {"id": "batterie", "label": "Batterie utile", "value": synth.get("batterie_energie_utile_kwh"), "unit": "kWh"},
             ],
@@ -1538,34 +1700,6 @@ class STHO_ME:
             "inconnues": rapport.get("inconnues", {}),
             "cao": rapport.get("cao", {}),
         }
-        for card in rapport["frontend"].get("resume_cards", []):
-            if card.get("value") is not None:
-                card["missing_reason"] = None
-            elif card.get("id") == "sortie":
-                card["missing_reason"] = "Puissance utile non fournie."
-            elif card.get("id") == "bus_dc":
-                card["missing_reason"] = "Rendements, auxiliaires ou tension bus incomplets."
-            elif card.get("id") == "thermique":
-                card["missing_reason"] = "Chaine alternateur/boite non fermee."
-            elif card.get("id") == "croisiere":
-                card["missing_reason"] = "Profil de croisiere absent ou non valide."
-            elif card.get("id") == "batterie":
-                card["missing_reason"] = "Enveloppe batterie non fermee."
-        rapport["frontend"].update(
-            {
-                "alertes": rapport.get("alertes", {}),
-                "resolution": resolution_frontend,
-                "strategie_energie": _safe_dict(_dig(rapport, "rapports", "strategie_energie")),
-                "optimisation": _safe_dict(_dig(rapport, "rapports", "optimisation")),
-                "graphes": graphes,
-                "statuts": {
-                    "definition_complete": bool(rapport.get("definition_complete")),
-                    "pieces_fermees": pieces_fermees,
-                    "pieces_non_fermees": pieces_non_fermees,
-                },
-                "traces": rapport.get("tracabilite", {}),
-            }
-        )
 
     # ------------------------------------------------------------------
     # API publique
@@ -1615,11 +1749,9 @@ class STHO_ME:
         systeme_final = self._run_aboutissement_systeme(rapport, resolved)
         self._run_component_analyses(rapport, resolved, systeme_final, strict=strict)
         self._run_pieces(rapport, strict=strict)
-        _dedup(rapport)
-        self._build_synthese(rapport, resolved, systeme_final)
         self._run_strategie_energie(rapport)
         if optimize:
-            self._run_optimisation(rapport, strict=strict)
+            self._run_optimisation(rapport)
         else:
             rapport["rapports"]["optimisation"] = {"mode": "desactive", "note": "Optimisation désactivée par appelant."}
 
@@ -1630,21 +1762,6 @@ class STHO_ME:
         # Mise à jour compteurs après toutes les fusions.
         rapport["synthese"]["nb_inconnues_impossibles"] = len(rapport.get("inconnues", {}).get("impossibles", []))
         rapport["synthese"]["nb_inconnues_partielles"] = len(rapport.get("inconnues", {}).get("partielles", []))
-        rapport["synthese"]["etat"] = {
-            "resolution_lancee": bool(resolve_unknowns),
-            "optimisation_lancee": bool(optimize),
-            "strategie_energie_lancee": bool(rapport.get("rapports", {}).get("strategie_energie")),
-        }
-        rapport["strategie_energie"] = _safe_dict(_dig(rapport, "rapports", "strategie_energie"))
-        rapport["optimisation"] = _safe_dict(_dig(rapport, "rapports", "optimisation"))
-        if rapport["optimisation"]:
-            rapport.setdefault("tracabilite", {}).setdefault("optimization_runs", []).append(
-                {
-                    "source": "backend.ensemble.optimisation",
-                    "status": rapport["optimisation"].get("status") or rapport["optimisation"].get("mode"),
-                    "score_global": rapport["optimisation"].get("score_global"),
-                }
-            )
         if not frontend_contract:
             rapport.pop("frontend", None)
         return _to_jsonable(rapport, max_depth=12)
