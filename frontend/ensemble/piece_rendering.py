@@ -26,7 +26,7 @@ from typing import Any, Dict, Mapping
 from frontend.ensemble.cao_rendering import build_generic_sketch_contract, build_generic_view_3d_contract
 from frontend.ensemble.graph_rendering import build_chart_contracts_from_backend
 from frontend.ensemble.piece_data_adapter import STATUS_AVAILABLE, STATUS_MISSING_REQUIRED, STATUS_PARTIAL, get_piece_report, safe_dict
-from frontend.ensemble.render_contract import build_piece_render_contract
+from frontend.ensemble.render_contract import build_piece_render_contract, refresh_solidworks_definition_dossier
 
 
 def build_piece_visualization_contract(
@@ -75,7 +75,7 @@ def build_piece_visualization_contract(
     if sketch.get("solidworks_dimensions"):
         contract["solidworks_data"]["dimensions_to_copy"] = list(sketch["solidworks_dimensions"])
     contract["solidworks_data"]["missing_dimensions"] = list(contract.get("missing_fields") or [])
-    contract["solidworks_data"]["notes"].append("Croquis et 3D indicatifs issus des cotes backend ; aucun STEP n'est produit.")
+    contract["solidworks_data"]["notes"].append("Croquis et 3D indicatifs issus des cotes backend ; dossier de modelisation, pas export CAO.")
 
     statuses = [sketch.get("status"), view.get("status")]
     if any(status == STATUS_AVAILABLE for status in statuses):
@@ -86,6 +86,7 @@ def build_piece_visualization_contract(
     contract["solidworks_ready"] = False
     contract["solidworks_data"]["step_export"] = False
     contract["solidworks_data"]["solidworks_ready"] = False
+    refresh_solidworks_definition_dossier(contract, piece_name, piece_report)
     return contract
 
 

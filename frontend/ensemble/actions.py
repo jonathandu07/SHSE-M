@@ -6,7 +6,7 @@ Pourquoi ce fichier existe :
     Le GUI doit afficher des boutons sans simuler un service absent et sans
     encoder la logique d'analyse dans chaque ecran.
 Donnees consommees :
-    Rapport backend, diagnostic, dossier CAO, visualisations.
+    Rapport backend, diagnostic, dossier de modelisation, visualisations.
 Livrables produits :
     Liste d'actions passives avec disponibilite et raison.
 Limites :
@@ -31,7 +31,7 @@ def lister_actions_frontend(report: Mapping[str, Any]) -> Dict[str, Any]:
         {"id": "recalculer", "label": "Recalculer", "available": True, "reason": None},
         {"id": "optimiser", "label": "Optimiser", "available": bool(data.get("optimisation")), "reason": None if data.get("optimisation") else "Optimisation backend absente du rapport courant."},
         {"id": "analyser_json", "label": "Analyser JSON", "available": True, "reason": None},
-        {"id": "export_cao_json", "label": "Exporter dossier CAO JSON", "available": bool(data.get("cao_dossier")), "reason": None if data.get("cao_dossier") else "Dossier CAO backend absent."},
+        {"id": "export_cao_json", "label": "Exporter dossier de modelisation JSON", "available": bool(data.get("cao_dossier")), "reason": None if data.get("cao_dossier") else "Dossier de preparation SolidWorks backend absent."},
     ]
     return {"actions": actions, "source": "frontend.ensemble.actions"}
 

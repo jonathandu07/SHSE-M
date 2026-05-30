@@ -143,7 +143,7 @@ def is_cao_available(contract: Mapping[str, Any]) -> bool:
 
 
 def is_real_solidworks_available(contract: Mapping[str, Any]) -> bool:
-    """Disponibilite stricte : SolidWorks pret et aucun export STEP invente."""
+    """Compatibilite historique : dossier utilisable, sans generation STEP."""
     cao = contract.get("cao", {}) if isinstance(contract, Mapping) else {}
     if not isinstance(cao, Mapping):
         return False
@@ -153,6 +153,11 @@ def is_real_solidworks_available(contract: Mapping[str, Any]) -> bool:
 def is_step_export_available(contract: Mapping[str, Any]) -> bool:
     cao = contract.get("cao", {}) if isinstance(contract, Mapping) else {}
     return bool(isinstance(cao, Mapping) and cao.get("step_export") is True)
+
+
+def is_manual_modeling_dossier_available(contract: Mapping[str, Any]) -> bool:
+    """Retourne vrai seulement pour un dossier de modelisation backend explicite."""
+    return is_real_solidworks_available(contract)
 
 
 def get_missing_required_fields(contract: Mapping[str, Any]) -> List[str]:

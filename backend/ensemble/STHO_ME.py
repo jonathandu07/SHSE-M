@@ -1508,7 +1508,7 @@ class STHO_ME:
             "stress_graphs_available": bool(rapport.get("mechanical_graphs")),
             "drawing_data_available": bool(sketch_ready),
             "missing_geometry": missing_geom,
-            "raison": "Le but est de fournir croquis, vues 3D et graphes de contraintes ; l'export STEP reste bloqué tant que toutes les pièces ne sont pas fermées.",
+            "raison": "Le but est de fournir croquis, vues 3D et graphes de contraintes pour modelisation manuelle ; le dossier reste partiel tant que toutes les pieces ne sont pas definies.",
             "cotes_moteur_thermique": {
                 "architecture": synth.get("architecture_moteur"),
                 "nombre_cylindres": synth.get("nombre_cylindres"),

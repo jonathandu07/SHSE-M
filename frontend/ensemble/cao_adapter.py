@@ -1,10 +1,10 @@
 """
 Chemin : frontend/ensemble/cao_adapter.py
 But :
-    Adapter le dossier CAO backend en structure frontend passive.
+    Adapter le dossier de preparation SolidWorks backend en structure frontend passive.
 Pourquoi ce fichier existe :
-    La CAO frontend sert au redessin SolidWorks et aux vues indicatives. Elle ne
-    doit jamais transformer une absence de cote en modele final ou en STEP.
+    La preparation SolidWorks frontend sert au redessin et aux vues indicatives.
+    Elle ne doit jamais transformer une absence de cote en geometrie exploitable sans avertissement.
 Donnees consommees :
     rapport.cao_dossier, rapport.cao, rapport.mechanical_graphs.
 Livrables produits :
@@ -46,7 +46,7 @@ def build_cao_frontend_summary(report: Mapping[str, Any]) -> Dict[str, Any]:
         "missing_for_sketches": safe_list(cao.get("missing_for_sketches") or dossier.get("missing_for_sketches")),
         "missing_for_stress_graphs": safe_list(cao.get("missing_for_stress_graphs") or dossier.get("missing_for_stress_graphs")),
         "source": "backend.cao_dossier" if dossier else "backend.cao",
-        "warning": None if solidworks_ready else "CAO non finale : SolidWorks non pret ou champs manquants.",
+        "warning": None if solidworks_ready else "Dossier de modelisation incomplet : cotes, interfaces ou validations manquantes.",
     }
 
 

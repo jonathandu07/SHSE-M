@@ -22,7 +22,7 @@ def test_power_input_card_json_serializable_et_sans_step():
 
 
 def test_technical_card_ne_fabrique_pas_de_valeur_metier():
-    card = technical_card(title="Dossier CAO", status="missing_required", metrics=[{"label": "STEP", "value": False}])
+    card = technical_card(title="Dossier de modelisation", status="missing_required", metrics=[{"label": "Generation STEP", "value": False}])
 
     assert card["metrics"][0]["value"] is False
     assert card["status"] == "missing_required"

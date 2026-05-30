@@ -828,7 +828,7 @@ class DashboardScreen(Screen):
         content.add_widget(tier1)
 
         tier2 = BoxLayout(size_hint_y=None, height=dp(260), spacing=dp(12))
-        tier2.add_widget(self._technical_metric_panel("Dossier CAO / Préconception", _safe_list(dash.get("cao_preconception")), action=("OUVRIR DOSSIER", "cao_dossier")))
+        tier2.add_widget(self._technical_metric_panel("Dossier de modelisation", _safe_list(dash.get("cao_preconception")), action=("OUVRIR DOSSIER", "cao_dossier")))
         tier2.add_widget(self._diagnostic_causal_panel(_safe_dict(dash.get("diagnostic_causal"))))
         content.add_widget(tier2)
 
@@ -979,7 +979,7 @@ class DashboardScreen(Screen):
         )
         panel.add_widget(
             MetricRow(
-                "SolidWorks",
+                "Preparation SolidWorks",
                 _fmt_bool(summary.get("solidworks_ready")),
                 "",
                 "ok" if summary.get("solidworks_ready") else "alerte",

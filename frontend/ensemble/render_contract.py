@@ -29,6 +29,7 @@ from frontend.ensemble.piece_data_adapter import (
     get_backend_graphs,
     get_backend_sketches,
     get_backend_views_3d,
+    get_path,
     get_piece_report,
     safe_dict,
 )
@@ -66,6 +67,25 @@ def empty_render_contract(
             "step_export": False,
             "solidworks_ready": False,
         },
+        "dossier_definition_solidworks": {
+            "statut": "blocked" if status == STATUS_MISSING_REQUIRED else "partial",
+            "solidworks_ready": False,
+            "step_generation": False,
+            "schema_only": True,
+            "final_geometry": False,
+            "features_a_modeliser": [],
+            "cotes_connues": {},
+            "cotes_manquantes": {},
+            "interfaces": [],
+            "tolerances": [],
+            "surfaces_fonctionnelles": [],
+            "contraintes_rdm": [],
+            "limites_usage": [],
+            "controles_qualite": [],
+            "notes_modelisation": [],
+            "statut_validation": "not_validated",
+        },
+        "interfaces_assemblage": [],
         "step_export": False,
         "solidworks_ready": False,
         "missing_fields": [],
@@ -101,7 +121,7 @@ def normalize_view_3d(view: Mapping[str, Any]) -> Dict[str, Any]:
         "title": view.get("title") or view.get("titre") or view.get("id") or "Vue 3D indicative backend",
         "mesh_available": bool(view.get("mesh_available") or geometry),
         "json_geometry": geometry,
-        "warning": view.get("avertissement") or view.get("warning") or "Vue indicative, pas STEP, pas modele final.",
+        "warning": view.get("avertissement") or view.get("warning") or "Schema de principe pour preparation SolidWorks ; geometrie partielle, aucun STEP.",
         "used_fields": list(view.get("used_fields") or []),
         "missing_fields": list(view.get("missing_fields") or view.get("missing") or []),
         "source": view.get("source") or "backend.cao_dossier",
@@ -182,6 +202,181 @@ def _collect_piece_unknowns(piece_report: Mapping[str, Any]) -> list[dict[str, A
     return deduped
 
 
+def _safe_rows(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, Mapping):
+        rows: list[dict[str, Any]] = []
+        for key, item in value.items():
+            if isinstance(item, Mapping):
+                row = dict(item)
+                row.setdefault("nom", str(key))
+            else:
+                row = {"nom": str(key), "valeur": item}
+            rows.append(row)
+        return rows
+    if isinstance(value, (list, tuple)):
+        return [dict(item) if isinstance(item, Mapping) else {"nom": str(item)} for item in value]
+    if value is not None:
+        return [{"valeur": value}]
+    return []
+
+
+def _first_rows(piece_report: Mapping[str, Any], *paths: str) -> list[dict[str, Any]]:
+    for path in paths:
+        rows = _safe_rows(get_path(piece_report, path))
+        if rows:
+            return rows
+    return []
+
+
+def _dimension_key(item: Mapping[str, Any]) -> str:
+    return str(item.get("path") or item.get("label") or item.get("nom") or item.get("name") or len(item))
+
+
+def _unknown_key(item: Mapping[str, Any]) -> str:
+    return str(
+        item.get("path")
+        or item.get("champ")
+        or item.get("nom")
+        or item.get("name")
+        or item.get("label")
+        or len(item)
+    )
+
+
+def _known_dimensions_from_contract(contract: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    solidworks = safe_dict(contract.get("solidworks_data"))
+    for item in solidworks.get("dimensions_to_copy") or []:
+        if isinstance(item, Mapping):
+            out.setdefault(_dimension_key(item), dict(item))
+    for sketch in contract.get("sketches_2d") or []:
+        if not isinstance(sketch, Mapping):
+            continue
+        for item in sketch.get("solidworks_dimensions") or []:
+            if isinstance(item, Mapping):
+                out.setdefault(_dimension_key(item), dict(item))
+    return out
+
+
+def _features_from_contract(contract: Mapping[str, Any]) -> list[dict[str, Any]]:
+    features: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for block_name in ("sketches_2d", "views_3d"):
+        for item in contract.get(block_name) or []:
+            if not isinstance(item, Mapping):
+                continue
+            geometry = safe_dict(item.get("geometry_json")) or safe_dict(item.get("json_geometry"))
+            for feature in geometry.get("features") or []:
+                if not isinstance(feature, Mapping):
+                    continue
+                row = {
+                    "type": feature.get("type"),
+                    "label": feature.get("label") or feature.get("type"),
+                    "source": feature.get("source") or "backend",
+                    "schematic": bool(feature.get("schematic", True)),
+                    "final_geometry": False,
+                }
+                sig = (str(row["type"]), str(row["label"]))
+                if sig in seen:
+                    continue
+                seen.add(sig)
+                features.append(row)
+    return features
+
+
+def _missing_dimensions_from_unknowns(unknowns: list[Any]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for item in unknowns:
+        row = dict(item) if isinstance(item, Mapping) else {"nom": str(item)}
+        out.setdefault(_unknown_key(row), row)
+    return out
+
+
+def _definition_status(
+    *,
+    piece_report: Mapping[str, Any],
+    cotes_connues: Mapping[str, Any],
+    cotes_manquantes: Mapping[str, Any],
+    tolerances: list[dict[str, Any]],
+    materiaux: list[dict[str, Any]],
+) -> str:
+    if not piece_report or not cotes_connues:
+        return "blocked"
+    existing = safe_dict(piece_report.get("dossier_definition_solidworks")) or safe_dict(piece_report.get("dossier_cao_preparation"))
+    requested = str(existing.get("statut") or existing.get("status") or "").strip()
+    if requested == "ready_for_manual_modeling":
+        if cotes_manquantes or not tolerances or not materiaux:
+            return "partial"
+        return "ready_for_manual_modeling"
+    if requested in {"blocked", "partial"}:
+        return requested
+    return "partial"
+
+
+def refresh_solidworks_definition_dossier(contract: Dict[str, Any], piece_name: str, piece_report: Mapping[str, Any]) -> Dict[str, Any]:
+    """Expose un dossier d'aide a la modelisation, sans exporter de CAO."""
+    existing = safe_dict(piece_report.get("dossier_definition_solidworks")) or safe_dict(piece_report.get("dossier_cao_preparation"))
+    cotes_connues = _known_dimensions_from_contract(contract)
+    cotes_manquantes = _missing_dimensions_from_unknowns(list(contract.get("missing_fields") or []))
+    interfaces = _first_rows(piece_report, "interfaces_assemblage", "interfaces", "liaisons")
+    tolerances = _first_rows(piece_report, "tolerances", "tolerances_et_jeux", "jeux", "ajustements")
+    surfaces = _first_rows(piece_report, "surfaces_fonctionnelles", "surfaces")
+    contraintes_rdm = _first_rows(piece_report, "contraintes_rdm", "rdm", "contraintes")
+    limites_usage = _first_rows(piece_report, "limites_usage", "limites", "performances")
+    controles_qualite = _first_rows(piece_report, "controles_qualite", "controle_qualite", "qualite")
+    materiaux = _first_rows(piece_report, "materiaux", "materiau", "material", "materials")
+    notes = _safe_rows(existing.get("notes_modelisation"))
+    if not notes:
+        notes = [
+            {
+                "nom": "orientation",
+                "texte": "Dossier d'aide a la modelisation manuelle dans SolidWorks ; aucun export CAO n'est genere.",
+            }
+        ]
+
+    statut = _definition_status(
+        piece_report=piece_report,
+        cotes_connues=cotes_connues,
+        cotes_manquantes=cotes_manquantes,
+        tolerances=tolerances,
+        materiaux=materiaux,
+    )
+    validation = existing.get("statut_validation")
+    if validation not in {"validated_by_calculation", "not_validated"}:
+        validation = "not_validated"
+
+    dossier = {
+        "piece": piece_name,
+        "statut": statut,
+        "solidworks_ready": False,
+        "step_generation": False,
+        "schema_only": True,
+        "final_geometry": False,
+        "features_a_modeliser": _features_from_contract(contract),
+        "cotes_connues": cotes_connues,
+        "cotes_manquantes": cotes_manquantes,
+        "interfaces": interfaces,
+        "tolerances": tolerances,
+        "surfaces_fonctionnelles": surfaces,
+        "contraintes_rdm": contraintes_rdm,
+        "limites_usage": limites_usage,
+        "controles_qualite": controles_qualite,
+        "notes_modelisation": notes,
+        "statut_validation": validation,
+        "materiaux": materiaux,
+    }
+    contract["dossier_definition_solidworks"] = dossier
+    contract["interfaces_assemblage"] = interfaces
+    solidworks = safe_dict(contract.get("solidworks_data"))
+    solidworks["dossier_definition_solidworks"] = dossier
+    solidworks["step_export"] = False
+    solidworks["solidworks_ready"] = False
+    contract["solidworks_data"] = solidworks
+    contract["step_export"] = False
+    contract["solidworks_ready"] = False
+    return contract
+
+
 def build_piece_render_contract(piece_name: str, global_report: Mapping[str, Any], *, title: str | None = None) -> Dict[str, Any]:
     piece_report = get_piece_report(global_report, piece_name)
     contract = empty_render_contract(
@@ -205,7 +400,7 @@ def build_piece_render_contract(piece_name: str, global_report: Mapping[str, Any
     contract["views_3d"] = views
     contract["charts"] = charts
     contract["solidworks_data"]["dimensions_to_copy"] = dimensions
-    contract["solidworks_data"]["notes"].append("Donnees a reporter dans SolidWorks ; aucun STEP n'est produit.")
+    contract["solidworks_data"]["notes"].append("Donnees a reporter dans SolidWorks pour modelisation manuelle ; aucun export CAO n'est produit.")
 
     unknowns = _collect_piece_unknowns(piece_report)
     contract["missing_fields"] = unknowns
@@ -225,6 +420,7 @@ def build_piece_render_contract(piece_name: str, global_report: Mapping[str, Any
     contract["solidworks_data"]["solidworks_ready"] = False
     contract["step_export"] = False
     contract["solidworks_ready"] = False
+    refresh_solidworks_definition_dossier(contract, piece_name, piece_report)
     return contract
 
 

@@ -1,11 +1,11 @@
 # backend/components/moteur_thermique/pieces/arbre_piston.py
 # =============================================================================
 # ARBRE DE PISTON — SHSE-M
-# Version complétée : CAO + arbre plein/évidé + cisaillement + torsion + flexion
-# + flambage + taraudages ISO + géométrie exploitable SolidWorks
+# Version completee : dossier de definition + arbre plein/evide + cisaillement + torsion + flexion
+# + flambage + taraudages ISO + donnees de preparation SolidWorks
 # =============================================================================
 # Objectif "rien inventer" :
-# - Ne PAS choisir une géométrie finale unique si une donnée manque.
+# - Ne PAS figer une geometrie unique si une donnee manque.
 # - Calculer tout ce qui est calculable à partir :
 #   - des efforts fournis,
 #   - des efforts déduits du piston si piston.analyser() est exploitable,
@@ -16,7 +16,7 @@
 # Le module :
 # - vérifie une géométrie imposée (plein ou évidé),
 # - ou dimensionne l’arbre central en scénarios si la géométrie n’est pas entièrement fixée,
-# - produit un bloc "cao" pour faciliter le dessin 3D sous SolidWorks.
+# - produit un bloc de preparation pour faciliter la modelisation manuelle sous SolidWorks.
 # =============================================================================
 
 from __future__ import annotations

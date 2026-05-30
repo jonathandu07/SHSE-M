@@ -11,7 +11,7 @@ Donnees consommees :
     frontend.ensemble.visualisation_orchestrator.
 Livrables produits :
     Page Kivy listant systeme, composants, pieces, couverture et dossier
-    SolidWorks de preconception.
+    SolidWorks de preparation a la modelisation manuelle.
 Limites :
     - ne calcule aucune valeur metier ;
     - ne produit pas de STEP ;
@@ -113,7 +113,7 @@ class TechnicalVisualizationScreen(Screen):
         bar.add_widget(title)
         for label, callback, width in (
             ("COPIER JSON", self.copy_payload, 130),
-            ("DOSSIER CAO", lambda *_: self._go("cao_dossier"), 130),
+            ("PREP. SOLIDWORKS", lambda *_: self._go("cao_dossier"), 150),
             ("JSON BRUT", lambda *_: self._go("raw_json"), 110),
             ("DASHBOARD", lambda *_: self._go("dashboard"), 120),
         ):
@@ -133,10 +133,10 @@ class TechnicalVisualizationScreen(Screen):
         grid.add_widget(MetricRow("Score chaine", chain.get("score_chaine_100"), "/100", "ok" if chain.get("score_chaine_100") else "missing"))
         grid.add_widget(MetricRow("Strategie energie", "presente" if system.get("strategy") else "absente", "", "ok" if system.get("strategy") else "missing"))
         grid.add_widget(MetricRow("Causes racines", len(_safe_list(diagnostic.get("causes_racines"))), "", "alerte" if diagnostic.get("causes_racines") else "ok"))
-        grid.add_widget(MetricRow("Dossier CAO", "present" if cao else "absent", "", "ok" if cao else "missing"))
+        grid.add_widget(MetricRow("Dossier de modelisation", "present" if cao else "absent", "", "ok" if cao else "missing"))
         grid.add_widget(MetricRow("Graphes mecaniques", "present" if _safe_dict(system.get("mechanical_graphs")) else "voir dossier", "", "partiel"))
         panel.add_widget(grid)
-        panel.add_widget(Label(text="Les vues sont indicatives : aucun STEP final n'est produit.", color=COLORS["MUTED"], size_hint_y=None, height=dp(32)))
+        panel.add_widget(Label(text="Les vues sont des aides de preparation SolidWorks : geometrie partielle, aucun STEP.", color=COLORS["MUTED"], size_hint_y=None, height=dp(32)))
         return panel
 
     def _coverage_panel(self) -> PremiumCard:
@@ -178,11 +178,11 @@ class TechnicalVisualizationScreen(Screen):
 
     def _solidworks_panel(self) -> PremiumCard:
         sw = _safe_dict(self.payload.get("solidworks"))
-        panel = PremiumCard(title="Dossier SolidWorks", size_hint_y=None, height=dp(170))
+        panel = PremiumCard(title="Preparation SolidWorks", size_hint_y=None, height=dp(170))
         panel.add_widget(MetricRow("Cotes disponibles", "via contrats piece", "", "partiel" if sw.get("cao_dossier") else "missing"))
         panel.add_widget(MetricRow("Graphiques", "backend" if sw.get("mechanical_graphs") else "absents", "", "ok" if sw.get("mechanical_graphs") else "missing"))
-        panel.add_widget(MetricRow("SolidWorks ready", bool(sw.get("solidworks_ready")), "", "missing"))
-        panel.add_widget(MetricRow("STEP export", bool(sw.get("step_export")), "", "missing"))
+        panel.add_widget(MetricRow("Modelisation manuelle", bool(sw.get("solidworks_ready")), "", "missing"))
+        panel.add_widget(MetricRow("Generation STEP", bool(sw.get("step_export")), "", "missing"))
         panel.add_widget(Label(text="Cette page aide au redessin SolidWorks ; elle n'applique aucun patch.", color=COLORS["MUTED"], size_hint_y=None, height=dp(32)))
         return panel
 

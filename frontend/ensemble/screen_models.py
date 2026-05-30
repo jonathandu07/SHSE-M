@@ -174,9 +174,9 @@ def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str,
         _metric("Croquis cotes", _bool_text(cao_summary.get("sketches_available")), "", "ok" if cao_summary.get("sketches_available") else "alerte"),
         _metric("3D indicative", _bool_text(cao_summary.get("views_3d_available")), "", "ok" if cao_summary.get("views_3d_available") else "alerte"),
         _metric("Graphiques contraintes", _bool_text(cao_summary.get("stress_graphs_available")), "", "ok" if cao_summary.get("stress_graphs_available") else "alerte"),
-        _metric("Donnees SolidWorks", _bool_text(cao_summary.get("drawing_data_available")), "", "ok" if cao_summary.get("drawing_data_available") else "alerte"),
-        _metric("SolidWorks ready", _bool_text(cao_summary.get("solidworks_ready")), "", "ok" if cao_summary.get("solidworks_ready") else "alerte"),
-        _metric("STEP export", _bool_text(cao_summary.get("step_export")), "", "ok" if cao_summary.get("step_export") else "alerte"),
+        _metric("Donnees de modelisation", _bool_text(cao_summary.get("drawing_data_available")), "", "ok" if cao_summary.get("drawing_data_available") else "alerte"),
+        _metric("Preparation SolidWorks", _bool_text(cao_summary.get("solidworks_ready")), "", "ok" if cao_summary.get("solidworks_ready") else "alerte"),
+        _metric("Generation STEP", _bool_text(cao_summary.get("step_export")), "", "missing"),
     ]
 
     diagnostic_causal = {

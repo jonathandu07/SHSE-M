@@ -4,7 +4,7 @@ But :
     Representer l'etat frontend courant sans logique metier.
 Pourquoi ce fichier existe :
     Les pages GUI ont besoin d'un conteneur stable pour les rapports backend, le
-    contrat frontend, le diagnostic et le dossier CAO.
+    contrat frontend, le diagnostic et le dossier de preparation SolidWorks.
 Donnees consommees :
     Etat retourne par frontend.main.FrontendBackendBridge.
 Livrables produits :
