@@ -244,6 +244,165 @@ def _dedup_inconnues(rap: Dict[str, Any]) -> None:
     rap["inconnues"]["partielles"] = dedup(list(rap["inconnues"].get("partielles", []) or []))
 
 
+def _pget(data: Dict[str, Any], *path: str) -> Any:
+    cur: Any = data
+    for key in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(key)
+    return cur
+
+
+def _missing_tolerance(nom: str, typ: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": typ, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _status_if_known(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _ajouter_champs_metier_definition_piston(rap: Dict[str, Any]) -> None:
+    dims = rap.get("dimensions", {}) if isinstance(rap.get("dimensions"), dict) else {}
+    cao = dims.get("cao", {}) if isinstance(dims.get("cao"), dict) else {}
+    joints = rap.get("joints", {}) if isinstance(rap.get("joints"), dict) else {}
+    jeux = rap.get("jeux", {}) if isinstance(rap.get("jeux"), dict) else {}
+    cin = rap.get("cinematique", {}) if isinstance(rap.get("cinematique"), dict) else {}
+    thermique = rap.get("thermique", {}) if isinstance(rap.get("thermique"), dict) else {}
+
+    d_piston = dims.get("diametre_piston_cao_centre_m") or cao.get("diametre_exterieur_nominal_m")
+    rap["surfaces_fonctionnelles"] = [
+        {
+            "nom": "jupe_piston",
+            "fonction": "guidage dans l'alesage et reprise des efforts lateraux",
+            "geometrie_associee": "cylindre_exterieur_piston",
+            "cote_associee": "diametre_piston_cao_centre_m",
+            "valeur_associee": d_piston,
+            "risque": "grippage, usure ou ovalisation si jeu radial / etat de surface insuffisant",
+            "controle_recommande": "diametre exterieur, circularite, rugosite et jeu piston/cylindre",
+        },
+        {
+            "nom": "tete_piston",
+            "fonction": "recevoir la pression gaz et transmettre l'effort axial",
+            "geometrie_associee": "face_superieure_piston",
+            "cote_associee": "epaisseur_tete_m",
+            "valeur_associee": dims.get("epaisseur_tete_m"),
+            "risque": "contrainte pression/thermique excessive",
+            "controle_recommande": "epaisseur, planeite et absence de crique",
+        },
+        {
+            "nom": "gorges_joint_piston",
+            "fonction": "positionner les joints et assurer l'etancheite",
+            "geometrie_associee": "rainures_sur_diametre_exterieur",
+            "cote_associee": "largeur_rainure_m / profondeur_radiale_rainure_m",
+            "valeur_associee": {
+                "largeur_rainure_m": joints.get("largeur_rainure_m"),
+                "profondeur_radiale_rainure_m": joints.get("profondeur_radiale_rainure_m"),
+            },
+            "risque": "fuite ou frottement excessif si gorge, squeeze ou etat de surface non conformes",
+            "controle_recommande": "largeur, profondeur, position axiale et rayon de fond de gorge",
+        },
+        {
+            "nom": "portee_axe_piston",
+            "fonction": "interface avec arbre_piston",
+            "geometrie_associee": "alesage_ou_portee_axe",
+            "cote_associee": "diametre_axe_m",
+            "valeur_associee": _pget(rap, "entrees", "diametre_axe_m"),
+            "risque": "jeu ou matage si diametre et longueur d'axe non definis",
+            "controle_recommande": "diametre, coaxialite avec piston et etat de surface",
+        },
+    ]
+
+    rap["interfaces_assemblage"] = [
+        {
+            "piece_a": "piston",
+            "piece_b": "cylindre",
+            "fonction": "guidage coulissant et etancheite primaire",
+            "type_liaison": "glissiere cylindrique",
+            "cote_interface": d_piston,
+            "jeu_ou_serrage": {
+                "jeu_radial_min_m": jeux.get("jeu_radial_min_m"),
+                "jeu_radial_max_m": jeux.get("jeu_radial_max_m"),
+            },
+            "tolerance": rap.get("iso286") or cao.get("tolerance_diametre_exterieur_m"),
+            "effort_transmis": cin.get("force_gaz_n"),
+            "risque": "grippage si jeu nul a chaud, fuite si jeu trop grand",
+            "statut": _status_if_known(d_piston, jeux.get("jeu_radial_max_m")),
+        },
+        {
+            "piece_a": "piston",
+            "piece_b": "joint_piston",
+            "fonction": "etancheite annulaire",
+            "type_liaison": "joint dans gorge",
+            "cote_interface": joints.get("diametre_fond_rainure_m"),
+            "jeu_ou_serrage": joints.get("squeeze"),
+            "tolerance": {
+                "largeur_rainure_m": cao.get("tolerance_largeur_rainure_m"),
+                "profondeur_rainure_m": cao.get("tolerance_profondeur_rainure_m"),
+                "position_rainure_m": cao.get("tolerance_position_rainure_m"),
+            },
+            "effort_transmis": _pget(rap, "frottements", "joint", "force_normale_totale_n"),
+            "risque": "fuite, extrusion ou frottement excessif",
+            "statut": _status_if_known(joints.get("diametre_fond_rainure_m"), joints.get("squeeze")),
+        },
+        {
+            "piece_a": "piston",
+            "piece_b": "arbre_piston",
+            "fonction": "transmission de l'effort axial vers la bielle",
+            "type_liaison": "pivot ou axe traversant",
+            "cote_interface": _pget(rap, "entrees", "diametre_axe_m"),
+            "jeu_ou_serrage": None,
+            "tolerance": None,
+            "effort_transmis": cin.get("force_axiale_nette_n") or cin.get("force_gaz_n"),
+            "risque": "matage ou mauvais alignement si jeu/tolerance non definis",
+            "statut": "partial",
+        },
+    ]
+
+    rap["tolerances"] = [
+        {
+            "nom": "diametre_exterieur_piston",
+            "type": "diametral",
+            "valeur": cao.get("tolerance_diametre_exterieur_m"),
+            "statut": "known" if cao.get("tolerance_diametre_exterieur_m") is not None else "missing",
+            "source": "dimensions.cao.tolerance_diametre_exterieur_m",
+        },
+        {
+            "nom": "largeur_profondeur_rainures",
+            "type": "gorge_joint",
+            "valeur": {
+                "largeur_m": cao.get("tolerance_largeur_rainure_m"),
+                "profondeur_m": cao.get("tolerance_profondeur_rainure_m"),
+                "position_m": cao.get("tolerance_position_rainure_m"),
+            },
+            "statut": "known" if cao.get("tolerance_largeur_rainure_m") is not None else "missing",
+            "source": "dimensions.cao",
+        },
+        _missing_tolerance("coaxialite_axe_piston", "geometrique", "tolerance a definir selon assemblage piston/arbre_piston"),
+    ]
+
+    rap["contraintes_rdm"] = [
+        {"nom": "force_gaz", "type": "compression_axiale", "valeur": cin.get("force_gaz_n"), "unite": "N", "source": "cinematique.force_gaz_n"},
+        {"nom": "contrainte_tete", "type": "pression_thermique", "valeur": rap.get("contraintes_tete"), "source": "contraintes_tete"},
+        {"nom": "pression_contact_jupe", "type": "contact", "valeur": rap.get("efforts_lateraux"), "source": "efforts_lateraux"},
+    ]
+    rap["limites_usage"] = [
+        {"nom": "pression_max", "valeur": _pget(rap, "entrees", "pression_max_pa") or _pget(rap, "liaisons", "cylindre", "pression_max_pa"), "unite": "Pa", "condition_non_conformite": "pression cycle superieure a la pression de dimensionnement"},
+        {"nom": "temperature_fonctionnement", "valeur": thermique.get("T_fonctionnement_k"), "unite": "K", "condition_non_conformite": "dilatation ou tenue materiau non verifiee"},
+        {"nom": "PV_joint", "valeur": _pget(rap, "frottements", "joint", "PV_pa_ms"), "unite": "Pa.m/s", "condition_non_conformite": "PV superieur a la limite fournie"},
+    ]
+    rap["controles_qualite"] = [
+        {"nom": "diametre_exterieur", "type": "cote", "cote": d_piston, "controle": "mesure diametrale multi-orientations"},
+        {"nom": "gorges_joints", "type": "gorge", "cote": joints.get("largeur_rainure_m"), "controle": "largeur/profondeur/position et rayon de fond"},
+        {"nom": "jeu_radial_piston_cylindre", "type": "jeu", "cote": jeux.get("jeu_radial_max_m"), "controle": "verification montage a froid et marge a chaud"},
+        {"nom": "etat_surface_jupe", "type": "rugosite", "cote": cao.get("rugosite_exterieure_ra_um"), "controle": "rugosite Ra sur surface de guidage"},
+    ]
+    rap["notes_modelisation"] = [
+        {"nom": "feature_initiale", "texte": "Modele SolidWorks conseille: revolution du profil piston autour de l'axe cylindre."},
+        {"nom": "references", "texte": "Conserver l'axe cylindre comme axe principal et nommer les plans tete/jupe/gorges."},
+        {"nom": "parametrique", "texte": "Laisser diametre exterieur, hauteur, gorges et axe piston parametriques ; aucun export STEP n'est genere."},
+    ]
+
+
 def _borne(x: float, xmin: float, xmax: float) -> float:
     return max(float(xmin), min(float(xmax), float(x)))
 
@@ -1817,6 +1976,7 @@ class Piston:
             "poisson_piston": self.poisson_piston,
         }
 
+        _ajouter_champs_metier_definition_piston(rap)
         _dedup_inconnues(rap)
         if strict and (rap["inconnues"]["impossibles"] or rap["inconnues"]["partielles"]):
             raise ValueError(

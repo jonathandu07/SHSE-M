@@ -93,6 +93,75 @@ def _safe_get_dict(obj: Any, key: str) -> Dict[str, Any]:
     return {}
 
 
+def _ap_get(data: Dict[str, Any], *path: str) -> Any:
+    cur: Any = data
+    for key in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(key)
+    return cur
+
+
+def _missing_tolerance_arbre_piston(nom: str, typ: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": typ, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _status_arbre_piston(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _ajouter_champs_metier_definition_arbre_piston(rapport: Dict[str, Any]) -> None:
+    geo = rapport.get("geometrie", {}) if isinstance(rapport.get("geometrie"), dict) else {}
+    cao = rapport.get("cao", {}) if isinstance(rapport.get("cao"), dict) else {}
+    fut_cao = cao.get("fut_central", {}) if isinstance(cao.get("fut_central"), dict) else {}
+    tg_cao = cao.get("teton_gauche", {}) if isinstance(cao.get("teton_gauche"), dict) else {}
+    td_cao = cao.get("teton_droit", {}) if isinstance(cao.get("teton_droit"), dict) else {}
+    efforts = rapport.get("efforts", {}) if isinstance(rapport.get("efforts"), dict) else {}
+    contraintes = rapport.get("contraintes", {}) if isinstance(rapport.get("contraintes"), dict) else {}
+    flambage = rapport.get("flambage", {}) if isinstance(rapport.get("flambage"), dict) else {}
+    d_fut = geo.get("diametre_exterieur_fut_m") or fut_cao.get("diametre_exterieur_m")
+    d_portee = geo.get("diametre_portee_coussinet_m")
+
+    rapport["surfaces_fonctionnelles"] = [
+        {"nom": "fut_central", "fonction": "transmission traction/compression et guidage structurel", "geometrie_associee": "cylindre central", "cote_associee": "diametre_exterieur_fut_m", "valeur_associee": d_fut, "risque": "flexion, flambage ou cisaillement si section insuffisante", "controle_recommande": "diametre, rectitude, etat de surface"},
+        {"nom": "portee_coussinet", "fonction": "surface tribologique avec coussinet/bielle", "geometrie_associee": "portee cylindrique", "cote_associee": "diametre_portee_coussinet_m", "valeur_associee": d_portee, "risque": "usure ou matage si jeu/etat de surface non definis", "controle_recommande": "diametre, cylindricite et rugosite"},
+        {"nom": "tetons_extremites", "fonction": "interfaces avec piston ou elements de retenue", "geometrie_associee": "tetons gauche/droit", "cote_associee": "diametre_teton_gauche_m / diametre_teton_droit_m", "valeur_associee": {"gauche": geo.get("diametre_teton_gauche_m"), "droit": geo.get("diametre_teton_droit_m")}, "risque": "mauvais assemblage si longueurs/filetages non definis", "controle_recommande": "diametres, chanfreins et eventuels filetages"},
+    ]
+    rapport["interfaces_assemblage"] = [
+        {"piece_a": "arbre_piston", "piece_b": "piston", "fonction": "transmettre effort axial", "type_liaison": "pivot/axe", "cote_interface": geo.get("diametre_teton_gauche_m") or d_fut, "jeu_ou_serrage": None, "tolerance": tg_cao.get("tolerance_diametre_m"), "effort_transmis": efforts.get("force_axiale_N"), "risque": "jeu/tolerance piston non definis", "statut": "partial"},
+        {"piece_a": "arbre_piston", "piece_b": "bielle", "fonction": "articulation petite tete", "type_liaison": "pivot", "cote_interface": d_portee or d_fut, "jeu_ou_serrage": None, "tolerance": fut_cao.get("tolerance_diametre_m"), "effort_transmis": efforts.get("force_axiale_N"), "risque": "pression de contact ou desalignement", "statut": _status_arbre_piston(d_portee or d_fut)},
+        {"piece_a": "arbre_piston", "piece_b": "coussinet_arbre_piston", "fonction": "portee tribologique", "type_liaison": "palier lisse", "cote_interface": d_portee, "jeu_ou_serrage": None, "tolerance": fut_cao.get("tolerance_diametre_m"), "effort_transmis": efforts.get("force_cisaillement_N") or efforts.get("force_axiale_N"), "risque": "PV et jeu coussinet non verifiees", "statut": _status_arbre_piston(d_portee)},
+    ]
+    rapport["tolerances"] = [
+        {"nom": "diametre_fut_central", "type": "diametral", "valeur": fut_cao.get("tolerance_diametre_m"), "statut": "known" if fut_cao.get("tolerance_diametre_m") is not None else "missing", "source": "cao.fut_central", "raison": None if fut_cao.get("tolerance_diametre_m") is not None else "tolerance a definir selon guidage et procede"},
+        {"nom": "diametre_tetons", "type": "diametral", "valeur": ({"gauche": tg_cao.get("tolerance_diametre_m"), "droit": td_cao.get("tolerance_diametre_m")} if tg_cao.get("tolerance_diametre_m") is not None or td_cao.get("tolerance_diametre_m") is not None else None), "statut": "known" if tg_cao.get("tolerance_diametre_m") is not None or td_cao.get("tolerance_diametre_m") is not None else "missing", "source": "cao.tetons", "raison": None if tg_cao.get("tolerance_diametre_m") is not None or td_cao.get("tolerance_diametre_m") is not None else "tolerance a definir selon assemblage piston/bielle"},
+        _missing_tolerance_arbre_piston("rectitude_arbre_piston", "geometrique", "a definir selon longueur libre, assemblage et procede"),
+        _missing_tolerance_arbre_piston("jeu_portee_coussinet", "jeu", "a definir avec le coussinet et le lubrifiant"),
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "von_mises", "type": "traction_flexion_torsion", "valeur": contraintes.get("sigma_von_mises_pa"), "unite": "Pa", "source": "contraintes"},
+        {"nom": "cisaillement", "type": "cisaillement", "valeur": contraintes.get("tau_transverse_pa"), "unite": "Pa", "source": "contraintes"},
+        {"nom": "flambage", "type": "flambage", "valeur": flambage, "source": "flambage"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "force_axiale", "valeur": efforts.get("force_axiale_N"), "unite": "N", "condition_non_conformite": "effort axial superieur au cas calcule"},
+        {"nom": "couple_torsion", "valeur": efforts.get("couple_torsion_Nm"), "unite": "N.m", "condition_non_conformite": "couple superieur au cas calcule"},
+        {"nom": "marge_von_mises", "valeur": contraintes.get("marge_sigma_vm"), "condition_non_conformite": "marge <= 1"},
+        {"nom": "marge_flambage", "valeur": flambage.get("marge_flambage"), "condition_non_conformite": "marge <= 1"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "diametre_fut", "type": "cote", "cote": d_fut, "controle": "mesure diametre et circularite"},
+        {"nom": "rectitude", "type": "geometrique", "cote": None, "controle": "controle rectitude sur longueur totale"},
+        {"nom": "coaxialite_tetons", "type": "geometrique", "cote": None, "controle": "coaxialite tetons/fut central"},
+        {"nom": "filetages", "type": "filetage", "cote": {"gauche": _ap_get(rapport, "entrees", "filetage_gauche"), "droit": _ap_get(rapport, "entrees", "filetage_droit")}, "controle": "controle taraudage/filetage si fourni"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "feature_initiale", "texte": "Modele SolidWorks conseille: revolution par troncons le long de l'axe arbre_piston."},
+        {"nom": "references", "texte": "Nommer axe principal, portee coussinet, teton gauche et teton droit."},
+        {"nom": "parametrique", "texte": "Laisser diametres, longueurs, evidement et filetages parametriques ; aucun export STEP n'est genere."},
+    ]
+
+
 def _aire_disque(d: float) -> float:
     r = 0.5 * _req_pos("d", d)
     return math.pi * r * r
@@ -1313,6 +1382,7 @@ class ArbrePiston:
             "k_scenarios": self.k_scenarios,
         }
 
+        _ajouter_champs_metier_definition_arbre_piston(rapport)
         _dedup_inconnues(rapport)
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
             raise ValueError(

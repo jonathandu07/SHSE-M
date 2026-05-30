@@ -192,6 +192,7 @@ def ajouter_dossier_definition_solidworks(
         rapport,
         (
             "contraintes",
+            "contraintes_rdm",
             "contraintes_tete",
             "dimensionnement",
             "dimensionnements",
@@ -524,6 +525,13 @@ def _collect_notes(rapport: Mapping[str, Any]) -> list[dict[str, Any]]:
     ]
     for item in rapport.get("notes_modele") or []:
         notes.append({"texte": str(item), "source": "notes_modele"})
+    for item in rapport.get("notes_modelisation") or []:
+        if isinstance(item, Mapping):
+            row = dict(item)
+            row.setdefault("source", "notes_modelisation")
+            notes.append(_jsonable(row))
+        else:
+            notes.append({"texte": str(item), "source": "notes_modelisation"})
     return notes
 
 

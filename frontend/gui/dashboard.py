@@ -833,7 +833,7 @@ class DashboardScreen(Screen):
         content.add_widget(tier2)
 
         tier3 = BoxLayout(size_hint_y=None, height=dp(240), spacing=dp(12))
-        tier3.add_widget(self._missing_summary_panel(summary.get("missing_count", 0), _safe_list(dash.get("unknowns"))))
+        tier3.add_widget(self._missing_summary_panel(summary.get("missing_count", 0), _safe_list(ui.get("missing_requirements"))))
         tier3.add_widget(self._next_actions_panel(_safe_list(dash.get("alerts"))))
         content.add_widget(tier3)
 

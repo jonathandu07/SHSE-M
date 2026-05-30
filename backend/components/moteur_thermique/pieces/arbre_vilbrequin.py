@@ -86,6 +86,79 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
     )
 
 
+def _av_get(data: Dict[str, Any], *path: str) -> Any:
+    cur: Any = data
+    for key in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(key)
+    return cur
+
+
+def _missing_tolerance_arbre_vilbrequin(nom: str, typ: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": typ, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _status_arbre_vilbrequin(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _ajouter_champs_metier_definition_arbre_vilbrequin(rapport: Dict[str, Any]) -> None:
+    geo = rapport.get("geometrie", {}) if isinstance(rapport.get("geometrie"), dict) else {}
+    cao = rapport.get("cao", {}) if isinstance(rapport.get("cao"), dict) else {}
+    journal_cao = cao.get("journal_principal", {}) if isinstance(cao.get("journal_principal"), dict) else {}
+    maneton_cao = cao.get("maneton", {}) if isinstance(cao.get("maneton"), dict) else {}
+    contraintes = rapport.get("contraintes", {}) if isinstance(rapport.get("contraintes"), dict) else {}
+    pressions = rapport.get("pressions_contact", {}) if isinstance(rapport.get("pressions_contact"), dict) else {}
+    dim = rapport.get("dimensionnements", {}) if isinstance(rapport.get("dimensionnements"), dict) else {}
+    cin = rapport.get("cinematique", {}) if isinstance(rapport.get("cinematique"), dict) else {}
+    d_journal = geo.get("diametre_journal_principal_m")
+    d_maneton = geo.get("diametre_maneton_m")
+    effort_maneton = _av_get(rapport, "bielle_maneton", "force_axiale_max_bielle_N") or _av_get(rapport, "pressions_contact", "maneton", "force_N")
+
+    rapport["surfaces_fonctionnelles"] = [
+        {"nom": "tourillons_principaux", "fonction": "portees de rotation sur paliers/roulements", "geometrie_associee": "journal_principal", "cote_associee": "diametre_journal_principal_m", "valeur_associee": d_journal, "risque": "faux-rond, usure ou contrainte locale si portee non definie", "controle_recommande": "diametre, coaxialite, faux-rond et rugosite"},
+        {"nom": "maneton", "fonction": "interface avec grande tete de bielle", "geometrie_associee": "maneton", "cote_associee": "diametre_maneton_m", "valeur_associee": d_maneton, "risque": "pression de contact et fatigue au rayon de raccordement", "controle_recommande": "diametre, largeur, rayon de conge et rugosite"},
+        {"nom": "rayons_raccordement", "fonction": "reduction des concentrations de contraintes", "geometrie_associee": "conges journal/maneton", "cote_associee": "rayon_conge_m", "valeur_associee": {"journal": journal_cao.get("rayon_conge_m"), "maneton": maneton_cao.get("rayon_conge_m")}, "risque": "amorcage fatigue si rayon ou etat de surface insuffisant", "controle_recommande": "rayon conge et absence d'entaille"},
+        {"nom": "interface_clavette_future", "fonction": "transmission couple vers organe associe si present", "geometrie_associee": "portee arbre associe", "cote_associee": "rainure_clavette", "valeur_associee": None, "risque": "rainure non dimensionnee dans ce module", "controle_recommande": "a definir avec clavette_arbre"},
+    ]
+    rapport["interfaces_assemblage"] = [
+        {"piece_a": "arbre_vilbrequin", "piece_b": "vilebrequin", "fonction": "arbre associe au vilebrequin", "type_liaison": "portee coaxiale", "cote_interface": d_journal, "jeu_ou_serrage": _av_get(rapport, "entrees", "serrage_roulement_m") or _av_get(rapport, "entrees", "jeu_roulement_m"), "tolerance": journal_cao.get("tolerance_diametre_m"), "effort_transmis": _av_get(rapport, "entrees", "couple_max_Nm"), "risque": "coaxialite et faux-rond non valides sans reactions paliers", "statut": _status_arbre_vilbrequin(d_journal)},
+        {"piece_a": "arbre_vilbrequin", "piece_b": "bielle", "fonction": "transmission effort par maneton", "type_liaison": "pivot maneton/grande tete", "cote_interface": d_maneton, "jeu_ou_serrage": None, "tolerance": maneton_cao.get("tolerance_diametre_m"), "effort_transmis": effort_maneton, "risque": "jeu maneton/roulement et pression contact incomplets", "statut": _status_arbre_vilbrequin(d_maneton)},
+        {"piece_a": "arbre_vilbrequin", "piece_b": "roulement_aiguille_arbre_vilebrequin", "fonction": "support rotation cote maneton ou journal", "type_liaison": "roulement", "cote_interface": d_maneton or d_journal, "jeu_ou_serrage": _av_get(rapport, "entrees", "jeu_roulement_m"), "tolerance": journal_cao.get("tolerance_diametre_m") or maneton_cao.get("tolerance_diametre_m"), "effort_transmis": effort_maneton, "risque": "reference roulement et C/C0 non valides", "statut": "partial"},
+        {"piece_a": "arbre_vilbrequin", "piece_b": "clavette_arbre", "fonction": "transmission couple si clavette utilisee", "type_liaison": "clavette/rainure", "cote_interface": None, "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": _av_get(rapport, "entrees", "couple_max_Nm"), "risque": "rainure et clavette non definies ici", "statut": "partial"},
+    ]
+    rapport["tolerances"] = [
+        {"nom": "diametre_journal_principal", "type": "diametral", "valeur": journal_cao.get("tolerance_diametre_m"), "statut": "known" if journal_cao.get("tolerance_diametre_m") is not None else "missing", "source": "cao.journal_principal"},
+        {"nom": "diametre_maneton", "type": "diametral", "valeur": maneton_cao.get("tolerance_diametre_m"), "statut": "known" if maneton_cao.get("tolerance_diametre_m") is not None else "missing", "source": "cao.maneton"},
+        _missing_tolerance_arbre_vilbrequin("faux_rond_tourillons", "geometrique", "a definir selon paliers et precision d'usinage"),
+        _missing_tolerance_arbre_vilbrequin("coaxialite_journal_maneton", "geometrique", "a definir selon architecture et assemblage vilebrequin"),
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "contraintes_journal_principal", "type": "flexion_torsion_von_mises", "valeur": contraintes.get("journal_principal"), "source": "contraintes.journal_principal"},
+        {"nom": "contraintes_maneton", "type": "flexion_torsion_von_mises", "valeur": contraintes.get("maneton"), "source": "contraintes.maneton"},
+        {"nom": "pression_contact_maneton", "type": "pression_contact", "valeur": pressions.get("maneton"), "source": "pressions_contact.maneton"},
+        {"nom": "diametres_minimum", "type": "dimensionnement", "valeur": dim, "source": "dimensionnements"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "couple_max", "valeur": _av_get(rapport, "entrees", "couple_max_Nm"), "unite": "N.m", "condition_non_conformite": "couple superieur au cas de torsion"},
+        {"nom": "rpm", "valeur": cin.get("rpm"), "unite": "rpm", "condition_non_conformite": "regime superieur au cas verifie ou resonance non analysee"},
+        {"nom": "marge_von_mises_maneton", "valeur": _av_get(rapport, "contraintes", "maneton", "marge_von_mises"), "condition_non_conformite": "marge <= 1"},
+        {"nom": "limite_fatigue", "valeur": _av_get(rapport, "materiau", "limite_fatigue_pa"), "unite": "Pa", "condition_non_conformite": "fatigue non validee sans spectre complet"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "diametre_maneton", "type": "cote", "cote": d_maneton, "controle": "diametre, circularite et rugosite"},
+        {"nom": "diametre_tourillon", "type": "cote", "cote": d_journal, "controle": "diametre, faux-rond et coaxialite"},
+        {"nom": "rayons_conge", "type": "forme", "cote": {"journal": journal_cao.get("rayon_conge_m"), "maneton": maneton_cao.get("rayon_conge_m")}, "controle": "rayons et absence d'entaille"},
+        {"nom": "equilibrage", "type": "essai", "cote": None, "controle": "controle a definir si contrepoids/bras sont fournis"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "feature_initiale", "texte": "Modele SolidWorks conseille: definir axe rotation, maneton excentre et portees cylindriques."},
+        {"nom": "references", "texte": "Nommer tourillons, maneton, rayons de raccordement et plans de symetrie."},
+        {"nom": "parametrique", "texte": "Laisser diametres, largeur portees, rayon manivelle et rayons de conge parametriques ; aucun export STEP n'est genere."},
+    ]
+
+
 def _safe_get_dict(obj: Any, key: str) -> Dict[str, Any]:
     if isinstance(obj, dict):
         v = obj.get(key, {})
@@ -1203,6 +1276,7 @@ class ArbreVilbrequin:
             "jeu_roulement_m": self.jeu_roulement_m,
         }
 
+        _ajouter_champs_metier_definition_arbre_vilbrequin(rapport)
         _dedup_inconnues(rapport)
         if strict and rapport["inconnues"]["impossibles"]:
             raise ValueError(
@@ -1423,6 +1497,7 @@ class ArbreVilbrequinFine(ArbreVilbrequin):
         else:
             _push_inconnue(rapport, "partielles", "torsion_vibratoire", "Nécessite deux inerties et une raideur torsionnelle équivalente.")
 
+        _ajouter_champs_metier_definition_arbre_vilbrequin(rapport)
         _dedup_inconnues(rapport)
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
             raise ValueError(

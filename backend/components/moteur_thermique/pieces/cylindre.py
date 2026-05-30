@@ -176,6 +176,160 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
 
 
+def _cget(data: Dict[str, Any], *path: str) -> Any:
+    cur: Any = data
+    for key in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(key)
+    return cur
+
+
+def _missing_tolerance_cylindre(nom: str, typ: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": typ, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _status_cylindre(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _ajouter_champs_metier_definition_cylindre(rapport: Dict[str, Any]) -> None:
+    geo = rapport.get("geometrie", {}) if isinstance(rapport.get("geometrie"), dict) else {}
+    dim = rapport.get("dimensionnement", {}) if isinstance(rapport.get("dimensionnement"), dict) else {}
+    contraintes = rapport.get("contraintes", {}) if isinstance(rapport.get("contraintes"), dict) else {}
+    thermique = rapport.get("thermique", {}) if isinstance(rapport.get("thermique"), dict) else {}
+    usinage = rapport.get("usinage_precision", {}) if isinstance(rapport.get("usinage_precision"), dict) else {}
+    precision = usinage.get("geometrie_precision", {}) if isinstance(usinage.get("geometrie_precision"), dict) else {}
+
+    rapport["surfaces_fonctionnelles"] = [
+        {
+            "nom": "alesage_cylindre",
+            "fonction": "guidage piston/deplaceur et surface d'etancheite",
+            "geometrie_associee": "diametre_interne_m",
+            "cote_associee": "alesage_m",
+            "valeur_associee": geo.get("diametre_interne_m"),
+            "risque": "grippage, fuite ou ovalisation si geometrie/etat de surface non conforme",
+            "controle_recommande": "diametre, ovalisation, cylindricite, rugosite",
+        },
+        {
+            "nom": "paroi_sous_pression",
+            "fonction": "contenir la pression interne",
+            "geometrie_associee": "epaisseur_retenue_m",
+            "cote_associee": "dimensionnement.epaisseur_retenue_m",
+            "valeur_associee": dim.get("epaisseur_retenue_m"),
+            "risque": "contrainte circonferentielle ou Von Mises excessive",
+            "controle_recommande": "epaisseur, absence crique, controle pression",
+        },
+        {
+            "nom": "portee_couvercle",
+            "fonction": "fermeture et appui joint/couvercle",
+            "geometrie_associee": "bride ou face de fermeture",
+            "cote_associee": "assemblage/contact_fermeture",
+            "valeur_associee": rapport.get("contact_fermeture"),
+            "risque": "perte d'etancheite ou desserrage si planeite/precharge non definies",
+            "controle_recommande": "planeite, perpendicularite, pression contact joint",
+        },
+        {
+            "nom": "surfaces_fixation",
+            "fonction": "positionnement visserie et assemblage",
+            "geometrie_associee": "perçages/bride si fournis",
+            "cote_associee": "assemblage",
+            "valeur_associee": rapport.get("assemblage"),
+            "risque": "mauvais alignement ou concentration de contraintes",
+            "controle_recommande": "entraxe, diametre trous, perpendicularite",
+        },
+    ]
+    rapport["interfaces_assemblage"] = [
+        {
+            "piece_a": "cylindre",
+            "piece_b": "piston",
+            "fonction": "guidage coulissant et etancheite",
+            "type_liaison": "glissiere cylindrique",
+            "cote_interface": geo.get("diametre_interne_m"),
+            "jeu_ou_serrage": _cget(rapport, "assemblage", "jeu_piston_cylindre_m"),
+            "tolerance": precision.get("cylindricite_max_m") or _cget(rapport, "assemblage", "tolerance_alesage_m"),
+            "effort_transmis": dim.get("force_pression_piston_max_N"),
+            "risque": "grippage/fuite selon jeu et etat de surface",
+            "statut": _status_cylindre(geo.get("diametre_interne_m")),
+        },
+        {
+            "piece_a": "cylindre",
+            "piece_b": "couvercle_cylindre",
+            "fonction": "fermeture de pression",
+            "type_liaison": "appui bride/couvercle",
+            "cote_interface": geo.get("diametre_externe_m"),
+            "jeu_ou_serrage": _cget(rapport, "contact_fermeture", "precharge_residuelle_chaud_N"),
+            "tolerance": precision.get("perpendicularite_faces_max_m"),
+            "effort_transmis": dim.get("force_pression_piston_max_N"),
+            "risque": "fuite ou desserrage si precharge et planeite non connues",
+            "statut": "partial",
+        },
+        {
+            "piece_a": "cylindre",
+            "piece_b": "joint_piston",
+            "fonction": "surface de frottement/etancheite",
+            "type_liaison": "contact annulaire dynamique",
+            "cote_interface": geo.get("diametre_interne_m"),
+            "jeu_ou_serrage": None,
+            "tolerance": precision.get("cylindricite_max_m"),
+            "effort_transmis": dim.get("force_pression_piston_max_N"),
+            "risque": "fuite si rugosite/ovalisation non compatibles avec le joint",
+            "statut": "partial",
+        },
+        {
+            "piece_a": "cylindre",
+            "piece_b": "deplaceur",
+            "fonction": "guidage du deplaceur si present",
+            "type_liaison": "glissiere cylindrique",
+            "cote_interface": geo.get("diametre_interne_m"),
+            "jeu_ou_serrage": None,
+            "tolerance": precision.get("coaxialite_max_m"),
+            "effort_transmis": None,
+            "risque": "contact parasite si jeu deplaceur/cylindre non defini",
+            "statut": "partial",
+        },
+    ]
+    rapport["tolerances"] = [
+        {
+            "nom": "cylindricite_alesage",
+            "type": "geometrique",
+            "valeur": precision.get("cylindricite_max_m"),
+            "statut": "known" if precision.get("cylindricite_max_m") is not None else "missing",
+            "source": "usinage_precision.geometrie_precision",
+        },
+        {
+            "nom": "coaxialite_alesage_exterieur",
+            "type": "geometrique",
+            "valeur": precision.get("coaxialite_max_m"),
+            "statut": "known" if precision.get("coaxialite_max_m") is not None else "missing",
+            "source": "usinage_precision.geometrie_precision",
+        },
+        _missing_tolerance_cylindre("rugosite_alesage", "etat_surface", "a definir selon piston/joint, lubrification et procede d'usinage"),
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "sigma_cerclage_mince", "type": "pression_interne", "valeur": contraintes.get("sigma_cerclage_mince_pa"), "unite": "Pa", "source": "contraintes"},
+        {"nom": "sigma_von_mises_lame_au_ri", "type": "von_mises", "valeur": contraintes.get("sigma_von_mises_lame_au_ri_pa"), "unite": "Pa", "source": "contraintes"},
+        {"nom": "force_pression_piston_max", "type": "charge_axiale", "valeur": dim.get("force_pression_piston_max_N"), "unite": "N", "source": "dimensionnement"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "pression_max", "valeur": _cget(rapport, "entrees", "pression_max_pa"), "unite": "Pa", "condition_non_conformite": "pression interne superieure a pression_max_pa"},
+        {"nom": "contrainte_admissible", "valeur": _cget(rapport, "materiau", "contrainte_admissible_pa"), "unite": "Pa", "condition_non_conformite": "contrainte calculee superieure a admissible"},
+        {"nom": "temperature_service", "valeur": _cget(rapport, "entrees", "temperature_service_C"), "unite": "degC", "condition_non_conformite": "hors plage materiau ou dilatation non verifiee"},
+        {"nom": "resistance_thermique", "valeur": thermique.get("R_conduction_K_W"), "unite": "K/W", "condition_non_conformite": "echauffement non compatible avec refroidissement"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "alesage", "type": "cote", "cote": geo.get("diametre_interne_m"), "controle": "mesure diametre interne et ovalisation"},
+        {"nom": "epaisseur_paroi", "type": "cote", "cote": dim.get("epaisseur_retenue_m"), "controle": "mesure epaisseur mini sur plusieurs sections"},
+        {"nom": "cylindricite", "type": "geometrique", "cote": precision.get("cylindricite_max_m"), "controle": "controle machine de mesure ou alesometre"},
+        {"nom": "essai_pression", "type": "essai", "cote": _cget(rapport, "entrees", "pression_max_pa"), "controle": "epreuve pression selon protocole fourni"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "feature_initiale", "texte": "Modele SolidWorks conseille: revolution de la coupe longitudinale du cylindre."},
+        {"nom": "references", "texte": "Nommer axe cylindre, plan appui couvercle et surface alesage comme references d'assemblage."},
+        {"nom": "parametrique", "texte": "Garder alesage, longueur utile, epaisseur paroi et bride parametriques ; aucun export STEP n'est genere."},
+    ]
+
+
 def _von_mises_3d(s1: float, s2: float, s3: float) -> float:
     return math.sqrt(0.5 * ((s1 - s2) ** 2 + (s2 - s3) ** 2 + (s3 - s1) ** 2))
 
@@ -1981,6 +2135,7 @@ class Cylindre:
         # ------------------------------------------------------------
         # 11) Mode strict
         # ------------------------------------------------------------
+        _ajouter_champs_metier_definition_cylindre(rapport)
         _dedup_inconnues(rapport)
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
             raise ValueError(

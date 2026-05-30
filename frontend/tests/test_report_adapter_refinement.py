@@ -7,6 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from frontend.gui.report_adapter import (
     adapt_backend_report, 
+    flatten_unknowns,
     resolve_metric,
     get_nested
 )
@@ -85,6 +86,73 @@ def test_missing_requirements_contient_les_valeurs_non_resolues():
     }
     res = adapt_backend_report(report)
     assert len(res["missing_requirements"]) > 0
+
+
+def test_missing_count_utilise_inconnues_consolidees_sans_doublons():
+    unknown = {"nom": "rpm_moteur", "raison": "Requis pour le couple."}
+    report = {
+        "inconnues": {"partielles": [unknown]},
+        "stho_me": {"inconnues": {"partielles": [unknown]}},
+        "rapports": {
+            "stho_me": {
+                "resolution_inconnues": {"inconnues": {"partielles": [unknown]}},
+                "inconnues": {"partielles": [unknown]},
+            }
+        },
+        "optimisation": {
+            "meilleur_resultat": {
+                "analyse": {"resolution_inconnues": {"inconnues": {"partielles": [unknown]}}}
+            }
+        },
+    }
+
+    res = adapt_backend_report(report)
+
+    assert len(res["missing_requirements"]) == 1
+    assert res["dashboard"]["summary"]["missing_count"] == 1
+    assert res["missing_requirements"][0]["label"] == "rpm_moteur"
+
+
+def test_missing_count_ignore_cotes_preparation_solidworks_non_consolidees():
+    report = {
+        "rapports_pieces": {
+            "piston": {
+                "piece": "piston",
+                "dossier_definition_solidworks": {
+                    "statut": "partial",
+                    "solidworks_ready": False,
+                    "step_generation": False,
+                    "schema_only": True,
+                    "final_geometry": False,
+                    "cotes_connues": {"diametre_exterieur_m": 0.08},
+                    "cotes_manquantes": {"hauteur_m": None, "gorge_joint": None},
+                    "tolerances": [
+                        {"nom": "jeu_radial", "valeur": None, "statut": "missing"},
+                    ],
+                },
+            }
+        }
+    }
+
+    res = adapt_backend_report(report)
+
+    assert res["dashboard"]["summary"]["missing_count"] == 0
+    assert res["missing_requirements"] == []
+
+
+def test_flatten_unknowns_garde_un_fallback_recursif_sans_racine():
+    report = {
+        "stho_me": {
+            "inconnues": {
+                "partielles": [{"nom": "tension_bus_dc_v", "raison": "Requise pour le courant."}]
+            }
+        }
+    }
+
+    unknowns = flatten_unknowns(report)
+
+    assert len(unknowns) == 1
+    assert unknowns[0]["name"] == "tension_bus_dc_v"
 
 def test_subsystem_card_affiche_seulement_valeurs_resolues():
     report = {

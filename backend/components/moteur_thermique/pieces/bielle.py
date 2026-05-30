@@ -136,6 +136,70 @@ def _first_numeric_from_dict(d: Dict[str, Any], candidates: List[Tuple[str, ...]
     return None
 
 
+def _missing_tolerance_bielle(nom: str, typ: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": typ, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _status_bielle(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _ajouter_champs_metier_definition_bielle(rapport: Dict[str, Any]) -> None:
+    geo = rapport.get("geometrie", {}) if isinstance(rapport.get("geometrie"), dict) else {}
+    cao = rapport.get("cao", {}) if isinstance(rapport.get("cao"), dict) else {}
+    petite = geo.get("petite_tete", {}) if isinstance(geo.get("petite_tete"), dict) else {}
+    grande = geo.get("grande_tete", {}) if isinstance(geo.get("grande_tete"), dict) else {}
+    petite_cao = cao.get("petite_tete", {}) if isinstance(cao.get("petite_tete"), dict) else {}
+    grande_cao = cao.get("grande_tete", {}) if isinstance(cao.get("grande_tete"), dict) else {}
+    fut = geo.get("fut", {}) if isinstance(geo.get("fut"), dict) else {}
+    efforts = rapport.get("efforts", {}) if isinstance(rapport.get("efforts"), dict) else {}
+    contacts = rapport.get("contacts_tetes", {}) if isinstance(rapport.get("contacts_tetes"), dict) else {}
+    flambage = rapport.get("flambage", {}) if isinstance(rapport.get("flambage"), dict) else {}
+    fatigue = rapport.get("fatigue", {}) if isinstance(rapport.get("fatigue"), dict) else {}
+    d_petite = petite.get("diametre_axe_piston_m") or petite_cao.get("diametre_alÃ©sage_m") or petite_cao.get("diametre_alesage_m")
+    d_grande = grande.get("diametre_maneton_m") or grande_cao.get("diametre_alÃ©sage_m") or grande_cao.get("diametre_alesage_m")
+    tol_petite = petite_cao.get("tolerance_diametre_alÃ©sage_m") or petite_cao.get("tolerance_diametre_alesage_m")
+    tol_grande = grande_cao.get("tolerance_diametre_alÃ©sage_m") or grande_cao.get("tolerance_diametre_alesage_m")
+
+    rapport["surfaces_fonctionnelles"] = [
+        {"nom": "alesage_petite_tete", "fonction": "liaison avec arbre_piston", "geometrie_associee": "petite_tete", "cote_associee": "diametre_axe_piston_m", "valeur_associee": d_petite, "risque": "pression de contact ou matage si diametre/largeur/jeu non definis", "controle_recommande": "diametre, coaxialite et rugosite alesage petite tete"},
+        {"nom": "alesage_grande_tete", "fonction": "liaison avec maneton/vilebrequin", "geometrie_associee": "grande_tete", "cote_associee": "diametre_maneton_m", "valeur_associee": d_grande, "risque": "pression contact maneton ou defaut d'alignement", "controle_recommande": "diametre, largeur portee, parallelisme avec petite tete"},
+        {"nom": "fut_bielle", "fonction": "transmission effort axial traction/compression", "geometrie_associee": "fut", "cote_associee": "section_fut_m2", "valeur_associee": fut.get("section_m2"), "risque": "flambage, fatigue ou contrainte axiale excessive", "controle_recommande": "section, epaisseur, rectitude et rayons de raccordement"},
+    ]
+    rapport["interfaces_assemblage"] = [
+        {"piece_a": "bielle", "piece_b": "arbre_piston", "fonction": "pivot petite tete", "type_liaison": "pivot", "cote_interface": d_petite, "jeu_ou_serrage": _deep_get(rapport, ("entrees", "jeu_radial_petite_tete_m")), "tolerance": tol_petite, "effort_transmis": efforts.get("force_axiale_max_N"), "risque": "matage petite tete si pression admissible non verifiee", "statut": _status_bielle(d_petite)},
+        {"piece_a": "bielle", "piece_b": "vilebrequin", "fonction": "pivot grande tete sur maneton", "type_liaison": "pivot", "cote_interface": d_grande, "jeu_ou_serrage": _deep_get(rapport, ("entrees", "jeu_radial_grande_tete_m")), "tolerance": tol_grande, "effort_transmis": efforts.get("force_axiale_max_N"), "risque": "pression contact maneton ou fatigue grande tete", "statut": _status_bielle(d_grande)},
+        {"piece_a": "bielle", "piece_b": "roulement_aiguille_arbre", "fonction": "support tribologique petite ou grande tete", "type_liaison": "roulement/coussinet", "cote_interface": petite.get("largeur_portee_m") or grande.get("largeur_portee_m"), "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": efforts.get("force_axiale_max_N"), "risque": "reference et jeu roulement non selectionnes", "statut": "partial"},
+    ]
+    rapport["tolerances"] = [
+        {"nom": "diametre_alesage_petite_tete", "type": "diametral", "valeur": tol_petite, "statut": "known" if tol_petite is not None else "missing", "source": "geometrie.petite_tete", "raison": None if tol_petite is not None else "tolerance a definir selon axe, coussinet/roulement et procede"},
+        {"nom": "diametre_alesage_grande_tete", "type": "diametral", "valeur": tol_grande, "statut": "known" if tol_grande is not None else "missing", "source": "geometrie.grande_tete", "raison": None if tol_grande is not None else "tolerance a definir selon maneton, coussinet/roulement et procede"},
+        _missing_tolerance_bielle("parallelisme_petite_grande_tete", "geometrique", "a definir selon procede et montage final"),
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "contrainte_axiale", "type": "traction_compression", "valeur": _deep_get(rapport, ("contraintes", "axial")), "source": "contraintes.axial"},
+        {"nom": "flambage_euler", "type": "flambage", "valeur": flambage, "source": "flambage"},
+        {"nom": "fatigue", "type": "fatigue", "valeur": fatigue, "source": "fatigue"},
+        {"nom": "contacts_tetes", "type": "pression_contact", "valeur": contacts, "source": "contacts_tetes"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "force_axiale_max", "valeur": efforts.get("force_axiale_max_N"), "unite": "N", "condition_non_conformite": "effort axial superieur au dimensionnement"},
+        {"nom": "charge_critique_flambage", "valeur": flambage.get("charge_critique_N"), "unite": "N", "condition_non_conformite": "force compression proche ou superieure a la charge critique"},
+        {"nom": "limite_endurance", "valeur": _deep_get(rapport, ("materiau", "limite_endurance_pa")), "unite": "Pa", "condition_non_conformite": "fatigue non validee sous cycle fourni"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "entraxe_bielle", "type": "cote", "cote": _deep_get(rapport, ("cao", "entraxe_centres_m")), "controle": "mesure entraxe petite/grande tete"},
+        {"nom": "alesage_petite_tete", "type": "cote", "cote": d_petite, "controle": "diametre et rugosite"},
+        {"nom": "alesage_grande_tete", "type": "cote", "cote": d_grande, "controle": "diametre, circularite et largeur portee"},
+        {"nom": "parallelisme_tetes", "type": "geometrique", "cote": None, "controle": "parallelisme/coaxialite a definir et verifier"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "feature_initiale", "texte": "Modele SolidWorks conseille: esquisser entraxe petite/grande tete puis construire fut et bossages."},
+        {"nom": "references", "texte": "Nommer les axes petite_tete et grande_tete pour les contraintes d'assemblage."},
+        {"nom": "parametrique", "texte": "Laisser entraxe, diametres d'alesage et section de fut parametriques ; aucun export STEP n'est genere."},
+    ]
+
+
 def _try_call_report(obj: Any) -> Optional[Dict[str, Any]]:
     if obj is None:
         return None
@@ -1340,6 +1404,7 @@ class CorpsBielle:
             "jeu_radial_grande_tete_m": self.jeu_radial_grande_tete_m,
         }
 
+        _ajouter_champs_metier_definition_bielle(rapport)
         _dedup_inconnues(rapport)
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
             raise ValueError(

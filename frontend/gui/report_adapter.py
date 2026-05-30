@@ -587,36 +587,79 @@ def flatten_unknowns(report: Any, *, max_depth: int = 10) -> List[Dict[str, str]
 
     flat: List[Dict[str, str]] = []
 
+    def append_unknown(category: str, item: Any, prefix: str = "") -> None:
+        if isinstance(item, Mapping):
+            if any(k in item for k in ("nom", "champ", "name", "raison", "detail", "message")):
+                name = str(item.get("nom", item.get("champ", item.get("name", "?"))))
+                reason = str(item.get("raison", item.get("detail", item.get("message", ""))))
+                piece = str(item.get("piece", item.get("composant", "")))
+                severity = str(item.get("gravite", item.get("severity", "missing")))
+                flat.append(
+                    {
+                        "category": str(category),
+                        "name": name,
+                        "label": name,
+                        "reason": reason,
+                        "value": reason,
+                        "piece": piece,
+                        "severity": severity,
+                        "path": prefix,
+                    }
+                )
+                return
+
+            for key, value in item.items():
+                name = str(key)
+                reason = str(value.get("raison", value.get("detail", value.get("message", "")))) if isinstance(value, Mapping) else str(value)
+                flat.append(
+                    {
+                        "category": str(category),
+                        "name": name,
+                        "label": name,
+                        "reason": reason,
+                        "value": reason,
+                        "piece": "",
+                        "severity": "missing",
+                        "path": prefix,
+                    }
+                )
+            return
+
+        name = str(item)
+        reason = "Donnee signalee comme inconnue par le backend"
+        flat.append(
+            {
+                "category": str(category),
+                "name": name,
+                "label": name,
+                "reason": reason,
+                "value": reason,
+                "piece": "",
+                "severity": "missing",
+                "path": prefix,
+            }
+        )
+
+    def collect_inconnues(node: Mapping[str, Any], prefix: str = "") -> None:
+        inc = node.get("inconnues")
+        if not isinstance(inc, Mapping):
+            return
+        for category, items in inc.items():
+            for item in _as_list(items):
+                append_unknown(str(category), item, prefix)
+
+    # Prefer the backend/root consolidated block when present. Recursive
+    # traversal is only a fallback, otherwise copied subreports inflate the
+    # dashboard counter.
+    collect_inconnues(report)
+    if flat:
+        return _dedup_dicts(flat, keys=("category", "name", "reason", "piece"))
+
     def visit(node: Any, prefix: str = "", depth: int = 0) -> None:
         if depth > max_depth or not isinstance(node, Mapping):
             return
 
-        inc = node.get("inconnues")
-        if isinstance(inc, Mapping):
-            for category, items in inc.items():
-                for item in _as_list(items):
-                    if isinstance(item, Mapping):
-                        flat.append(
-                            {
-                                "category": str(category),
-                                "name": str(item.get("nom", item.get("champ", item.get("name", "?")))),
-                                "reason": str(item.get("raison", item.get("detail", item.get("message", "")))),
-                                "piece": str(item.get("piece", item.get("composant", ""))),
-                                "severity": str(item.get("gravite", item.get("severity", "missing"))),
-                                "path": prefix,
-                            }
-                        )
-                    else:
-                        flat.append(
-                            {
-                                "category": str(category),
-                                "name": str(item),
-                                "reason": "Donnée signalée comme inconnue par le backend",
-                                "piece": "",
-                                "severity": "missing",
-                                "path": prefix,
-                            }
-                        )
+        collect_inconnues(node, prefix)
 
         for key, value in node.items():
             key_s = str(key)
@@ -630,7 +673,7 @@ def flatten_unknowns(report: Any, *, max_depth: int = 10) -> List[Dict[str, str]
                         visit(child, f"{prefix}.{key_s}.{i}" if prefix else f"{key_s}.{i}", depth + 1)
 
     visit(report)
-    return _dedup_dicts(flat, keys=("category", "name", "reason", "path"))
+    return _dedup_dicts(flat, keys=("category", "name", "reason", "piece"))
 
 
 def flatten_alerts(report: Any, *, max_depth: int = 10) -> List[Dict[str, str]]:
