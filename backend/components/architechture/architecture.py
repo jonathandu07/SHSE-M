@@ -1,4 +1,5 @@
 # backend/components/architecture.py
+# Compatible avec backend/components/architechture/modules/architecture_sthome.py
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
@@ -18,7 +19,7 @@ UsageType = Literal[
 ]
 DomaineMobiliteType = Literal["routier", "nautique", "aerien", "ferroviaire", "stationnaire", "autre"]
 ModeTransmissionType = Literal["traction", "propulsion", "integrale", "inconnue"]
-ArchitectureType = Literal["L", "V", "W", "Etoile", "Boxer"]
+ArchitectureType = Literal["L", "V", "W", "Etoile", "Boxer", "MultiModulesDC", "PistonLibre"]
 
 
 @dataclass(frozen=True)
@@ -623,6 +624,182 @@ def _piece_candidates(name: str) -> list[str]:
     ]
 
 
+# ============================================================
+# Module central d'architectures STHO-ME
+# ============================================================
+def _import_module_optional(candidates: Sequence[str]) -> Optional[Any]:
+    for module_name in candidates:
+        try:
+            return importlib.import_module(module_name)
+        except Exception:
+            continue
+    return None
+
+
+architecture_sthome = _import_module_optional(
+    _module_candidates("architecture_sthome")
+    + [
+        # Compatibilité sandbox / migration progressive.
+        "architecture_sthome_complete",
+    ]
+)
+
+ARCHITECTURE_STHOME_DISPONIBLE = architecture_sthome is not None
+
+_sthome_normaliser_architecture = getattr(architecture_sthome, "normaliser_architecture", None) if architecture_sthome else None
+_sthome_architectures_moteur_classique = getattr(architecture_sthome, "architectures_moteur_classique", None) if architecture_sthome else None
+_sthome_architecture_possible = getattr(architecture_sthome, "architecture_possible", None) if architecture_sthome else None
+_sthome_evaluer_architecture = getattr(architecture_sthome, "evaluer_architecture", None) if architecture_sthome else None
+_sthome_choix_architecture_optimale = getattr(architecture_sthome, "choix_architecture_optimale", None) if architecture_sthome else None
+_sthome_resoudre_architecture_globale = getattr(architecture_sthome, "resoudre_architecture_globale", None) if architecture_sthome else None
+_sthome_consequences_pieces_architecture = getattr(architecture_sthome, "consequences_pieces_architecture", None) if architecture_sthome else None
+_sthome_explorer_architectures = getattr(architecture_sthome, "explorer_architectures", None) if architecture_sthome else None
+_sthome_ARCHITECTURES = getattr(architecture_sthome, "ARCHITECTURES", {}) if architecture_sthome else {}
+
+
+def normaliser_architecture(architecture: Any) -> str:
+    """
+    Normalise un nom d'architecture via le registre central STHO-ME si disponible.
+    Accepte notamment : radial/radiale/étoile/etoile, en_ligne/ligne/mono, flat/boxer.
+    """
+    if callable(_sthome_normaliser_architecture):
+        try:
+            return str(_sthome_normaliser_architecture(architecture))
+        except Exception:
+            pass
+
+    raw = _norm_token(architecture)
+    aliases = {
+        "l": "L",
+        "ligne": "L",
+        "en_ligne": "L",
+        "inline": "L",
+        "mono": "L",
+        "monocylindre": "L",
+        "mono_cylindre": "L",
+        "v": "V",
+        "w": "W",
+        "etoile": "Etoile",
+        "étoile": "Etoile",
+        "radial": "Etoile",
+        "radiale": "Etoile",
+        "star": "Etoile",
+        "boxer": "Boxer",
+        "flat": "Boxer",
+        "a_plat": "Boxer",
+        "multi_modules_dc": "MultiModulesDC",
+        "multimodulesdc": "MultiModulesDC",
+        "multi_modules": "MultiModulesDC",
+        "modules_dc": "MultiModulesDC",
+        "piston_libre": "PistonLibre",
+        "pistonlibre": "PistonLibre",
+        "free_piston": "PistonLibre",
+    }
+    return aliases.get(raw, str(architecture))
+
+
+def _architectures_candidates(
+    architectures_autorisees: Optional[Sequence[Any]] = None,
+    architecture_forcee: Optional[Any] = None,
+    *,
+    inclure_systeme: bool = False,
+) -> Tuple[str, ...]:
+    if architecture_forcee is not None:
+        return (normaliser_architecture(architecture_forcee),)
+
+    if architectures_autorisees:
+        return tuple(dict.fromkeys(normaliser_architecture(a) for a in architectures_autorisees))
+
+    if callable(_sthome_architectures_moteur_classique):
+        try:
+            base = list(_sthome_architectures_moteur_classique())
+        except Exception:
+            base = ["L", "V", "W", "Etoile", "Boxer"]
+    else:
+        base = ["L", "V", "W", "Etoile", "Boxer"]
+
+    if inclure_systeme:
+        base.extend(["MultiModulesDC", "PistonLibre"])
+
+    return tuple(dict.fromkeys(normaliser_architecture(a) for a in base))
+
+
+def _architecture_possible_centralisee(
+    architecture: Any,
+    nb_cylindres: int,
+    *,
+    inclure_systeme: bool = False,
+) -> Tuple[bool, List[str]]:
+    arch = normaliser_architecture(architecture)
+
+    if callable(_sthome_architecture_possible):
+        try:
+            ok, notes = _sthome_architecture_possible(arch, int(nb_cylindres), inclure_systeme=inclure_systeme)
+            return bool(ok), list(notes or [])
+        except TypeError:
+            try:
+                ok, notes = _sthome_architecture_possible(arch, int(nb_cylindres))
+                return bool(ok), list(notes or [])
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    n = int(nb_cylindres)
+    if n <= 0:
+        return False, ["Nombre de cylindres invalide."]
+    if arch == "L":
+        return True, []
+    if arch in ("V", "Boxer"):
+        return (n % 2 == 0), ([] if n % 2 == 0 else [f"{arch} exige un nombre pair de cylindres."])
+    if arch == "W":
+        ok = n >= 6 and (n % 3 == 0 or n % 4 == 0)
+        return ok, ([] if ok else ["W exige au moins 6 cylindres et un multiple de 3 ou 4."])
+    if arch == "Etoile":
+        notes = []
+        if n < 3:
+            return False, ["Etoile/radial exige au moins 3 cylindres."]
+        if n % 2 == 0:
+            notes.append("Etoile mono-rangée : nombre impair préférable ; pair autorisé mais moins naturel.")
+        return True, notes
+    if arch in ("MultiModulesDC", "PistonLibre"):
+        return (bool(inclure_systeme), [] if inclure_systeme else [f"{arch} est une architecture système/R&D hors boucle bielle-vilebrequin classique."])
+    return False, [f"Architecture inconnue: {arch!r}."]
+
+
+def _consequences_architecture_sthome(
+    architecture: str,
+    nb_cylindres: int,
+    *,
+    alesage_m: Optional[float] = None,
+    course_m: Optional[float] = None,
+    pas_cylindre_m: float = 0.15,
+) -> Dict[str, Any]:
+    if callable(_sthome_consequences_pieces_architecture):
+        arch = normaliser_architecture(architecture)
+        essais = (
+            lambda: _sthome_consequences_pieces_architecture(
+                arch,
+                int(nb_cylindres),
+                alesage_m=alesage_m,
+                course_m=course_m,
+            ),
+            lambda: _sthome_consequences_pieces_architecture(
+                arch,
+                int(nb_cylindres),
+                pas_cylindre_m,
+            ),
+            lambda: _sthome_consequences_pieces_architecture(arch, int(nb_cylindres)),
+        )
+        for essai in essais:
+            try:
+                out = essai()
+                return dict(out) if isinstance(out, Mapping) else {}
+            except Exception:
+                continue
+    return {}
+
+
 # Modules principaux — si un module manque, on installe un fallback mathématique explicite.
 try:
     calcul_cout_maintenance_estime = _import_attr(
@@ -711,15 +888,8 @@ try:
     )
 except Exception:
     def _architecture_possible_fallback(type_arch: str, nb_cylindres: int) -> bool:
-        if type_arch == "L":
-            return True
-        if type_arch in ("V", "Boxer"):
-            return nb_cylindres % 2 == 0
-        if type_arch == "W":
-            return nb_cylindres >= 6 and (nb_cylindres % 3 == 0 or nb_cylindres % 4 == 0)
-        if type_arch == "Etoile":
-            return nb_cylindres >= 3
-        return False
+        ok, _notes = _architecture_possible_centralisee(type_arch, nb_cylindres, inclure_systeme=False)
+        return bool(ok)
 
     def evaluer_architecture(
         type_arch: str,
@@ -748,10 +918,83 @@ except Exception:
                 best_arch = arch
         return best_arch
 
+# Priorité au registre central architecture_sthome si présent.
+_legacy_evaluer_architecture = evaluer_architecture
+_legacy_choix_architecture_optimale = choix_architecture_optimale
+
+def evaluer_architecture(
+    type_arch: str,
+    nb_cylindres: int,
+    longueur_dispo_m: float,
+    largeur_dispo_m: float,
+    cout_maintenance_estime: float = 0.0,
+) -> tuple[float, bool]:
+    arch = normaliser_architecture(type_arch)
+    if callable(_sthome_evaluer_architecture):
+        try:
+            return _sthome_evaluer_architecture(
+                arch,
+                int(nb_cylindres),
+                float(longueur_dispo_m),
+                float(largeur_dispo_m),
+                float(cout_maintenance_estime),
+            )
+        except Exception:
+            pass
+    return _legacy_evaluer_architecture(arch, nb_cylindres, longueur_dispo_m, largeur_dispo_m, cout_maintenance_estime)
+
+
+def choix_architecture_optimale(
+    nb_cylindres: int,
+    L_max: float,
+    W_max: float,
+    cout_maintenance_estime: float = 0.0,
+    *,
+    architectures: Sequence[str] = ("L", "V", "W", "Etoile", "Boxer"),
+) -> str:
+    archs = tuple(normaliser_architecture(a) for a in architectures)
+    if callable(_sthome_choix_architecture_optimale):
+        try:
+            return str(_sthome_choix_architecture_optimale(
+                int(nb_cylindres),
+                float(L_max),
+                float(W_max),
+                float(cout_maintenance_estime),
+                architectures=archs,
+            ))
+        except TypeError:
+            try:
+                return str(_sthome_choix_architecture_optimale(
+                    int(nb_cylindres),
+                    float(L_max),
+                    float(W_max),
+                    float(cout_maintenance_estime),
+                ))
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    best_arch = "Inconnue"
+    best_score = float("inf")
+    for arch in archs:
+        ok, _notes = _architecture_possible_centralisee(arch, int(nb_cylindres), inclure_systeme=False)
+        if not ok:
+            continue
+        score, valide = evaluer_architecture(arch, nb_cylindres, L_max, W_max, cout_maintenance_estime)
+        if valide and score < best_score:
+            best_score = float(score)
+            best_arch = arch
+    return best_arch
+
+
 try:
-    resoudre_architecture_globale = _import_attr(
-        _module_candidates("resolution_globale_architecture"), "resoudre_architecture_globale"
-    )
+    if callable(_sthome_resoudre_architecture_globale):
+        resoudre_architecture_globale = _sthome_resoudre_architecture_globale
+    else:
+        resoudre_architecture_globale = _import_attr(
+            _module_candidates("resolution_globale_architecture"), "resoudre_architecture_globale"
+        )
 except Exception:
     def resoudre_architecture_globale(
         puissance_cible_w: float,
@@ -1004,7 +1247,7 @@ def _estimer_packaging_simple(
     pas = _require_positive("pas_cylindre_m", pas_cylindre_m, strict=True)
     w0 = _require_positive("largeur_base_m", largeur_base_m, strict=True)
 
-    arch = str(architecture)
+    arch = normaliser_architecture(architecture)
     if arch == "L":
         return nb * pas, w0
     if arch == "V":
@@ -1029,14 +1272,23 @@ def _safe_div(a: Optional[float], b: Optional[float]) -> Optional[float]:
 
 
 def _architecture_complexity_factor(arch: str) -> float:
+    arch_norm = normaliser_architecture(arch)
+    definition = _sthome_ARCHITECTURES.get(arch_norm) if isinstance(_sthome_ARCHITECTURES, Mapping) else None
+    if definition is not None and hasattr(definition, "complexite"):
+        try:
+            return float(getattr(definition, "complexite"))
+        except Exception:
+            pass
     mapping = {
         "L": 1.00,
-        "V": 1.10,
-        "W": 1.25,
-        "Etoile": 1.35,
-        "Boxer": 1.08,
+        "V": 1.20,
+        "W": 1.65,
+        "Etoile": 1.38,
+        "Boxer": 1.12,
+        "MultiModulesDC": 1.45,
+        "PistonLibre": 1.70,
     }
-    return float(mapping.get(str(arch), 1.50))
+    return float(mapping.get(arch_norm, 1.50))
 
 
 def _appeler_choix_architecture_optimale(
@@ -1197,13 +1449,19 @@ def _make_fine_options(
 
     archs: Tuple[str, ...]
     if architecture_forcee is not None:
-        archs = (str(architecture_forcee),)
+        archs = (normaliser_architecture(architecture_forcee),)
     elif architectures_autorisees:
-        archs = tuple(str(a) for a in architectures_autorisees)
+        # Le solveur fin historique ne sait traiter que les architectures mécaniques
+        # bielle-vilebrequin. Les architectures système/R&D sont filtrées ici.
+        archs = tuple(
+            a for a in (normaliser_architecture(x) for x in architectures_autorisees)
+            if a in ("L", "V", "W", "Etoile", "Boxer")
+        )
     else:
         archs = getattr(base, "architectures", ("L", "V", "W", "Etoile", "Boxer")) if base is not None else (
             "L", "V", "W", "Etoile", "Boxer"
         )
+        archs = tuple(normaliser_architecture(a) for a in archs if normaliser_architecture(a) in ("L", "V", "W", "Etoile", "Boxer"))
 
     if base is not None:
         return replace(
@@ -1451,6 +1709,7 @@ class Architecture:
         # contraintes / préférences architecture
         architectures_autorisees: Optional[List[ArchitectureType]] = None,
         architecture_forcee: Optional[ArchitectureType] = None,
+        inclure_architectures_systeme: bool = False,
 
         # pondérations explicites
         poids_maintenance: float = 1.0,
@@ -1565,7 +1824,9 @@ class Architecture:
             "duree_vie_joint_base_h": self.duree_vie_joint_base_h,
             "cout_intervention_base_eur": self.cout_intervention_base_eur,
             "architectures_autorisees": architectures_autorisees,
-            "architecture_forcee": architecture_forcee,
+            "architecture_forcee": normaliser_architecture(architecture_forcee) if architecture_forcee is not None else None,
+            "inclure_architectures_systeme": bool(inclure_architectures_systeme),
+            "architecture_sthome_disponible": bool(ARCHITECTURE_STHOME_DISPONIBLE),
             "taux_compression": taux_compression,
             "nb_cas_de_charge": len(cas_de_charge) if cas_de_charge else 0,
             "activer_mode_fine": bool(activer_mode_fine),
@@ -1812,9 +2073,12 @@ class Architecture:
         bore_ref, _ = _bore_et_course_depuis_volume_et_ratio(V_u_ref, ratio_ref)
         charge_ref_n = PME * _surface_piston_m2(bore_ref)
 
-        allowed_set: Optional[set[str]] = None
-        if architectures_autorisees:
-            allowed_set = set(map(str, architectures_autorisees))
+        architectures_base = _architectures_candidates(
+            architectures_autorisees=architectures_autorisees,
+            architecture_forcee=architecture_forcee,
+            inclure_systeme=inclure_architectures_systeme,
+        )
+        rapport["architectures_candidates"] = list(architectures_base)
 
         for N in range(n_min, n_max_explore + 1):
             V_u = V_tot_m3 / N
@@ -1848,61 +2112,69 @@ class Architecture:
             )
             cout_maint_score = float(cout_maint_raw * float(poids_maintenance))
 
-            if architecture_forcee is not None:
-                arch = str(architecture_forcee)
-            else:
-                arch = _appeler_choix_architecture_optimale(N, L_max, W_max, cout_maint_score)
+            for arch_raw in architectures_base:
+                arch = normaliser_architecture(arch_raw)
+                ok_arch, notes_arch = _architecture_possible_centralisee(
+                    arch,
+                    N,
+                    inclure_systeme=inclure_architectures_systeme,
+                )
+                if not ok_arch:
+                    continue
 
-            if arch == "Inconnue":
-                continue
-            if allowed_set is not None and arch not in allowed_set:
-                continue
+                score_module, valide = _appeler_evaluer_architecture(arch, N, L_max, W_max, cout_maint_score)
+                if not bool(valide):
+                    continue
 
-            score_module, valide = _appeler_evaluer_architecture(arch, N, L_max, W_max, cout_maint_score)
-            if not bool(valide):
-                continue
+                L_pkg, W_pkg = _estimer_packaging_simple(arch, N, pas_cylindre_m=self.pas_cylindre_m, largeur_base_m=self.largeur_base_m)
 
-            L_pkg, W_pkg = _estimer_packaging_simple(arch, N, pas_cylindre_m=self.pas_cylindre_m, largeur_base_m=self.largeur_base_m)
+                compacite_score = None
+                if _is_finite(L_pkg) and _is_finite(W_pkg):
+                    compacite_score = _safe_div((L_pkg / L_max) + (W_pkg / W_max), 2.0)
 
-            compacite_score = None
-            if _is_finite(L_pkg) and _is_finite(W_pkg):
-                compacite_score = _safe_div((L_pkg / L_max) + (W_pkg / W_max), 2.0)
+                maintenance_indice = _estimer_indice_maintenance(nb_cyl=N, architecture=arch)
+                masse_relative = _estimer_masse_relative(nb_cyl=N, bore_m=bore_m, course_m=course_m, architecture=arch)
+                cout_matiere_relatif = _estimer_cout_matiere_relatif(masse_relative=masse_relative, architecture=arch)
+                fiabilite_indice = _estimer_indice_fiabilite(
+                    nb_cyl=N,
+                    architecture=arch,
+                    ratio_s_b=ratio_ret,
+                    charge_moy_piston_n=charge_moy_n,
+                    charge_ref_n=charge_ref_n,
+                )
+                rendement_indice = _estimer_indice_rendement_relatif(nb_cyl=N, architecture=arch, ratio_s_b=ratio_ret)
 
-            maintenance_indice = _estimer_indice_maintenance(nb_cyl=N, architecture=arch)
-            masse_relative = _estimer_masse_relative(nb_cyl=N, bore_m=bore_m, course_m=course_m, architecture=arch)
-            cout_matiere_relatif = _estimer_cout_matiere_relatif(masse_relative=masse_relative, architecture=arch)
-            fiabilite_indice = _estimer_indice_fiabilite(
-                nb_cyl=N,
-                architecture=arch,
-                ratio_s_b=ratio_ret,
-                charge_moy_piston_n=charge_moy_n,
-                charge_ref_n=charge_ref_n,
-            )
-            rendement_indice = _estimer_indice_rendement_relatif(nb_cyl=N, architecture=arch, ratio_s_b=ratio_ret)
-
-            row = {
-                "N_cyl": N,
-                "architecture": arch,
-                "score_module_externe": float(score_module),
-                "valide": bool(valide),
-                "cout_maintenance_eur": float(cout_maint_raw),
-                "cout_maintenance_score_eur": float(cout_maint_score),
-                "maintenance_indice": float(maintenance_indice),
-                "masse_relative": float(masse_relative),
-                "cout_matiere_relatif": float(cout_matiere_relatif),
-                "fiabilite_indice": float(fiabilite_indice),
-                "rendement_indice": float(rendement_indice),
-                "compacite_score": float(compacite_score) if compacite_score is not None else None,
-                "cylindree_tot_cc": float(V_tot_m3 * 1e6),
-                "cylindree_unit_cc": float(V_u * 1e6),
-                "bore_mm": float(bore_m * 1000.0),
-                "course_mm": float(course_m * 1000.0),
-                "ratio_S_B": float(ratio_ret),
-                "charge_moy_piston_N": float(charge_moy_n),
-                "L_pkg_m_estimee": float(L_pkg),
-                "W_pkg_m_estimee": float(W_pkg),
-            }
-            rapport["exploration"].append(row)
+                row = {
+                    "N_cyl": N,
+                    "architecture": arch,
+                    "score_module_externe": float(score_module),
+                    "valide": bool(valide),
+                    "cout_maintenance_eur": float(cout_maint_raw),
+                    "cout_maintenance_score_eur": float(cout_maint_score),
+                    "maintenance_indice": float(maintenance_indice),
+                    "masse_relative": float(masse_relative),
+                    "cout_matiere_relatif": float(cout_matiere_relatif),
+                    "fiabilite_indice": float(fiabilite_indice),
+                    "rendement_indice": float(rendement_indice),
+                    "compacite_score": float(compacite_score) if compacite_score is not None else None,
+                    "cylindree_tot_cc": float(V_tot_m3 * 1e6),
+                    "cylindree_unit_cc": float(V_u * 1e6),
+                    "bore_mm": float(bore_m * 1000.0),
+                    "course_mm": float(course_m * 1000.0),
+                    "ratio_S_B": float(ratio_ret),
+                    "charge_moy_piston_N": float(charge_moy_n),
+                    "L_pkg_m_estimee": float(L_pkg),
+                    "W_pkg_m_estimee": float(W_pkg),
+                    "architecture_notes": list(notes_arch),
+                    "architecture_sthome_disponible": bool(ARCHITECTURE_STHOME_DISPONIBLE),
+                    "consequences_architecture": _consequences_architecture_sthome(
+                        arch,
+                        N,
+                        alesage_m=bore_m,
+                        course_m=course_m,
+                    ),
+                }
+                rapport["exploration"].append(row)
 
         if not rapport["exploration"]:
             _push_inconnue(
@@ -2004,6 +2276,15 @@ class Architecture:
                 except Exception as exc:
                     pieces_rapport[nom] = {"erreur": str(exc)}
         
+        # Ajout du diagnostic centralisé issu de architecture_sthome.py
+        if best:
+            pieces_rapport["architecture_sthome"] = _consequences_architecture_sthome(
+                arch_choisie,
+                nb_cyl_choisi,
+                alesage_m=(float(best.get("bore_mm")) / 1000.0) if _is_finite(best.get("bore_mm")) else None,
+                course_m=(float(best.get("course_mm")) / 1000.0) if _is_finite(best.get("course_mm")) else None,
+            )
+
         if pieces_rapport:
             rapport["pieces"] = pieces_rapport
 
@@ -2162,6 +2443,7 @@ def concevoir_architecture(config: Optional[Mapping[str, Any]] = None, **overrid
             "demande_mobilite",
             "architectures_autorisees",
             "architecture_forcee",
+            "inclure_architectures_systeme",
             "poids_maintenance",
             "poids_masse",
             "poids_cout_matiere",
@@ -2194,6 +2476,7 @@ __all__ = [
     "UsageType",
     "ArchitectureType",
     "ProfilUsageMoteur",
+    "normaliser_architecture",
     "normaliser_domaine_mobilite",
     "normaliser_type_vehicule",
     "normaliser_mode_transmission",
@@ -2204,6 +2487,7 @@ __all__ = [
     "construire_architecture",
     "concevoir_architecture",
     "exporter_rapport_json",
+    "ARCHITECTURE_STHOME_DISPONIBLE",
 ]
 
 
