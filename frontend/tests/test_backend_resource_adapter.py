@@ -76,7 +76,7 @@ def test_piece_resources_utilisent_rapport_backend():
         }
     }
     resources = get_piece_resources("piston", report)
-    assert any(item["status"] == "available" for item in resources["cao"])
+    assert any(item["status"] == "partial" for item in resources["cao"])
     assert all(item["path"] is None for item in resources["cao"])
 
 

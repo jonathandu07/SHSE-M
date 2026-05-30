@@ -117,7 +117,7 @@ def normalize_chart(chart: Mapping[str, Any]) -> Dict[str, Any]:
         if status in {STATUS_COMPUTED, STATUS_VALIDATED_BY_OPTIMIZATION} and not field_has_trace(chart):
             status = CONTRACT_STATUS_PARTIAL
     else:
-        status = STATUS_AVAILABLE if has_points else STATUS_PARTIAL
+        status = STATUS_PARTIAL
     if not has_points and status == STATUS_AVAILABLE:
         status = STATUS_PARTIAL
     return {
@@ -141,6 +141,45 @@ def normalize_chart(chart: Mapping[str, Any]) -> Dict[str, Any]:
             else None
         ),
     }
+
+
+def _collect_piece_unknowns(piece_report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    inconnues = piece_report.get("inconnues")
+    if isinstance(inconnues, Mapping):
+        for category, values in inconnues.items():
+            for item in values if isinstance(values, list) else []:
+                if isinstance(item, Mapping):
+                    row = dict(item)
+                    row.setdefault("category", category)
+                    row.setdefault("status", row.get("statut") or "missing_required")
+                    out.append(row)
+                else:
+                    out.append({"category": category, "name": str(item), "status": "missing_required"})
+    for key, category in (("inconnues_cao", "cao"), ("missing_fields", "geometry")):
+        values = piece_report.get(key)
+        for item in values if isinstance(values, list) else []:
+            if isinstance(item, Mapping):
+                row = dict(item)
+                row.setdefault("category", category)
+                row.setdefault("status", row.get("statut") or "missing_required")
+                out.append(row)
+            else:
+                out.append({"category": category, "name": str(item), "status": "missing_required"})
+
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for item in out:
+        sig = (
+            str(item.get("path") or item.get("champ") or item.get("name") or item.get("nom") or ""),
+            str(item.get("category") or ""),
+            str(item.get("reason") or item.get("raison") or item.get("detail") or ""),
+        )
+        if sig in seen:
+            continue
+        seen.add(sig)
+        deduped.append(item)
+    return deduped
 
 
 def build_piece_render_contract(piece_name: str, global_report: Mapping[str, Any], *, title: str | None = None) -> Dict[str, Any]:
@@ -168,13 +207,7 @@ def build_piece_render_contract(piece_name: str, global_report: Mapping[str, Any
     contract["solidworks_data"]["dimensions_to_copy"] = dimensions
     contract["solidworks_data"]["notes"].append("Donnees a reporter dans SolidWorks ; aucun STEP n'est produit.")
 
-    unknowns = []
-    for section in ("inconnues.impossibles", "inconnues.partielles", "missing_fields"):
-        value = piece_report
-        for part in section.split("."):
-            value = value.get(part) if isinstance(value, Mapping) else None
-        if isinstance(value, list):
-            unknowns.extend(value)
+    unknowns = _collect_piece_unknowns(piece_report)
     contract["missing_fields"] = unknowns
     contract["solidworks_data"]["missing_dimensions"] = unknowns
 

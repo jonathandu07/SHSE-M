@@ -63,8 +63,17 @@ def _diameters_mm(groups: Mapping[str, list[dict[str, Any]]]) -> list[float]:
     return [v for v in values if v is not None and v > 0]
 
 
+def _thicknesses_mm(groups: Mapping[str, list[dict[str, Any]]]) -> list[float]:
+    values = [_field_mm(item) for item in groups.get("thicknesses", [])]
+    return [v for v in values if v is not None and v > 0]
+
+
 def _make_sections(piece_name: str, groups: Mapping[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
     positions = _sorted_positions_mm(groups)
+    if len(positions) < 2:
+        thicknesses = _thicknesses_mm(groups)
+        if thicknesses:
+            positions = [0.0, max(thicknesses)]
     diameters = _diameters_mm(groups)
     if len(positions) < 2 or not diameters:
         return []
@@ -77,6 +86,20 @@ def _make_sections(piece_name: str, groups: Mapping[str, list[dict[str, Any]]]) 
 
 def _primitive_for_piece(piece_name: str) -> str:
     low = piece_name.lower()
+    if any(token in low for token in ("pignon", "crabot", "baladeur")):
+        return "disk_or_gear_envelope"
+    if "roulement" in low:
+        return "bearing_ring_envelope"
+    if any(token in low for token in ("stator", "rotor", "alternateur", "moteur_electrique", "bobine")):
+        return "electromagnetic_cylindrical_envelope"
+    if any(token in low for token in ("carter", "bloc", "culasse", "couvercle")):
+        return "housing_envelope"
+    if any(token in low for token in ("busbar", "busbars")):
+        return "flat_conductor_envelope"
+    if any(token in low for token in ("bms", "tms")):
+        return "electronics_box_envelope"
+    if "ventilateur" in low:
+        return "fan_disk_envelope"
     if any(token in low for token in ("arbre", "vilebrequin", "vilbrequin")):
         return "shaft_stepped"
     if "cylindre" in low:
@@ -87,9 +110,33 @@ def _primitive_for_piece(piece_name: str) -> str:
         return "rod_simplifiee"
     if any(token in low for token in ("batterie", "pack", "boitier")):
         return "box_envelope"
-    if "alternateur" in low or "rotor" in low or "stator" in low:
-        return "cylindrical_envelope"
     return "dimensioned_envelope"
+
+
+def _first_named_mm(fields: list[dict[str, Any]], tokens: tuple[str, ...]) -> float | None:
+    for item in fields:
+        label = str(item.get("path") or item.get("label") or "").lower()
+        if any(token in label for token in tokens):
+            value = _field_mm(item)
+            if value is not None and value > 0:
+                return value
+    return None
+
+
+def _make_outline_2d(piece_name: str, groups: Mapping[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    low = piece_name.lower()
+    fields = []
+    for values in groups.values():
+        fields.extend(values)
+    width = _first_named_mm(fields, ("largeur", "width", "y_", "diametre", "diameter", "alesage", "bore"))
+    height = _first_named_mm(fields, ("hauteur", "height", "z_", "epaisseur", "thickness", "longueur", "length", "x_"))
+    length = _first_named_mm(fields, ("longueur", "length", "x_", "entraxe"))
+    if any(token in low for token in ("batterie", "pack", "boitier", "bms", "tms", "busbar", "busbars", "carter", "bloc", "culasse")):
+        w = length or width
+        h = width if length is not None else height
+        if w is not None and h is not None:
+            return {"type": "rectangle_from_backend_dimensions", "width_mm": w, "height_mm": h, "source": "backend"}
+    return {}
 
 
 def build_generic_sketch_contract(piece_name: str, piece_report: Mapping[str, Any]) -> Dict[str, Any]:
@@ -97,6 +144,7 @@ def build_generic_sketch_contract(piece_name: str, piece_report: Mapping[str, An
     readiness = evaluate_geometry_readiness(piece_name, data)
     groups = readiness["groups"]
     sections = _make_sections(piece_name, groups)
+    outline = _make_outline_2d(piece_name, groups)
     dimensions = []
     for field in readiness["fields"]:
         val_mm = _field_mm(field)
@@ -117,13 +165,16 @@ def build_generic_sketch_contract(piece_name: str, piece_report: Mapping[str, An
         "unites": "mm",
         "axes": [{"id": "axe_principal", "from": [0.0, 0.0], "to": [sections[-1]["x1_mm"], 0.0]}] if sections else [],
         "segments": sections,
+        "outline_2d": outline,
         "cotes": dimensions,
     }
 
     if readiness["status"] == STATUS_MISSING_REQUIRED:
         status = STATUS_MISSING_REQUIRED
-    elif sections or len(dimensions) >= 2:
+    elif sections or outline:
         status = STATUS_AVAILABLE if not readiness["missing_fields"] else STATUS_PARTIAL
+    elif len(dimensions) >= 2:
+        status = STATUS_PARTIAL
     else:
         status = STATUS_PARTIAL
 
@@ -147,11 +198,13 @@ def build_generic_view_3d_contract(piece_name: str, piece_report: Mapping[str, A
     readiness = evaluate_geometry_readiness(piece_name, data)
     groups = readiness["groups"]
     sections = _make_sections(piece_name, groups)
+    outline = _make_outline_2d(piece_name, groups)
     geometry = {
         "piece": piece_name,
         "primitive": _primitive_for_piece(piece_name),
         "axis": "X",
         "sections": sections,
+        "outline_2d": outline,
         "dimensions": [
             {
                 "path": field.get("path"),
@@ -164,7 +217,14 @@ def build_generic_view_3d_contract(piece_name: str, piece_report: Mapping[str, A
         ],
     }
 
-    status = STATUS_AVAILABLE if readiness["status"] != STATUS_MISSING_REQUIRED and geometry["dimensions"] else STATUS_MISSING_REQUIRED
+    if readiness["status"] == STATUS_MISSING_REQUIRED:
+        status = STATUS_MISSING_REQUIRED
+    elif readiness["status"] == STATUS_AVAILABLE and geometry["dimensions"]:
+        status = STATUS_AVAILABLE
+    elif geometry["dimensions"]:
+        status = STATUS_PARTIAL
+    else:
+        status = STATUS_MISSING_REQUIRED
     return {
         "id": f"{piece_name}_3d_indicative",
         "type": "view_3d_indicative",
@@ -172,6 +232,10 @@ def build_generic_view_3d_contract(piece_name: str, piece_report: Mapping[str, A
         "title": f"Vue 3D indicative - {piece_name}",
         "mesh_available": False,
         "json_geometry": geometry,
+        "schematic": True,
+        "final_geometry": False,
+        "solidworks_ready": False,
+        "quality": "dimensioned_schematic" if status == STATUS_AVAILABLE else "partial_schematic" if status == STATUS_PARTIAL else "missing_geometry",
         "warning": "Vue indicative, pas STEP, pas modele final.",
         "used_fields": readiness["fields"],
         "missing_fields": readiness["missing_fields"],
@@ -186,19 +250,27 @@ def build_sketch_figure(sketch_contract: Mapping[str, Any]) -> Any:
 
     geometry = safe_dict(sketch_contract.get("geometry_json"))
     sections = geometry.get("segments") or []
-    if not sections:
-        raise ValueError("Croquis indisponible : aucune section cotee backend.")
+    outline = safe_dict(geometry.get("outline_2d"))
+    if not sections and not outline:
+        raise ValueError("Croquis indisponible : aucune section ou enveloppe cotee backend.")
 
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.set_aspect("equal", adjustable="box")
     ax.axhline(0, color="black", linestyle="--", linewidth=0.8)
-    for section in sections:
-        x0 = float(section["x0_mm"])
-        x1 = float(section["x1_mm"])
-        radius = float(section["diameter_mm"]) / 2.0
-        ax.add_patch(plt.Rectangle((x0, -radius), x1 - x0, 2 * radius, fill=False, edgecolor="black", linewidth=1.2))
-        ax.text((x0 + x1) / 2.0, radius + 3.0, f"D {2 * radius:.2f} mm", ha="center", fontsize=8)
-        ax.text((x0 + x1) / 2.0, -radius - 6.0, f"L {x1 - x0:.2f} mm", ha="center", fontsize=8)
+    if sections:
+        for section in sections:
+            x0 = float(section["x0_mm"])
+            x1 = float(section["x1_mm"])
+            radius = float(section["diameter_mm"]) / 2.0
+            ax.add_patch(plt.Rectangle((x0, -radius), x1 - x0, 2 * radius, fill=False, edgecolor="black", linewidth=1.2))
+            ax.text((x0 + x1) / 2.0, radius + 3.0, f"D {2 * radius:.2f} mm", ha="center", fontsize=8)
+            ax.text((x0 + x1) / 2.0, -radius - 6.0, f"L {x1 - x0:.2f} mm", ha="center", fontsize=8)
+    else:
+        width = float(outline["width_mm"])
+        height = float(outline["height_mm"])
+        ax.add_patch(plt.Rectangle((0.0, 0.0), width, height, fill=False, edgecolor="black", linewidth=1.2))
+        ax.text(width / 2.0, height + max(height * 0.08, 2.0), f"L {width:.2f} mm", ha="center", fontsize=8)
+        ax.text(width + max(width * 0.03, 2.0), height / 2.0, f"H {height:.2f} mm", va="center", fontsize=8)
     ax.set_title(str(sketch_contract.get("title") or "Croquis cote"))
     ax.set_xlabel("X (mm)")
     ax.set_ylabel("Rayon (mm)")

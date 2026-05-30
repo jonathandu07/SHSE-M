@@ -28,6 +28,44 @@ from typing import Any, Dict, Iterable, Mapping, Sequence
 STATUS_AVAILABLE = "available"
 STATUS_PARTIAL = "partial"
 STATUS_MISSING_REQUIRED = "missing_required"
+STATUS_COMPUTED = "computed"
+STATUS_DERIVED = "derived"
+STATUS_VALIDATED_BY_OPTIMIZATION = "validated_by_optimization"
+STATUS_CANDIDATE_FROM_CDC = "candidate_from_cdc"
+STATUS_CANDIDATE_FROM_POWER_PROFILE = "candidate_from_power_profile"
+STATUS_REJECTED_BY_OPTIMIZATION = "rejected_by_optimization"
+
+_VALUE_KEYS = ("value", "valeur", "result", "resultat")
+_TRACE_REQUIRED = {STATUS_COMPUTED, STATUS_VALIDATED_BY_OPTIMIZATION}
+_STATUS_ALIASES = {
+    "candidate_generated": STATUS_CANDIDATE_FROM_CDC,
+    "candidate_optimized": STATUS_CANDIDATE_FROM_CDC,
+    "optimisee": STATUS_CANDIDATE_FROM_CDC,
+    "optimized": STATUS_PARTIAL,
+    "optimise": STATUS_PARTIAL,
+    "optimisé": STATUS_PARTIAL,
+    "validated": STATUS_PARTIAL,
+    "candidate_rejected": STATUS_REJECTED_BY_OPTIMIZATION,
+    "profil_puissance": STATUS_CANDIDATE_FROM_POWER_PROFILE,
+    "missing": STATUS_MISSING_REQUIRED,
+    "partiel": STATUS_PARTIAL,
+}
+_PUBLIC_FIELD_STATUSES = {
+    STATUS_AVAILABLE,
+    STATUS_PARTIAL,
+    STATUS_MISSING_REQUIRED,
+    STATUS_COMPUTED,
+    STATUS_DERIVED,
+    STATUS_VALIDATED_BY_OPTIMIZATION,
+    STATUS_CANDIDATE_FROM_CDC,
+    STATUS_CANDIDATE_FROM_POWER_PROFILE,
+    STATUS_REJECTED_BY_OPTIMIZATION,
+    "input",
+    "database",
+    "missing_optional",
+    "impossible",
+    "error",
+}
 
 
 _PIECE_ALIASES: dict[str, tuple[str, ...]] = {
@@ -71,6 +109,55 @@ def get_path(data: Any, path: str, default: Any = None) -> Any:
         else:
             return default
     return cur
+
+
+def _normalize_field_status(value: Any, *, trace: Mapping[str, Any] | None = None, confidence: Any = None) -> str:
+    raw = str(value or "").strip().lower()
+    status = _STATUS_ALIASES.get(raw, raw)
+    if not status:
+        status = STATUS_PARTIAL
+    if status not in _PUBLIC_FIELD_STATUSES:
+        status = STATUS_PARTIAL
+    if confidence == "untraced_report_value":
+        return STATUS_PARTIAL
+    if status in _TRACE_REQUIRED and not trace:
+        return STATUS_PARTIAL
+    return status
+
+
+def _read_detail_field(raw: Any, *, default_unit: str | None = None) -> Dict[str, Any]:
+    if not isinstance(raw, Mapping):
+        return {
+            "value": raw,
+            "unit": default_unit,
+            "status": STATUS_PARTIAL if raw is not None else STATUS_MISSING_REQUIRED,
+            "source": "backend",
+            "trace": {},
+            "confidence": "untraced_report_value" if raw is not None else None,
+        }
+
+    value_key = next((key for key in _VALUE_KEYS if key in raw), None)
+    if value_key is None:
+        value = raw
+    else:
+        value = raw.get(value_key)
+
+    trace = raw.get("trace") if isinstance(raw.get("trace"), Mapping) else {}
+    confidence = raw.get("confidence") or raw.get("confiance")
+    status = _normalize_field_status(raw.get("status") or raw.get("statut"), trace=trace, confidence=confidence)
+    if value is None:
+        status = STATUS_MISSING_REQUIRED
+
+    return {
+        "value": value,
+        "unit": raw.get("unit") or raw.get("unite") or default_unit,
+        "status": status,
+        "raw_status": raw.get("status") or raw.get("statut"),
+        "source": raw.get("source") or raw.get("origine") or "backend",
+        "trace": dict(trace),
+        "confidence": confidence or ("traced" if trace else "untraced_report_value" if value is not None else None),
+        "dependencies": raw.get("dependencies") or raw.get("dependances") or [],
+    }
 
 
 def _aliases(name: str) -> tuple[str, ...]:
@@ -142,15 +229,20 @@ def extract_field(
     label: str | None = None,
     required: bool = False,
 ) -> Dict[str, Any]:
-    value = get_path(report, path)
+    raw = get_path(report, path)
+    detail = _read_detail_field(raw, default_unit=unit)
+    value = detail["value"]
     return {
         "path": path,
         "label": label or path.split(".")[-1],
         "value": value,
-        "unit": unit,
-        "status": STATUS_PARTIAL if value is not None else STATUS_MISSING_REQUIRED,
-        "source": "backend",
-        "confidence": "untraced_report_value" if value is not None else None,
+        "unit": detail.get("unit"),
+        "status": detail.get("status"),
+        "raw_status": detail.get("raw_status"),
+        "source": detail.get("source"),
+        "trace": detail.get("trace") or {},
+        "confidence": detail.get("confidence"),
+        "dependencies": detail.get("dependencies") or [],
         "required": bool(required),
     }
 

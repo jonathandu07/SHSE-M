@@ -5,7 +5,7 @@ import json
 import pytest
 
 from frontend.components.moteur_thermique.pieces.arbre_piston.charts import build_chart_contracts
-from frontend.ensemble.graph_rendering import build_chart_figure
+from frontend.ensemble.graph_rendering import build_chart_figure, validate_chart_contracts
 
 
 def test_charts_retournent_missing_required_sans_points_backend():
@@ -35,10 +35,23 @@ def test_charts_affichent_series_backend_sans_generer_points():
 
     charts = build_chart_contracts(global_report=report)
 
-    assert charts[0]["status"] in {"available", "partial"}
+    assert charts[0]["status"] == "partial"
     assert charts[0]["series"][0]["points"] == [{"x": 20, "y": 180}, {"x": 25, "y": 120}]
 
 
 def test_build_chart_figure_refuse_graphique_sans_points():
     with pytest.raises(ValueError):
         build_chart_figure({"id": "empty", "series": []})
+
+
+def test_chart_readiness_refuse_series_partielle_ou_candidate():
+    readiness = validate_chart_contracts(
+        [
+            {"id": "partiel", "status": "partial", "series": [{"points": [{"x": 1, "y": 2}]}]},
+            {"id": "candidat", "status": "candidate_from_power_profile", "series": [{"points": [{"x": 1, "y": 2}]}]},
+        ]
+    )
+
+    assert readiness["status"] == "partial"
+    with pytest.raises(ValueError):
+        build_chart_figure({"id": "candidat", "status": "candidate_from_power_profile", "series": [{"points": [{"x": 1, "y": 2}]}]})

@@ -24,3 +24,33 @@ def test_data_adapter_extrait_piece_depuis_alias_backend():
     assert piece["piece"] == "arbre_vilbrequin"
     assert piece["cao"]["diametre_m"] == 0.04
 
+
+def test_data_adapter_preserve_statut_trace_source_unite():
+    report = {
+        "cao": {
+            "diametre": {
+                "value": 0.04,
+                "unit": "m",
+                "status": "computed",
+                "source": "backend.formule",
+                "trace": {"formula": "D = f(P)"},
+            }
+        }
+    }
+
+    field = extract_field(report, "cao.diametre")
+
+    assert field["value"] == 0.04
+    assert field["unit"] == "m"
+    assert field["status"] == "computed"
+    assert field["source"] == "backend.formule"
+    assert field["trace"] == {"formula": "D = f(P)"}
+
+
+def test_data_adapter_degrade_computed_sans_trace():
+    report = {"cao": {"diametre": {"value": 0.04, "unit": "m", "status": "computed"}}}
+
+    field = extract_field(report, "cao.diametre")
+
+    assert field["status"] == "partial"
+    assert field["confidence"] == "untraced_report_value"

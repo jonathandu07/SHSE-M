@@ -5,6 +5,8 @@ import json
 import pytest
 
 from frontend.components.moteur_thermique.pieces.arbre_piston.sketches_2d import build_sketch_contract, tracer_croquis
+from frontend.components.batterie.pieces.pack_batterie.sketches_2d import build_sketch_contract as build_pack_sketch_contract
+from frontend.components.batterie.pieces.pack_batterie.sketches_2d import tracer_croquis as tracer_pack_croquis
 
 
 def _piece_report() -> dict:
@@ -45,3 +47,23 @@ def test_sketch_available_si_cotes_principales_backend_presentes():
 def test_tracer_croquis_refuse_piece_non_cotee():
     with pytest.raises(ValueError):
         tracer_croquis(data={"piece": "arbre_piston", "cao": {}})
+
+
+def test_croquis_pack_batterie_trace_enveloppe_cotee_non_finale():
+    sketch = build_pack_sketch_contract(
+        data={
+            "piece": "pack_batterie",
+            "dimensions": {"longueur_mm": 900, "largeur_mm": 450, "hauteur_mm": 180},
+        }
+    )
+
+    assert sketch["status"] == "available"
+    assert sketch["geometry_json"]["outline_2d"]["width_mm"] == 900
+    assert sketch["geometry_json"]["outline_2d"]["height_mm"] == 450
+    fig = tracer_pack_croquis(
+        data={
+            "piece": "pack_batterie",
+            "dimensions": {"longueur_mm": 900, "largeur_mm": 450, "hauteur_mm": 180},
+        }
+    )
+    fig.clear()

@@ -108,8 +108,9 @@ def collect_numeric_fields(report: Mapping[str, Any], *, markers: Sequence[str] 
                 "label": path.split(".")[-1],
                 "value": value,
                 "unit": infer_unit(path),
-                "status": STATUS_AVAILABLE,
+                "status": STATUS_PARTIAL,
                 "source": "backend",
+                "confidence": "untraced_report_value",
                 "required": False,
             }
         )
@@ -193,14 +194,22 @@ def evaluate_geometry_readiness(piece_name: str, report: Mapping[str, Any]) -> d
 
 
 def evaluate_chart_readiness(charts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    usable_statuses = {"available", "computed", "derived", "validated_by_optimization"}
     available = [
         dict(chart)
         for chart in charts
         if isinstance(chart, Mapping)
+        and str(chart.get("status") or "").lower() in usable_statuses
         and any(isinstance(series, Mapping) and series.get("points") for series in chart.get("series", []) or [])
     ]
     if available:
         return {"status": STATUS_AVAILABLE, "missing_fields": [], "actions": []}
+    if charts:
+        return {
+            "status": STATUS_PARTIAL,
+            "missing_fields": [{"path": "mechanical_graphs.graphiques", "reason": "Series presentes mais statut non exploitable comme graphe valide."}],
+            "actions": ["Verifier les statuts et traces des graphes backend."],
+        }
     return {
         "status": STATUS_MISSING_REQUIRED,
         "missing_fields": [{"path": "mechanical_graphs.graphiques", "reason": "Aucune serie de points backend disponible."}],

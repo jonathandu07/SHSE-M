@@ -571,7 +571,7 @@ def build_resource_catalog(raw_backend_report: dict) -> dict:
                 _resource_record(
                     name=f"{piece_name} donnees CAO",
                     resource_type="cao",
-                    status="available",
+                    status="partial",
                     source=f"rapport_backend.rapports_pieces.{piece_name}.{cao_path}",
                     function=str(cao_mapping.get("function") or ""),
                     data=cao_data,
@@ -579,7 +579,8 @@ def build_resource_catalog(raw_backend_report: dict) -> dict:
                     backend_module=str(cao_mapping.get("backend_module") or ""),
                     returns="dict",
                     generator_available=bool(cao_mapping),
-                    notes=["Bloc CAO present dans le rapport backend."],
+                    reason="Bloc CAO present ; readiness SolidWorks non deduite par le catalogue.",
+                    notes=["Bloc CAO present dans le rapport backend, a verifier par le contrat de rendu piece."],
                 )
             )
         else:
@@ -687,10 +688,11 @@ def generate_or_load_resource(resource_request: dict, raw_backend_report: dict) 
             return _resource_record(
                 name=name,
                 resource_type="cao",
-                status="available",
+                status="partial",
                 source=f"rapport_backend.rapports_pieces.{piece}.{cao_path}",
                 data=cao_data,
                 piece=piece,
+                reason="Bloc CAO present ; readiness SolidWorks non deduite par le catalogue.",
                 returns="dict",
             )
         return _resource_record(
