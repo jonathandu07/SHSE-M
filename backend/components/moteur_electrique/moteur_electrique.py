@@ -264,6 +264,47 @@ MoteurThermique = _import_attr(
     default=None,
 )
 
+# Architecture moteur thermique STHO-ME : registre central L/V/W/Etoile/Boxer
+# + extensions MultiModulesDC / PistonLibre.
+# Ce module est optionnel : si absent, le rapport remonte une inconnue et
+# le reste du système continue sans inventer d'architecture.
+Architecture = _import_attr(
+    _alts(
+        "architecture",
+        "backend.components.architecture",
+        "backend.components.architecture.architecture",
+        "backend.components.architechture",
+        "backend.components.architechture.architecture",
+        "components.architecture",
+    ),
+    "Architecture",
+    default=None,
+)
+concevoir_architecture = _import_attr(
+    _alts(
+        "architecture",
+        "backend.components.architecture",
+        "backend.components.architecture.architecture",
+        "backend.components.architechture",
+        "backend.components.architechture.architecture",
+        "components.architecture",
+    ),
+    "concevoir_architecture",
+    default=None,
+)
+normaliser_architecture = _import_attr(
+    _alts(
+        "architecture",
+        "backend.components.architecture",
+        "backend.components.architecture.architecture",
+        "backend.components.architechture",
+        "backend.components.architechture.architecture",
+        "components.architecture",
+    ),
+    "normaliser_architecture",
+    default=None,
+)
+
 
 # =============================================================================
 # Helpers
@@ -441,6 +482,273 @@ def _piece_report(module_names: Sequence[str], class_name: str, kwargs: Mapping[
     if hasattr(obj, "analyser") and callable(getattr(obj, "analyser")):
         return _to_jsonable(obj.analyser())
     return _to_jsonable(obj)
+
+
+def _normaliser_nom_architecture(value: Any) -> Any:
+    if value is None:
+        return None
+    if callable(normaliser_architecture):
+        try:
+            return normaliser_architecture(value)
+        except Exception:
+            pass
+    return value
+
+
+def _first_source_rpm_optimal(sources: Sequence[Any]) -> Optional[float]:
+    for src in sources:
+        rpm = _sf(getattr(src, "rpm_optimal", None))
+        if rpm is not None:
+            return rpm
+    for src in sources:
+        rpm = _sf(getattr(src, "rpm_min_optimal", None))
+        if rpm is not None:
+            return rpm
+    return None
+
+
+def _cfg_get_multi(*mappings: Any, keys: Sequence[str], default: Any = None) -> Any:
+    for mapping in mappings:
+        if isinstance(mapping, Mapping):
+            for key in keys:
+                if key in mapping and mapping[key] is not None:
+                    return mapping[key]
+    return default
+
+
+def _classement_architecture_depuis_rapport(rapport_arch: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Transforme l'exploration de architecture.py en classement lisible.
+
+    Le score de architecture.py est un coût relatif : plus il est bas, meilleur est
+    le candidat. L'indice `efficacite_relative_100` est donc un indicateur de
+    classement interne, pas un rendement thermodynamique.
+    """
+    rows: List[Dict[str, Any]] = []
+    raw = rapport_arch.get("exploration", []) if isinstance(rapport_arch, Mapping) else []
+    if not isinstance(raw, Sequence):
+        raw = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            continue
+        score = _sf(item.get("score_global"))
+        score_multi = _sf(item.get("score_multi_criteres"))
+        score_module = _sf(item.get("score_module_externe"))
+        rank_score = score if score is not None else (score_multi if score_multi is not None else score_module)
+        arch = _normaliser_nom_architecture(item.get("architecture"))
+        rows.append({
+            "architecture": arch,
+            "N_cyl": item.get("N_cyl"),
+            "score_global": score,
+            "score_multi_criteres": score_multi,
+            "score_module_externe": score_module,
+            "score_classement": rank_score,
+            "valide": item.get("valide"),
+            "cylindree_tot_cc": item.get("cylindree_tot_cc"),
+            "cylindree_unit_cc": item.get("cylindree_unit_cc"),
+            "bore_mm": item.get("bore_mm"),
+            "course_mm": item.get("course_mm"),
+            "ratio_S_B": item.get("ratio_S_B"),
+            "L_pkg_m_estimee": item.get("L_pkg_m_estimee"),
+            "W_pkg_m_estimee": item.get("W_pkg_m_estimee"),
+            "H_pkg_m_estimee": item.get("H_pkg_m_estimee"),
+            "rendement_indice": item.get("rendement_indice"),
+            "fiabilite_indice": item.get("fiabilite_indice"),
+            "maintenance_indice": item.get("maintenance_indice"),
+            "cout_maintenance_eur": item.get("cout_maintenance_eur"),
+            "architecture_notes": item.get("architecture_notes"),
+            "consequences_architecture": item.get("consequences_architecture"),
+        })
+
+    rows.sort(key=lambda r: (
+        r.get("score_classement") is None,
+        float(r.get("score_classement") or 1e18),
+        str(r.get("architecture")),
+        int(r.get("N_cyl") or 0),
+    ))
+
+    finite_scores = [float(r["score_classement"]) for r in rows if _sf(r.get("score_classement")) is not None]
+    best_score = min(finite_scores) if finite_scores else None
+    for idx, row in enumerate(rows, start=1):
+        row["rang"] = idx
+        sc = _sf(row.get("score_classement"))
+        if best_score is not None and sc is not None and sc > 0.0:
+            row["efficacite_relative_100"] = max(0.0, min(100.0, 100.0 * best_score / sc))
+        elif idx == 1 and best_score is not None:
+            row["efficacite_relative_100"] = 100.0
+        else:
+            row["efficacite_relative_100"] = None
+    return rows
+
+
+def _meilleurs_par_architecture_depuis_classement(classement: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    best: Dict[str, Dict[str, Any]] = {}
+    for row in classement:
+        arch = str(row.get("architecture"))
+        if not arch or arch == "None":
+            continue
+        current = best.get(arch)
+        sc = _sf(row.get("score_classement"))
+        cur_sc = _sf(current.get("score_classement")) if current else None
+        if current is None or (sc is not None and (cur_sc is None or sc < cur_sc)):
+            best[arch] = dict(row)
+    return sorted(best.values(), key=lambda r: (
+        r.get("score_classement") is None,
+        float(r.get("score_classement") or 1e18),
+        str(r.get("architecture")),
+    ))
+
+
+def analyser_architecture_moteur_thermique(
+    config: Mapping[str, Any],
+    sources: Sequence["MoteurThermiqueSource"],
+    P_arbre_thermique_requise_w: Optional[float],
+    rapport: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Appelle architecture.py pour choisir l'architecture moteur thermique.
+
+    La première ligne du classement est le choix proposé. Les autres candidats
+    restent calculés et classés pour permettre l'arbitrage CAO/SolidWorks.
+    """
+    bloc: Dict[str, Any] = {
+        "disponible": bool(callable(concevoir_architecture)),
+        "entrees_utilisees": {},
+        "rapport_architecture": None,
+        "meilleur_choix": None,
+        "classement_par_efficacite": [],
+        "meilleurs_par_architecture": [],
+        "architecture_actuelle": None,
+        "architecture_actuelle_est_optimale": None,
+        "inconnues": {"impossibles": [], "partielles": []},
+        "notes_modele": [],
+    }
+
+    if not callable(concevoir_architecture):
+        _push(rapport, "partielles", "architecture.concevoir_architecture", "Module architecture.py indisponible ; classement architecture non calculé.")
+        return bloc
+
+    arch_cfg = _safe_dict(config.get("architecture"))
+    mt_cfg = _safe_dict(config.get("moteur_thermique"))
+    analyse_cfg = _safe_dict(arch_cfg.get("analyse"))
+    if not analyse_cfg:
+        analyse_cfg = dict(arch_cfg)
+
+    rpm_source = _first_source_rpm_optimal(sources)
+    puissance_cible_w = _cfg_get_multi(
+        analyse_cfg, arch_cfg, mt_cfg, config,
+        keys=("puissance_cible_w", "puissance_mecanique_requise_w", "puissance_thermique_mecanique_w"),
+        default=P_arbre_thermique_requise_w,
+    )
+    regime_tr_min = _cfg_get_multi(
+        analyse_cfg, arch_cfg, mt_cfg, config,
+        keys=("regime_tr_min", "rpm_moteur", "rpm_nominal", "rpm_optimal"),
+        default=rpm_source,
+    )
+
+    # Ne force pas l'architecture existante par défaut : elle sert seulement de
+    # comparaison. On force uniquement si l'utilisateur fournit explicitement
+    # `architecture_forcee`.
+    architecture_actuelle = _normaliser_nom_architecture(_cfg_get_multi(
+        mt_cfg, arch_cfg, config,
+        keys=("architecture", "architecture_moteur"),
+        default=None,
+    ))
+    architecture_forcee = _cfg_get_multi(
+        analyse_cfg, arch_cfg, config,
+        keys=("architecture_forcee",),
+        default=None,
+    )
+    if architecture_forcee is not None:
+        architecture_forcee = _normaliser_nom_architecture(architecture_forcee)
+
+    call_cfg: Dict[str, Any] = {
+        "puissance_cible_w": puissance_cible_w,
+        "regime_tr_min": regime_tr_min,
+        "pme_pa": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("pme_pa", "PME_pa")),
+        "vitesse_piston_max_ms": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("vitesse_piston_max_ms", "Up_max_ms")),
+        "longueur_dispo_m": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("longueur_dispo_m", "L_max_m", "longueur_max_m")),
+        "largeur_dispo_m": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("largeur_dispo_m", "W_max_m", "largeur_max_m")),
+        "hauteur_dispo_m": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("hauteur_dispo_m", "H_max_m", "hauteur_max_m")),
+        "horizon_usage_h": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("horizon_usage_h",)),
+        "taux_compression": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("taux_compression",)),
+        "cas_de_charge": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("cas_de_charge",)),
+        "ordre_allumage_map": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("ordre_allumage_map",)),
+        "ponderations_cas": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("ponderations_cas",)),
+        "architectures_autorisees": _cfg_get_multi(analyse_cfg, arch_cfg, mt_cfg, config, keys=("architectures_autorisees",)),
+        "architecture_forcee": architecture_forcee,
+        "inclure_architectures_systeme": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("inclure_architectures_systeme",), default=False),
+        "poids_maintenance": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("poids_maintenance",)),
+        "poids_masse": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("poids_masse",)),
+        "poids_cout_matiere": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("poids_cout_matiere",)),
+        "poids_compacite": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("poids_compacite",)),
+        "poids_fiabilite": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("poids_fiabilite",)),
+        "poids_rendement": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("poids_rendement",)),
+        "usage": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("usage",)),
+        "domaine_mobilite": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("domaine_mobilite",)),
+        "type_vehicule": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("type_vehicule",)),
+        "mode_transmission": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("mode_transmission",)),
+        "demande_mobilite": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("demande_mobilite",)),
+        "commentaire_usage": _cfg_get_multi(analyse_cfg, arch_cfg, config, keys=("commentaire_usage",)),
+    }
+    call_cfg = {k: v for k, v in call_cfg.items() if v is not None}
+    if architecture_forcee is None:
+        # Retire toute clé vide pour laisser architecture.py explorer tous les candidats.
+        call_cfg.pop("architecture_forcee", None)
+
+    bloc["entrees_utilisees"] = _to_jsonable(call_cfg)
+    bloc["architecture_actuelle"] = architecture_actuelle
+
+    try:
+        rep_arch = concevoir_architecture({"analyse": call_cfg})
+    except Exception as exc:
+        _push(rapport, "partielles", "architecture.concevoir_architecture", f"Analyse architecture impossible : {exc}")
+        bloc["erreur"] = str(exc)
+        return bloc
+
+    rep_arch = _to_jsonable(rep_arch)
+    bloc["rapport_architecture"] = rep_arch
+    _merge_inconnues(rapport, rep_arch, prefix="architecture")
+
+    classement = _classement_architecture_depuis_rapport(_safe_dict(rep_arch))
+    meilleurs_par_arch = _meilleurs_par_architecture_depuis_classement(classement)
+    meilleur = classement[0] if classement else None
+
+    # Si architecture.py fournit explicitement `meilleur`, il est conservé comme
+    # source principale mais le classement complet reste disponible.
+    meilleur_src = _safe_dict(_safe_dict(rep_arch).get("meilleur"))
+    if meilleur_src:
+        meilleur_arch = _normaliser_nom_architecture(meilleur_src.get("architecture"))
+        for row in classement:
+            if (row.get("architecture") == meilleur_arch and row.get("N_cyl") == meilleur_src.get("N_cyl")):
+                meilleur = row
+                break
+        if meilleur is None:
+            meilleur = {
+                "architecture": meilleur_arch,
+                "N_cyl": meilleur_src.get("N_cyl"),
+                "score_global": meilleur_src.get("score_global"),
+                "score_classement": meilleur_src.get("score_global"),
+                "efficacite_relative_100": 100.0,
+                "source": "rapport_architecture.meilleur",
+            }
+
+    bloc["meilleur_choix"] = meilleur
+    bloc["classement_par_efficacite"] = classement
+    bloc["meilleurs_par_architecture"] = meilleurs_par_arch
+
+    if meilleur and architecture_actuelle is not None:
+        bloc["architecture_actuelle_est_optimale"] = (architecture_actuelle == meilleur.get("architecture"))
+        if bloc["architecture_actuelle_est_optimale"] is False:
+            rapport.setdefault("alertes", {}).setdefault("architecture", []).append({
+                "nom": "architecture_non_optimale",
+                "detail": f"Architecture actuelle {architecture_actuelle!r} différente du meilleur choix {meilleur.get('architecture')!r}.",
+            })
+
+    if meilleur is None:
+        _push(rapport, "partielles", "architecture.classement", "Aucun candidat d'architecture classable avec les données fournies.")
+
+    return bloc
 
 
 # =============================================================================
@@ -1475,6 +1783,16 @@ def concevoir_systeme_hybride_final(config: Mapping[str, Any]) -> Dict[str, Any]
     therm_full = evaluer_sources_thermiques(sources, P_therm_full, rapport, contexte="pleine_sortie")
     rapport["sous_systemes"]["moteurs_thermiques_pleine_sortie"] = therm_full
 
+    # 2.5) Architecture moteur thermique : proposition optimale + classement complet.
+    # Le moteur thermique n'est plus seulement une source de puissance ; il reçoit
+    # une architecture calculée par architecture.py selon puissance/régime/PME/gabarit.
+    rapport["sous_systemes"]["architecture_moteur_thermique"] = analyser_architecture_moteur_thermique(
+        config=config,
+        sources=sources,
+        P_arbre_thermique_requise_w=P_therm_full,
+        rapport=rapport,
+    )
+
     # 3) Cycle croisière : recherche du plus puissant possible sous contraintes connues.
     rapport["cycle_croisiere"] = analyser_cycle_croisiere(
         moteurs=moteurs,
@@ -1529,6 +1847,12 @@ def concevoir_systeme_hybride_final(config: Mapping[str, Any]) -> Dict[str, Any]
         "P_bus_dc_min_theorique_kw": _get_path(sortie_bloc, "puissances", "P_bus_dc_min_theorique_sortie_max_w") / 1000.0 if _sf(_get_path(sortie_bloc, "puissances", "P_bus_dc_min_theorique_sortie_max_w")) is not None else None,
         "P_arbre_thermique_requise_pleine_sortie_kw": None if gen_full_res.get("P_arbre_thermique_requise_w") is None else gen_full_res["P_arbre_thermique_requise_w"] / 1000.0,
         "ok_thermique_pleine_puissance": _get_path(therm_full, "checks", "ok_puissance_max"),
+        "architecture_thermique_optimale": _get_path(rapport, "sous_systemes", "architecture_moteur_thermique", "meilleur_choix", "architecture"),
+        "architecture_thermique_optimale_N_cyl": _get_path(rapport, "sous_systemes", "architecture_moteur_thermique", "meilleur_choix", "N_cyl"),
+        "architecture_thermique_optimale_score": _get_path(rapport, "sous_systemes", "architecture_moteur_thermique", "meilleur_choix", "score_global"),
+        "architecture_thermique_optimale_efficacite_relative_100": _get_path(rapport, "sous_systemes", "architecture_moteur_thermique", "meilleur_choix", "efficacite_relative_100"),
+        "classement_architectures_par_efficacite": _get_path(rapport, "sous_systemes", "architecture_moteur_thermique", "classement_par_efficacite"),
+        "meilleurs_candidats_par_architecture": _get_path(rapport, "sous_systemes", "architecture_moteur_thermique", "meilleurs_par_architecture"),
         "puissance_croisiere_selectionnee_kw": None if not croisiere_sel else croisiere_sel.get("puissance_sortie_w", 0.0) / 1000.0,
         "P_bus_dc_croisiere_kw": None if _sf(croisiere_sel.get("P_bus_dc_w")) is None else croisiere_sel["P_bus_dc_w"] / 1000.0,
         "debit_carburant_croisiere_g_h": None if not croisiere_sel else croisiere_sel.get("debit_carburant_g_h"),
@@ -1544,6 +1868,8 @@ def concevoir_systeme_hybride_final(config: Mapping[str, Any]) -> Dict[str, Any]
     verdicts: Dict[str, Any] = {}
     verdicts["sortie_utile"] = "OK" if sortie_checks.get("ok_sortie_max") is True else "NON_VERIFIE_OU_INSUFFISANT"
     verdicts["generation_pleine_sortie"] = "OK" if _get_path(therm_full, "checks", "ok_puissance_max") is True else "NON_VERIFIE_OU_INSUFFISANT"
+    arch_best = _get_path(rapport, "sous_systemes", "architecture_moteur_thermique", "meilleur_choix")
+    verdicts["architecture_thermique"] = "OK" if isinstance(arch_best, Mapping) and arch_best.get("architecture") else "NON_CALCULEE_OU_INSUFFISANTE"
     verdicts["cycle_croisiere"] = "OK" if rapport["cycle_croisiere"].get("selection") else "NON_SELECTIONNE"
     bad_batt = [k for k, v in _safe_dict(batterie_bloc.get("checks")).items() if v is False]
     verdicts["batterie_tampon"] = "OK" if not bad_batt else f"A_CORRIGER:{','.join(bad_batt)}"
@@ -1569,6 +1895,7 @@ __all__ = [
     "BatterieTamponSpec",
     "TransmissionGenerationSpec",
     "CycleCroisiereSpec",
+    "analyser_architecture_moteur_thermique",
     "concevoir_systeme_hybride_final",
     "exporter_rapport_json",
 ]
