@@ -41,7 +41,7 @@ def test_mesh_3d_indicative_depuis_dimensions_backend():
     assert view["schematic"] is True
     assert view["final_geometry"] is False
     assert view["solidworks_ready"] is False
-    assert "preparation SolidWorks" in view["warning"]
+    assert "preparation a la modelisation" in view["warning"]
 
 
 def test_mesh_3d_reste_partiel_si_geometrie_incomplete():
