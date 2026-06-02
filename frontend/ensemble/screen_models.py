@@ -175,7 +175,7 @@ def build_dashboard_model(frontend_state: Mapping[str, Any] | None) -> Dict[str,
         _metric("3D indicative", _bool_text(cao_summary.get("views_3d_available")), "", "ok" if cao_summary.get("views_3d_available") else "alerte"),
         _metric("Graphiques contraintes", _bool_text(cao_summary.get("stress_graphs_available")), "", "ok" if cao_summary.get("stress_graphs_available") else "alerte"),
         _metric("Donnees de modelisation", _bool_text(cao_summary.get("drawing_data_available")), "", "ok" if cao_summary.get("drawing_data_available") else "alerte"),
-        _metric("Preparation SolidWorks", _bool_text(cao_summary.get("solidworks_ready")), "", "ok" if cao_summary.get("solidworks_ready") else "alerte"),
+        _metric("Dossier de definition", _bool_text(cao_summary.get("solidworks_ready")), "", "ok" if cao_summary.get("solidworks_ready") else "alerte"),
         _metric("Generation STEP", _bool_text(cao_summary.get("step_export")), "", "missing"),
     ]
 
@@ -259,7 +259,11 @@ def _collect_piece_definition_dossiers(report: Mapping[str, Any]) -> list[Dict[s
     seen: set[tuple[str, str]] = set()
 
     def add_piece(name: str, piece_report: Mapping[str, Any], source: str) -> None:
-        dossier = safe_dict(piece_report.get("dossier_definition_solidworks")) or safe_dict(piece_report.get("dossier_cao_preparation"))
+        dossier = (
+            safe_dict(piece_report.get("dossier_definition_piece"))
+            or safe_dict(piece_report.get("dossier_definition_solidworks"))
+            or safe_dict(piece_report.get("dossier_cao_preparation"))
+        )
         if not dossier:
             return
         sig = (str(name), source)
@@ -283,9 +287,15 @@ def _collect_piece_definition_dossiers(report: Mapping[str, Any]) -> list[Dict[s
             {
                 "piece": name,
                 "source": source,
-                "statut": dossier.get("statut") or dossier.get("status") or "partial",
+                "statut": "ready_for_modeling"
+                if (dossier.get("statut") or dossier.get("status")) == "ready_for_manual_modeling"
+                else dossier.get("statut") or dossier.get("status") or "partial",
                 "statut_validation": dossier.get("statut_validation") or "not_validated",
+                "objectif": dossier.get("objectif"),
                 "solidworks_ready": False,
+                "generation_step": False,
+                "generation_cao_finale": False,
+                "geometrie_finale": False,
                 "step_generation": False,
                 "step_export": False,
                 "final_geometry": False,

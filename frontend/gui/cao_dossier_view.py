@@ -18,7 +18,7 @@ from frontend.ensemble.screen_models import build_cao_model
 
 
 class CaoDossierScreen(Screen):
-    """Vue passive du dossier de preparation SolidWorks fourni par le backend."""
+    """Vue passive du dossier de definition fourni par le backend."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -50,8 +50,8 @@ class CaoDossierScreen(Screen):
         content.bind(minimum_height=content.setter("height"))
 
         if not dossier and not piece_definitions:
-            panel = PremiumCard(title="Dossier de modelisation")
-            panel.add_widget(_label("Aucun dossier de preparation SolidWorks backend disponible.", COLORS["MUTED"]))
+            panel = PremiumCard(title="Dossier de definition")
+            panel.add_widget(_label("Aucun dossier de definition backend disponible.", COLORS["MUTED"]))
             content.add_widget(panel)
         else:
             content.add_widget(self._sketches_panel(sketches))
@@ -67,7 +67,7 @@ class CaoDossierScreen(Screen):
 
     def _top_bar(self, resume: Mapping[str, Any]) -> BoxLayout:
         bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(56), spacing=dp(10), padding=[dp(10), dp(5)])
-        title = Label(text="DOSSIER DE MODELISATION / PREPARATION SOLIDWORKS", color=COLORS["BFW"], bold=True, font_size="16sp", halign="left", valign="middle")
+        title = Label(text="DOSSIER DE DEFINITION / PREPARATION A LA MODELISATION", color=COLORS["BFW"], bold=True, font_size="16sp", halign="left", valign="middle")
         title.bind(size=lambda inst, *_: setattr(inst, "text_size", (inst.width, None)))
         bar.add_widget(title)
         badge_status = "ok" if resume.get("drawing_data_available") else "alerte"
@@ -93,7 +93,7 @@ class CaoDossierScreen(Screen):
         grid.add_widget(MetricRow("Croquis cotes", _bool_text(resume.get("sketches_available")), "", _bool_status(resume.get("sketches_available"))))
         grid.add_widget(MetricRow("3D indicative", _bool_text(resume.get("views_3d_available")), "", _bool_status(resume.get("views_3d_available"))))
         grid.add_widget(MetricRow("Graphes", _bool_text(resume.get("stress_graphs_available")), "", _bool_status(resume.get("stress_graphs_available"))))
-        grid.add_widget(MetricRow("Modelisation manuelle", _bool_text(resume.get("solidworks_ready")), "", "missing"))
+        grid.add_widget(MetricRow("Donnees suffisantes", _bool_text(resume.get("solidworks_ready")), "", "missing"))
         grid.add_widget(MetricRow("Generation STEP", _bool_text(resume.get("step_export")), "", "missing"))
         panel.add_widget(grid)
         panel.add_widget(_label(str(resume.get("avertissement") or "Schema de principe pour preparation SolidWorks ; geometrie partielle."), COLORS["MUTED"], height=28))
@@ -127,7 +127,7 @@ class CaoDossierScreen(Screen):
         return panel
 
     def _solidworks_values_panel(self, values: Mapping[str, Any]) -> PremiumCard:
-        panel = PremiumCard(title="Valeurs a reporter dans SolidWorks", size_hint_y=None, height=dp(230))
+        panel = PremiumCard(title="Donnees de definition a reporter", size_hint_y=None, height=dp(230))
         if not values:
             panel.add_widget(_label("Aucune valeur de dessin exploitable.", COLORS["MUTED"]))
             return panel

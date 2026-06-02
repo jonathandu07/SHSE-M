@@ -628,7 +628,7 @@ def build_generic_view_3d_contract(piece_name: str, piece_report: Mapping[str, A
         "final_geometry": False,
         "solidworks_ready": False,
         "quality": "dimensioned_schematic" if status == STATUS_AVAILABLE else "partial_schematic" if status == STATUS_PARTIAL else "missing_geometry",
-        "warning": "Schema de principe pour preparation SolidWorks ; geometrie partielle, aucun STEP.",
+        "warning": "Schema de principe pour preparation a la modelisation ; geometrie partielle, aucun STEP.",
         "used_fields": readiness["fields"],
         "feature_fields": render_fields,
         "missing_fields": readiness["missing_fields"],

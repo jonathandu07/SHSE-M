@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-"""Construction passive du dossier de definition SolidWorks.
+"""Construction passive du dossier de definition piece.
 
 Ce module ne calcule pas de piece, ne choisit pas de tolerance et ne genere
-aucun fichier CAO. Il structure seulement les informations deja presentes dans
-les rapports backend afin que le frontend reste consommateur passif.
+aucun fichier STEP ou CAO finale. Il structure seulement les informations deja
+presentes dans les rapports backend afin que le frontend reste consommateur
+passif.
 """
 
 from dataclasses import asdict, is_dataclass
@@ -14,6 +15,7 @@ from typing import Any, Dict, Iterable, Mapping, Sequence
 STATUTS_DOSSIER = {
     "blocked",
     "partial",
+    "ready_for_modeling",
     "ready_for_manual_modeling",
     "ready_for_assembly_check",
     "validated_by_calculation",
@@ -161,7 +163,7 @@ _ROLE_BY_PIECE = {
 }
 
 
-def ajouter_dossier_definition_solidworks(
+def ajouter_dossier_definition_piece(
     rapport: Dict[str, Any],
     piece: str | None = None,
     *,
@@ -170,7 +172,7 @@ def ajouter_dossier_definition_solidworks(
     role_mecanique: str | None = None,
     pieces_interface: Sequence[str] | None = None,
 ) -> Dict[str, Any]:
-    """Ajoute le bloc canonique au rapport d'une piece.
+    """Ajoute le bloc canonique de definition au rapport d'une piece.
 
     Le rapport est modifie en place et retourne pour permettre un usage simple
     juste avant `return rapport`.
@@ -226,10 +228,14 @@ def ajouter_dossier_definition_solidworks(
     )
 
     dossier = {
-        "objectif": "preparer la modelisation manuelle SolidWorks, pas generer un STEP",
+        "objectif": "definir la piece pour permettre le dessin industriel, la modelisation, l'assemblage, la simulation, le prototypage et la validation mecanique",
         "statut": statut,
+        "generation_step": False,
+        "generation_cao_finale": False,
+        "geometrie_finale": False,
         "solidworks_ready": False,
         "step_generation": False,
+        "step_export": False,
         "schema_only": True,
         "final_geometry": False,
         "identification": {
@@ -239,6 +245,11 @@ def ajouter_dossier_definition_solidworks(
             "role_mecanique": role_mecanique or _ROLE_BY_PIECE.get(key),
             "pieces_en_interface": list(pieces_interface or requirements.get("interfaces", ())),
             "fonction_systeme": role_mecanique or _ROLE_BY_PIECE.get(key),
+        },
+        "fonction_piece": {
+            "role_mecanique": role_mecanique or _ROLE_BY_PIECE.get(key),
+            "composant_parent": composant_parent,
+            "interfaces_attendues": list(pieces_interface or requirements.get("interfaces", ())),
         },
         "features_a_modeliser": features,
         "cotes_connues": cotes_connues,
@@ -253,10 +264,13 @@ def ajouter_dossier_definition_solidworks(
         "materiaux": materiaux,
         "controles_qualite": controles_qualite,
         "statut_validation": statut_validation,
+        "notes_dessin": _collect_rows(rapport, ("notes_dessin",)),
         "notes_modelisation": notes,
         "inconnues_bloquantes": inconnues_bloquantes,
     }
-    rapport["dossier_definition_solidworks"] = dossier
+    rapport["dossier_definition_piece"] = dossier
+    rapport["dossier_definition_solidworks"] = _legacy_solidworks_alias(dossier)
+    rapport["dossier_cao_preparation"] = dossier
     rapport.setdefault("interfaces_assemblage", interfaces)
     rapport["solidworks_ready"] = False
     rapport["step_export"] = False
@@ -267,6 +281,34 @@ def ajouter_dossier_definition_solidworks(
         cao["step_export"] = False
         cao["final_geometry"] = False
     return rapport
+
+
+def ajouter_dossier_definition_solidworks(
+    rapport: Dict[str, Any],
+    piece: str | None = None,
+    *,
+    famille: str = "moteur_thermique",
+    composant_parent: str = "moteur_thermique",
+    role_mecanique: str | None = None,
+    pieces_interface: Sequence[str] | None = None,
+) -> Dict[str, Any]:
+    """Alias de compatibilite : remplit le dossier canonique piece."""
+    return ajouter_dossier_definition_piece(
+        rapport,
+        piece,
+        famille=famille,
+        composant_parent=composant_parent,
+        role_mecanique=role_mecanique,
+        pieces_interface=pieces_interface,
+    )
+
+
+def _legacy_solidworks_alias(dossier: Mapping[str, Any]) -> dict[str, Any]:
+    legacy = dict(dossier)
+    if legacy.get("statut") == "ready_for_modeling":
+        legacy["statut"] = "ready_for_manual_modeling"
+        legacy["statut_canonique"] = "ready_for_modeling"
+    return legacy
 
 
 def _canonical_key(piece: str) -> str:
@@ -298,7 +340,7 @@ def _iter_leaf(data: Any, *, prefix: str = "", depth: int = 0, max_depth: int = 
         return
     if isinstance(data, Mapping):
         for key, value in data.items():
-            if str(key) in {"dossier_definition_solidworks"}:
+            if str(key) in {"dossier_definition_piece", "dossier_definition_solidworks", "dossier_cao_preparation"}:
                 continue
             path = f"{prefix}.{key}" if prefix else str(key)
             if isinstance(value, Mapping):
@@ -520,7 +562,7 @@ def _collect_notes(rapport: Mapping[str, Any]) -> list[dict[str, Any]]:
     notes = [
         {
             "nom": "orientation",
-            "texte": "Dossier de definition pour modelisation manuelle SolidWorks ; aucun export CAO n'est genere.",
+            "texte": "Dossier de definition pour dessin, modelisation, assemblage, simulation et prototypage ; aucun STEP ni CAO finale n'est genere.",
         }
     ]
     for item in rapport.get("notes_modele") or []:
@@ -571,7 +613,7 @@ def _definition_status(
     if complete_enough and statut_validation == "validated_by_calculation":
         return "validated_by_calculation"
     if complete_enough:
-        return "ready_for_manual_modeling"
+        return "ready_for_modeling"
     if interfaces and not has_open_interfaces:
         return "ready_for_assembly_check"
     return "partial"
@@ -580,5 +622,6 @@ def _definition_status(
 __all__ = [
     "PIECE_REQUIREMENTS",
     "STATUTS_DOSSIER",
+    "ajouter_dossier_definition_piece",
     "ajouter_dossier_definition_solidworks",
 ]

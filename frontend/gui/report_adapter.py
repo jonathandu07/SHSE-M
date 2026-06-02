@@ -999,12 +999,27 @@ def _first_definition_rows(piece_report: Mapping[str, Any], dossier: Mapping[str
     return []
 
 
+def _definition_dossier(piece_report: Mapping[str, Any]) -> Tuple[Dict[str, Any], str]:
+    for key in ("dossier_definition_piece", "dossier_definition_solidworks", "dossier_cao_preparation"):
+        dossier = _as_dict(piece_report.get(key))
+        if dossier:
+            return dossier, key
+    return {}, ""
+
+
+def _canonical_definition_status(value: Any) -> str:
+    status = str(value or "").strip()
+    if status == "ready_for_manual_modeling":
+        return "ready_for_modeling"
+    return status
+
+
 def extract_piece_solidworks_definition(piece_report: Mapping[str, Any]) -> Dict[str, Any]:
-    """Expose le dossier de modelisation manuel sans qualifier la piece en CAO finale."""
+    """Compatibilite ancienne API : expose le dossier canonique de definition piece."""
     if not isinstance(piece_report, Mapping):
         return {}
 
-    dossier = _as_dict(piece_report.get("dossier_definition_solidworks")) or _as_dict(piece_report.get("dossier_cao_preparation"))
+    dossier, dossier_source = _definition_dossier(piece_report)
     has_backend_dossier = bool(dossier)
 
     cotes_connues = _definition_mapping(dossier.get("cotes_connues")) or extract_dimensions(piece_report)
@@ -1040,19 +1055,26 @@ def extract_piece_solidworks_definition(piece_report: Mapping[str, Any]) -> Dict
     ):
         return {}
 
-    statut = str(dossier.get("statut") or dossier.get("status") or ("partial" if cotes_connues else "blocked"))
+    statut = _canonical_definition_status(dossier.get("statut") or dossier.get("status") or ("partial" if cotes_connues else "blocked"))
     validation = str(dossier.get("statut_validation") or "not_validated")
 
     summary = {
+        "objectif": dossier.get("objectif") or "definir la piece pour permettre le dessin, la modelisation, l'assemblage, la simulation et le prototypage",
         "statut": statut,
         "statut_validation": validation,
-        "source": "dossier_definition_solidworks" if has_backend_dossier else "piece_report_fields",
+        "source": dossier_source if has_backend_dossier else "piece_report_fields",
+        "legacy_source": dossier_source == "dossier_definition_solidworks",
+        "generation_step": False,
+        "generation_cao_finale": False,
+        "geometrie_finale": False,
         "solidworks_ready": False,
         "backend_solidworks_ready": bool(dossier.get("solidworks_ready")),
         "step_generation": False,
         "step_export": False,
         "schema_only": True,
         "final_geometry": False,
+        "identification": _as_dict(dossier.get("identification")),
+        "fonction_piece": _as_dict(dossier.get("fonction_piece")),
         "features_a_modeliser": features,
         "cotes_connues": cotes_connues,
         "cotes_manquantes": cotes_manquantes,
@@ -1064,6 +1086,7 @@ def extract_piece_solidworks_definition(piece_report: Mapping[str, Any]) -> Dict
         "contraintes_rdm": contraintes_rdm,
         "limites_usage": limites_usage,
         "controles_qualite": controles_qualite,
+        "notes_dessin": _first_definition_rows(piece_report, dossier, "notes_dessin"),
         "notes_modelisation": notes,
         "inconnues_bloquantes": inconnues_bloquantes,
         "materiaux": materiaux,
@@ -1101,6 +1124,7 @@ def extract_piece_list(
         alerts = flatten_alerts(rep)
         resources = _resources_for_piece(resource_catalog, name)
         pdf_resources = resources.get("pdf") or []
+        definition_piece = extract_piece_solidworks_definition(rep)
 
         out.append(
             {
@@ -1113,7 +1137,8 @@ def extract_piece_list(
                 "constraints": extract_constraints(rep),
                 "unknowns": unknowns,
                 "alerts": alerts,
-                "solidworks_definition": extract_piece_solidworks_definition(rep),
+                "definition_piece": definition_piece,
+                "solidworks_definition": definition_piece,
                 "data": _to_jsonable(rep),
                 "inventory": _to_jsonable(inv),
                 "backend_report_available": bool(rep),

@@ -67,24 +67,37 @@ def empty_render_contract(
             "step_export": False,
             "solidworks_ready": False,
         },
-        "dossier_definition_solidworks": {
+        "dossier_definition_piece": {
+            "objectif": "definir la piece pour permettre le dessin, la modelisation, l'assemblage, la simulation et le prototypage",
             "statut": "blocked" if status == STATUS_MISSING_REQUIRED else "partial",
+            "generation_step": False,
+            "generation_cao_finale": False,
+            "geometrie_finale": False,
             "solidworks_ready": False,
             "step_generation": False,
+            "step_export": False,
             "schema_only": True,
             "final_geometry": False,
+            "identification": {},
+            "fonction_piece": {},
             "features_a_modeliser": [],
             "cotes_connues": {},
             "cotes_manquantes": {},
             "interfaces": [],
+            "interfaces_assemblage": [],
             "tolerances": [],
+            "jeux_ajustements": [],
             "surfaces_fonctionnelles": [],
             "contraintes_rdm": [],
             "limites_usage": [],
+            "materiaux": [],
             "controles_qualite": [],
+            "notes_dessin": [],
             "notes_modelisation": [],
+            "inconnues_bloquantes": [],
             "statut_validation": "not_validated",
         },
+        "dossier_definition_solidworks": {},
         "interfaces_assemblage": [],
         "step_export": False,
         "solidworks_ready": False,
@@ -121,7 +134,7 @@ def normalize_view_3d(view: Mapping[str, Any]) -> Dict[str, Any]:
         "title": view.get("title") or view.get("titre") or view.get("id") or "Vue 3D indicative backend",
         "mesh_available": bool(view.get("mesh_available") or geometry),
         "json_geometry": geometry,
-        "warning": view.get("avertissement") or view.get("warning") or "Schema de principe pour preparation SolidWorks ; geometrie partielle, aucun STEP.",
+        "warning": view.get("avertissement") or view.get("warning") or "Schema de principe pour preparation a la modelisation ; geometrie partielle, aucun STEP.",
         "used_fields": list(view.get("used_fields") or []),
         "missing_fields": list(view.get("missing_fields") or view.get("missing") or []),
         "source": view.get("source") or "backend.cao_dossier",
@@ -245,6 +258,22 @@ def _first_rows(piece_report: Mapping[str, Any], *paths: str) -> list[dict[str, 
     return []
 
 
+def _definition_dossier_from_piece_report(piece_report: Mapping[str, Any]) -> dict[str, Any]:
+    return (
+        safe_dict(piece_report.get("dossier_definition_piece"))
+        or safe_dict(piece_report.get("dossier_definition_solidworks"))
+        or safe_dict(piece_report.get("dossier_cao_preparation"))
+    )
+
+
+def _legacy_solidworks_alias(dossier: Mapping[str, Any]) -> dict[str, Any]:
+    legacy = dict(dossier)
+    if legacy.get("statut") == "ready_for_modeling":
+        legacy["statut"] = "ready_for_manual_modeling"
+        legacy["statut_canonique"] = "ready_for_modeling"
+    return legacy
+
+
 def _dimension_key(item: Mapping[str, Any]) -> str:
     return str(item.get("path") or item.get("label") or item.get("nom") or item.get("name") or len(item))
 
@@ -319,12 +348,12 @@ def _definition_status(
 ) -> str:
     if not piece_report or not cotes_connues:
         return "blocked"
-    existing = safe_dict(piece_report.get("dossier_definition_solidworks")) or safe_dict(piece_report.get("dossier_cao_preparation"))
+    existing = _definition_dossier_from_piece_report(piece_report)
     requested = str(existing.get("statut") or existing.get("status") or "").strip()
-    if requested == "ready_for_manual_modeling":
+    if requested in {"ready_for_modeling", "ready_for_manual_modeling"}:
         if cotes_manquantes or not tolerances or not materiaux:
             return "partial"
-        return "ready_for_manual_modeling"
+        return "ready_for_modeling"
     if requested in {"blocked", "partial"}:
         return requested
     return "partial"
@@ -332,7 +361,7 @@ def _definition_status(
 
 def refresh_solidworks_definition_dossier(contract: Dict[str, Any], piece_name: str, piece_report: Mapping[str, Any]) -> Dict[str, Any]:
     """Expose un dossier d'aide a la modelisation, sans exporter de CAO."""
-    existing = safe_dict(piece_report.get("dossier_definition_solidworks")) or safe_dict(piece_report.get("dossier_cao_preparation"))
+    existing = _definition_dossier_from_piece_report(piece_report)
     cotes_connues = _safe_mapping(existing.get("cotes_connues")) or _known_dimensions_from_contract(contract)
     cotes_manquantes = _safe_mapping(existing.get("cotes_manquantes")) or _missing_dimensions_from_unknowns(list(contract.get("missing_fields") or []))
     features = _safe_rows(existing.get("features_a_modeliser")) or _features_from_contract(contract)
@@ -372,7 +401,7 @@ def refresh_solidworks_definition_dossier(contract: Dict[str, Any], piece_name: 
         notes = [
             {
                 "nom": "orientation",
-                "texte": "Dossier d'aide a la modelisation manuelle dans SolidWorks ; aucun export CAO n'est genere.",
+                "texte": "Dossier de definition pour dessin, modelisation, assemblage, simulation et prototypage ; aucun STEP ni CAO finale n'est genere.",
             }
         ]
 
@@ -389,12 +418,19 @@ def refresh_solidworks_definition_dossier(contract: Dict[str, Any], piece_name: 
 
     dossier = {
         "piece": piece_name,
+        "objectif": existing.get("objectif")
+        or "definir la piece pour permettre le dessin, la modelisation, l'assemblage, la simulation et le prototypage",
         "statut": statut,
+        "generation_step": False,
+        "generation_cao_finale": False,
+        "geometrie_finale": False,
         "solidworks_ready": False,
         "step_generation": False,
         "step_export": False,
         "schema_only": True,
         "final_geometry": False,
+        "identification": safe_dict(existing.get("identification")),
+        "fonction_piece": safe_dict(existing.get("fonction_piece")),
         "features_a_modeliser": features,
         "cotes_connues": cotes_connues,
         "cotes_manquantes": cotes_manquantes,
@@ -406,15 +442,18 @@ def refresh_solidworks_definition_dossier(contract: Dict[str, Any], piece_name: 
         "contraintes_rdm": contraintes_rdm,
         "limites_usage": limites_usage,
         "controles_qualite": controles_qualite,
+        "notes_dessin": _first_rows_from_values(existing.get("notes_dessin"), get_path(piece_report, "notes_dessin")),
         "notes_modelisation": notes,
         "statut_validation": validation,
         "materiaux": materiaux,
         "inconnues_bloquantes": inconnues_bloquantes,
     }
-    contract["dossier_definition_solidworks"] = dossier
+    contract["dossier_definition_piece"] = dossier
+    contract["dossier_definition_solidworks"] = _legacy_solidworks_alias(dossier)
     contract["dossier_cao_preparation"] = dossier
     contract["interfaces_assemblage"] = interfaces
     solidworks = safe_dict(contract.get("solidworks_data"))
+    solidworks["dossier_definition_piece"] = dossier
     solidworks["dossier_definition_solidworks"] = dossier
     solidworks["step_export"] = False
     solidworks["solidworks_ready"] = False
@@ -447,7 +486,7 @@ def build_piece_render_contract(piece_name: str, global_report: Mapping[str, Any
     contract["views_3d"] = views
     contract["charts"] = charts
     contract["solidworks_data"]["dimensions_to_copy"] = dimensions
-    contract["solidworks_data"]["notes"].append("Donnees a reporter dans SolidWorks pour modelisation manuelle ; aucun export CAO n'est produit.")
+    contract["solidworks_data"]["notes"].append("Donnees de definition a reporter dans un outil de dessin/modelisation ; aucun export CAO n'est produit.")
 
     unknowns = _collect_piece_unknowns(piece_report)
     contract["missing_fields"] = unknowns

@@ -373,7 +373,7 @@ def _first_definition_rows(payload: Mapping[str, Any], dossier: Mapping[str, Any
 
 def _definition_status_for_ui(value: Any) -> str:
     status = str(value or "").lower()
-    if status in {"ready_for_manual_modeling", "ready_for_assembly_check", "validated_by_calculation"}:
+    if status in {"ready_for_modeling", "ready_for_manual_modeling", "ready_for_assembly_check", "validated_by_calculation"}:
         return "ok"
     if status in {"blocked", "missing_required", "impossible", "error"}:
         return "alerte"
@@ -383,7 +383,7 @@ def _definition_status_for_ui(value: Any) -> str:
 
 
 def _extract_definition_summary(data: Mapping[str, Any], payload: Mapping[str, Any]) -> Dict[str, Any]:
-    direct = _safe_dict(data.get("solidworks_definition"))
+    direct = _safe_dict(data.get("definition_piece")) or _safe_dict(data.get("solidworks_definition"))
     if direct:
         summary = dict(direct)
         counts = _safe_dict(summary.get("counts"))
@@ -402,6 +402,9 @@ def _extract_definition_summary(data: Mapping[str, Any], payload: Mapping[str, A
                 "inconnues_bloquantes": len(_definition_rows(summary.get("inconnues_bloquantes"))),
             }
         summary["solidworks_ready"] = False
+        summary["generation_step"] = False
+        summary["generation_cao_finale"] = False
+        summary["geometrie_finale"] = False
         summary["step_generation"] = False
         summary["step_export"] = False
         summary["final_geometry"] = False
@@ -409,7 +412,11 @@ def _extract_definition_summary(data: Mapping[str, Any], payload: Mapping[str, A
         summary["counts"] = counts
         return summary
 
-    dossier = _safe_dict(payload.get("dossier_definition_solidworks")) or _safe_dict(payload.get("dossier_cao_preparation"))
+    dossier = (
+        _safe_dict(payload.get("dossier_definition_piece"))
+        or _safe_dict(payload.get("dossier_definition_solidworks"))
+        or _safe_dict(payload.get("dossier_cao_preparation"))
+    )
     fields = {
         "features_a_modeliser": _first_definition_rows(payload, dossier, "features_a_modeliser"),
         "cotes_connues": _definition_map(dossier.get("cotes_connues")) or _definition_map(payload.get("cotes_connues")),
@@ -444,9 +451,15 @@ def _extract_definition_summary(data: Mapping[str, Any], payload: Mapping[str, A
     }
 
     return {
-        "statut": str(dossier.get("statut") or dossier.get("status") or ("partial" if any(fields.values()) else "blocked")),
+        "statut": "ready_for_modeling"
+        if str(dossier.get("statut") or dossier.get("status") or "") == "ready_for_manual_modeling"
+        else str(dossier.get("statut") or dossier.get("status") or ("partial" if any(fields.values()) else "blocked")),
         "statut_validation": str(dossier.get("statut_validation") or "not_validated"),
-        "source": "dossier_definition_solidworks" if dossier else "piece_report_fields",
+        "source": "dossier_definition_piece" if payload.get("dossier_definition_piece") else "dossier_definition_solidworks" if dossier else "piece_report_fields",
+        "objectif": dossier.get("objectif") or "definir la piece pour permettre le dessin, la modelisation, l'assemblage, la simulation et le prototypage",
+        "generation_step": False,
+        "generation_cao_finale": False,
+        "geometrie_finale": False,
         "solidworks_ready": False,
         "step_generation": False,
         "step_export": False,
@@ -713,6 +726,7 @@ def _normalize_piece(name: str, raw: Mapping[str, Any], *, source: str) -> Dict[
     dimensions = _extract_dimensions(payload)
     constraints = _extract_constraints(payload)
     unknowns = _extract_unknowns(payload)
+    definition_piece = _extract_definition_summary(data, payload)
 
     piece = {
         "name": str(_first_non_empty(data.get("name"), data.get("nom"), data.get("label"), name)),
@@ -729,7 +743,8 @@ def _normalize_piece(name: str, raw: Mapping[str, Any], *, source: str) -> Dict[
         "data": payload,
         "raw": dict(raw),
         "resources": _safe_dict(data.get("resources")),
-        "solidworks_definition": _extract_definition_summary(data, payload),
+        "definition_piece": definition_piece,
+        "solidworks_definition": definition_piece,
     }
 
     piece["status"] = _status_from_piece(piece)
@@ -862,7 +877,8 @@ def _piece_richness(piece: Mapping[str, Any]) -> int:
     score += len(_safe_dict(piece.get("dimensions"))) * 3
     score += len(_safe_dict(piece.get("constraints"))) * 2
     score += len(_safe_list(piece.get("unknowns")))
-    score += sum(int(v or 0) for v in _safe_dict(_safe_dict(piece.get("solidworks_definition")).get("counts")).values())
+    definition = _safe_dict(piece.get("definition_piece")) or _safe_dict(piece.get("solidworks_definition"))
+    score += sum(int(v or 0) for v in _safe_dict(definition.get("counts")).values())
     score += _count_nodes(piece.get("data"))
     if piece.get("material"):
         score += 5
@@ -1081,7 +1097,7 @@ class PieceLibraryScreen(Screen):
         unknowns = _safe_list(piece.get("unknowns"))
         dimensions = _safe_dict(piece.get("dimensions"))
         constraints = _safe_dict(piece.get("constraints"))
-        definition = _safe_dict(piece.get("solidworks_definition"))
+        definition = _safe_dict(piece.get("definition_piece")) or _safe_dict(piece.get("solidworks_definition"))
         definition_counts = _safe_dict(definition.get("counts"))
         res_ok, res_partial, res_ko = _resource_counts(_safe_dict(piece.get("resources")))
 
@@ -1100,7 +1116,7 @@ class PieceLibraryScreen(Screen):
         card.add_widget(MetricRow("Matériau", piece.get("material") or "—", "", "ok" if piece.get("material") else "missing"))
         card.add_widget(MetricRow("Dimensions", len(dimensions), "", "ok" if dimensions else "missing"))
         card.add_widget(MetricRow("Contraintes", len(constraints), "", "ok" if constraints else "missing"))
-        card.add_widget(MetricRow("Dossier model.", definition.get("statut") or "absent", "", _definition_status_for_ui(definition.get("statut"))))
+        card.add_widget(MetricRow("Dossier def.", definition.get("statut") or "absent", "", _definition_status_for_ui(definition.get("statut"))))
         card.add_widget(MetricRow("Cotes manq.", definition_counts.get("cotes_manquantes", 0), "", "alerte" if definition_counts.get("cotes_manquantes") else "ok"))
         card.add_widget(MetricRow("Interfaces", definition_counts.get("interfaces", 0), "", "partiel" if definition_counts.get("interfaces") else "missing"))
         card.add_widget(MetricRow("Inconnues", len(unknowns), "", "alerte" if unknowns else "ok"))
@@ -1207,7 +1223,7 @@ class PieceDetailScreen(Screen):
 
         content.add_widget(self._section("Dimensions", _safe_dict(piece.get("dimensions"))))
         content.add_widget(self._section("Contraintes / performances", _safe_dict(piece.get("constraints"))))
-        definition = _safe_dict(piece.get("solidworks_definition"))
+        definition = _safe_dict(piece.get("definition_piece")) or _safe_dict(piece.get("solidworks_definition"))
         content.add_widget(self._definition_overview_section(definition))
         if definition:
             content.add_widget(self._section("Cotes connues", _safe_dict(definition.get("cotes_connues"))))
@@ -1372,7 +1388,7 @@ class PieceDetailScreen(Screen):
 
     def _definition_overview_section(self, definition: Mapping[str, Any]) -> NeoCard:
         card = NeoCard(orientation="vertical", size_hint_y=None, spacing=dp(4), padding=dp(10))
-        card.add_widget(SectionTitle(text="DOSSIER DE MODELISATION SOLIDWORKS"))
+        card.add_widget(SectionTitle(text="DOSSIER DE DEFINITION PIECE"))
 
         if not definition:
             card.add_widget(EmptyState(text="INDISPONIBLE"))
@@ -1383,7 +1399,7 @@ class PieceDetailScreen(Screen):
         rows = [
             ("Statut", definition.get("statut"), _definition_status_for_ui(definition.get("statut"))),
             ("Validation calcul", definition.get("statut_validation"), _definition_status_for_ui(definition.get("statut_validation"))),
-            ("SolidWorks pret auto", "non", "missing"),
+            ("Generation CAO finale", "non", "missing"),
             ("Generation STEP", "non", "missing"),
             ("Geometrie finale", "non", "missing"),
             ("Schema de principe", "oui" if definition.get("schema_only", True) else "non", "partiel"),
