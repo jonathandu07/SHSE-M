@@ -95,6 +95,90 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
     )
 
 
+def _cap_section(rapport: Dict[str, Any], key: str) -> Dict[str, Any]:
+    value = rapport.get(key, {})
+    return value if isinstance(value, dict) else {}
+
+
+def _status_coussinet(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _missing_tolerance_coussinet(nom: str, type_: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": type_, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _ajouter_champs_metier_definition_coussinet(rapport: Dict[str, Any]) -> None:
+    geo = _cap_section(rapport, "geometrie")
+    cin = _cap_section(rapport, "cinematique")
+    pressions = _cap_section(rapport, "pressions")
+    pv = _cap_section(rapport, "pv")
+    frottement = _cap_section(rapport, "frottement")
+    thermique = _cap_section(rapport, "thermique")
+    hydro = _cap_section(rapport, "hydrodynamique")
+    dimensionnement = _cap_section(rapport, "dimensionnement")
+    tribologie = _cap_section(rapport, "tribologie")
+    efforts = _cap_section(rapport, "efforts")
+    cao = _cap_section(rapport, "cao")
+
+    d_int = geo.get("diametre_portee_m") or cao.get("diametre_interieur_nominal_m")
+    d_ext = geo.get("diametre_exterieur_m") or cao.get("diametre_exterieur_nominal_m")
+    longueur = geo.get("longueur_coussinet_m") or cao.get("longueur_nominale_m")
+    jeu = geo.get("jeu_radial_m") or cao.get("jeu_radial_m")
+
+    rapport.setdefault("piece", "coussinet_arbre_piston")
+    rapport["surfaces_fonctionnelles"] = [
+        {"nom": "diametre_interieur", "fonction": "surface de glissement sur arbre_piston", "cote_associee": "diametre_portee_m", "valeur_associee": d_int, "risque": "pression/vitesse non verifiables sans diametre interieur", "controle_recommande": "diametre interieur, circularite et rugosite"},
+        {"nom": "diametre_exterieur", "fonction": "interface logement bielle", "cote_associee": "diametre_exterieur_m", "valeur_associee": d_ext, "risque": "ajustement logement non defini", "controle_recommande": "diametre exterieur et circularite"},
+        {"nom": "longueur", "fonction": "largeur portante projetee", "cote_associee": "longueur_coussinet_m", "valeur_associee": longueur, "risque": "pression projetee non calculable sans longueur", "controle_recommande": "longueur et faces d'appui"},
+        {"nom": "surface_glissement", "fonction": "contact tribologique arbre/coussinet", "cote_associee": "pression_projetee_pa / vitesse_glissement_m_s", "valeur_associee": {"pression_projetee_pa": pressions.get("pression_projetee_pa"), "vitesse_glissement_m_s": cin.get("vitesse_glissement_m_s")}, "risque": "PV/frottement non valides", "controle_recommande": "rugosite, jeu, lubrification"},
+        {"nom": "faces_appui", "fonction": "reprise axiale et positionnement", "cote_associee": "longueur_coussinet_m", "valeur_associee": longueur, "risque": "positionnement axial incomplet", "controle_recommande": "parallelisme et perpendicularite faces"},
+    ]
+    rapport["interfaces_assemblage"] = [
+        {"piece_a": "coussinet_arbre_piston", "piece_b": "arbre_piston", "fonction": "guidage tribologique de l'arbre", "type_liaison": "palier lisse", "cote_interface": d_int, "jeu_ou_serrage": jeu, "tolerance": cao.get("tolerance_diametre_interieur_m"), "effort_transmis": efforts.get("charge_radiale_N"), "risque": "jeu, rugosite ou lubrification non valides", "statut": _status_coussinet(d_int, longueur)},
+        {"piece_a": "coussinet_arbre_piston", "piece_b": "bielle", "fonction": "logement du coussinet", "type_liaison": "emmanchement/logement", "cote_interface": d_ext, "jeu_ou_serrage": None, "tolerance": cao.get("tolerance_diametre_exterieur_m"), "effort_transmis": efforts.get("charge_radiale_N"), "risque": "ajustement logement non fourni", "statut": _status_coussinet(d_ext)},
+        {"piece_a": "coussinet_arbre_piston", "piece_b": "logement", "fonction": "portee externe dans la tete de bielle", "type_liaison": "portee cylindrique", "cote_interface": d_ext, "jeu_ou_serrage": None, "tolerance": cao.get("tolerance_diametre_exterieur_m"), "effort_transmis": efforts.get("charge_radiale_N"), "risque": "serrage/jeu logement a definir", "statut": "partial"},
+    ]
+    rapport["tolerances"] = [
+        {"nom": "jeu_radial", "type": "fonctionnel", "valeur": jeu, "statut": "known" if jeu is not None else "missing", "source": "geometrie/cao"},
+        {"nom": "diametre_interieur", "type": "diametral", "valeur": cao.get("tolerance_diametre_interieur_m"), "statut": "known" if cao.get("tolerance_diametre_interieur_m") is not None else "missing", "source": "cao.tolerance_diametre_interieur_m"},
+        {"nom": "diametre_exterieur", "type": "diametral", "valeur": cao.get("tolerance_diametre_exterieur_m"), "statut": "known" if cao.get("tolerance_diametre_exterieur_m") is not None else "missing", "source": "cao.tolerance_diametre_exterieur_m"},
+        {"nom": "etat_surface_interieur", "type": "etat_surface", "valeur": cao.get("rugosite_interieure_ra_um"), "statut": "known" if cao.get("rugosite_interieure_ra_um") is not None else "missing", "source": "cao.rugosite_interieure_ra_um"},
+        _missing_tolerance_coussinet("ajustement_logement", "ajustement", "a definir selon bielle/logement"),
+        _missing_tolerance_coussinet("ajustement_arbre", "ajustement", "a definir selon arbre_piston et lubrification"),
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "pression_projetee", "type": "pression_contact", "valeur": pressions.get("pression_projetee_pa"), "source": "pressions.pression_projetee_pa"},
+        {"nom": "vitesse_glissement", "type": "cinematique", "valeur": cin.get("vitesse_glissement_m_s"), "source": "cinematique.vitesse_glissement_m_s"},
+        {"nom": "PV", "type": "tribologie", "valeur": pv.get("pv_W_m2"), "source": "pv.pv_W_m2"},
+        {"nom": "frottement", "type": "frottement", "valeur": frottement.get("puissance_frottement_W"), "source": "frottement.puissance_frottement_W"},
+        {"nom": "echauffement", "type": "thermique", "valeur": thermique, "source": "thermique"},
+        {"nom": "sommerfeld", "type": "hydrodynamique", "valeur": hydro.get("sommerfeld_S"), "source": "hydrodynamique.sommerfeld_S"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "pression_admissible", "valeur": pressions.get("pression_admissible_effective_pa") or pressions.get("pression_admissible_pa"), "unite": "Pa", "condition_non_conformite": "pression projetee superieure a pression admissible"},
+        {"nom": "PV_limite", "valeur": pv.get("pv_admissible_effective_W_m2") or pv.get("pv_admissible_W_m2"), "unite": "W/m2", "condition_non_conformite": "PV superieur a la limite fournie"},
+        {"nom": "vitesse_glissement", "valeur": cin.get("vitesse_glissement_m_s"), "unite": "m/s", "condition_non_conformite": "vitesse superieure a limite utilisateur"},
+        {"nom": "temperature", "valeur": thermique.get("R_conduction_K_W"), "condition_non_conformite": "echauffement non valide sans bilan thermique"},
+        {"nom": "limite_tribologique", "valeur": {"pression": pressions.get("marge_pression"), "pv": pv.get("marge_pv")}, "condition_non_conformite": "marge pression ou PV <= 1"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "diametre_interieur", "type": "cote", "cote": d_int, "controle": "diametre interieur et circularite"},
+        {"nom": "diametre_exterieur", "type": "cote", "cote": d_ext, "controle": "diametre exterieur et circularite"},
+        {"nom": "longueur", "type": "cote", "cote": longueur, "controle": "longueur et perpendicularite faces"},
+        {"nom": "rugosite", "type": "etat_surface", "cote": cao.get("rugosite_interieure_ra_um"), "controle": "rugosite surface de glissement"},
+        {"nom": "jeu", "type": "fonctionnel", "cote": jeu, "controle": "mesure jeu radial assemble"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "bague_cylindrique", "texte": "Modeliser comme bague cylindrique uniquement si diametres et longueur sont disponibles."},
+        {"nom": "surface_glissement", "texte": "Nommer la surface de glissement interieure et les faces d'appui."},
+        {"nom": "jeu_parametrique", "texte": "Garder le jeu radial parametrique ; ne pas choisir d'ajustement sans donnee backend."},
+        {"nom": "diametres_distincts", "texte": "Distinguer diametre interieur arbre_piston et diametre exterieur logement."},
+        {"nom": "pas_de_reference", "texte": "Aucune reference catalogue ni materiau de coussinet n'est choisi automatiquement."},
+        {"nom": "pas_export_step", "texte": "Dossier de modelisation manuelle uniquement ; aucun export STEP n'est genere."},
+    ]
+
+
 def _aire_disque(d: float) -> float:
     d_v = _req_pos("d", d)
     return math.pi * (0.5 * d_v) ** 2
@@ -972,6 +1056,7 @@ class CoussinetArbrePiston:
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
 
+        _ajouter_champs_metier_definition_coussinet(rapport)
         ajouter_dossier_definition_solidworks(rapport, "coussinet_arbre_piston")
         return rapport
 

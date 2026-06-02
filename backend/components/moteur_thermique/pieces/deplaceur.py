@@ -176,6 +176,7 @@ def _ajouter_champs_metier_definition_deplaceur(rapport: Dict[str, Any]) -> None
         {"nom": "zones_thermiques", "texte": "Identifier et nommer les surfaces chaude et froide."},
         {"nom": "surfaces_etancheite", "texte": "Nommer les zones d'etancheite et portees joint_deplaceur."},
         {"nom": "schema_non_final", "texte": "Garder le deplaceur schematique tant que jeux, tolerances et interfaces ne sont pas fermes ; aucun STEP n'est genere."},
+        {"nom": "pas_export_step", "texte": "Dossier de modelisation manuelle uniquement ; aucun export STEP n'est genere."},
     ]
 
 

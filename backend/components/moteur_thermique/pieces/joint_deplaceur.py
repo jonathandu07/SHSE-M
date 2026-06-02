@@ -89,6 +89,84 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
 
 
+def _jd_section(rapport: Dict[str, Any], key: str) -> Dict[str, Any]:
+    value = rapport.get(key, {})
+    return value if isinstance(value, dict) else {}
+
+
+def _status_joint_deplaceur(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _missing_tolerance_joint_deplaceur(nom: str, type_: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": type_, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _ajouter_champs_metier_definition_joint_deplaceur(rapport: Dict[str, Any]) -> None:
+    entrees = _jd_section(rapport, "entrees")
+    geo = _jd_section(rapport, "geometrie")
+    gorge = _jd_section(rapport, "gorge")
+    elasticite = _jd_section(rapport, "elasticite")
+    frottement = _jd_section(rapport, "frottement")
+    service = _jd_section(rapport, "service")
+    cao = _jd_section(rapport, "cao")
+    verifications = _jd_section(rapport, "verifications")
+
+    d_dep = entrees.get("diametre_deplaceur_m")
+    d_cyl = entrees.get("alesage_cylindre_m")
+    section_m = geo.get("section_joint_m")
+    squeeze = entrees.get("squeeze")
+    largeur_gorge = gorge.get("largeur_gorge_axiale_m") or cao.get("largeur_gorge_m")
+    profondeur_gorge = gorge.get("profondeur_gorge_radiale_m") or cao.get("profondeur_gorge_m")
+    d_fond = gorge.get("diametre_fond_gorge_m") or cao.get("diametre_fond_gorge_m")
+    jeu = entrees.get("jeu_radial_m") or verifications.get("jeu_radial_m")
+
+    rapport.setdefault("piece", "joint_deplaceur")
+    rapport["surfaces_fonctionnelles"] = [
+        {"nom": "section_joint", "fonction": "section torique du joint de deplaceur", "cote_associee": "section_joint_m", "valeur_associee": section_m, "risque": "compression non calculable sans section", "controle_recommande": "section et circularite"},
+        {"nom": "surface_contact_cylindre", "fonction": "contact avec alesage cylindre", "cote_associee": "alesage_cylindre_m", "valeur_associee": d_cyl, "risque": "fuite ou frottement si contact non valide", "controle_recommande": "diametre cylindre et etat de surface"},
+        {"nom": "surface_contact_deplaceur", "fonction": "contact ou logement sur deplaceur", "cote_associee": "diametre_deplaceur_m", "valeur_associee": d_dep, "risque": "gorge non positionnable sans diametre deplaceur", "controle_recommande": "diametre deplaceur, gorge et rugosite"},
+        {"nom": "gorge", "fonction": "logement annulaire du joint", "cote_associee": "largeur/profondeur/diametre_fond", "valeur_associee": {"largeur_gorge_m": largeur_gorge, "profondeur_gorge_m": profondeur_gorge, "diametre_fond_gorge_m": d_fond}, "risque": "squeeze et volume non maitrises si gorge incomplete", "controle_recommande": "largeur, profondeur et diametre fond gorge"},
+    ]
+    rapport["interfaces_assemblage"] = [
+        {"piece_a": "joint_deplaceur", "piece_b": "deplaceur", "fonction": "montage dans gorge externe du deplaceur", "type_liaison": "joint dans gorge", "cote_interface": d_fond, "jeu_ou_serrage": squeeze, "tolerance": None, "effort_transmis": service.get("pression_service_pa"), "risque": "gorge ou compression incomplete", "statut": _status_joint_deplaceur(d_dep, section_m, squeeze)},
+        {"piece_a": "joint_deplaceur", "piece_b": "cylindre", "fonction": "etancheite mobile avec alesage", "type_liaison": "contact radial glissant", "cote_interface": d_cyl, "jeu_ou_serrage": jeu, "tolerance": None, "effort_transmis": service.get("pression_service_pa"), "risque": "contact cylindre non valide sans jeu/pression", "statut": _status_joint_deplaceur(d_cyl, jeu)},
+        {"piece_a": "joint_deplaceur", "piece_b": "gorge", "fonction": "retenue axiale et radiale", "type_liaison": "gorge annulaire", "cote_interface": {"largeur_gorge_m": largeur_gorge, "profondeur_gorge_m": profondeur_gorge}, "jeu_ou_serrage": squeeze, "tolerance": None, "effort_transmis": None, "risque": "volume gorge incomplet", "statut": _status_joint_deplaceur(largeur_gorge, profondeur_gorge)},
+    ]
+    rapport["tolerances"] = [
+        _missing_tolerance_joint_deplaceur("section", "diametral", "a definir selon joint/fournisseur"),
+        _missing_tolerance_joint_deplaceur("diametre", "diametral", "a definir selon cylindre et deplaceur"),
+        _missing_tolerance_joint_deplaceur("profondeur_gorge", "dimensionnel", "a definir selon squeeze vise"),
+        _missing_tolerance_joint_deplaceur("largeur_gorge", "dimensionnel", "a definir selon volume et fabrication"),
+        {"nom": "jeu_radial", "type": "fonctionnel", "valeur": jeu, "statut": "known" if jeu is not None else "missing", "source": "entrees/verifications"},
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "squeeze", "type": "compression_joint", "valeur": squeeze, "source": "entrees.squeeze"},
+        {"nom": "pression_contact", "type": "pression_contact", "valeur": elasticite.get("pression_contact_estimee_pa"), "source": "elasticite.pression_contact_estimee_pa"},
+        {"nom": "frottement", "type": "frottement", "valeur": frottement.get("force_frottement_N"), "source": "frottement.force_frottement_N"},
+        {"nom": "fuite", "type": "etancheite", "valeur": None, "source": "non_calcule", "statut": "partial"},
+        {"nom": "usure", "type": "tribologie", "valeur": None, "source": "non_calcule", "statut": "partial"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "squeeze", "valeur": squeeze, "condition_non_conformite": "squeeze absent ou hors (0,1)"},
+        {"nom": "pression_contact", "valeur": elasticite.get("pression_contact_estimee_pa"), "unite": "Pa", "condition_non_conformite": "pression contact inferieure au service ou superieure a limite materiau"},
+        {"nom": "frottement", "valeur": frottement.get("force_frottement_N"), "unite": "N", "condition_non_conformite": "frottement superieur a limite utilisateur"},
+        {"nom": "temperature", "valeur": None, "condition_non_conformite": "temperature joint non fournie"},
+        {"nom": "usure", "valeur": None, "condition_non_conformite": "usure non evaluee sans modele tribologique"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "section", "type": "cote", "cote": section_m, "controle": "section joint"},
+        {"nom": "diametre", "type": "cote", "cote": d_dep, "controle": "diametre montage sur deplaceur"},
+        {"nom": "taux_remplissage", "type": "fonctionnel", "cote": geo.get("taux_remplissage_gorge_approx"), "controle": "volume joint/gorge"},
+        {"nom": "compression", "type": "fonctionnel", "cote": squeeze, "controle": "compression/squeeze"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "schema_joint", "texte": "Modeliser le joint de deplaceur comme schema tant que section, diametre et gorge ne sont pas tous fermes."},
+        {"nom": "gorge_parametrique", "texte": "Garder la gorge parametrique avec largeur, profondeur, diametre de fond et positions axiales."},
+        {"nom": "pas_de_geometrie_finale", "texte": "Ne pas figer la geometrie sans section/dimensions ; aucun export STEP n'est genere."},
+    ]
+
+
 # ============================================================
 # Géométrie : modèles explicites
 # ============================================================
@@ -804,6 +882,7 @@ class JointDeplaceur:
                 f"Impossibles: {rapport['inconnues']['impossibles']}\n"
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
+        _ajouter_champs_metier_definition_joint_deplaceur(rapport)
         ajouter_dossier_definition_solidworks(rapport, "joint_deplaceur")
         return rapport
 

@@ -174,6 +174,7 @@ def _ajouter_champs_metier_definition_joint_piston(rapport: Dict[str, Any]) -> N
         {"nom": "nommer_gorge", "texte": "Nommer la gorge piston et les surfaces de contact cylindre/gorge."},
         {"nom": "parametres_joint", "texte": "Garder squeeze et stretch en parametres si connus ; aucune geometrie finale n'est generee."},
         {"nom": "matiere", "texte": "Ne pas choisir de matiere joint sans materiau_joint_cle ou proprietes fournies."},
+        {"nom": "pas_export_step", "texte": "Dossier de modelisation manuelle uniquement ; aucun export STEP n'est genere."},
     ]
 
 
