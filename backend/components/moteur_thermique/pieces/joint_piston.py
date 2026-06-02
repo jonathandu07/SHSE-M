@@ -103,6 +103,80 @@ def _safe_get_dict(d: Any, key: str) -> Dict[str, Any]:
     return v if isinstance(v, dict) else {}
 
 
+def _status_joint_piston(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _missing_tolerance_joint_piston(nom: str, type_: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": type_, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _ajouter_champs_metier_definition_joint_piston(rapport: Dict[str, Any]) -> None:
+    entrees = _safe_get_dict(rapport, "entrees")
+    geo = _safe_get_dict(rapport, "geometrie_joint")
+    gorge = _safe_get_dict(rapport, "gorge")
+    squeeze = _safe_get_dict(rapport, "squeeze_stretch")
+    efforts = _safe_get_dict(rapport, "efforts")
+    frottements = _safe_get_dict(rapport, "frottements")
+    rainures = _safe_get_dict(rapport, "rainures")
+
+    id_joint = entrees.get("diametre_interieur_joint_m")
+    section = entrees.get("diametre_section_joint_m")
+    d_cyl = entrees.get("diametre_interieur_cylindre_m")
+    d_fond = entrees.get("diametre_fond_gorge_m")
+    largeur_gorge = entrees.get("largeur_gorge_m")
+    profondeur_gorge = entrees.get("profondeur_gorge_m")
+    squeeze_fraction = squeeze.get("squeeze_radial_fraction")
+    stretch_fraction = squeeze.get("stretch_fraction")
+
+    rapport.setdefault("piece", "joint_piston")
+    rapport["surfaces_fonctionnelles"] = [
+        {"nom": "tore", "fonction": "volume elastomere assurant l'etancheite", "cote_associee": "diametre_interieur_joint_m / diametre_section_joint_m", "valeur_associee": {"diametre_interieur_joint_m": id_joint, "diametre_section_joint_m": section}, "risque": "geometrie non modelisable sans ID et section", "controle_recommande": "diametre interieur et section"},
+        {"nom": "surface_contact_cylindre", "fonction": "contact radial avec alesage cylindre", "cote_associee": "diametre_interieur_cylindre_m", "valeur_associee": d_cyl, "risque": "fuite ou frottement excessif si contact non defini", "controle_recommande": "diametre cylindre, etat de surface et pression contact"},
+        {"nom": "surface_contact_gorge", "fonction": "appui dans la gorge piston", "cote_associee": "diametre_fond_gorge_m", "valeur_associee": d_fond, "risque": "squeeze/stretch non maitrises si gorge incomplete", "controle_recommande": "largeur, profondeur, diametre fond gorge"},
+        {"nom": "section_joint", "fonction": "section torique ou annulaire du joint", "cote_associee": "diametre_section_joint_m", "valeur_associee": section, "risque": "compression non calculable sans section", "controle_recommande": "section et circularite"},
+    ]
+    rapport["interfaces_assemblage"] = [
+        {"piece_a": "joint_piston", "piece_b": "piston", "fonction": "logement dans gorge piston", "type_liaison": "joint dans gorge", "cote_interface": d_fond, "jeu_ou_serrage": squeeze_fraction, "tolerance": None, "effort_transmis": efforts.get("pression_contact_utilisee_pa"), "risque": "gorge incomplete ou squeeze inconnu", "statut": _status_joint_piston(d_fond, largeur_gorge, profondeur_gorge)},
+        {"piece_a": "joint_piston", "piece_b": "cylindre", "fonction": "etancheite piston/cylindre", "type_liaison": "contact radial glissant", "cote_interface": d_cyl, "jeu_ou_serrage": squeeze_fraction, "tolerance": None, "effort_transmis": efforts.get("force_pression_equivalente_N"), "risque": "pression contact/frottement non valides", "statut": _status_joint_piston(d_cyl, squeeze_fraction)},
+        {"piece_a": "joint_piston", "piece_b": "gorge_piston", "fonction": "retenue axiale et radiale du joint", "type_liaison": "gorge annulaire", "cote_interface": {"largeur_gorge_m": largeur_gorge, "profondeur_gorge_m": profondeur_gorge}, "jeu_ou_serrage": squeeze_fraction, "tolerance": None, "effort_transmis": None, "risque": "volume gorge/taux remplissage incomplets", "statut": _status_joint_piston(largeur_gorge, profondeur_gorge)},
+    ]
+    rapport["tolerances"] = [
+        _missing_tolerance_joint_piston("section_joint", "diametral", "a definir selon joint et fournisseur"),
+        _missing_tolerance_joint_piston("largeur_gorge", "dimensionnel", "a definir selon fabrication de la gorge piston"),
+        _missing_tolerance_joint_piston("profondeur_gorge", "dimensionnel", "a definir selon squeeze vise"),
+        _missing_tolerance_joint_piston("jeu_radial", "fonctionnel", "a definir selon cylindre, piston et dilatation"),
+        {"nom": "squeeze", "type": "fonctionnel", "valeur": squeeze_fraction, "statut": "known" if squeeze_fraction is not None else "missing", "source": "squeeze_stretch.squeeze_radial_fraction", "raison": None if squeeze_fraction is not None else "squeeze calculable seulement avec section, cylindre et gorge"},
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "squeeze", "type": "compression_joint", "valeur": squeeze_fraction, "source": "squeeze_stretch.squeeze_radial_fraction"},
+        {"nom": "stretch", "type": "deformation_joint", "valeur": stretch_fraction, "source": "squeeze_stretch.stretch_fraction"},
+        {"nom": "pression_contact", "type": "pression_contact", "valeur": efforts.get("pression_contact_utilisee_pa") or efforts.get("pression_contact_estimee_pa"), "source": "efforts"},
+        {"nom": "frottement", "type": "frottement", "valeur": frottements.get("force_frottement_estimee_N"), "source": "frottements.force_frottement_estimee_N"},
+        {"nom": "fuite", "type": "etancheite", "valeur": None, "source": "non_calcule", "statut": "partial"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "squeeze", "valeur": squeeze_fraction, "condition_non_conformite": "squeeze <= 0 ou squeeze >= 1"},
+        {"nom": "stretch", "valeur": stretch_fraction, "condition_non_conformite": "stretch negatif ou hors specification utilisateur"},
+        {"nom": "frottement", "valeur": frottements.get("force_frottement_estimee_N"), "unite": "N", "condition_non_conformite": "frottement superieur a la limite utilisateur"},
+        {"nom": "fuite", "valeur": None, "condition_non_conformite": "fuite non evaluee sans modele d'etancheite"},
+        {"nom": "temperature", "valeur": None, "condition_non_conformite": "temperature joint non fournie"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "section", "type": "cote", "cote": section, "controle": "mesure section joint"},
+        {"nom": "diametre_interieur", "type": "cote", "cote": id_joint, "controle": "mesure ID joint"},
+        {"nom": "volume_gorge", "type": "volume", "cote": gorge.get("volume_gorge_m3"), "controle": "verification volume gorge si calculable"},
+        {"nom": "taux_remplissage", "type": "fonctionnel", "cote": gorge.get("taux_remplissage_volume_joint_sur_gorge"), "controle": "controle taux de remplissage"},
+        {"nom": "rainures", "type": "detail", "cote": rainures.get("nombre_rainures"), "controle": "presence et position des rainures reprises du piston"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "schema_tore", "texte": "Modeliser le joint comme tore/schema de principe tant que ID, section et gorge ne sont pas tous fermes."},
+        {"nom": "nommer_gorge", "texte": "Nommer la gorge piston et les surfaces de contact cylindre/gorge."},
+        {"nom": "parametres_joint", "texte": "Garder squeeze et stretch en parametres si connus ; aucune geometrie finale n'est generee."},
+        {"nom": "matiere", "texte": "Ne pas choisir de matiere joint sans materiau_joint_cle ou proprietes fournies."},
+    ]
+
+
 # =============================================================================
 # Matériaux : récupération cohérente depuis backend.ensemble.materiaux
 # =============================================================================
@@ -735,6 +809,7 @@ class JointPiston:
                 f"Impossibles: {rapport['inconnues']['impossibles']}\n"
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
+        _ajouter_champs_metier_definition_joint_piston(rapport)
         ajouter_dossier_definition_solidworks(rapport, "joint_piston")
         return rapport
 

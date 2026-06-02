@@ -109,6 +109,78 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
         inc[kind] = out
 
 
+def _status_vilbrequin(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _missing_tolerance_vilbrequin(nom: str, type_: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": type_, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _ajouter_champs_metier_definition_vilbrequin(rapport: Dict[str, Any]) -> None:
+    geo = rapport.get("geometrie", {}) if isinstance(rapport.get("geometrie"), dict) else {}
+    cin = rapport.get("cinematique", {}) if isinstance(rapport.get("cinematique"), dict) else {}
+    contraintes = rapport.get("contraintes", {}) if isinstance(rapport.get("contraintes"), dict) else {}
+    mat = rapport.get("materiau", {}) if isinstance(rapport.get("materiau"), dict) else {}
+    raideur = rapport.get("raideur", {}) if isinstance(rapport.get("raideur"), dict) else {}
+    d_journal = geo.get("diametre_journal_principal_m")
+    d_maneton = geo.get("diametre_maneton_m")
+    couple = cin.get("couple_max_Nm")
+    rpm = cin.get("rpm")
+
+    rapport.setdefault("piece", "vilbrequin")
+    rapport["surfaces_fonctionnelles"] = [
+        {"nom": "maneton", "fonction": "portee excentree transmettant l'effort de bielle", "cote_associee": "diametre_maneton_m", "valeur_associee": d_maneton, "risque": "pression de contact, flexion locale et fatigue si portee incomplete", "controle_recommande": "diametre, largeur, rugosite et rayon de raccordement"},
+        {"nom": "tourillons", "fonction": "portees principales de rotation du vilebrequin", "cote_associee": "diametre_journal_principal_m", "valeur_associee": d_journal, "risque": "faux-rond, usure ou contrainte locale si portees non fermees", "controle_recommande": "diametre, coaxialite, faux-rond et rugosite"},
+        {"nom": "rayons_raccordement", "fonction": "reduire la concentration de contrainte entre maneton, tourillons et joues", "cote_associee": "rayon_raccordement", "valeur_associee": None, "risque": "amorcage fatigue si rayon non defini", "controle_recommande": "rayons et absence d'entaille"},
+        {"nom": "portees_roulement", "fonction": "interfaces avec roulements/paliers principaux", "cote_associee": "diametre_journal_principal_m", "valeur_associee": d_journal, "risque": "ajustement roulement non valide sans jeu/tolerance", "controle_recommande": "diametre, circularite et etat de surface"},
+        {"nom": "portee_sortie", "fonction": "interface volant ou sortie couple si definie par le systeme", "cote_associee": "portee_sortie", "valeur_associee": None, "risque": "sortie non modelisable sans definition d'interface", "controle_recommande": "a definir avec l'organe de sortie"},
+    ]
+    rapport["interfaces_assemblage"] = [
+        {"piece_a": "vilbrequin", "piece_b": "bielle", "fonction": "transformation effort alternatif en couple", "type_liaison": "pivot maneton/grande tete", "cote_interface": d_maneton, "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": couple, "risque": "jeu maneton/roulement et pression contact non valides", "statut": _status_vilbrequin(d_maneton)},
+        {"piece_a": "vilbrequin", "piece_b": "roulement_aiguille_arbre_vilebrequin", "fonction": "support rotation cote maneton", "type_liaison": "roulement", "cote_interface": d_maneton, "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": couple, "risque": "reference roulement, C/C0 et L10 non valides", "statut": "partial"},
+        {"piece_a": "vilbrequin", "piece_b": "arbre_vilbrequin", "fonction": "interface avec arbre associe distinct du vilebrequin", "type_liaison": "portee coaxiale ou assemblage mecanique", "cote_interface": d_journal, "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": couple, "risque": "ne pas fusionner avec la piece arbre_vilbrequin ; interface a fermer", "statut": _status_vilbrequin(d_journal)},
+        {"piece_a": "vilbrequin", "piece_b": "volant_sortie", "fonction": "sortie couple ou volant si present", "type_liaison": None, "cote_interface": None, "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": couple, "risque": "organe de sortie non fourni", "statut": "partial"},
+    ]
+    rapport["tolerances"] = [
+        _missing_tolerance_vilbrequin("diametre_maneton", "diametral", "a definir selon roulement/bielle et procede d'usinage"),
+        _missing_tolerance_vilbrequin("diametre_tourillons", "diametral", "a definir selon paliers/roulements principaux"),
+        _missing_tolerance_vilbrequin("rayons_raccordement", "geometrique", "a definir selon fatigue et usinage"),
+        _missing_tolerance_vilbrequin("faux_rond_tourillons", "geometrique", "a definir selon architecture d'appuis"),
+        _missing_tolerance_vilbrequin("rugosite_portees", "etat_surface", "a definir selon tribologie/roulements"),
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "torsion_journal_principal", "type": "torsion", "valeur": _dig(contraintes, "journal_principal", "tau_torsion_pa"), "source": "contraintes.journal_principal.tau_torsion_pa"},
+        {"nom": "flexion_journal_principal", "type": "flexion", "valeur": _dig(contraintes, "journal_principal", "sigma_flexion_pa"), "source": "contraintes.journal_principal.sigma_flexion_pa"},
+        {"nom": "von_mises_journal_principal", "type": "von_mises", "valeur": _dig(contraintes, "journal_principal", "sigma_von_mises_pa"), "source": "contraintes.journal_principal.sigma_von_mises_pa"},
+        {"nom": "von_mises_maneton", "type": "von_mises", "valeur": _dig(contraintes, "maneton", "sigma_von_mises_pa"), "source": "contraintes.maneton.sigma_von_mises_pa"},
+        {"nom": "fatigue", "type": "fatigue", "valeur": mat.get("limite_fatigue_pa"), "source": "materiau.limite_fatigue_pa", "statut": "partial"},
+        {"nom": "raideur_torsion", "type": "torsion", "valeur": raideur, "source": "raideur"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "couple_max", "valeur": couple, "unite": "N.m", "condition_non_conformite": "couple superieur au cas de torsion verifie"},
+        {"nom": "regime_max", "valeur": rpm, "unite": "rpm", "condition_non_conformite": "regime superieur au cas fourni ou vibrations non analysees"},
+        {"nom": "charge_maneton", "valeur": None, "unite": "N", "condition_non_conformite": "charge bielle/maneton non fournie ou non consolidee"},
+        {"nom": "contrainte_admissible", "valeur": _dig(contraintes, "journal_principal", "sigma_admissible_pa"), "unite": "Pa", "condition_non_conformite": "contrainte equivalente superieure a la contrainte admissible"},
+        {"nom": "risque_fatigue", "valeur": mat.get("limite_fatigue_pa"), "unite": "Pa", "condition_non_conformite": "fatigue non validee sans spectre et rayons de raccordement"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "faux_rond", "type": "geometrique", "cote": None, "controle": "faux-rond des tourillons et maneton apres usinage"},
+        {"nom": "coaxialite", "type": "geometrique", "cote": None, "controle": "coaxialite des tourillons principaux"},
+        {"nom": "diametre_maneton", "type": "cote", "cote": d_maneton, "controle": "diametre, circularite et rugosite"},
+        {"nom": "diametre_tourillons", "type": "cote", "cote": d_journal, "controle": "diametre, circularite, faux-rond"},
+        {"nom": "rayons_raccordement", "type": "forme", "cote": None, "controle": "rayons et absence d'entaille"},
+        {"nom": "etat_surface", "type": "etat_surface", "cote": None, "controle": "rugosite portees selon palier/roulement choisi"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "axe_principal", "texte": "Modeliser d'abord l'axe principal du vilebrequin et les tourillons."},
+        {"nom": "maneton_parametrique", "texte": "Creer maneton/tourillons parametriques avec rayon_manivelle, diametres et largeurs comme parametres."},
+        {"nom": "surfaces_nommes", "texte": "Nommer maneton, tourillons, portees roulement et rayons de raccordement pour preparer l'assemblage."},
+        {"nom": "rayons_parametriques", "texte": "Garder les rayons de raccordement parametriques ; aucun export STEP n'est genere."},
+        {"nom": "distinction_piece", "texte": "Ne pas fusionner ce vilebrequin avec arbre_vilbrequin : l'arbre associe reste une piece distincte."},
+    ]
+
+
 # =============================================================================
 # Matériaux : résolution (sans invention)
 # =============================================================================
@@ -736,6 +808,7 @@ class Vilbrequin:
             if missing:
                 raise ValueError(f"Données essentielles manquantes (strict=True) : {', '.join(missing)}")
 
+        _ajouter_champs_metier_definition_vilbrequin(rapport)
         ajouter_dossier_definition_solidworks(rapport, "vilbrequin")
         return rapport
 
@@ -787,6 +860,7 @@ class VilbrequinFine(Vilbrequin):
                 f"Impossibles: {rapport['inconnues']['impossibles']}\n"
                 f"Partielles: {rapport['inconnues']['partielles']}"
             )
+        _ajouter_champs_metier_definition_vilbrequin(rapport)
         ajouter_dossier_definition_solidworks(rapport, "vilbrequin")
         return rapport
 

@@ -95,6 +95,90 @@ def _dedup_inconnues(rapport: Dict[str, Any]) -> None:
     rapport["inconnues"]["partielles"] = dedup(rapport["inconnues"]["partielles"])
 
 
+def _dict_section(rapport: Dict[str, Any], key: str) -> Dict[str, Any]:
+    value = rapport.get(key, {})
+    return value if isinstance(value, dict) else {}
+
+
+def _status_deplaceur(*values: Any) -> str:
+    return "ok" if all(v is not None for v in values) else "partial"
+
+
+def _missing_tolerance_deplaceur(nom: str, type_: str, raison: str) -> Dict[str, Any]:
+    return {"nom": nom, "type": type_, "valeur": None, "statut": "missing", "raison": raison}
+
+
+def _ajouter_champs_metier_definition_deplaceur(rapport: Dict[str, Any]) -> None:
+    geo = _dict_section(rapport, "geometrie")
+    pressions = _dict_section(rapport, "pressions")
+    thermique = _dict_section(rapport, "thermique")
+    contraintes = _dict_section(rapport, "contraintes")
+    verifications = _dict_section(rapport, "verifications")
+    efforts = _dict_section(rapport, "efforts")
+    fabrication = _dict_section(rapport, "fabrication")
+    etancheite = _dict_section(rapport, "etancheite")
+    positions = _dict_section(rapport, "positions")
+    volumes = _dict_section(rapport, "volumes")
+    entrees = _dict_section(rapport, "entrees")
+
+    d_ext = geo.get("diametre_exterieur_m")
+    longueur = geo.get("longueur_totale_m")
+    jeu = entrees.get("jeu_radial_m")
+    delta_p = pressions.get("delta_p_chaud_froid_pa")
+
+    rapport.setdefault("piece", "deplaceur")
+    rapport["surfaces_fonctionnelles"] = [
+        {"nom": "corps_deplaceur", "fonction": "corps mobile separant les volumes chaud et froid", "cote_associee": "diametre_exterieur_m / longueur_totale_m", "valeur_associee": {"diametre_exterieur_m": d_ext, "longueur_totale_m": longueur}, "risque": "volume et masse non exploitables sans diametre/longueur", "controle_recommande": "diametre exterieur, longueur et rectitude"},
+        {"nom": "surface_chaude", "fonction": "face cote zone chaude", "cote_associee": "position_face_chaud_m", "valeur_associee": positions.get("position_face_chaud_m"), "risque": "volume chaud non ferme si position inconnue", "controle_recommande": "position axiale et etat de surface"},
+        {"nom": "surface_froide", "fonction": "face cote zone froide", "cote_associee": "position_face_froid_m", "valeur_associee": positions.get("position_face_froid_m"), "risque": "volume froid non ferme si position inconnue", "controle_recommande": "position axiale et etat de surface"},
+        {"nom": "zone_etancheite", "fonction": "zone de contact indirect avec joint_deplaceur", "cote_associee": "rainures_joints", "valeur_associee": etancheite or None, "risque": "fuite si rainures/joints incomplets", "controle_recommande": "gorges, etat surface, jeu radial"},
+        {"nom": "portee_joint", "fonction": "support des joints de deplaceur", "cote_associee": "section_joint_mm", "valeur_associee": etancheite.get("section_joint_mm"), "risque": "joint non modelisable sans section et compression", "controle_recommande": "largeur/profondeur de gorge"},
+        {"nom": "surfaces_guidees", "fonction": "guidage dans le cylindre", "cote_associee": "jeu_radial_m", "valeur_associee": jeu, "risque": "frottement ou fuite si jeu non maitrise", "controle_recommande": "jeu radial, coaxialite et etat surface"},
+    ]
+    rapport["interfaces_assemblage"] = [
+        {"piece_a": "deplaceur", "piece_b": "cylindre", "fonction": "guidage et separation des volumes internes", "type_liaison": "coulissement avec jeu radial", "cote_interface": d_ext, "jeu_ou_serrage": jeu, "tolerance": fabrication.get("tolerance_diametre_exterieur_m"), "effort_transmis": efforts.get("force_axiale_N"), "risque": "jeu radial, frottement ou butee non verifies", "statut": _status_deplaceur(d_ext, longueur)},
+        {"piece_a": "deplaceur", "piece_b": "joint_deplaceur", "fonction": "etancheite mobile", "type_liaison": "joint dans gorge", "cote_interface": etancheite.get("section_joint_mm"), "jeu_ou_serrage": etancheite.get("taux_compression"), "tolerance": None, "effort_transmis": delta_p, "risque": "joint/gorge incomplets", "statut": _status_deplaceur(etancheite.get("section_joint_mm"), etancheite.get("taux_compression"))},
+        {"piece_a": "deplaceur", "piece_b": "chambre_chaude", "fonction": "delimitation volume chaud", "type_liaison": "volume gaz", "cote_interface": volumes.get("volume_zone_chaude_m3"), "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": pressions.get("pression_chaud_pa"), "risque": "volume chaud incomplet", "statut": _status_deplaceur(volumes.get("volume_zone_chaude_m3"))},
+        {"piece_a": "deplaceur", "piece_b": "chambre_froide", "fonction": "delimitation volume froid", "type_liaison": "volume gaz", "cote_interface": volumes.get("volume_zone_froide_m3"), "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": pressions.get("pression_froid_pa"), "risque": "volume froid incomplet", "statut": _status_deplaceur(volumes.get("volume_zone_froide_m3"))},
+        {"piece_a": "deplaceur", "piece_b": "arbre_liaison", "fonction": "liaison mecanique si presente", "type_liaison": None, "cote_interface": None, "jeu_ou_serrage": None, "tolerance": None, "effort_transmis": efforts.get("force_axiale_N"), "risque": "liaison non fournie", "statut": "partial"},
+    ]
+    rapport["tolerances"] = [
+        {"nom": "diametre_exterieur", "type": "diametral", "valeur": fabrication.get("tolerance_diametre_exterieur_m"), "statut": "known" if fabrication.get("tolerance_diametre_exterieur_m") is not None else "missing", "source": "fabrication.tolerance_diametre_exterieur_m"},
+        {"nom": "longueur", "type": "dimensionnel", "valeur": fabrication.get("tolerance_longueur_m"), "statut": "known" if fabrication.get("tolerance_longueur_m") is not None else "missing", "source": "fabrication.tolerance_longueur_m"},
+        {"nom": "jeu_radial", "type": "fonctionnel", "valeur": jeu, "statut": "known" if jeu is not None else "missing", "source": "entrees.jeu_radial_m"},
+        _missing_tolerance_deplaceur("rectitude", "geometrique", "a definir selon longueur et guidage"),
+        _missing_tolerance_deplaceur("coaxialite", "geometrique", "a definir selon cylindre et assemblage"),
+        _missing_tolerance_deplaceur("etat_surface_zone_etancheite", "etat_surface", "a definir selon joint et frottement"),
+    ]
+    rapport["contraintes_rdm"] = [
+        {"nom": "flambage", "type": "flambage", "valeur": verifications.get("flambage_euler_N"), "source": "verifications.flambage_euler_N"},
+        {"nom": "effort_pression", "type": "pression", "valeur": efforts.get("force_axiale_N"), "source": "efforts.force_axiale_N"},
+        {"nom": "deformation_pression", "type": "deformation", "valeur": contraintes, "source": "contraintes"},
+        {"nom": "perte_charge", "type": "perte_charge", "valeur": thermique.get("perte_charge_orifice_pa"), "source": "thermique.perte_charge_orifice_pa"},
+        {"nom": "dilatation_thermique", "type": "thermique", "valeur": thermique, "source": "thermique", "statut": "partial"},
+    ]
+    rapport["limites_usage"] = [
+        {"nom": "pression_maximale", "valeur": max([v for v in (pressions.get("pression_chaud_pa"), pressions.get("pression_froid_pa")) if v is not None], default=None), "unite": "Pa", "condition_non_conformite": "pression superieure au cas fourni"},
+        {"nom": "temperature_maximale", "valeur": max([v for v in (thermique.get("temperature_chaud_C"), thermique.get("temperature_froid_C")) if v is not None], default=None), "unite": "degC", "condition_non_conformite": "temperature superieure au cas fourni"},
+        {"nom": "jeu_radial_minimal", "valeur": jeu, "unite": "m", "condition_non_conformite": "jeu residuel negatif ou frottement"},
+        {"nom": "risque_frottement", "valeur": verifications.get("jeu_residuel_m"), "condition_non_conformite": "jeu residuel <= 0"},
+        {"nom": "risque_flambage", "valeur": verifications.get("marge_flambage"), "condition_non_conformite": "marge flambage <= 1"},
+    ]
+    rapport["controles_qualite"] = [
+        {"nom": "diametre_exterieur", "type": "cote", "cote": d_ext, "controle": "diametre et circularite"},
+        {"nom": "longueur", "type": "cote", "cote": longueur, "controle": "longueur totale et positions de faces"},
+        {"nom": "rectitude", "type": "geometrique", "cote": None, "controle": "rectitude du corps"},
+        {"nom": "coaxialite", "type": "geometrique", "cote": None, "controle": "coaxialite avec cylindre"},
+        {"nom": "etat_surface", "type": "etat_surface", "cote": fabrication.get("rugosite_exterieure_ra_um"), "controle": "rugosite externe et faces"},
+    ]
+    rapport["notes_modelisation"] = [
+        {"nom": "corps_tubulaire", "texte": "Modeliser comme corps tubulaire ou plein selon type_deplaceur et diametres disponibles."},
+        {"nom": "zones_thermiques", "texte": "Identifier et nommer les surfaces chaude et froide."},
+        {"nom": "surfaces_etancheite", "texte": "Nommer les zones d'etancheite et portees joint_deplaceur."},
+        {"nom": "schema_non_final", "texte": "Garder le deplaceur schematique tant que jeux, tolerances et interfaces ne sont pas fermes ; aucun STEP n'est genere."},
+    ]
+
+
 # ============================================================
 # Modèles physiques stricts
 # ============================================================
@@ -945,5 +1029,6 @@ class Deplaceur:
         if strict and (rapport["inconnues"]["impossibles"] or rapport["inconnues"]["partielles"]):
             raise ValueError(f"Inconnues restantes: {rapport['inconnues']}")
 
+        _ajouter_champs_metier_definition_deplaceur(rapport)
         ajouter_dossier_definition_solidworks(rapport, "deplaceur")
         return rapport
