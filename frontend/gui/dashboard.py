@@ -979,7 +979,7 @@ class DashboardScreen(Screen):
         )
         panel.add_widget(
             MetricRow(
-                "Preparation SolidWorks",
+                "Dossier de definition",
                 _fmt_bool(summary.get("solidworks_ready")),
                 "",
                 "ok" if summary.get("solidworks_ready") else "alerte",

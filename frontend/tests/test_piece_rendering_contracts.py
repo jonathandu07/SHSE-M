@@ -20,8 +20,12 @@ def test_render_contract_generique_ne_declare_pas_step():
     assert contract["solidworks_data"]["step_export"] is False
     assert contract["solidworks_data"]["solidworks_ready"] is False
     assert contract["solidworks_data"]["dimensions_to_copy"][0]["source"] == "backend"
-    dossier = contract["dossier_definition_solidworks"]
+    dossier = contract["dossier_definition_piece"]
+    assert contract["dossier_definition_solidworks"]
     assert dossier["step_generation"] is False
+    assert dossier["generation_step"] is False
+    assert dossier["generation_cao_finale"] is False
+    assert dossier["geometrie_finale"] is False
     assert dossier["schema_only"] is True
     assert dossier["final_geometry"] is False
     assert dossier["solidworks_ready"] is False
@@ -131,7 +135,7 @@ def test_dossier_definition_solidworks_reste_un_dossier_de_modelisation():
     }
 
     contract = build_piece_render_contract("piston", report)
-    dossier = contract["dossier_definition_solidworks"]
+    dossier = contract["dossier_definition_piece"]
 
     assert dossier["statut"] == "partial"
     assert dossier["step_generation"] is False
@@ -140,6 +144,7 @@ def test_dossier_definition_solidworks_reste_un_dossier_de_modelisation():
     assert dossier["final_geometry"] is False
     assert "dimensions.diametre_exterieur_m" in dossier["cotes_connues"]
     assert "tolerance_jeu_radial" in dossier["cotes_manquantes"]
+    assert contract["dossier_definition_solidworks"]["statut"] == "partial"
     assert "step_export" in contract
     assert contract["step_export"] is False
 
@@ -174,7 +179,8 @@ def test_dossier_definition_solidworks_preserve_les_champs_metier_backend():
     }
 
     contract = build_piece_render_contract("joint_deplaceur", report)
-    dossier = contract["dossier_definition_solidworks"]
+    dossier = contract["dossier_definition_piece"]
+    legacy = contract["dossier_definition_solidworks"]
 
     assert dossier["features_a_modeliser"][0]["type"] == "joint_annulaire"
     assert dossier["cotes_connues"]["diametre_interieur_m"]["valeur"] == 0.045
@@ -191,6 +197,34 @@ def test_dossier_definition_solidworks_preserve_les_champs_metier_backend():
     assert dossier["step_generation"] is False
     assert dossier["step_export"] is False
     assert dossier["final_geometry"] is False
+    assert legacy["features_a_modeliser"][0]["type"] == "joint_annulaire"
+
+
+def test_dossier_definition_piece_prioritaire_sur_legacy_solidworks():
+    report = {
+        "rapports_pieces": {
+            "piston": {
+                "piece": "piston",
+                "dossier_definition_piece": {
+                    "statut": "ready_for_modeling",
+                    "cotes_connues": {"diametre_piston_m": {"valeur": 0.08}},
+                    "tolerances": [{"nom": "jeu_radial"}],
+                    "materiaux": [{"nom": "aluminium"}],
+                },
+                "dossier_definition_solidworks": {
+                    "statut": "ready_for_manual_modeling",
+                    "cotes_connues": {"diametre_piston_m": {"valeur": 0.12}},
+                },
+            }
+        }
+    }
+
+    contract = build_piece_render_contract("piston", report)
+    dossier = contract["dossier_definition_piece"]
+
+    assert dossier["statut"] == "ready_for_modeling"
+    assert dossier["cotes_connues"]["diametre_piston_m"]["valeur"] == 0.08
+    assert contract["dossier_definition_solidworks"]["statut"] == "ready_for_manual_modeling"
 
 
 def test_ready_for_manual_modeling_exige_donnees_minimales_backend():
@@ -211,9 +245,14 @@ def test_ready_for_manual_modeling_exige_donnees_minimales_backend():
         "tolerances": {"jeu_radial": {"valeur": 0.0001, "unite": "m"}},
     }
 
-    assert build_piece_render_contract("piston", {"rapports_pieces": {"piston": no_dimensions}})["dossier_definition_solidworks"]["statut"] == "blocked"
-    assert build_piece_render_contract("piston", {"rapports_pieces": {"piston": dims_without_tolerances}})["dossier_definition_solidworks"]["statut"] == "partial"
-    assert build_piece_render_contract("piston", {"rapports_pieces": {"piston": complete_definition}})["dossier_definition_solidworks"]["statut"] == "ready_for_manual_modeling"
+    no_dim_contract = build_piece_render_contract("piston", {"rapports_pieces": {"piston": no_dimensions}})
+    partial_contract = build_piece_render_contract("piston", {"rapports_pieces": {"piston": dims_without_tolerances}})
+    complete_contract = build_piece_render_contract("piston", {"rapports_pieces": {"piston": complete_definition}})
+
+    assert no_dim_contract["dossier_definition_piece"]["statut"] == "blocked"
+    assert partial_contract["dossier_definition_piece"]["statut"] == "partial"
+    assert complete_contract["dossier_definition_piece"]["statut"] == "ready_for_modeling"
+    assert complete_contract["dossier_definition_solidworks"]["statut"] == "ready_for_manual_modeling"
 
 
 def test_piece_sans_rdm_reste_non_validee_et_interfaces_partielles():
@@ -231,7 +270,7 @@ def test_piece_sans_rdm_reste_non_validee_et_interfaces_partielles():
     }
 
     contract = build_piece_render_contract("coussinet_arbre_piston", report)
-    dossier = contract["dossier_definition_solidworks"]
+    dossier = contract["dossier_definition_piece"]
 
     assert dossier["statut"] == "partial"
     assert dossier["statut_validation"] == "not_validated"
@@ -248,7 +287,7 @@ def test_dossier_definition_remonte_features_et_limites_backend_sans_finaliser()
             "limites_usage": {"traction_max_n": 9000},
         },
     )
-    dossier = contract["dossier_definition_solidworks"]
+    dossier = contract["dossier_definition_piece"]
     feature_types = {item.get("type") for item in dossier["features_a_modeliser"]}
 
     assert "screw_shank" in feature_types

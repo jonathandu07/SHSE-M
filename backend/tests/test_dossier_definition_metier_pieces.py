@@ -150,7 +150,7 @@ def test_piston_expose_surfaces_interfaces_et_dossier():
 
     assert {"jupe_piston", "tete_piston", "gorges_joint_piston"} <= _names(rapport["surfaces_fonctionnelles"])
     assert {"cylindre", "joint_piston", "arbre_piston"} <= _piece_b(rapport["interfaces_assemblage"])
-    dossier = rapport["dossier_definition_solidworks"]
+    dossier = rapport["dossier_definition_piece"]
     assert {"jupe_piston", "gorges_joint_piston"} <= _names(dossier["surfaces_fonctionnelles"])
     assert dossier["solidworks_ready"] is False
 
@@ -161,7 +161,7 @@ def test_cylindre_expose_surfaces_limites_pression_et_rdm():
     assert {"alesage_cylindre", "paroi_sous_pression", "portee_couvercle"} <= _names(rapport["surfaces_fonctionnelles"])
     assert "pression_max" in _names(rapport["limites_usage"])
     assert {"sigma_cerclage_mince", "sigma_von_mises_lame_au_ri"} <= _names(rapport["contraintes_rdm"])
-    dossier = rapport["dossier_definition_solidworks"]
+    dossier = rapport["dossier_definition_piece"]
     assert "alesage_cylindre" in _names(dossier["surfaces_fonctionnelles"])
     assert "pression_max" in _names(dossier["limites_usage"])
 
@@ -207,7 +207,7 @@ def test_vilbrequin_expose_surfaces_et_reste_distinct_arbre_vilbrequin():
     assert {"vilbrequin", "vilebrequin"} & _piece_b(arbre_vilbrequin["interfaces_assemblage"])
     assert {"torsion_journal_principal", "von_mises_maneton", "fatigue"} <= _names(vilbrequin["contraintes_rdm"])
     assert "diametre_maneton" in _names(vilbrequin["controles_qualite"])
-    assert "maneton" in _names(vilbrequin["dossier_definition_solidworks"]["surfaces_fonctionnelles"])
+    assert "maneton" in _names(vilbrequin["dossier_definition_piece"]["surfaces_fonctionnelles"])
 
 
 def test_joint_piston_expose_gorge_squeeze_et_dossier():
@@ -217,7 +217,7 @@ def test_joint_piston_expose_gorge_squeeze_et_dossier():
     assert {"piston", "cylindre", "gorge_piston"} <= _piece_b(rapport["interfaces_assemblage"])
     assert {"squeeze", "stretch", "pression_contact", "frottement"} <= _names(rapport["contraintes_rdm"])
     assert {"section_joint", "largeur_gorge", "profondeur_gorge", "jeu_radial"} <= _names(rapport["tolerances"])
-    assert "tore" in _names(rapport["dossier_definition_solidworks"]["surfaces_fonctionnelles"])
+    assert "tore" in _names(rapport["dossier_definition_piece"]["surfaces_fonctionnelles"])
 
 
 def test_deplaceur_expose_zones_thermiques_et_limites_usage():
@@ -227,7 +227,7 @@ def test_deplaceur_expose_zones_thermiques_et_limites_usage():
     assert {"cylindre", "joint_deplaceur", "chambre_chaude", "chambre_froide"} <= _piece_b(rapport["interfaces_assemblage"])
     assert {"flambage", "effort_pression", "perte_charge", "dilatation_thermique"} <= _names(rapport["contraintes_rdm"])
     assert {"pression_maximale", "temperature_maximale", "jeu_radial_minimal"} <= _names(rapport["limites_usage"])
-    assert "surface_chaude" in _names(rapport["dossier_definition_solidworks"]["surfaces_fonctionnelles"])
+    assert "surface_chaude" in _names(rapport["dossier_definition_piece"]["surfaces_fonctionnelles"])
 
 
 def test_joint_deplaceur_expose_gorge_compression_et_missing_sans_invention():
@@ -249,7 +249,7 @@ def test_coussinet_arbre_piston_expose_pv_pression_vitesse_et_dossier():
     assert {"arbre_piston", "bielle", "logement"} <= _piece_b(rapport["interfaces_assemblage"])
     assert {"pression_projetee", "vitesse_glissement", "PV", "frottement", "echauffement"} <= _names(rapport["contraintes_rdm"])
     assert {"pression_admissible", "PV_limite", "limite_tribologique"} <= _names(rapport["limites_usage"])
-    assert "surface_glissement" in _names(rapport["dossier_definition_solidworks"]["surfaces_fonctionnelles"])
+    assert "surface_glissement" in _names(rapport["dossier_definition_piece"]["surfaces_fonctionnelles"])
 
 
 def test_tolerances_inconnues_restent_missing_sans_valeur_inventee():
@@ -267,9 +267,9 @@ def test_controles_et_notes_modelisation_restent_des_aides_sans_cao_finale():
     for rapport in _reports().values():
         assert rapport["controles_qualite"]
         assert rapport["notes_modelisation"]
-        dossier = rapport["dossier_definition_solidworks"]
+        dossier = rapport["dossier_definition_piece"]
         assert dossier["step_generation"] is False
         assert dossier["final_geometry"] is False
         assert dossier["solidworks_ready"] is False
         assert dossier["notes_modelisation"]
-        assert any("aucun export STEP" in str(note.get("texte", "")) for note in dossier["notes_modelisation"])
+        assert any("aucun STEP" in str(note.get("texte", "")) or "aucun export STEP" in str(note.get("texte", "")) for note in dossier["notes_modelisation"])

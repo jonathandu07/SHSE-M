@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-"""Dossier de preparation SolidWorks STHO-ME.
+"""Dossier de definition mecanique STHO-ME.
 
-Ce module produit un dossier JSON exploitable pour redessiner rapidement dans
-SolidWorks. Il ne genere aucun STEP et ne declare jamais un dossier comme complet sans donnees de definition.
+Ce module produit un dossier JSON exploitable pour le dessin industriel, la
+modelisation, l'assemblage et la simulation. Il ne genere aucun STEP et ne
+declare jamais un dossier comme complet sans donnees de definition.
 """
 
 from typing import Any, Mapping
@@ -76,7 +77,7 @@ def construire_dossier_cao_sthome(
         "missing_for_solidworks": missing_for_solidworks,
         "missing_for_sketches": missing_for_sketches,
         "missing_for_stress_graphs": missing_for_graphs,
-        "avertissement": "Dossier de preparation SolidWorks : aide a la modelisation manuelle, pas un STEP ni une validation finale.",
+        "avertissement": "Dossier de definition : aide au dessin et a la modelisation, pas un STEP ni une validation finale.",
     }
 
     return {
@@ -147,7 +148,7 @@ def _build_shaft_piece(context: Mapping[str, Any], graphs: list[Mapping[str, Any
         "annotations": [
             f"Couple transmis: {torque:.3g} Nm" if torque is not None else "Couple transmis manquant",
             f"Materiau candidat: {material}" if material else "Materiau candidat non verrouille",
-            "Vue schematique pour preparation SolidWorks ; geometrie partielle.",
+            "Vue schematique pour preparation a la modelisation ; geometrie partielle.",
         ],
         "source": "calcul analytique torsion",
         "statut": "exploitable_pour_redessin_solidworks" if diameter is not None else "missing_required",
@@ -165,7 +166,7 @@ def _build_shaft_piece(context: Mapping[str, Any], graphs: list[Mapping[str, Any
         "annotations": sketch["annotations"],
         "status": "partial" if diameter is not None else "missing_required",
         "missing": ["longueur_arbre_m", "portees_roulements", "clavette"],
-        "avertissement": "Vue schematique de preparation SolidWorks ; aucun STEP.",
+        "avertissement": "Vue schematique de preparation a la modelisation ; aucun STEP.",
     }
     return {
         "status": "pre_dimensionne_partiel" if diameter is not None else "missing_required",
@@ -199,7 +200,7 @@ def _build_cylinder_piece(context: Mapping[str, Any], actions: list[dict[str, An
             {"nom": "course", "valeur": stroke * 1000.0 if stroke is not None else None, "unite": "mm", "source": "resolution_inconnues"},
             {"nom": "epaisseur_paroi", "valeur": None, "unite": "mm", "missing": True},
         ]},
-        "annotations": ["Cylindre simplifie pour preparation SolidWorks.", "Epaisseur paroi a fermer avant SolidWorks."],
+        "annotations": ["Cylindre simplifie pour dossier de definition.", "Epaisseur paroi a fermer avant modelisation."],
         "source": "resolution_inconnues",
         "statut": "exploitable_pour_redessin_solidworks" if bore is not None and stroke is not None else "partiel_exploitable",
         "missing": missing,
@@ -211,10 +212,10 @@ def _build_cylinder_piece(context: Mapping[str, Any], actions: list[dict[str, An
         "primitive": "hollow_cylinder",
         "dimensions": {"bore_mm": bore * 1000.0 if bore is not None else None, "stroke_mm": stroke * 1000.0 if stroke is not None else None, "wall_thickness_mm": None},
         "features": [],
-        "annotations": ["Vue schematique de preparation SolidWorks ; aucun STEP."],
+        "annotations": ["Vue schematique de preparation a la modelisation ; aucun STEP."],
         "status": "partial" if bore is None or stroke is None else "available",
         "missing": missing,
-        "avertissement": "Vue schematique de preparation SolidWorks ; aucun STEP.",
+        "avertissement": "Vue schematique de preparation a la modelisation ; aucun STEP.",
     }
     return {"status": sketch["statut"], "dimensions": {"alesage_m": bore, "course_m": stroke, "epaisseur_paroi_m": None}, "croquis_2d": [sketch], "vues_3d": [view], "missing": missing}
 
@@ -234,7 +235,7 @@ def _build_piston_piece(context: Mapping[str, Any], actions: list[dict[str, Any]
             {"nom": "diametre_nominal", "valeur": bore * 1000.0, "unite": "mm", "source": "alesage_m"},
             {"nom": "hauteur_piston", "valeur": None, "unite": "mm", "missing": True},
         ]},
-        "annotations": ["Diametre nominal derive de l'alesage backend.", "Hauteur et gorge segments a definir avant SolidWorks."],
+        "annotations": ["Diametre nominal derive de l'alesage backend.", "Hauteur et gorge segments a definir avant modelisation."],
         "source": "resolution_inconnues",
         "statut": "partiel_exploitable",
         "missing": missing,
@@ -333,7 +334,7 @@ def _actions_from_missing(*groups: list[str]) -> list[dict[str, Any]]:
             if item in seen:
                 continue
             seen.add(item)
-            out.append({"champ": item, "action": f"Completer {item} pour avancer vers le dossier de modelisation SolidWorks.", "apply_automatically": False})
+            out.append({"champ": item, "action": f"Completer {item} pour avancer vers le dossier de definition.", "apply_automatically": False})
     return out
 
 

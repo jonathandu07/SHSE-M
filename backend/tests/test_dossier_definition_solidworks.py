@@ -18,7 +18,7 @@ from backend.components.moteur_thermique.pieces.roulement_aiguille_arbre_vilebre
 )
 from backend.components.moteur_thermique.pieces.vilbrequin import Vilbrequin
 from backend.components.moteur_thermique.pieces.vis_couvercle_cylindre import VisCouvercleCylindre
-from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_solidworks
+from backend.modules.systeme.dossier_definition import ajouter_dossier_definition_piece, ajouter_dossier_definition_solidworks
 
 
 PRIORITY_FACTORIES = [
@@ -141,33 +141,47 @@ def _complete_piston_report():
 def test_pieces_prioritaires_exposent_dossier_definition_solidworks(piece_name, factory):
     rapport = factory()
 
-    dossier = rapport["dossier_definition_solidworks"]
+    dossier = rapport["dossier_definition_piece"]
+    legacy = rapport["dossier_definition_solidworks"]
 
+    assert rapport["dossier_definition_solidworks"]
     assert dossier["solidworks_ready"] is False
+    assert dossier["generation_step"] is False
+    assert dossier["generation_cao_finale"] is False
+    assert dossier["geometrie_finale"] is False
     assert dossier["step_generation"] is False
     assert dossier["schema_only"] is True
     assert dossier["final_geometry"] is False
     assert dossier["statut"] in {
         "blocked",
         "partial",
-        "ready_for_manual_modeling",
+        "ready_for_modeling",
         "ready_for_assembly_check",
         "validated_by_calculation",
         "not_validated",
     }
+    if dossier["statut"] == "ready_for_modeling":
+        assert legacy["statut"] == "ready_for_manual_modeling"
+        assert legacy["statut_canonique"] == "ready_for_modeling"
     assert dossier["identification"]["famille"] == "moteur_thermique"
     assert dossier["identification"]["nom_canonique"]
+    assert dossier["fonction_piece"]["composant_parent"] == "moteur_thermique"
     assert rapport["solidworks_ready"] is False
     assert rapport["step_export"] is False
 
 
 def test_dossier_ne_promet_jamais_step_ou_geometrie_finale():
-    rapport = ajouter_dossier_definition_solidworks(_complete_piston_report(), "piston")
+    rapport = ajouter_dossier_definition_piece(_complete_piston_report(), "piston")
 
-    dossier = rapport["dossier_definition_solidworks"]
+    dossier = rapport["dossier_definition_piece"]
+    legacy = rapport["dossier_definition_solidworks"]
 
-    assert dossier["statut"] == "ready_for_manual_modeling"
+    assert dossier["statut"] == "ready_for_modeling"
+    assert legacy["statut"] == "ready_for_manual_modeling"
     assert dossier["solidworks_ready"] is False
+    assert dossier["generation_step"] is False
+    assert dossier["generation_cao_finale"] is False
+    assert dossier["geometrie_finale"] is False
     assert dossier["step_generation"] is False
     assert dossier["final_geometry"] is False
     assert rapport["solidworks_ready"] is False
@@ -181,9 +195,9 @@ def test_piece_sans_materiau_ne_devient_pas_prete_modelisation():
     rapport = _complete_piston_report()
     rapport.pop("materiau")
 
-    dossier = ajouter_dossier_definition_solidworks(rapport, "piston")["dossier_definition_solidworks"]
+    dossier = ajouter_dossier_definition_solidworks(rapport, "piston")["dossier_definition_piece"]
 
-    assert dossier["statut"] != "ready_for_manual_modeling"
+    assert dossier["statut"] != "ready_for_modeling"
     assert dossier["statut"] != "validated_by_calculation"
     assert dossier["materiaux"] == []
 
@@ -192,7 +206,7 @@ def test_piece_sans_rdm_reste_non_validee():
     rapport = _complete_piston_report()
     rapport.pop("contraintes")
 
-    dossier = ajouter_dossier_definition_solidworks(rapport, "piston")["dossier_definition_solidworks"]
+    dossier = ajouter_dossier_definition_solidworks(rapport, "piston")["dossier_definition_piece"]
 
     assert dossier["statut_validation"] == "not_validated"
     assert dossier["statut"] != "validated_by_calculation"
@@ -204,10 +218,10 @@ def test_interface_sans_jeu_ou_tolerance_reste_partielle():
     rapport["interfaces"][0].pop("jeu_ou_serrage")
     rapport["interfaces"][0].pop("tolerance")
 
-    dossier = ajouter_dossier_definition_solidworks(rapport, "piston")["dossier_definition_solidworks"]
+    dossier = ajouter_dossier_definition_solidworks(rapport, "piston")["dossier_definition_piece"]
 
     assert any(interface["statut"] == "partial" for interface in dossier["interfaces_assemblage"])
-    assert dossier["statut"] != "ready_for_manual_modeling"
+    assert dossier["statut"] != "ready_for_modeling"
 
 
 def test_inconnues_backend_remontent_dans_dossier():
@@ -223,8 +237,15 @@ def test_inconnues_backend_remontent_dans_dossier():
         "partielles": [],
     }
 
-    dossier = ajouter_dossier_definition_solidworks(rapport, "piston")["dossier_definition_solidworks"]
+    dossier = ajouter_dossier_definition_solidworks(rapport, "piston")["dossier_definition_piece"]
 
     assert dossier["statut"] == "blocked"
     assert dossier["inconnues_bloquantes"][0]["nom"] == "matiere_traitement_surface"
 
+
+def test_ancien_nom_fonction_reste_compatible_et_produit_bloc_canonique():
+    rapport = ajouter_dossier_definition_solidworks(_complete_piston_report(), "piston")
+
+    assert rapport["dossier_definition_piece"]["statut"] == "ready_for_modeling"
+    assert rapport["dossier_definition_solidworks"]["statut"] == "ready_for_manual_modeling"
+    assert rapport["dossier_definition_solidworks"]["statut_canonique"] == "ready_for_modeling"

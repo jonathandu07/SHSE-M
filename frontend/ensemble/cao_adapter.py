@@ -1,9 +1,9 @@
 """
 Chemin : frontend/ensemble/cao_adapter.py
 But :
-    Adapter le dossier de preparation SolidWorks backend en structure frontend passive.
+    Adapter le dossier de definition backend en structure frontend passive.
 Pourquoi ce fichier existe :
-    La preparation SolidWorks frontend sert au redessin et aux vues indicatives.
+    La preparation frontend sert au dessin, a la modelisation et aux vues indicatives.
     Elle ne doit jamais transformer une absence de cote en geometrie exploitable sans avertissement.
 Donnees consommees :
     rapport.cao_dossier, rapport.cao, rapport.mechanical_graphs.

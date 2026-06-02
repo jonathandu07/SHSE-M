@@ -110,7 +110,7 @@ def mechanical_closure_card(items: Sequence[Mapping[str, Any]]) -> Dict[str, Any
 
 
 def cao_summary_card(items: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
-    return technical_card(title="Dossier de modelisation SolidWorks", status="partial" if items else "missing_required", metrics=items)
+    return technical_card(title="Dossier de definition mecanique", status="partial" if items else "missing_required", metrics=items)
 
 
 def diagnostic_summary_card(diagnostic: Mapping[str, Any]) -> Dict[str, Any]:

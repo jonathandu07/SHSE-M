@@ -591,7 +591,7 @@ def _extract_kpis(report: Mapping[str, Any]) -> list[dict[str, Any]]:
         ("Course", "synthese.moteur_thermique.course_m", "m", "architecture"),
         ("Cylindrée", "synthese.moteur_thermique.cylindree_totale_m3", "m³", "architecture"),
 
-        ("SolidWorks prêt", "cao.solidworks_ready", "", "cao"),
+        ("Dossier de definition", "cao.solidworks_ready", "", "cao"),
         ("Score validation", "validation.score", "/100", "validation"),
         ("Score validation", "diagnostic.score", "/100", "diagnostic"),
     ]
@@ -649,7 +649,7 @@ def _extract_kpis(report: Mapping[str, Any]) -> list[dict[str, Any]]:
         "P_mecanique_W": ("Puissance mécanique", "W", "mecanique"),
         "couple_mecanique_Nm": ("Couple mécanique", "Nm", "mecanique"),
         "rpm_nominal": ("Régime nominal", "rpm", "mecanique"),
-        "solidworks_ready": ("SolidWorks prêt", "", "cao"),
+        "solidworks_ready": ("Dossier de definition", "", "cao"),
     }
 
     existing_labels = {str(k.get("label")) for k in found}

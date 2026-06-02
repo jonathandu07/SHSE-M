@@ -152,7 +152,7 @@ def _build_cao_contract(rapport: Mapping[str, Any], unknowns: Mapping[str, List[
         "stress_graphs_available": bool(cao.get("stress_graphs_available") or cao_resume.get("stress_graphs_available")),
         "drawing_data_available": bool(cao.get("drawing_data_available") or cao_resume.get("drawing_data_available")),
         "status": "computed" if available else "missing_required",
-        "reason": None if available else "Dossier de definition SolidWorks incomplet : champs requis ou validation absents.",
+        "reason": None if available else "Dossier de definition incomplet : champs requis ou validation absents.",
         "missing_required_fields": [_unknown_path(x) for x in blocking],
         "missing_for_solidworks": _list(cao.get("missing_for_solidworks")) or _list(cao_resume.get("missing_for_solidworks")),
         "missing_for_sketches": _list(cao.get("missing_for_sketches")) or _list(cao_resume.get("missing_for_sketches")),
@@ -169,7 +169,7 @@ def _build_actions(unknowns: Mapping[str, List[Dict[str, Any]]], cao: Mapping[st
         {"id": "lock_parameters", "label": "verrouiller parametres proposes", "enabled": True},
     ]
     if not cao.get("available"):
-        actions.append({"id": "cao_blocked", "label": "Dossier SolidWorks incomplet", "enabled": False, "reason": cao.get("reason")})
+        actions.append({"id": "cao_blocked", "label": "Dossier de definition incomplet", "enabled": False, "reason": cao.get("reason")})
     return actions
 
 

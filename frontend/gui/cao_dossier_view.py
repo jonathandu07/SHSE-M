@@ -96,7 +96,7 @@ class CaoDossierScreen(Screen):
         grid.add_widget(MetricRow("Donnees suffisantes", _bool_text(resume.get("solidworks_ready")), "", "missing"))
         grid.add_widget(MetricRow("Generation STEP", _bool_text(resume.get("step_export")), "", "missing"))
         panel.add_widget(grid)
-        panel.add_widget(_label(str(resume.get("avertissement") or "Schema de principe pour preparation SolidWorks ; geometrie partielle."), COLORS["MUTED"], height=28))
+        panel.add_widget(_label(str(resume.get("avertissement") or "Schema de principe pour preparation a la modelisation ; geometrie partielle."), COLORS["MUTED"], height=28))
         return panel
 
     def _sketches_panel(self, sketches: list[dict[str, Any]]) -> PremiumCard:
