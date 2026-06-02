@@ -124,7 +124,7 @@ def _print_summary(result: Mapping[str, Any]) -> None:
     print(f"Croquis cotes : {_fmt_bool(cao_resume.get('sketches_available'))}")
     print(f"Vues 3D indicatives : {_fmt_bool(cao_resume.get('views_3d_available'))}")
     print(f"Graphiques contraintes : {_fmt_bool(cao_resume.get('stress_graphs_available'))}")
-    print(f"Preparation SolidWorks suffisante : {_fmt_bool(cao_resume.get('solidworks_ready'))}")
+    print(f"Dossier de definition suffisant : {_fmt_bool(cao_resume.get('solidworks_ready'))}")
     print(f"Generation STEP : {_fmt_bool(cao_resume.get('step_export'))}")
     print(f"Score chaine : {chain.get('score_chaine_100')}")
     print(f"Chaine OK : {chain.get('ok')}")

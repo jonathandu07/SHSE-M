@@ -8,7 +8,7 @@ Pourquoi ce fichier existe :
 Donnees consommees :
     rapport.cao_dossier, rapport.cao, rapport.mechanical_graphs.
 Livrables produits :
-    Resume CAO progressif : croquis, 3D indicative, graphes, donnees SolidWorks.
+    Resume CAO progressif : croquis, 3D indicative, graphes, donnees de definition.
 Limites :
     - ne calcule aucune cote ;
     - ne produit pas de STEP ;

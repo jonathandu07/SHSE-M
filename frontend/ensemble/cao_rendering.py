@@ -3,8 +3,8 @@ Chemin : frontend/ensemble/cao_rendering.py
 But :
     Construire des croquis 2D et vues 3D indicatives depuis les cotes backend.
 Pourquoi ce fichier existe :
-    Les scripts de pieces doivent produire des supports utiles pour redessiner
-    vite dans SolidWorks, tout en refusant les pieces non cotees.
+    Les scripts de pieces doivent produire des supports utiles pour dessiner et
+    modeliser plus vite, tout en refusant les pieces non cotees.
 Donnees consommees :
     Rapports backend de piece, dimensions deja calculees, cao_dossier.
 Livrables produits :

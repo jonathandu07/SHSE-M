@@ -994,7 +994,7 @@ def build_system_report_sections(report: Optional[Dict[str, Any]]) -> List[Secti
         ("resume_gui", "Résumé GUI"),
         ("synthese", "Synthèse backend"),
         ("systeme_complet", "Système complet"),
-        ("cao", "CAO / SolidWorks"),
+        ("cao", "Definition / CAO"),
         ("analyses_composants", "Analyses composants"),
         ("construction_pieces", "Construction pièces"),
         ("rapports_pieces", "Rapports pièces"),

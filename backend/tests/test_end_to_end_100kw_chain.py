@@ -73,7 +73,7 @@ def test_100kw_frontend_contract_blocks_real_cao_when_solidworks_missing(tmp_pat
 
     assert contract["cao"]["available"] is False
     assert contract["cao"]["status"] == "missing_required"
-    assert "SolidWorks" in contract["cao"]["reason"] or "CAO" in contract["cao"]["reason"]
+    assert "Dossier de definition" in contract["cao"]["reason"]
 
 
 def _assert_no_candidate_validated_without_optimization_trace(rapport: Mapping[str, Any]) -> None:

@@ -140,6 +140,35 @@ def test_missing_count_ignore_cotes_preparation_solidworks_non_consolidees():
     assert res["missing_requirements"] == []
 
 
+def test_piece_list_lit_dossier_definition_piece_en_priorite():
+    report = {
+        "rapports_pieces": {
+            "piston": {
+                "piece": "piston",
+                "dossier_definition_piece": {
+                    "statut": "ready_for_modeling",
+                    "cotes_connues": {"diametre_piston_m": 0.08},
+                    "interfaces_assemblage": [{"piece_b": "cylindre", "statut": "partial"}],
+                },
+                "dossier_definition_solidworks": {
+                    "statut": "ready_for_manual_modeling",
+                    "cotes_connues": {"diametre_piston_m": 0.12},
+                },
+            }
+        }
+    }
+
+    res = adapt_backend_report(report)
+    piece = next(item for item in res["pieces"] if item["name"] == "piston")
+    definition = piece["definition_piece"]
+
+    assert definition["source"] == "dossier_definition_piece"
+    assert definition["legacy_source"] is False
+    assert definition["statut"] == "ready_for_modeling"
+    assert definition["cotes_connues"]["diametre_piston_m"] == 0.08
+    assert piece["solidworks_definition"] == definition
+
+
 def test_piece_list_expose_dossier_definition_solidworks_sans_inventer_cao():
     report = {
         "rapports_pieces": {
@@ -164,9 +193,11 @@ def test_piece_list_expose_dossier_definition_solidworks_sans_inventer_cao():
 
     res = adapt_backend_report(report)
     piece = next(item for item in res["pieces"] if item["name"] == "coussinet_arbre_piston")
-    definition = piece["solidworks_definition"]
+    definition = piece["definition_piece"]
 
     assert definition["statut"] == "partial"
+    assert definition["source"] == "dossier_definition_solidworks"
+    assert definition["legacy_source"] is True
     assert definition["solidworks_ready"] is False
     assert definition["backend_solidworks_ready"] is True
     assert definition["step_generation"] is False

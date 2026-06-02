@@ -241,8 +241,8 @@ SUBSYSTEM_KEYWORDS: Dict[str, str] = {
     "architecture": "Architecture",
     "packaging": "Architecture",
 
-    "cao": "CAO / SolidWorks",
-    "solidworks": "CAO / SolidWorks",
+    "cao": "Definition / CAO",
+    "solidworks": "Definition / CAO",
 
     "optimisation": "Optimisation",
     "assemblage": "Assemblage",

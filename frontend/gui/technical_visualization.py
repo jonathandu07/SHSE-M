@@ -10,8 +10,8 @@ Donnees consommees :
     Rapport backend brut charge par l'application et payload de
     frontend.ensemble.visualisation_orchestrator.
 Livrables produits :
-    Page Kivy listant systeme, composants, pieces, couverture et dossier
-    SolidWorks de preparation a la modelisation manuelle.
+    Page Kivy listant systeme, composants, pieces, couverture et dossier de
+    definition pour la modelisation manuelle.
 Limites :
     - ne calcule aucune valeur metier ;
     - ne produit pas de STEP ;

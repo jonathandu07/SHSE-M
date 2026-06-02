@@ -608,7 +608,7 @@ def build_export_items(
         ),
         item(
             "cao_json",
-            "CAO / SolidWorks",
+            "Definition / CAO",
             f"cao_solidworks_{timestamp}.json",
             "json",
             backend_report.get("cao") or ui_report.get("cao"),

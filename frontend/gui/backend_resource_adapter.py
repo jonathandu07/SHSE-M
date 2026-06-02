@@ -244,7 +244,7 @@ def discover_backend_resources() -> Dict[str, Any]:
                             available=True,
                             required_inputs=_all_args(analyser.args) or ["donnees_piece"],
                             returns="dict",
-                            notes=["Analyseur de piece avec bloc CAO/SolidWorks detecte."],
+                            notes=["Analyseur de piece avec bloc de definition/CAO detecte."],
                         )
                     )
 
@@ -579,7 +579,7 @@ def build_resource_catalog(raw_backend_report: dict) -> dict:
                     backend_module=str(cao_mapping.get("backend_module") or ""),
                     returns="dict",
                     generator_available=bool(cao_mapping),
-                    reason="Bloc CAO present ; readiness SolidWorks non deduite par le catalogue.",
+                    reason="Bloc CAO present ; etat de definition non deduit par le catalogue.",
                     notes=["Bloc CAO present dans le rapport backend, a verifier par le contrat de rendu piece."],
                 )
             )
@@ -692,7 +692,7 @@ def generate_or_load_resource(resource_request: dict, raw_backend_report: dict) 
                 source=f"rapport_backend.rapports_pieces.{piece}.{cao_path}",
                 data=cao_data,
                 piece=piece,
-                reason="Bloc CAO present ; readiness SolidWorks non deduite par le catalogue.",
+                reason="Bloc CAO present ; etat de definition non deduit par le catalogue.",
                 returns="dict",
             )
         return _resource_record(

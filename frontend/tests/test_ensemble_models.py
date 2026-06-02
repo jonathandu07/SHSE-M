@@ -42,8 +42,8 @@ def test_cao_model_expose_dossiers_definition_pieces_sans_step():
         "rapports_pieces": {
             "joint_deplaceur": {
                 "piece": "joint_deplaceur",
-                "dossier_definition_solidworks": {
-                    "statut": "partial",
+                "dossier_definition_piece": {
+                    "statut": "ready_for_modeling",
                     "solidworks_ready": True,
                     "step_generation": True,
                     "final_geometry": True,
@@ -63,6 +63,7 @@ def test_cao_model_expose_dossiers_definition_pieces_sans_step():
 
     assert len(dossiers) == 1
     assert dossiers[0]["piece"] == "joint_deplaceur"
+    assert dossiers[0]["statut"] == "ready_for_modeling"
     assert dossiers[0]["solidworks_ready"] is False
     assert dossiers[0]["step_generation"] is False
     assert dossiers[0]["step_export"] is False

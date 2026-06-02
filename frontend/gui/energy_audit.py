@@ -536,7 +536,7 @@ def build_raw_sections(*, ui_report: Mapping[str, Any], backend_report: Mapping[
     add_if_present("Système complet", backend_report.get("systeme_complet"), 3)
     add_if_present("Chaîne énergétique / liaisons", _deep_get(backend_report, "systeme_complet", "liaisons"), 4)
     add_if_present("Sous-systèmes", _deep_get(backend_report, "systeme_complet", "sous_systemes"), 5)
-    add_if_present("CAO / SolidWorks", backend_report.get("cao"), 6)
+    add_if_present("Definition / CAO", backend_report.get("cao"), 6)
     add_if_present("Analyses composants", backend_report.get("analyses_composants"), 7)
     add_if_present("Construction pièces", backend_report.get("construction_pieces"), 8)
     add_if_present("Rapports pièces", backend_report.get("rapports_pieces"), 9)
