@@ -246,6 +246,72 @@ def build_diagnostic_model(frontend_state: Mapping[str, Any] | None) -> Dict[str
     }
 
 
+def _rows_count(value: Any) -> int:
+    if isinstance(value, Mapping):
+        return len(value)
+    if isinstance(value, (list, tuple)):
+        return len(value)
+    return 1 if value is not None else 0
+
+
+def _collect_piece_definition_dossiers(report: Mapping[str, Any]) -> list[Dict[str, Any]]:
+    out: list[Dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add_piece(name: str, piece_report: Mapping[str, Any], source: str) -> None:
+        dossier = safe_dict(piece_report.get("dossier_definition_solidworks")) or safe_dict(piece_report.get("dossier_cao_preparation"))
+        if not dossier:
+            return
+        sig = (str(name), source)
+        if sig in seen:
+            return
+        seen.add(sig)
+        counts = {
+            "features": _rows_count(dossier.get("features_a_modeliser")),
+            "cotes_connues": _rows_count(dossier.get("cotes_connues")),
+            "cotes_manquantes": _rows_count(dossier.get("cotes_manquantes")),
+            "interfaces": _rows_count(dossier.get("interfaces_assemblage") or dossier.get("interfaces")),
+            "tolerances": _rows_count(dossier.get("tolerances")),
+            "jeux_ajustements": _rows_count(dossier.get("jeux_ajustements")),
+            "surfaces_fonctionnelles": _rows_count(dossier.get("surfaces_fonctionnelles")),
+            "contraintes_rdm": _rows_count(dossier.get("contraintes_rdm")),
+            "limites_usage": _rows_count(dossier.get("limites_usage")),
+            "controles_qualite": _rows_count(dossier.get("controles_qualite")),
+            "inconnues_bloquantes": _rows_count(dossier.get("inconnues_bloquantes")),
+        }
+        out.append(
+            {
+                "piece": name,
+                "source": source,
+                "statut": dossier.get("statut") or dossier.get("status") or "partial",
+                "statut_validation": dossier.get("statut_validation") or "not_validated",
+                "solidworks_ready": False,
+                "step_generation": False,
+                "step_export": False,
+                "final_geometry": False,
+                "schema_only": True,
+                "counts": counts,
+                "dossier": dict(dossier),
+            }
+        )
+
+    for path in (
+        "rapports_pieces",
+        "construction_pieces.rapports_pieces",
+        "systeme_complet.rapports_pieces",
+        "stho_me_secondaire.rapports.pieces",
+        "pieces",
+    ):
+        block = get_path(report, path)
+        if not isinstance(block, Mapping):
+            continue
+        for name, piece_report in block.items():
+            if isinstance(piece_report, Mapping):
+                add_piece(str(name), piece_report, path)
+
+    return out
+
+
 def build_cao_model(frontend_state: Mapping[str, Any] | None) -> Dict[str, Any]:
     report = _report_from_state(frontend_state)
     contract = get_frontend_contract(report)
@@ -258,6 +324,7 @@ def build_cao_model(frontend_state: Mapping[str, Any] | None) -> Dict[str, Any]:
         "cao": safe_dict(contract.get("cao")) or safe_dict(report.get("cao")),
         "cao_dossier": safe_dict(contract.get("cao_dossier")) or safe_dict(report.get("cao_dossier")),
         "mechanical_graphs": safe_dict(contract.get("mechanical_graphs")) or safe_dict(report.get("mechanical_graphs")),
+        "piece_definition_dossiers": _collect_piece_definition_dossiers(report),
         "summary": build_cao_frontend_summary(cao_source),
         "graphs_summary": collect_backend_charts(report),
     }

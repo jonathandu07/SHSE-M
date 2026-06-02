@@ -961,6 +961,129 @@ def _resources_for_piece(resource_catalog: Optional[Mapping[str, Any]], piece_na
     return out
 
 
+def _definition_rows(value: Any) -> List[Dict[str, Any]]:
+    if isinstance(value, Mapping):
+        rows: List[Dict[str, Any]] = []
+        for key, item in value.items():
+            if isinstance(item, Mapping):
+                row = dict(item)
+                row.setdefault("nom", str(key))
+            else:
+                row = {"nom": str(key), "valeur": _to_jsonable(item)}
+            rows.append(row)
+        return rows
+    if isinstance(value, list):
+        return [dict(item) if isinstance(item, Mapping) else {"nom": str(item)} for item in value]
+    if isinstance(value, tuple):
+        return [dict(item) if isinstance(item, Mapping) else {"nom": str(item)} for item in value]
+    if value is not None:
+        return [{"valeur": _to_jsonable(value)}]
+    return []
+
+
+def _definition_mapping(value: Any) -> Dict[str, Any]:
+    if isinstance(value, Mapping):
+        return {str(k): _to_jsonable(v) for k, v in value.items()}
+    return {}
+
+
+def _first_definition_rows(piece_report: Mapping[str, Any], dossier: Mapping[str, Any], *keys: str) -> List[Dict[str, Any]]:
+    for key in keys:
+        rows = _definition_rows(get_nested(dossier, key, _MISSING))
+        if rows:
+            return rows
+    for key in keys:
+        rows = _definition_rows(get_nested(piece_report, key, _MISSING))
+        if rows:
+            return rows
+    return []
+
+
+def extract_piece_solidworks_definition(piece_report: Mapping[str, Any]) -> Dict[str, Any]:
+    """Expose le dossier de modelisation manuel sans qualifier la piece en CAO finale."""
+    if not isinstance(piece_report, Mapping):
+        return {}
+
+    dossier = _as_dict(piece_report.get("dossier_definition_solidworks")) or _as_dict(piece_report.get("dossier_cao_preparation"))
+    has_backend_dossier = bool(dossier)
+
+    cotes_connues = _definition_mapping(dossier.get("cotes_connues")) or extract_dimensions(piece_report)
+    cotes_manquantes = _definition_mapping(dossier.get("cotes_manquantes"))
+    interfaces = _first_definition_rows(piece_report, dossier, "interfaces_assemblage", "interfaces", "liaisons")
+    tolerances = _first_definition_rows(piece_report, dossier, "tolerances", "tolerances_et_jeux")
+    jeux_ajustements = _first_definition_rows(piece_report, dossier, "jeux_ajustements", "jeux", "ajustements")
+    surfaces = _first_definition_rows(piece_report, dossier, "surfaces_fonctionnelles", "surfaces")
+    contraintes_rdm = _first_definition_rows(piece_report, dossier, "contraintes_rdm", "rdm", "contraintes")
+    limites_usage = _first_definition_rows(piece_report, dossier, "limites_usage", "limites", "performances")
+    controles_qualite = _first_definition_rows(piece_report, dossier, "controles_qualite", "controle_qualite", "qualite")
+    notes = _first_definition_rows(piece_report, dossier, "notes_modelisation")
+    features = _first_definition_rows(piece_report, dossier, "features_a_modeliser")
+    inconnues_bloquantes = _first_definition_rows(piece_report, dossier, "inconnues_bloquantes", "inconnues.bloquantes", "inconnues.impossibles")
+    materiaux = _first_definition_rows(piece_report, dossier, "materiaux", "materiau", "material", "materials")
+
+    if not has_backend_dossier and not any(
+        (
+            cotes_connues,
+            cotes_manquantes,
+            interfaces,
+            tolerances,
+            jeux_ajustements,
+            surfaces,
+            contraintes_rdm,
+            limites_usage,
+            controles_qualite,
+            notes,
+            features,
+            inconnues_bloquantes,
+            materiaux,
+        )
+    ):
+        return {}
+
+    statut = str(dossier.get("statut") or dossier.get("status") or ("partial" if cotes_connues else "blocked"))
+    validation = str(dossier.get("statut_validation") or "not_validated")
+
+    summary = {
+        "statut": statut,
+        "statut_validation": validation,
+        "source": "dossier_definition_solidworks" if has_backend_dossier else "piece_report_fields",
+        "solidworks_ready": False,
+        "backend_solidworks_ready": bool(dossier.get("solidworks_ready")),
+        "step_generation": False,
+        "step_export": False,
+        "schema_only": True,
+        "final_geometry": False,
+        "features_a_modeliser": features,
+        "cotes_connues": cotes_connues,
+        "cotes_manquantes": cotes_manquantes,
+        "interfaces": interfaces,
+        "interfaces_assemblage": interfaces,
+        "tolerances": tolerances,
+        "jeux_ajustements": jeux_ajustements,
+        "surfaces_fonctionnelles": surfaces,
+        "contraintes_rdm": contraintes_rdm,
+        "limites_usage": limites_usage,
+        "controles_qualite": controles_qualite,
+        "notes_modelisation": notes,
+        "inconnues_bloquantes": inconnues_bloquantes,
+        "materiaux": materiaux,
+    }
+    summary["counts"] = {
+        "features": len(features),
+        "cotes_connues": len(cotes_connues),
+        "cotes_manquantes": len(cotes_manquantes),
+        "interfaces": len(interfaces),
+        "tolerances": len(tolerances),
+        "jeux_ajustements": len(jeux_ajustements),
+        "surfaces_fonctionnelles": len(surfaces),
+        "contraintes_rdm": len(contraintes_rdm),
+        "limites_usage": len(limites_usage),
+        "controles_qualite": len(controles_qualite),
+        "inconnues_bloquantes": len(inconnues_bloquantes),
+    }
+    return summary
+
+
 def extract_piece_list(
     report: Mapping[str, Any],
     resource_catalog: Optional[Mapping[str, Any]] = None,
@@ -990,6 +1113,7 @@ def extract_piece_list(
                 "constraints": extract_constraints(rep),
                 "unknowns": unknowns,
                 "alerts": alerts,
+                "solidworks_definition": extract_piece_solidworks_definition(rep),
                 "data": _to_jsonable(rep),
                 "inventory": _to_jsonable(inv),
                 "backend_report_available": bool(rep),

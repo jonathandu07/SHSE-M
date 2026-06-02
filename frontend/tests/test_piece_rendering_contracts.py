@@ -144,6 +144,55 @@ def test_dossier_definition_solidworks_reste_un_dossier_de_modelisation():
     assert contract["step_export"] is False
 
 
+def test_dossier_definition_solidworks_preserve_les_champs_metier_backend():
+    report = {
+        "rapports_pieces": {
+            "joint_deplaceur": {
+                "piece": "joint_deplaceur",
+                "dossier_definition_solidworks": {
+                    "statut": "partial",
+                    "solidworks_ready": False,
+                    "step_generation": False,
+                    "schema_only": True,
+                    "final_geometry": False,
+                    "features_a_modeliser": [{"type": "joint_annulaire", "schematic": True}],
+                    "cotes_connues": {"diametre_interieur_m": {"valeur": 0.045, "unite": "m"}},
+                    "cotes_manquantes": {"gorge_largeur_m": {"raison": "gorge non definie"}},
+                    "interfaces_assemblage": [{"piece_a": "joint_deplaceur", "piece_b": "deplaceur", "type_liaison": "etancheite", "statut": "partial"}],
+                    "tolerances": [{"nom": "squeeze", "statut": "missing_required"}],
+                    "jeux_ajustements": [{"nom": "jeu_radial", "statut": "partial"}],
+                    "surfaces_fonctionnelles": [{"nom": "levre_contact"}],
+                    "contraintes_rdm": [{"nom": "pression_contact"}],
+                    "limites_usage": [{"nom": "temperature_max_c", "valeur": 120}],
+                    "controles_qualite": [{"nom": "controle_section"}],
+                    "notes_modelisation": [{"nom": "note", "texte": "modeliser la gorge seulement si cote fournie"}],
+                    "inconnues_bloquantes": [{"nom": "section_joint_m", "raison": "section absente"}],
+                    "materiaux": [{"nom": "joint", "statut": "missing_required"}],
+                },
+            }
+        }
+    }
+
+    contract = build_piece_render_contract("joint_deplaceur", report)
+    dossier = contract["dossier_definition_solidworks"]
+
+    assert dossier["features_a_modeliser"][0]["type"] == "joint_annulaire"
+    assert dossier["cotes_connues"]["diametre_interieur_m"]["valeur"] == 0.045
+    assert dossier["cotes_manquantes"]["gorge_largeur_m"]["raison"] == "gorge non definie"
+    assert dossier["interfaces_assemblage"][0]["piece_b"] == "deplaceur"
+    assert dossier["interfaces"][0]["type_liaison"] == "etancheite"
+    assert dossier["jeux_ajustements"][0]["nom"] == "jeu_radial"
+    assert dossier["surfaces_fonctionnelles"][0]["nom"] == "levre_contact"
+    assert dossier["contraintes_rdm"][0]["nom"] == "pression_contact"
+    assert dossier["limites_usage"][0]["valeur"] == 120
+    assert dossier["controles_qualite"][0]["nom"] == "controle_section"
+    assert dossier["inconnues_bloquantes"][0]["nom"] == "section_joint_m"
+    assert dossier["solidworks_ready"] is False
+    assert dossier["step_generation"] is False
+    assert dossier["step_export"] is False
+    assert dossier["final_geometry"] is False
+
+
 def test_ready_for_manual_modeling_exige_donnees_minimales_backend():
     no_dimensions = {
         "piece": "piston",

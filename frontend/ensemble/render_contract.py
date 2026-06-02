@@ -220,6 +220,23 @@ def _safe_rows(value: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _safe_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return {
+            str(k): dict(v) if isinstance(v, Mapping) else v
+            for k, v in value.items()
+        }
+    return {}
+
+
+def _first_rows_from_values(*values: Any) -> list[dict[str, Any]]:
+    for value in values:
+        rows = _safe_rows(value)
+        if rows:
+            return rows
+    return []
+
+
 def _first_rows(piece_report: Mapping[str, Any], *paths: str) -> list[dict[str, Any]]:
     for path in paths:
         rows = _safe_rows(get_path(piece_report, path))
@@ -316,16 +333,41 @@ def _definition_status(
 def refresh_solidworks_definition_dossier(contract: Dict[str, Any], piece_name: str, piece_report: Mapping[str, Any]) -> Dict[str, Any]:
     """Expose un dossier d'aide a la modelisation, sans exporter de CAO."""
     existing = safe_dict(piece_report.get("dossier_definition_solidworks")) or safe_dict(piece_report.get("dossier_cao_preparation"))
-    cotes_connues = _known_dimensions_from_contract(contract)
-    cotes_manquantes = _missing_dimensions_from_unknowns(list(contract.get("missing_fields") or []))
-    interfaces = _first_rows(piece_report, "interfaces_assemblage", "interfaces", "liaisons")
-    tolerances = _first_rows(piece_report, "tolerances", "tolerances_et_jeux", "jeux", "ajustements")
-    surfaces = _first_rows(piece_report, "surfaces_fonctionnelles", "surfaces")
-    contraintes_rdm = _first_rows(piece_report, "contraintes_rdm", "rdm", "contraintes")
-    limites_usage = _first_rows(piece_report, "limites_usage", "limites", "performances")
-    controles_qualite = _first_rows(piece_report, "controles_qualite", "controle_qualite", "qualite")
-    materiaux = _first_rows(piece_report, "materiaux", "materiau", "material", "materials")
-    notes = _safe_rows(existing.get("notes_modelisation"))
+    cotes_connues = _safe_mapping(existing.get("cotes_connues")) or _known_dimensions_from_contract(contract)
+    cotes_manquantes = _safe_mapping(existing.get("cotes_manquantes")) or _missing_dimensions_from_unknowns(list(contract.get("missing_fields") or []))
+    features = _safe_rows(existing.get("features_a_modeliser")) or _features_from_contract(contract)
+    interfaces = _first_rows_from_values(
+        existing.get("interfaces_assemblage"),
+        existing.get("interfaces"),
+        get_path(piece_report, "interfaces_assemblage"),
+        get_path(piece_report, "interfaces"),
+        get_path(piece_report, "liaisons"),
+    )
+    tolerances = _first_rows_from_values(
+        existing.get("tolerances"),
+        get_path(piece_report, "tolerances"),
+        get_path(piece_report, "tolerances_et_jeux"),
+        get_path(piece_report, "jeux"),
+        get_path(piece_report, "ajustements"),
+    )
+    jeux_ajustements = _first_rows_from_values(
+        existing.get("jeux_ajustements"),
+        get_path(piece_report, "jeux_ajustements"),
+        get_path(piece_report, "jeux"),
+        get_path(piece_report, "ajustements"),
+    )
+    surfaces = _first_rows_from_values(existing.get("surfaces_fonctionnelles"), get_path(piece_report, "surfaces_fonctionnelles"), get_path(piece_report, "surfaces"))
+    contraintes_rdm = _first_rows_from_values(existing.get("contraintes_rdm"), get_path(piece_report, "contraintes_rdm"), get_path(piece_report, "rdm"), get_path(piece_report, "contraintes"))
+    limites_usage = _first_rows_from_values(existing.get("limites_usage"), get_path(piece_report, "limites_usage"), get_path(piece_report, "limites"), get_path(piece_report, "performances"))
+    controles_qualite = _first_rows_from_values(existing.get("controles_qualite"), get_path(piece_report, "controles_qualite"), get_path(piece_report, "controle_qualite"), get_path(piece_report, "qualite"))
+    materiaux = _first_rows_from_values(existing.get("materiaux"), get_path(piece_report, "materiaux"), get_path(piece_report, "materiau"), get_path(piece_report, "material"), get_path(piece_report, "materials"))
+    inconnues_bloquantes = _first_rows_from_values(
+        existing.get("inconnues_bloquantes"),
+        get_path(piece_report, "inconnues_bloquantes"),
+        get_path(piece_report, "inconnues.bloquantes"),
+        get_path(piece_report, "inconnues.impossibles"),
+    )
+    notes = _first_rows_from_values(existing.get("notes_modelisation"), get_path(piece_report, "notes_modelisation"))
     if not notes:
         notes = [
             {
@@ -350,13 +392,16 @@ def refresh_solidworks_definition_dossier(contract: Dict[str, Any], piece_name: 
         "statut": statut,
         "solidworks_ready": False,
         "step_generation": False,
+        "step_export": False,
         "schema_only": True,
         "final_geometry": False,
-        "features_a_modeliser": _features_from_contract(contract),
+        "features_a_modeliser": features,
         "cotes_connues": cotes_connues,
         "cotes_manquantes": cotes_manquantes,
         "interfaces": interfaces,
+        "interfaces_assemblage": interfaces,
         "tolerances": tolerances,
+        "jeux_ajustements": jeux_ajustements,
         "surfaces_fonctionnelles": surfaces,
         "contraintes_rdm": contraintes_rdm,
         "limites_usage": limites_usage,
@@ -364,8 +409,10 @@ def refresh_solidworks_definition_dossier(contract: Dict[str, Any], piece_name: 
         "notes_modelisation": notes,
         "statut_validation": validation,
         "materiaux": materiaux,
+        "inconnues_bloquantes": inconnues_bloquantes,
     }
     contract["dossier_definition_solidworks"] = dossier
+    contract["dossier_cao_preparation"] = dossier
     contract["interfaces_assemblage"] = interfaces
     solidworks = safe_dict(contract.get("solidworks_data"))
     solidworks["dossier_definition_solidworks"] = dossier

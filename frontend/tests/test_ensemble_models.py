@@ -35,3 +35,40 @@ def test_ensemble_construit_modeles_json_serializable():
     assert cao["summary"]["step_export"] is False
     assert visualisations["solidworks"]["step_export"] is False
     assert piece["step_export"] is False
+
+
+def test_cao_model_expose_dossiers_definition_pieces_sans_step():
+    report = {
+        "rapports_pieces": {
+            "joint_deplaceur": {
+                "piece": "joint_deplaceur",
+                "dossier_definition_solidworks": {
+                    "statut": "partial",
+                    "solidworks_ready": True,
+                    "step_generation": True,
+                    "final_geometry": True,
+                    "schema_only": True,
+                    "cotes_connues": {"diametre_interieur_m": 0.045},
+                    "cotes_manquantes": {"section_joint_m": {"raison": "absente"}},
+                    "interfaces_assemblage": [{"piece_b": "deplaceur"}],
+                    "tolerances": [{"nom": "squeeze"}],
+                    "inconnues_bloquantes": [{"nom": "gorge_joint"}],
+                },
+            }
+        }
+    }
+
+    cao = build_cao_model({"raw_report": report})
+    dossiers = cao["piece_definition_dossiers"]
+
+    assert len(dossiers) == 1
+    assert dossiers[0]["piece"] == "joint_deplaceur"
+    assert dossiers[0]["solidworks_ready"] is False
+    assert dossiers[0]["step_generation"] is False
+    assert dossiers[0]["step_export"] is False
+    assert dossiers[0]["final_geometry"] is False
+    assert dossiers[0]["counts"]["cotes_connues"] == 1
+    assert dossiers[0]["counts"]["cotes_manquantes"] == 1
+    assert dossiers[0]["counts"]["interfaces"] == 1
+    assert dossiers[0]["counts"]["tolerances"] == 1
+    assert dossiers[0]["counts"]["inconnues_bloquantes"] == 1

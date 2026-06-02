@@ -140,6 +140,47 @@ def test_missing_count_ignore_cotes_preparation_solidworks_non_consolidees():
     assert res["missing_requirements"] == []
 
 
+def test_piece_list_expose_dossier_definition_solidworks_sans_inventer_cao():
+    report = {
+        "rapports_pieces": {
+            "coussinet_arbre_piston": {
+                "piece": "coussinet_arbre_piston",
+                "dossier_definition_solidworks": {
+                    "statut": "partial",
+                    "solidworks_ready": True,
+                    "step_generation": True,
+                    "schema_only": True,
+                    "final_geometry": True,
+                    "cotes_connues": {"diametre_interieur_m": 0.022},
+                    "cotes_manquantes": {"longueur_m": {"raison": "non fournie"}},
+                    "interfaces_assemblage": [{"piece_b": "arbre_piston", "type_liaison": "palier_lisse", "statut": "partial"}],
+                    "jeux_ajustements": [{"nom": "jeu_radial", "statut": "missing_required"}],
+                    "contraintes_rdm": [{"nom": "pression_projetee"}],
+                    "inconnues_bloquantes": [{"nom": "materiau_coussinet"}],
+                },
+            }
+        }
+    }
+
+    res = adapt_backend_report(report)
+    piece = next(item for item in res["pieces"] if item["name"] == "coussinet_arbre_piston")
+    definition = piece["solidworks_definition"]
+
+    assert definition["statut"] == "partial"
+    assert definition["solidworks_ready"] is False
+    assert definition["backend_solidworks_ready"] is True
+    assert definition["step_generation"] is False
+    assert definition["step_export"] is False
+    assert definition["final_geometry"] is False
+    assert definition["counts"]["cotes_connues"] == 1
+    assert definition["counts"]["cotes_manquantes"] == 1
+    assert definition["counts"]["interfaces"] == 1
+    assert definition["counts"]["jeux_ajustements"] == 1
+    assert definition["counts"]["contraintes_rdm"] == 1
+    assert definition["counts"]["inconnues_bloquantes"] == 1
+    assert res["dashboard"]["summary"]["missing_count"] == 0
+
+
 def test_flatten_unknowns_garde_un_fallback_recursif_sans_racine():
     report = {
         "stho_me": {

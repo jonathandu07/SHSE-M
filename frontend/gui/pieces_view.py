@@ -335,6 +335,129 @@ def _status_from_piece(piece: Mapping[str, Any]) -> str:
     return "partiel"
 
 
+def _definition_rows(value: Any) -> List[Dict[str, Any]]:
+    if isinstance(value, Mapping):
+        rows: List[Dict[str, Any]] = []
+        for key, item in value.items():
+            if isinstance(item, Mapping):
+                row = dict(item)
+                row.setdefault("nom", str(key))
+            else:
+                row = {"nom": str(key), "valeur": item}
+            rows.append(row)
+        return rows
+    if isinstance(value, list):
+        return [dict(item) if isinstance(item, Mapping) else {"nom": str(item)} for item in value]
+    if isinstance(value, tuple):
+        return [dict(item) if isinstance(item, Mapping) else {"nom": str(item)} for item in value]
+    if value is not None:
+        return [{"valeur": value}]
+    return []
+
+
+def _definition_map(value: Any) -> Dict[str, Any]:
+    return {str(k): v for k, v in value.items()} if isinstance(value, Mapping) else {}
+
+
+def _first_definition_rows(payload: Mapping[str, Any], dossier: Mapping[str, Any], *keys: str) -> List[Dict[str, Any]]:
+    for key in keys:
+        rows = _definition_rows(_deep_get(dossier, *key.split(".")) if "." in key else dossier.get(key))
+        if rows:
+            return rows
+    for key in keys:
+        rows = _definition_rows(_deep_get(payload, *key.split(".")) if "." in key else payload.get(key))
+        if rows:
+            return rows
+    return []
+
+
+def _definition_status_for_ui(value: Any) -> str:
+    status = str(value or "").lower()
+    if status in {"ready_for_manual_modeling", "ready_for_assembly_check", "validated_by_calculation"}:
+        return "ok"
+    if status in {"blocked", "missing_required", "impossible", "error"}:
+        return "alerte"
+    if status in {"partial", "not_validated"}:
+        return "partiel"
+    return "missing" if not status else "partiel"
+
+
+def _extract_definition_summary(data: Mapping[str, Any], payload: Mapping[str, Any]) -> Dict[str, Any]:
+    direct = _safe_dict(data.get("solidworks_definition"))
+    if direct:
+        summary = dict(direct)
+        counts = _safe_dict(summary.get("counts"))
+        if not counts:
+            counts = {
+                "features": len(_definition_rows(summary.get("features_a_modeliser"))),
+                "cotes_connues": len(_definition_map(summary.get("cotes_connues"))),
+                "cotes_manquantes": len(_definition_map(summary.get("cotes_manquantes"))),
+                "interfaces": len(_definition_rows(summary.get("interfaces_assemblage") or summary.get("interfaces"))),
+                "tolerances": len(_definition_rows(summary.get("tolerances"))),
+                "jeux_ajustements": len(_definition_rows(summary.get("jeux_ajustements"))),
+                "surfaces_fonctionnelles": len(_definition_rows(summary.get("surfaces_fonctionnelles"))),
+                "contraintes_rdm": len(_definition_rows(summary.get("contraintes_rdm"))),
+                "limites_usage": len(_definition_rows(summary.get("limites_usage"))),
+                "controles_qualite": len(_definition_rows(summary.get("controles_qualite"))),
+                "inconnues_bloquantes": len(_definition_rows(summary.get("inconnues_bloquantes"))),
+            }
+        summary["solidworks_ready"] = False
+        summary["step_generation"] = False
+        summary["step_export"] = False
+        summary["final_geometry"] = False
+        summary["schema_only"] = True
+        summary["counts"] = counts
+        return summary
+
+    dossier = _safe_dict(payload.get("dossier_definition_solidworks")) or _safe_dict(payload.get("dossier_cao_preparation"))
+    fields = {
+        "features_a_modeliser": _first_definition_rows(payload, dossier, "features_a_modeliser"),
+        "cotes_connues": _definition_map(dossier.get("cotes_connues")) or _definition_map(payload.get("cotes_connues")),
+        "cotes_manquantes": _definition_map(dossier.get("cotes_manquantes")) or _definition_map(payload.get("cotes_manquantes")),
+        "interfaces_assemblage": _first_definition_rows(payload, dossier, "interfaces_assemblage", "interfaces", "liaisons"),
+        "tolerances": _first_definition_rows(payload, dossier, "tolerances", "tolerances_et_jeux"),
+        "jeux_ajustements": _first_definition_rows(payload, dossier, "jeux_ajustements", "jeux", "ajustements"),
+        "surfaces_fonctionnelles": _first_definition_rows(payload, dossier, "surfaces_fonctionnelles", "surfaces"),
+        "contraintes_rdm": _first_definition_rows(payload, dossier, "contraintes_rdm", "rdm", "contraintes"),
+        "limites_usage": _first_definition_rows(payload, dossier, "limites_usage", "limites", "performances"),
+        "controles_qualite": _first_definition_rows(payload, dossier, "controles_qualite", "controle_qualite", "qualite"),
+        "notes_modelisation": _first_definition_rows(payload, dossier, "notes_modelisation"),
+        "inconnues_bloquantes": _first_definition_rows(payload, dossier, "inconnues_bloquantes", "inconnues.bloquantes", "inconnues.impossibles"),
+        "materiaux": _first_definition_rows(payload, dossier, "materiaux", "materiau", "material", "materials"),
+    }
+
+    if not dossier and not any(fields.values()):
+        return {}
+
+    counts = {
+        "features": len(_safe_list(fields["features_a_modeliser"])),
+        "cotes_connues": len(_safe_dict(fields["cotes_connues"])),
+        "cotes_manquantes": len(_safe_dict(fields["cotes_manquantes"])),
+        "interfaces": len(_safe_list(fields["interfaces_assemblage"])),
+        "tolerances": len(_safe_list(fields["tolerances"])),
+        "jeux_ajustements": len(_safe_list(fields["jeux_ajustements"])),
+        "surfaces_fonctionnelles": len(_safe_list(fields["surfaces_fonctionnelles"])),
+        "contraintes_rdm": len(_safe_list(fields["contraintes_rdm"])),
+        "limites_usage": len(_safe_list(fields["limites_usage"])),
+        "controles_qualite": len(_safe_list(fields["controles_qualite"])),
+        "inconnues_bloquantes": len(_safe_list(fields["inconnues_bloquantes"])),
+    }
+
+    return {
+        "statut": str(dossier.get("statut") or dossier.get("status") or ("partial" if any(fields.values()) else "blocked")),
+        "statut_validation": str(dossier.get("statut_validation") or "not_validated"),
+        "source": "dossier_definition_solidworks" if dossier else "piece_report_fields",
+        "solidworks_ready": False,
+        "step_generation": False,
+        "step_export": False,
+        "schema_only": True,
+        "final_geometry": False,
+        "interfaces": fields["interfaces_assemblage"],
+        "counts": counts,
+        **fields,
+    }
+
+
 # =============================================================================
 # Collecte backend
 # =============================================================================
@@ -606,6 +729,7 @@ def _normalize_piece(name: str, raw: Mapping[str, Any], *, source: str) -> Dict[
         "data": payload,
         "raw": dict(raw),
         "resources": _safe_dict(data.get("resources")),
+        "solidworks_definition": _extract_definition_summary(data, payload),
     }
 
     piece["status"] = _status_from_piece(piece)
@@ -738,6 +862,7 @@ def _piece_richness(piece: Mapping[str, Any]) -> int:
     score += len(_safe_dict(piece.get("dimensions"))) * 3
     score += len(_safe_dict(piece.get("constraints"))) * 2
     score += len(_safe_list(piece.get("unknowns")))
+    score += sum(int(v or 0) for v in _safe_dict(_safe_dict(piece.get("solidworks_definition")).get("counts")).values())
     score += _count_nodes(piece.get("data"))
     if piece.get("material"):
         score += 5
@@ -956,12 +1081,14 @@ class PieceLibraryScreen(Screen):
         unknowns = _safe_list(piece.get("unknowns"))
         dimensions = _safe_dict(piece.get("dimensions"))
         constraints = _safe_dict(piece.get("constraints"))
+        definition = _safe_dict(piece.get("solidworks_definition"))
+        definition_counts = _safe_dict(definition.get("counts"))
         res_ok, res_partial, res_ko = _resource_counts(_safe_dict(piece.get("resources")))
 
         card = NeoCard(
             orientation="vertical",
             size_hint_y=None,
-            height=dp(356),
+            height=dp(410),
             spacing=dp(6),
             padding=dp(10),
         )
@@ -973,6 +1100,9 @@ class PieceLibraryScreen(Screen):
         card.add_widget(MetricRow("Matériau", piece.get("material") or "—", "", "ok" if piece.get("material") else "missing"))
         card.add_widget(MetricRow("Dimensions", len(dimensions), "", "ok" if dimensions else "missing"))
         card.add_widget(MetricRow("Contraintes", len(constraints), "", "ok" if constraints else "missing"))
+        card.add_widget(MetricRow("Dossier model.", definition.get("statut") or "absent", "", _definition_status_for_ui(definition.get("statut"))))
+        card.add_widget(MetricRow("Cotes manq.", definition_counts.get("cotes_manquantes", 0), "", "alerte" if definition_counts.get("cotes_manquantes") else "ok"))
+        card.add_widget(MetricRow("Interfaces", definition_counts.get("interfaces", 0), "", "partiel" if definition_counts.get("interfaces") else "missing"))
         card.add_widget(MetricRow("Inconnues", len(unknowns), "", "alerte" if unknowns else "ok"))
         card.add_widget(MetricRow("Ressources OK", res_ok, "", "ok" if res_ok else "missing"))
         card.add_widget(MetricRow("Ressources partielles", res_partial, "", "partiel" if res_partial else "ok"))
@@ -1077,6 +1207,60 @@ class PieceDetailScreen(Screen):
 
         content.add_widget(self._section("Dimensions", _safe_dict(piece.get("dimensions"))))
         content.add_widget(self._section("Contraintes / performances", _safe_dict(piece.get("constraints"))))
+        definition = _safe_dict(piece.get("solidworks_definition"))
+        content.add_widget(self._definition_overview_section(definition))
+        if definition:
+            content.add_widget(self._section("Cotes connues", _safe_dict(definition.get("cotes_connues"))))
+            content.add_widget(self._section("Cotes a completer", _safe_dict(definition.get("cotes_manquantes"))))
+            content.add_widget(
+                self._definition_rows_section(
+                    "Interfaces d'assemblage",
+                    _safe_list(definition.get("interfaces_assemblage")) or _safe_list(definition.get("interfaces")),
+                    "Aucune interface d'assemblage fournie.",
+                )
+            )
+            content.add_widget(
+                self._definition_rows_section(
+                    "Tolerances et jeux",
+                    _safe_list(definition.get("tolerances")) + _safe_list(definition.get("jeux_ajustements")),
+                    "Aucune tolerance ou jeu fourni.",
+                )
+            )
+            content.add_widget(
+                self._definition_rows_section(
+                    "Surfaces fonctionnelles",
+                    _safe_list(definition.get("surfaces_fonctionnelles")),
+                    "Aucune surface fonctionnelle fournie.",
+                )
+            )
+            content.add_widget(
+                self._definition_rows_section(
+                    "RDM et limites d'usage",
+                    _safe_list(definition.get("contraintes_rdm")) + _safe_list(definition.get("limites_usage")),
+                    "Aucune contrainte RDM ou limite d'usage fournie.",
+                )
+            )
+            content.add_widget(
+                self._definition_rows_section(
+                    "Controles qualite",
+                    _safe_list(definition.get("controles_qualite")),
+                    "Aucun controle qualite fourni.",
+                )
+            )
+            content.add_widget(
+                self._definition_rows_section(
+                    "Notes de modelisation",
+                    _safe_list(definition.get("notes_modelisation")),
+                    "Aucune note de modelisation fournie.",
+                )
+            )
+            content.add_widget(
+                self._definition_rows_section(
+                    "Inconnues bloquantes definition",
+                    _safe_list(definition.get("inconnues_bloquantes")),
+                    "Aucune inconnue bloquante specifique au dossier.",
+                )
+            )
         content.add_widget(self._resources_section(_safe_dict(piece.get("resources"))))
         content.add_widget(self._unknowns_section(_safe_list(piece.get("unknowns"))))
         content.add_widget(self._connector_section(piece))
@@ -1184,6 +1368,78 @@ class PieceDetailScreen(Screen):
             count += 1
 
         card.height = max(dp(128), dp(46 + min(60, max(1, count)) * 34))
+        return card
+
+    def _definition_overview_section(self, definition: Mapping[str, Any]) -> NeoCard:
+        card = NeoCard(orientation="vertical", size_hint_y=None, spacing=dp(4), padding=dp(10))
+        card.add_widget(SectionTitle(text="DOSSIER DE MODELISATION SOLIDWORKS"))
+
+        if not definition:
+            card.add_widget(EmptyState(text="INDISPONIBLE"))
+            card.height = dp(128)
+            return card
+
+        counts = _safe_dict(definition.get("counts"))
+        rows = [
+            ("Statut", definition.get("statut"), _definition_status_for_ui(definition.get("statut"))),
+            ("Validation calcul", definition.get("statut_validation"), _definition_status_for_ui(definition.get("statut_validation"))),
+            ("SolidWorks pret auto", "non", "missing"),
+            ("Generation STEP", "non", "missing"),
+            ("Geometrie finale", "non", "missing"),
+            ("Schema de principe", "oui" if definition.get("schema_only", True) else "non", "partiel"),
+            ("Cotes connues", counts.get("cotes_connues", len(_safe_dict(definition.get("cotes_connues")))), "partiel"),
+            ("Cotes a completer", counts.get("cotes_manquantes", len(_safe_dict(definition.get("cotes_manquantes")))), "alerte" if counts.get("cotes_manquantes") else "ok"),
+            ("Interfaces", counts.get("interfaces", len(_safe_list(definition.get("interfaces_assemblage")))), "partiel" if counts.get("interfaces") else "missing"),
+            ("Inconnues bloquantes", counts.get("inconnues_bloquantes", len(_safe_list(definition.get("inconnues_bloquantes")))), "alerte" if counts.get("inconnues_bloquantes") else "ok"),
+        ]
+        for label, value, status in rows:
+            card.add_widget(MetricRow(label, value, "", status))
+
+        card.height = max(dp(150), dp(46 + len(rows) * 34))
+        return card
+
+    def _definition_rows_section(self, title: str, rows: Sequence[Mapping[str, Any]], empty_text: str) -> NeoCard:
+        card = NeoCard(orientation="vertical", size_hint_y=None, spacing=dp(4), padding=dp(10))
+        card.add_widget(SectionTitle(text=title.upper()))
+
+        clean_rows = [dict(row) for row in rows if isinstance(row, Mapping)]
+        if not clean_rows:
+            card.add_widget(EmptyState(text=empty_text))
+            card.height = dp(128)
+            return card
+
+        for idx, row in enumerate(clean_rows[:40], start=1):
+            label = str(
+                _first_non_empty(
+                    row.get("nom"),
+                    row.get("name"),
+                    row.get("fonction"),
+                    row.get("type_liaison"),
+                    row.get("surface"),
+                    row.get("piece_b"),
+                    f"ligne_{idx}",
+                )
+            )
+            value = _first_non_empty(
+                row.get("statut"),
+                row.get("status"),
+                row.get("valeur"),
+                row.get("value"),
+                row.get("jeu_ou_serrage"),
+                row.get("tolerance"),
+                row.get("risque"),
+                row.get("texte"),
+                row.get("note"),
+                row.get("limite"),
+                row.get("contrainte"),
+            )
+            status = _definition_status_for_ui(_first_non_empty(row.get("statut"), row.get("status")))
+            card.add_widget(MetricRow(label, _fmt_value(value), "", status))
+
+        if len(clean_rows) > 40:
+            card.add_widget(MetricRow("Suite", f"{len(clean_rows) - 40} ligne(s) non affichee(s)", "", "partiel"))
+
+        card.height = max(dp(128), dp(46 + min(41, len(clean_rows)) * 34))
         return card
 
     def _resources_section(self, resources: Mapping[str, Any]) -> NeoCard:

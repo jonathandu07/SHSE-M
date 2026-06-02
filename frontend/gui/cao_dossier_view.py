@@ -39,6 +39,7 @@ class CaoDossierScreen(Screen):
         sketches = [dict(s) for s in _safe_list(dossier.get("croquis_2d")) if isinstance(s, Mapping)]
         views = [dict(v) for v in _safe_list(dossier.get("vues_3d")) if isinstance(v, Mapping)]
         graph_rows = [dict(g) for g in _safe_list(graphs.get("graphiques")) if isinstance(g, Mapping)]
+        piece_definitions = [dict(p) for p in _safe_list(self.payload.get("piece_definition_dossiers")) if isinstance(p, Mapping)]
 
         root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(10))
         root.add_widget(self._top_bar(resume))
@@ -48,7 +49,7 @@ class CaoDossierScreen(Screen):
         content = BoxLayout(orientation="vertical", spacing=dp(10), size_hint_y=None)
         content.bind(minimum_height=content.setter("height"))
 
-        if not dossier:
+        if not dossier and not piece_definitions:
             panel = PremiumCard(title="Dossier de modelisation")
             panel.add_widget(_label("Aucun dossier de preparation SolidWorks backend disponible.", COLORS["MUTED"]))
             content.add_widget(panel)
@@ -57,6 +58,7 @@ class CaoDossierScreen(Screen):
             content.add_widget(self._views_panel(views))
             content.add_widget(self._graphs_panel(graph_rows))
             content.add_widget(self._solidworks_values_panel(_safe_dict(_safe_dict(dossier.get("donnees_solidworks")).get("valeurs_a_reporter"))))
+            content.add_widget(self._piece_definitions_panel(piece_definitions))
             content.add_widget(self._actions_panel(_safe_list(dossier.get("actions"))))
 
         scroll.add_widget(content)
@@ -131,6 +133,26 @@ class CaoDossierScreen(Screen):
             return panel
         for key, value in list(values.items())[:7]:
             panel.add_widget(MetricRow(str(key), value, "", "partiel"))
+        return panel
+
+    def _piece_definitions_panel(self, pieces: list[dict[str, Any]]) -> PremiumCard:
+        panel = PremiumCard(title=f"Dossiers pieces pour modelisation manuelle ({len(pieces)})", size_hint_y=None, height=dp(280))
+        if not pieces:
+            panel.add_widget(_label("Aucun dossier piece detaille fourni par le backend.", COLORS["MUTED"]))
+            return panel
+
+        for piece in pieces[:8]:
+            counts = _safe_dict(piece.get("counts"))
+            value = (
+                f"cotes {counts.get('cotes_connues', 0)}/"
+                f"{counts.get('cotes_manquantes', 0)} manq., "
+                f"interfaces {counts.get('interfaces', 0)}"
+            )
+            panel.add_widget(MetricRow(piece.get("piece"), value, "", _status(piece.get("statut"))))
+
+        if len(pieces) > 8:
+            panel.add_widget(MetricRow("Suite", f"{len(pieces) - 8} dossier(s) non affiche(s)", "", "partiel"))
+
         return panel
 
     def _actions_panel(self, actions: list[Any]) -> PremiumCard:
